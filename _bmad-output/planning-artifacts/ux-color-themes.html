@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DIP3 · UX Color Themes</title>
+  <style>
+    :root {
+      --bg: #eef5ff;
+      --ink: #16253e;
+      --muted: #68809b;
+      --line: rgba(19, 56, 118, 0.12);
+      --glass: rgba(255,255,255,0.74);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Sora", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(84, 152, 255, 0.36), transparent 28%),
+        linear-gradient(180deg, #f7fbff 0%, #edf4ff 46%, #f8fbff 100%);
+    }
+    .page {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 48px 28px 72px;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 24px;
+      margin-bottom: 28px;
+      padding: 32px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(235,245,255,0.76));
+      box-shadow: 0 20px 60px rgba(51, 95, 176, 0.12);
+      backdrop-filter: blur(18px);
+    }
+    .eyebrow {
+      display: inline-flex;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(36, 99, 255, 0.1);
+      color: #2463ff;
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 18px 0 10px;
+      font-size: 42px;
+      line-height: 1.08;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .legend {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .legend-card {
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.72);
+    }
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .theme {
+      border-radius: 26px;
+      overflow: hidden;
+      border: 1px solid rgba(16, 45, 99, 0.08);
+      background: rgba(255,255,255,0.78);
+      box-shadow: 0 18px 48px rgba(46, 86, 148, 0.12);
+    }
+    .theme-head {
+      padding: 24px;
+      color: #fff;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: end;
+      gap: 10px;
+    }
+    .theme-body {
+      padding: 20px;
+      display: grid;
+      gap: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(244,248,255,0.92));
+    }
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+    .swatch {
+      height: 62px;
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.35);
+    }
+    .swatch span {
+      position: absolute;
+      left: 10px;
+      bottom: 8px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.94);
+      font-family: "JetBrains Mono", monospace;
+    }
+    .sample-ui {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 20px;
+      background: rgba(245, 249, 255, 0.9);
+      border: 1px solid rgba(27, 78, 163, 0.08);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1.5fr .9fr;
+      gap: 12px;
+    }
+    .panel {
+      min-height: 92px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(18, 55, 118, 0.08);
+      padding: 14px;
+    }
+    .mini-bars {
+      display: flex;
+      align-items: end;
+      gap: 8px;
+      height: 54px;
+      margin-top: 10px;
+    }
+    .mini-bars i {
+      display: block;
+      flex: 1;
+      border-radius: 10px 10px 6px 6px;
+    }
+    .recommended {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.24);
+      width: fit-content;
+    }
+    @media (max-width: 1100px) {
+      .hero, .theme-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">DIP3 · 智慧数据</span>
+        <h1>颜色主题探索</h1>
+        <p>基于你提供的参考图，我把它的蓝白清透科技感拆解成 3 组可执行主题。推荐方案会更适合 AI 原生数据分析，而不是停留在物业运营工具的轻应用气质。</p>
+      </div>
+      <div class="legend">
+        <div class="legend-card">
+          <strong>推荐方向</strong>
+          <p>Skyline Intelligence。高亮度蓝白、细腻玻璃感、适合 PC 分析工作台与移动端摘要卡统一延展。</p>
+        </div>
+        <div class="legend-card">
+          <strong>主题选择标准</strong>
+          <p>不是看哪个最花，而是看哪个最能同时承担品牌识别、分析可信度和高级企业感。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="theme-grid">
+      <article class="theme">
+        <div class="theme-head" style="background: linear-gradient(135deg, #123B88 0%, #2463FF 48%, #8EC5FF 100%);">
+          <div class="recommended">Recommended</div>
+          <h2>Skyline Intelligence</h2>
+          <p style="color: rgba(255,255,255,0.88);">清透、精确、可信，适合高级分析工作台。</p>
+        </div>
+        <div class="theme-body">
+          <div class="swatches">
+            <div class="swatch" style="background:#123B88"><span>#123B88</span></div>
+            <div class="swatch" style="background:#2463FF"><span>#2463FF</span></div>
+            <div class="swatch" style="background:#5A97FF"><span>#5A97FF</span></div>
+            <div class="swatch" style="background:#B8D7FF"><span>#B8D7FF</span></div>
+            <div class="swatch" style="background:#EAF4FF"><span>#EAF4FF</span></div>
+          </div>
+          <div class="sample-ui">
+            <div class="row">
+              <div class="panel">
+                <strong>归因结论</strong>
+                <div class="mini-bars">
+                  <i style="height: 68%; background:#2463FF"></i>
+                  <i style="height: 52%; background:#5A97FF"></i>
+                  <i style="height: 40%; background:#80B6FF"></i>
+                  <i style="height: 32%; background:#31B982"></i>
+                </div>
+              </div>
+              <div class="panel">
+                <strong>状态</strong>
+                <p style="margin-top: 8px;">计划已生成，执行中...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="theme">
+        <div class="theme-head" style="background: linear-gradient(135deg, #315175 0%, #7AA4C8 42%, #E8F0F8 100%);">
+          <h2>Pearl Command</h2>
+          <p style="color: rgba(255,255,255,0.88);">更商务、更克制，适合管理驾驶舱，但品牌张力略弱。</p>
+        </div>
+        <div class="theme-body">
+          <div class="swatches">
+            <div class="swatch" style="background:#315175"><span>#315175</span></div>
+            <div class="swatch" style="background:#5B7FA5"><span>#5B7FA5</span></div>
+            <div class="swatch" style="background:#9FC4E1"><span>#9FC4E1</span></div>
+            <div class="swatch" style="background:#DDEAF4"><span>#DDEAF4</span></div>
+            <div class="swatch" style="background:#F8FBFF"><span>#F8FBFF</span></div>
+          </div>
+          <div class="sample-ui">
+            <div class="row">
+              <div class="panel"><strong>经营洞察</strong><p style="margin-top:8px;">更稳重，但略偏传统。</p></div>
+              <div class="panel"><strong>可信度</strong><p style="margin-top:8px;">强</p></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="theme">
+        <div class="theme-head" style="background: linear-gradient(135deg, #1350A8 0%, #2F90FF 42%, #62D8F4 100%);">
+          <h2>Signal Mint</h2>
+          <p style="color: rgba(255,255,255,0.88);">更偏运营和实时性，适合轻量监测，但不够高端分析。</p>
+        </div>
+        <div class="theme-body">
+          <div class="swatches">
+            <div class="swatch" style="background:#1350A8"><span>#1350A8</span></div>
+            <div class="swatch" style="background:#2F90FF"><span>#2F90FF</span></div>
+            <div class="swatch" style="background:#62D8F4"><span>#62D8F4</span></div>
+            <div class="swatch" style="background:#91F0D2"><span>#91F0D2</span></div>
+            <div class="swatch" style="background:#EAFBFF"><span>#EAFBFF</span></div>
+          </div>
+          <div class="sample-ui">
+            <div class="row">
+              <div class="panel"><strong>实时信号</strong><p style="margin-top:8px;">更轻盈，适合监测提醒。</p></div>
+              <div class="panel"><strong>追问</strong><p style="margin-top:8px;">偏活跃</p></div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </div>
+</body>
+</html>

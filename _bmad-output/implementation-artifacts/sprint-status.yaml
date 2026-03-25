@@ -1,0 +1,97 @@
+# generated: 2026-03-25
+# last_updated: 2026-03-25
+# project: ontology-agent
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts
+#
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-25
+last_updated: 2026-03-25
+project: ontology-agent
+project_key: NOKEY
+tracking_system: file-system
+story_location: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-manual-nextjs-foundation: review
+  1-2-erp-auth-protected-session: review
+  1-3-scoped-analysis-workspace-home: review
+  1-4-create-analysis-session: review
+  1-5-analysis-session-history-and-replay: review
+  1-6-unsupported-domain-boundary-prompt: review
+  epic-1-retrospective: optional
+
+  epic-2: in-progress
+  2-1-docker-compose-baseline: ready-for-dev
+  2-2-postgres-drizzle-platform-schema: backlog
+  2-3-session-persistence-to-postgres: backlog
+  2-4-analysis-session-persistence-to-postgres: backlog
+  2-5-redis-baseline: backlog
+  2-6-worker-skeleton-and-job-contract: backlog
+  2-7-auth-and-next-path-hardening: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-structured-analysis-intent: backlog
+  3-2-context-extraction-display: backlog
+  3-3-user-corrects-extracted-context: backlog
+  3-4-expand-candidate-factors: backlog
+  3-5-generate-and-display-analysis-plan: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-submit-analysis-plan-for-execution: backlog
+  4-2-stream-execution-progress-and-stage-results: backlog
+  4-3-ranked-causal-conclusions-with-evidence: backlog
+  4-4-persist-step-results-and-final-conclusion: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-follow-up-on-existing-conclusion: backlog
+  5-2-add-factors-or-narrow-scope: backlog
+  5-3-replan-after-user-correction: backlog
+  5-4-preserve-multi-round-history: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-server-side-authorization-enforcement: backlog
+  6-2-audit-analysis-and-tool-events: backlog
+  6-3-self-hosted-container-deployment-baseline: backlog
+  6-4-observability-and-availability-monitoring: backlog
+  epic-6-retrospective: optional
+
+  epic-7: backlog
+  7-1-mobile-latest-analysis-summary: backlog
+  7-2-mobile-key-evidence-view: backlog
+  7-3-mobile-lightweight-follow-up: backlog
+  epic-7-retrospective: optional

@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DIP3 · UX Design Directions</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Sora", "Noto Sans SC", sans-serif;
+      color: #15233b;
+      background:
+        radial-gradient(circle at top right, rgba(90,151,255,.18), transparent 25%),
+        linear-gradient(180deg, #f7fbff 0%, #eef5ff 45%, #f9fbff 100%);
+    }
+    .page {
+      max-width: 1540px;
+      margin: 0 auto;
+      padding: 42px 24px 64px;
+    }
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+    h1 { margin: 0 0 12px; font-size: 40px; }
+    p { margin: 0; color: #667a95; line-height: 1.7; }
+    .tag {
+      display: inline-flex;
+      padding: 8px 14px;
+      margin-bottom: 14px;
+      border-radius: 999px;
+      color: #245fff;
+      background: rgba(36,95,255,.1);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+    }
+    .direction {
+      border-radius: 30px;
+      border: 1px solid rgba(14, 48, 108, 0.08);
+      overflow: hidden;
+      background: rgba(255,255,255,0.76);
+      box-shadow: 0 20px 60px rgba(35, 83, 153, 0.1);
+    }
+    .direction header {
+      padding: 22px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+    }
+    .direction .body {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(244,248,255,.95));
+    }
+    .canvas {
+      min-height: 380px;
+      border-radius: 24px;
+      border: 1px solid rgba(16,51,104,.08);
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: 88px 1.35fr .78fr;
+      gap: 14px;
+      min-height: 330px;
+    }
+    .rail, .main, .side, .panel {
+      border-radius: 20px;
+      background: rgba(255,255,255,0.78);
+      border: 1px solid rgba(15, 54, 115, 0.08);
+      backdrop-filter: blur(14px);
+    }
+    .rail { padding: 12px; }
+    .main { padding: 16px; display: grid; gap: 12px; }
+    .side { padding: 16px; display: grid; gap: 12px; }
+    .row { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+    .panel { min-height: 88px; padding: 14px; }
+    .bubble { height: 46px; border-radius: 16px; background: rgba(36,99,255,.1); }
+    .progress { height: 10px; border-radius: 999px; background: linear-gradient(90deg, #2463ff, #82bbff); width: 72%; }
+    .mini-bars { display: flex; gap: 8px; align-items: end; height: 76px; }
+    .mini-bars i { display: block; flex: 1; border-radius: 10px 10px 4px 4px; }
+    .note {
+      padding: 16px 18px 20px;
+      display: grid;
+      gap: 6px;
+      color: #4f627d;
+    }
+    .badge {
+      display: inline-flex;
+      width: fit-content;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.22);
+    }
+    @media (max-width: 1160px) {
+      .grid { grid-template-columns: 1fr; }
+      .workspace { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="hero">
+      <div>
+        <span class="tag">DIP3 · Design Directions</span>
+        <h1>设计方向探索</h1>
+        <p>下面 4 个方向都基于同一个产品结构，但信息密度、品牌气质和分析感不同。推荐方向是 <strong>Skyline Intelligence</strong>，并吸收 <strong>Precision Panels</strong> 的结构秩序。</p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="direction">
+        <header style="background: linear-gradient(135deg, #153d8d, #2b71ff, #9fd0ff);">
+          <div>
+            <strong>01 · Skyline Intelligence</strong>
+            <p style="color:rgba(255,255,255,.86)">推荐</p>
+          </div>
+          <span class="badge">Recommended</span>
+        </header>
+        <div class="body">
+          <div class="canvas" style="background: linear-gradient(180deg, rgba(237,245,255,.92), rgba(249,252,255,.88));">
+            <div class="workspace">
+              <div class="rail">
+                <div class="bubble"></div>
+                <div class="bubble" style="margin-top:12px; opacity:.65"></div>
+                <div class="bubble" style="margin-top:12px; opacity:.45"></div>
+              </div>
+              <div class="main">
+                <div class="panel" style="background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(224,238,255,.74)); min-height: 118px;">
+                  <strong>提出问题 → 自动拆解 → 归因判断</strong>
+                  <div class="progress" style="margin-top:16px;"></div>
+                </div>
+                <div class="row">
+                  <div class="panel"><strong>意图 / 上下文</strong><div class="bubble" style="margin-top:12px;"></div></div>
+                  <div class="panel"><strong>计划时间线</strong><div class="progress" style="margin-top:16px;width:58%"></div></div>
+                </div>
+                <div class="panel">
+                  <strong>结果主区</strong>
+                  <div class="mini-bars" style="margin-top:14px;">
+                    <i style="height:72%; background:#2463ff"></i>
+                    <i style="height:56%; background:#5a97ff"></i>
+                    <i style="height:41%; background:#95c4ff"></i>
+                    <i style="height:34%; background:#31b982"></i>
+                  </div>
+                </div>
+              </div>
+              <div class="side">
+                <div class="panel"><strong>关键证据</strong></div>
+                <div class="panel"><strong>原因排序</strong></div>
+                <div class="panel"><strong>下一轮追问</strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="note">
+            <strong>气质：</strong>清透、理性、高级、可信。<br>
+            <strong>适合：</strong>AI 分析工作台、归因结果阅读、品牌主视觉。
+          </div>
+        </div>
+      </section>
+
+      <section class="direction">
+        <header style="background: linear-gradient(135deg, #21354f, #4c6a8a, #c1d4e9);">
+          <div>
+            <strong>02 · Editorial Analytics</strong>
+            <p style="color:rgba(255,255,255,.86)">杂志式分析</p>
+          </div>
+          <span class="badge">Readable</span>
+        </header>
+        <div class="body">
+          <div class="canvas" style="background: linear-gradient(180deg, rgba(246,250,255,.98), rgba(250,252,255,.95));">
+            <div class="panel" style="min-height: 82px;"><strong>洞察标题 + 叙事摘要</strong></div>
+            <div class="row">
+              <div class="panel" style="min-height: 230px;"><strong>长文阅读区</strong></div>
+              <div class="panel" style="min-height: 230px;"><strong>证据边栏</strong></div>
+            </div>
+          </div>
+          <div class="note">
+            <strong>气质：</strong>克制、专业、重阅读。<br>
+            <strong>风险：</strong>品牌张力和“智能感”不如推荐方案。
+          </div>
+        </div>
+      </section>
+
+      <section class="direction">
+        <header style="background: linear-gradient(135deg, #0f3b73, #2270d5, #79bbff);">
+          <div>
+            <strong>03 · Precision Panels</strong>
+            <p style="color:rgba(255,255,255,.86)">结构秩序强</p>
+          </div>
+          <span class="badge">Structured</span>
+        </header>
+        <div class="body">
+          <div class="canvas" style="background: linear-gradient(180deg, rgba(243,248,255,.96), rgba(250,252,255,.94));">
+            <div class="workspace" style="grid-template-columns: 1fr 1fr 1fr;">
+              <div class="panel"><strong>输入与计划</strong></div>
+              <div class="panel"><strong>执行状态</strong></div>
+              <div class="panel"><strong>证据与结论</strong></div>
+            </div>
+          </div>
+          <div class="note">
+            <strong>气质：</strong>更像控制台，秩序明确。<br>
+            <strong>价值：</strong>适合吸收其结构强度，作为推荐方向的补充。
+          </div>
+        </div>
+      </section>
+
+      <section class="direction">
+        <header style="background: linear-gradient(135deg, #3a7bff, #7fbcff, #e6f3ff);">
+          <div>
+            <strong>04 · Soft Operations Board</strong>
+            <p style="color:rgba(255,255,255,.86)">接近参考图</p>
+          </div>
+          <span class="badge">Friendly</span>
+        </header>
+        <div class="body">
+          <div class="canvas" style="background: linear-gradient(180deg, rgba(241,248,255,.96), rgba(251,253,255,.95));">
+            <div class="panel" style="min-height: 112px;"><strong>应用入口宫格 + 轻卡片</strong></div>
+            <div class="row">
+              <div class="panel"><strong>公告</strong></div>
+              <div class="panel"><strong>待办</strong></div>
+            </div>
+            <div class="panel"><strong>底部导航语义更强</strong></div>
+          </div>
+          <div class="note">
+            <strong>气质：</strong>友好、熟悉、轻运营。<br>
+            <strong>风险：</strong>更像物业运营工具，不足以支撑高端 AI 分析品牌。
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
