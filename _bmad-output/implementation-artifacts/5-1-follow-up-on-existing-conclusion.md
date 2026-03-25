@@ -1,0 +1,86 @@
+# Story 5.1: 基于既有结论发起追问
+
+Status: ready-for-dev
+
+<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+
+## Story
+
+As a 物业分析用户,
+I want 在已有归因结论上继续追问更细的问题,
+so that 我可以逐层下钻到更具体的原因。
+
+## Acceptance Criteria
+
+1. 当当前会话已经存在一轮归因结论时，用户输入新的追问或下钻问题后，系统必须将其附着到原会话上下文中。
+2. 追问不能创建脱离上下文的独立分析记录。
+3. 当追问引用上一轮中的项目、区域、原因或指标时，系统必须默认复用这些已存在上下文，并允许用户增量补充范围条件。
+
+## Tasks / Subtasks
+
+- [ ] 建立 follow-up / iteration 模型（AC: 1, 2, 3）
+  - [ ] 为会话内轮次或追问记录建立显式结构。
+  - [ ] 保证追问与原 session、上一轮结论、上下文之间的关联稳定。
+- [ ] 接入追问提交入口（AC: 1, 2, 3）
+  - [ ] 新增 follow-up route 或 application service。
+  - [ ] 默认复用上一轮上下文并允许增量输入。
+- [ ] 覆盖追问附着与复用测试（AC: 1, 2, 3）
+  - [ ] 验证追问不生成新 session。
+  - [ ] 验证上一轮上下文被默认复用。
+
+## Dev Notes
+
+- 这是“在同一会话内继续一轮”，不是新建独立分析。
+- iteration / follow-up 模型会影响 5.2 到 5.4 的历史、重规划和演化展示。
+- 追问入口仍应通过服务端身份与权限边界处理。
+
+### Architecture Compliance
+
+- follow-up 写入必须走服务端 Route Handler 或 Server Action。
+- 不得允许客户端指定非本人 session 作为追问挂载目标。
+- 追问依赖现有结果持久化和会话 owner 边界。
+
+### File Structure Requirements
+
+- 重点文件预计包括：
+  - `src/domain/analysis-session/` 扩展 iteration / follow-up 模型
+  - `src/application/follow-up/`
+  - 新增 follow-up route
+  - analysis detail page 追问入口
+
+### Testing Requirements
+
+- 至少覆盖：
+  - 追问附着到原会话
+  - 不创建新 session ID
+  - 默认复用上一轮上下文
+  - owner 越权失败
+
+### Previous Story Intelligence
+
+- Story 4.4 必须先保留既有计划、结果和结论，否则无法可靠承接追问。
+- 本故事会为 7.3 的移动端轻量追问提供基础会话内多轮模型。
+
+### References
+
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.1: 基于既有结论发起追问]
+- [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
+- [Source: _bmad-output/planning-artifacts/architecture.md#应用通信与执行模型]
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Debug Log References
+
+- _Pending during implementation._
+
+### Completion Notes List
+
+- Ultimate context engine analysis completed - comprehensive developer guide created
+
+### File List
+
+- _bmad-output/implementation-artifacts/5-1-follow-up-on-existing-conclusion.md
