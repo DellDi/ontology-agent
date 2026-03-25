@@ -1,6 +1,6 @@
 # Story 2.1: 建立 Docker Compose 本地基础设施基线
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -17,31 +17,31 @@ so that 后续平台持久化和后台执行能力可以在统一且可重复的
 
 ## Tasks / Subtasks
 
-- [ ] 建立 Compose 与环境变量基线（AC: 1, 2）
-  - [ ] 在仓库根目录新增官方推荐的 `compose.yaml`，采用 Compose Specification，不再添加遗留的顶层 `version` 字段。
-  - [ ] 在 Compose 中定义 `web`、`postgres`、`redis` 三个服务，并为 Postgres / Redis 建立命名卷。
-  - [ ] 新增可提交的环境变量样例文件，例如 `.env.example`，并同步调整 `.gitignore` 允许提交该样例文件。
-  - [ ] 明确约定至少这些变量：`APP_PORT`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_PORT`、`REDIS_PORT`、`DATABASE_URL`、`REDIS_URL`、`SESSION_SECRET`、`ENABLE_DEV_ERP_AUTH`。
-- [ ] 为 `web` 服务建立开发期容器运行方式（AC: 1, 2）
-  - [ ] 采用单独的开发容器定义，例如 `Dockerfile.dev` 或 `docker/web/Dockerfile.dev`，基于 `Node.js 24` 的 Debian 系镜像而不是 Alpine 变体。
-  - [ ] 在容器内显式启用 `corepack` / `pnpm`，并以 `pnpm dev --hostname 0.0.0.0 --port ${APP_PORT}` 运行当前 Next.js App Router 项目。
-  - [ ] 采用源码 bind mount + 独立 `node_modules` / `pnpm store` volume 的方式，避免宿主和容器相互污染依赖目录。
-  - [ ] `web` 容器不应在 Story 2.1 中强依赖尚未落地的 Drizzle schema、真实数据库查询或 Redis 读写逻辑；当前目标只是环境基线可启动。
-- [ ] 为 Postgres 与 Redis 建立健康检查和安全边界（AC: 1, 2）
-  - [ ] 采用官方镜像并固定明确版本标签，不使用 `latest`。
-  - [ ] Postgres 服务使用 `pg_isready` 健康检查，Redis 服务使用 `redis-cli ping` 健康检查。
-  - [ ] `web` 对依赖服务使用基于 `depends_on.condition: service_healthy` 的启动顺序，而不是假设数据库一启动就可用。
-  - [ ] 端口发布默认绑定到 `127.0.0.1`，避免本地开发态把 Postgres / Redis 无意暴露到局域网。
-  - [ ] 记录 Redis 仅为本地开发暴露端口，当前阶段不引入密码、ACL 或公网暴露场景。
-- [ ] 补充本地开发说明与后续扩展位（AC: 2）
-  - [ ] 在 `docs/` 下新增本地基础设施说明文档，明确 `up`、`down`、`logs`、`ps`、`config`、清理 volume 等常用命令。
-  - [ ] 在文档中写明当前 `ENABLE_DEV_ERP_AUTH=1` 仅用于本地联调，不能被复制为生产或试点环境默认值。
-  - [ ] 在 Compose 或说明文档中明确保留后续 `worker` 服务名与扩展位置，但本故事不提前接入 `worker`、`neo4j`、`cube`。
-- [ ] 完成验证并建立最小回归（AC: 1, 2）
-  - [ ] 新增 `tests/story-2-1-compose-baseline.test.mjs`，验证 Compose 相关工件存在且包含 `web`、`postgres`、`redis`、healthcheck、命名卷和基础环境变量约定。
-  - [ ] 运行 `docker compose config` 作为配置合法性验证。
-  - [ ] 如果当前环境可访问 Docker daemon，运行 `docker compose up -d`，并通过 `docker compose ps` / 健康状态确认三个服务可用。
-  - [ ] 运行 `pnpm lint` 与 `pnpm build`，确认新增 Compose 与文档工件未破坏现有应用工程。
+- [x] 建立 Compose 与环境变量基线（AC: 1, 2）
+  - [x] 在仓库根目录新增官方推荐的 `compose.yaml`，采用 Compose Specification，不再添加遗留的顶层 `version` 字段。
+  - [x] 在 Compose 中定义 `web`、`postgres`、`redis` 三个服务，并为 Postgres / Redis 建立命名卷。
+  - [x] 新增可提交的环境变量样例文件，例如 `.env.example`，并同步调整 `.gitignore` 允许提交该样例文件。
+  - [x] 明确约定至少这些变量：`APP_PORT`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_PORT`、`REDIS_PORT`、`DATABASE_URL`、`REDIS_URL`、`SESSION_SECRET`、`ENABLE_DEV_ERP_AUTH`。
+- [x] 为 `web` 服务建立开发期容器运行方式（AC: 1, 2）
+  - [x] 采用单独的开发容器定义，例如 `Dockerfile.dev` 或 `docker/web/Dockerfile.dev`，基于 `Node.js 24` 的 Debian 系镜像而不是 Alpine 变体。
+  - [x] 在容器内显式启用 `corepack` / `pnpm`，并以 `pnpm dev --hostname 0.0.0.0 --port ${APP_PORT}` 运行当前 Next.js App Router 项目。
+  - [x] 采用源码 bind mount + 独立 `node_modules` / `pnpm store` volume 的方式，避免宿主和容器相互污染依赖目录。
+  - [x] `web` 容器不应在 Story 2.1 中强依赖尚未落地的 Drizzle schema、真实数据库查询或 Redis 读写逻辑；当前目标只是环境基线可启动。
+- [x] 为 Postgres 与 Redis 建立健康检查和安全边界（AC: 1, 2）
+  - [x] 采用官方镜像并固定明确版本标签，不使用 `latest`。
+  - [x] Postgres 服务使用 `pg_isready` 健康检查，Redis 服务使用 `redis-cli ping` 健康检查。
+  - [x] `web` 对依赖服务使用基于 `depends_on.condition: service_healthy` 的启动顺序，而不是假设数据库一启动就可用。
+  - [x] 端口发布默认绑定到 `127.0.0.1`，避免本地开发态把 Postgres / Redis 无意暴露到局域网。
+  - [x] 记录 Redis 仅为本地开发暴露端口，当前阶段不引入密码、ACL 或公网暴露场景。
+- [x] 补充本地开发说明与后续扩展位（AC: 2）
+  - [x] 在 `docs/` 下新增本地基础设施说明文档，明确 `up`、`down`、`logs`、`ps`、`config`、清理 volume 等常用命令。
+  - [x] 在文档中写明当前 `ENABLE_DEV_ERP_AUTH=1` 仅用于本地联调，不能被复制为生产或试点环境默认值。
+  - [x] 在 Compose 或说明文档中明确保留后续 `worker` 服务名与扩展位置，但本故事不提前接入 `worker`、`neo4j`、`cube`。
+- [x] 完成验证并建立最小回归（AC: 1, 2）
+  - [x] 新增 `tests/story-2-1-compose-baseline.test.mjs`，验证 Compose 相关工件存在且包含 `web`、`postgres`、`redis`、healthcheck、命名卷和基础环境变量约定。
+  - [x] 运行 `docker compose config` 作为配置合法性验证。
+  - [x] 如果当前环境可访问 Docker daemon，运行 `docker compose up -d`，并通过 `docker compose ps` / 健康状态确认三个服务可用。
+  - [x] 运行 `pnpm lint` 与 `pnpm build`，确认新增 Compose 与文档工件未破坏现有应用工程。
 
 ## Dev Notes
 
@@ -153,14 +153,45 @@ so that 后续平台持久化和后台执行能力可以在统一且可重复的
 
 GPT-5 Codex
 
+### Implementation Plan
+
+- 先新增 Story 2.1 的工件契约测试，覆盖 Compose 文件、环境变量样例、开发容器定义、本地文档和禁止范围膨胀约束。
+- 在根目录建立 `compose.yaml`、`.env.example` 与 `Dockerfile.dev`，只定义 `web`、`postgres`、`redis` 三个服务，保留后续 `worker` 扩展位但不提前接入。
+- 补充本地基础设施文档，明确 `.env` 准备方式、常用 Compose 命令和 `ENABLE_DEV_ERP_AUTH=1` 的本地限定语义。
+- 完成 Compose 配置校验、故事级测试、全量回归、`pnpm lint` 与 `pnpm build`，并如实记录 Docker daemon 不可用带来的验证边界。
+
 ### Debug Log References
 
-- 待开发时填写
+- `node --test tests/story-2-1-compose-baseline.test.mjs`（先失败，后通过）
+- `docker compose version`
+- `set -a; source .env.example; set +a; docker compose config`
+- `docker info`（失败：当前环境未运行 Docker daemon）
+- `pnpm install`
+- `pnpm lint`
+- `pnpm build`
+- `node --test --test-concurrency=1 tests/*.test.mjs`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增根级 `compose.yaml`，用 Compose Specification 建立 `web`、`postgres`、`redis` 三服务本地基线，并为 Postgres / Redis / `node_modules` / pnpm store 配置命名卷。
+- `web` 开发容器改为基于 Node.js `24.14.0-bookworm`，显式启用 `corepack`，并以 `pnpm dev --hostname 0.0.0.0 --port $APP_PORT` 启动现有 Next.js 工程。
+- 新增 `.env.example` 并放开 `.gitignore` 中对该样例文件的提交限制，明确 `APP_PORT`、`DATABASE_URL`、`REDIS_URL`、`SESSION_SECRET`、`ENABLE_DEV_ERP_AUTH` 等约定。
+- 新增 `docs/local-infrastructure.md`，记录 `.env` 准备方式、`docker compose up/down/logs/ps/config/down -v` 命令、连接方式、安全边界与 `worker` 预留位。
+- 新增 `tests/story-2-1-compose-baseline.test.mjs`，验证 Compose 工件、健康检查、环境变量契约、命名卷，以及未提前接入 `worker` / `neo4j` / `cube`。
+- 已通过 `docker compose config` 配置校验；由于当前环境的 Docker daemon 未运行，无法执行 `docker compose up -d` 与 `docker compose ps` 的实际容器启动验证，已如实记录。
+- 已通过 `pnpm lint`、`pnpm build` 与 `node --test --test-concurrency=1 tests/*.test.mjs` 全量回归。
 
 ### File List
 
-- 待开发时填写
+- .env.example
+- .gitignore
+- Dockerfile.dev
+- _bmad-output/implementation-artifacts/2-1-docker-compose-baseline.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- compose.yaml
+- docs/local-infrastructure.md
+- tests/story-2-1-compose-baseline.test.mjs
+
+## Change Log
+
+- 2026-03-25：完成 Story 2.1，本地 Docker Compose 基线已落地，覆盖环境变量样例、开发容器定义、基础设施说明文档和最小回归测试。

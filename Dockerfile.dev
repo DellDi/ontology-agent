@@ -1,0 +1,11 @@
+FROM node:24.14.0-bookworm
+
+WORKDIR /workspace
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV APP_PORT=3000
+
+RUN corepack enable
+
+CMD ["bash", "-lc", "if [ ! -f node_modules/.modules.yaml ]; then pnpm install --frozen-lockfile; fi && pnpm dev --hostname 0.0.0.0 --port $APP_PORT"]

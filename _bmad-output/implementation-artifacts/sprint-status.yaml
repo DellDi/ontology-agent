@@ -52,46 +52,46 @@ development_status:
   epic-1-retrospective: optional
 
   epic-2: in-progress
-  2-1-docker-compose-baseline: ready-for-dev
-  2-2-postgres-drizzle-platform-schema: backlog
-  2-3-session-persistence-to-postgres: backlog
-  2-4-analysis-session-persistence-to-postgres: backlog
-  2-5-redis-baseline: backlog
-  2-6-worker-skeleton-and-job-contract: backlog
-  2-7-auth-and-next-path-hardening: backlog
+  2-1-docker-compose-baseline: review
+  2-2-postgres-drizzle-platform-schema: review
+  2-3-session-persistence-to-postgres: ready-for-dev
+  2-4-analysis-session-persistence-to-postgres: ready-for-dev
+  2-5-redis-baseline: ready-for-dev
+  2-6-worker-skeleton-and-job-contract: ready-for-dev
+  2-7-auth-and-next-path-hardening: ready-for-dev
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-structured-analysis-intent: backlog
-  3-2-context-extraction-display: backlog
-  3-3-user-corrects-extracted-context: backlog
-  3-4-expand-candidate-factors: backlog
-  3-5-generate-and-display-analysis-plan: backlog
+  epic-3: in-progress
+  3-1-structured-analysis-intent: ready-for-dev
+  3-2-context-extraction-display: ready-for-dev
+  3-3-user-corrects-extracted-context: ready-for-dev
+  3-4-expand-candidate-factors: ready-for-dev
+  3-5-generate-and-display-analysis-plan: ready-for-dev
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-submit-analysis-plan-for-execution: backlog
-  4-2-stream-execution-progress-and-stage-results: backlog
-  4-3-ranked-causal-conclusions-with-evidence: backlog
-  4-4-persist-step-results-and-final-conclusion: backlog
+  epic-4: in-progress
+  4-1-submit-analysis-plan-for-execution: ready-for-dev
+  4-2-stream-execution-progress-and-stage-results: ready-for-dev
+  4-3-ranked-causal-conclusions-with-evidence: ready-for-dev
+  4-4-persist-step-results-and-final-conclusion: ready-for-dev
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-follow-up-on-existing-conclusion: backlog
-  5-2-add-factors-or-narrow-scope: backlog
-  5-3-replan-after-user-correction: backlog
-  5-4-preserve-multi-round-history: backlog
+  epic-5: in-progress
+  5-1-follow-up-on-existing-conclusion: ready-for-dev
+  5-2-add-factors-or-narrow-scope: ready-for-dev
+  5-3-replan-after-user-correction: ready-for-dev
+  5-4-preserve-multi-round-history: ready-for-dev
   epic-5-retrospective: optional
 
-  epic-6: backlog
-  6-1-server-side-authorization-enforcement: backlog
-  6-2-audit-analysis-and-tool-events: backlog
-  6-3-self-hosted-container-deployment-baseline: backlog
-  6-4-observability-and-availability-monitoring: backlog
+  epic-6: in-progress
+  6-1-server-side-authorization-enforcement: ready-for-dev
+  6-2-audit-analysis-and-tool-events: ready-for-dev
+  6-3-self-hosted-container-deployment-baseline: ready-for-dev
+  6-4-observability-and-availability-monitoring: ready-for-dev
   epic-6-retrospective: optional
 
-  epic-7: backlog
-  7-1-mobile-latest-analysis-summary: backlog
-  7-2-mobile-key-evidence-view: backlog
-  7-3-mobile-lightweight-follow-up: backlog
+  epic-7: in-progress
+  7-1-mobile-latest-analysis-summary: ready-for-dev
+  7-2-mobile-key-evidence-view: ready-for-dev
+  7-3-mobile-lightweight-follow-up: ready-for-dev
   epic-7-retrospective: optional
