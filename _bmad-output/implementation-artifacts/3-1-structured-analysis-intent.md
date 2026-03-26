@@ -1,6 +1,6 @@
 # Story 3.1: 生成结构化分析意图
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,16 +18,16 @@ so that 我能确认系统理解的是我真正想分析的问题。
 
 ## Tasks / Subtasks
 
-- [ ] 建立结构化分析意图 domain model（AC: 1, 2）
-  - [ ] 在 domain / application 层定义 intent DTO 或模型，而不是把解析结果散落在页面组件中。
-  - [ ] 明确支持范围内的基础分析类型与最小输出字段。
-- [ ] 将意图识别接入分析会话流程（AC: 1, 2, 3）
-  - [ ] 在服务端分析入口中触发问题理解，不信任浏览器提交的结构化结果。
-  - [ ] 将 intent 结果与当前 analysis session 关联。
-  - [ ] 首个反馈可为“理解中”或 intent 结果，但不能伪造最终结论。
-- [ ] 建立反馈时效与契约测试（AC: 3）
-  - [ ] 覆盖支持范围内问题的基础分类与字段提取。
-  - [ ] 覆盖首个反馈在 5 秒内可见的故事级验证。
+- [x] 建立结构化分析意图 domain model（AC: 1, 2）
+  - [x] 在 domain / application 层定义 intent DTO 或模型，而不是把解析结果散落在页面组件中。
+  - [x] 明确支持范围内的基础分析类型与最小输出字段。
+- [x] 将意图识别接入分析会话流程（AC: 1, 2, 3）
+  - [x] 在服务端分析入口中触发问题理解，不信任浏览器提交的结构化结果。
+  - [x] 将 intent 结果与当前 analysis session 关联。
+  - [x] 首个反馈可为”理解中”或 intent 结果，但不能伪造最终结论。
+- [x] 建立反馈时效与契约测试（AC: 3）
+  - [x] 覆盖支持范围内问题的基础分类与字段提取。
+  - [x] 覆盖首个反馈在 5 秒内可见的故事级验证。
 
 ## Dev Notes
 
@@ -75,16 +75,39 @@ so that 我能确认系统理解的是我真正想分析的问题。
 
 ### Agent Model Used
 
-GPT-5 Codex
+Claude Opus 4.6
 
 ### Debug Log References
 
-- _Pending during implementation._
+- 所有 7 个集成测试通过，无回归
+- Story 1.4 回归测试 4/4 通过
+- ESLint 零错误
+- TypeScript 编译零错误
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 建立了完整的 analysis-intent 领域模型，支持 5 种分析类型（收费/工单/投诉/满意度/综合）
+- 采用 rule-based 规则引擎实现意图识别，通过关键词匹配确定分析类型和核心目标
+- 遵循 Clean Architecture: domain → application (ports + use-cases) → infrastructure (memory store)
+- 在 sessions route POST handler 中触发意图识别，与会话创建同步完成
+- 使用 globalThis 全局 Map 实现内存存储，确保跨请求数据共享
+- 分析会话页新增意图识别结果展示区（分析类型 + 核心目标）
+- 首个反馈时效远低于 5 秒要求（约 40-60ms）
+- 保持 Story 1.4 回归测试完全通过，"待分析" badge 不变
 
 ### File List
 
-- _bmad-output/implementation-artifacts/3-1-structured-analysis-intent.md
+- src/domain/analysis-intent/models.ts（新增：意图领域模型、分析类型定义、规则识别函数）
+- src/application/analysis-intent/ports.ts（新增：AnalysisIntentStore 端口接口）
+- src/application/analysis-intent/use-cases.ts（新增：recognizeAndStoreIntent / getIntentBySessionId 用例）
+- src/infrastructure/analysis-intent/memory-analysis-intent-store.ts（新增：内存存储适配器）
+- src/infrastructure/analysis-intent/index.ts（新增：共享用例实例导出）
+- src/app/api/analysis/sessions/route.ts（修改：创建会话后触发意图识别）
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx（修改：展示意图识别结果）
+- tests/story-3-1-structured-analysis-intent.test.mjs（新增：7 个集成测试）
+- _bmad-output/implementation-artifacts/3-1-structured-analysis-intent.md（更新：任务完成状态）
+- _bmad-output/implementation-artifacts/sprint-status.yaml（更新：story 状态）
+
+### Change Log
+
+- 2026-03-26: Story 3.1 实现完成 — 结构化分析意图 domain model + 会话流程集成 + 7 个集成测试
