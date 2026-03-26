@@ -1,3 +1,4 @@
+import { createAnalysisContextUseCases } from '@/application/analysis-context/use-cases';
 import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
@@ -5,6 +6,7 @@ import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-se
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { requireRequestSession } from '@/infrastructure/session/server-auth';
+import { AnalysisContextPanel } from './_components/analysis-context-panel';
 
 type AnalysisSessionPageProps = {
   params: Promise<{
@@ -15,6 +17,7 @@ type AnalysisSessionPageProps = {
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
+const analysisContextUseCases = createAnalysisContextUseCases();
 
 export default async function AnalysisSessionPage({
   params,
@@ -36,6 +39,10 @@ export default async function AnalysisSessionPage({
   const intent = await analysisIntentUseCases.getIntentBySessionId(
     analysisSession.id,
   );
+  const analysisContextReadModel = analysisContextUseCases.buildContextReadModel({
+    sessionId: analysisSession.id,
+    questionText: analysisSession.questionText,
+  });
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px]">
@@ -104,6 +111,8 @@ export default async function AnalysisSessionPage({
             </div>
           </article>
         )}
+
+        <AnalysisContextPanel context={analysisContextReadModel.context} />
       </div>
 
       <aside className="space-y-6">
