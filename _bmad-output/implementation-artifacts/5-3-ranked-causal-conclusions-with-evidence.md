@@ -1,4 +1,4 @@
-# Story 4.3: 输出带证据的归因结论
+# Story 5.3: 输出带证据的归因结论
 
 Status: ready-for-dev
 
@@ -31,7 +31,7 @@ so that 我可以直接理解哪些因素最可能导致指标变化。
 ## Dev Notes
 
 - 本故事的核心不是“生成很长的解释”，而是“有排序、有证据、可理解”。
-- 结果模型将被 4.4 持久化、5.x 追问和 7.x 移动端 read model 直接消费，应尽量稳定。
+- 结果模型将被 5.4 持久化、6.x 追问和 8.x 移动端 read model 直接消费，应尽量稳定。
 - 不要在这里顺手实现移动端结果页。
 
 ### Architecture Compliance
@@ -59,11 +59,11 @@ so that 我可以直接理解哪些因素最可能导致指标变化。
 ### Previous Story Intelligence
 
 - 4.3 依赖 3.5 的 plan 与 4.1 / 4.2 的 execution / progress 链路。
-- 4.4 将持久化这里定义的结论模型，所以字段边界不要随 UI 临时需求漂移。
+- 5.4 将持久化这里定义的结论模型，所以字段边界不要随 UI 临时需求漂移。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 4.3: 输出带证据的归因结论]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.3: 输出带证据的归因结论]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#数据架构]
 
@@ -83,4 +83,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/4-3-ranked-causal-conclusions-with-evidence.md
+- _bmad-output/implementation-artifacts/5-3-ranked-causal-conclusions-with-evidence.md

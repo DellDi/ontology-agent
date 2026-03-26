@@ -1,4 +1,4 @@
-# Story 7.2: 移动端查看关键证据
+# Story 8.2: 移动端查看关键证据
 
 Status: ready-for-dev
 
@@ -32,7 +32,7 @@ so that 我可以快速判断这次分析结论是否值得继续跟进。
 
 - 这是移动端摘要化结果，不是把 PC 右侧证据面板原样搬过来。
 - 若证据涉及跨项目 / 区域信息，返回前必须再次走 scope 过滤。
-- 证据摘要模型最好复用 4.3 / 4.4 的结果持久化结构。
+- 证据摘要模型最好复用 5.3 / 5.4 的结果持久化结构。
 
 ### Architecture Compliance
 
@@ -57,12 +57,12 @@ so that 我可以快速判断这次分析结论是否值得继续跟进。
 
 ### Previous Story Intelligence
 
-- Story 4.3 与 4.4 已建立归因结论和结果持久化；7.2 直接消费这些稳定结果。
-- Story 7.1 的移动端最近分析入口可作为本故事详情页入口。
+- Story 5.3 与 5.4 已建立归因结论和结果持久化；8.2 直接消费这些稳定结果。
+- Story 8.1 的移动端最近分析入口可作为本故事详情页入口。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 7.2: 移动端查看关键证据]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 8.2: 移动端查看关键证据]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#安全与权限边界]
 
@@ -82,4 +82,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/7-2-mobile-key-evidence-view.md
+- _bmad-output/implementation-artifacts/8-2-mobile-key-evidence-view.md

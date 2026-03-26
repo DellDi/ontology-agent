@@ -1,4 +1,4 @@
-# Story 5.2: 补充因素或缩小分析范围
+# Story 6.2: 补充因素或缩小分析范围
 
 Status: ready-for-dev
 
@@ -58,12 +58,12 @@ so that 系统可以围绕我最新关心的方向继续分析。
 
 ### Previous Story Intelligence
 
-- Story 5.1 已建立 follow-up / iteration 基础。
+- Story 6.1 已建立 follow-up / iteration 基础。
 - Story 3.3 的上下文修正与版本管理应成为本故事的直接复用点。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.2: 补充因素或缩小分析范围]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.2: 补充因素或缩小分析范围]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 - [Source: _bmad-output/project-context.md#关键实现规则]
 
@@ -83,4 +83,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/5-2-add-factors-or-narrow-scope.md
+- _bmad-output/implementation-artifacts/6-2-add-factors-or-narrow-scope.md

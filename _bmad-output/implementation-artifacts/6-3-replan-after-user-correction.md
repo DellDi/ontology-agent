@@ -1,4 +1,4 @@
-# Story 5.3: 根据纠正结果重生成分析计划
+# Story 6.3: 根据纠正结果重生成分析计划
 
 Status: ready-for-dev
 
@@ -32,7 +32,7 @@ so that 系统的下一轮执行能真正反映我纠正后的分析思路。
 
 - 重规划不是简单“覆盖旧计划”，而是生成可追溯的新计划版本。
 - 复用逻辑要谨慎，不能因为实现简化把所有旧结果都当可复用。
-- 5.4 的历史演化展示会直接消费这里的 plan version / diff。
+- 6.4 的历史演化展示会直接消费这里的 plan version / diff。
 
 ### Architecture Compliance
 
@@ -59,11 +59,11 @@ so that 系统的下一轮执行能真正反映我纠正后的分析思路。
 ### Previous Story Intelligence
 
 - Story 3.5 首次定义 plan model，本故事是在其之上引入 version / diff。
-- Story 5.2 的增量上下文与冲突确认结果会直接影响重规划输入。
+- Story 6.2 的增量上下文与冲突确认结果会直接影响重规划输入。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.3: 根据纠正结果重生成分析计划]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.3: 根据纠正结果重生成分析计划]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#应用通信与执行模型]
 
@@ -83,4 +83,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/5-3-replan-after-user-correction.md
+- _bmad-output/implementation-artifacts/6-3-replan-after-user-correction.md

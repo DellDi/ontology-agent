@@ -1,4 +1,4 @@
-# Story 5.4: 保留多轮循环历史与结论演化
+# Story 6.4: 保留多轮循环历史与结论演化
 
 Status: ready-for-dev
 
@@ -58,11 +58,11 @@ so that 我可以理解这次分析是如何逐步收敛到最终原因的。
 ### Previous Story Intelligence
 
 - 5.1 到 5.3 已建立 follow-up、增量上下文和重规划模型，本故事负责把这些轮次稳定保留下来。
-- 4.4 的结果持久化是多轮历史回放的前置。
+- 5.4 的结果持久化是多轮历史回放的前置。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.4: 保留多轮循环历史与结论演化]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.4: 保留多轮循环历史与结论演化]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#数据架构]
 
@@ -82,4 +82,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/5-4-preserve-multi-round-history.md
+- _bmad-output/implementation-artifacts/6-4-preserve-multi-round-history.md

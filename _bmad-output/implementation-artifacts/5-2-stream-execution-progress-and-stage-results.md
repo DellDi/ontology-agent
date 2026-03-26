@@ -1,4 +1,4 @@
-# Story 4.2: 流式反馈执行进度与阶段结果
+# Story 5.2: 流式反馈执行进度与阶段结果
 
 Status: ready-for-dev
 
@@ -32,7 +32,7 @@ so that 我不需要等到任务全部结束才知道系统正在做什么。
 
 - 本故事重点是“服务端推流 + 稳定事件语义”，不是最终归因内容。
 - 若 Redis 参与状态协调，浏览器仍不能直接接入 Redis。
-- 设计事件结构时要为 4.3 结论输出和 4.4 结果持久化保留阶段性结果字段。
+- 设计事件结构时要为 5.3 结论输出和 5.4 结果持久化保留阶段性结果字段。
 
 ### Architecture Compliance
 
@@ -58,12 +58,12 @@ so that 我不需要等到任务全部结束才知道系统正在做什么。
 
 ### Previous Story Intelligence
 
-- Story 4.1 已建立 execution record 和提交入口，本故事必须直接复用其 execution identity。
+- Story 5.1 已建立 execution record 和提交入口，本故事必须直接复用其 execution identity。
 - Story 2.5 / 2.6 的 Redis 与 worker 基线可能为事件流协调提供支撑，但对浏览器应保持透明。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 4.2: 流式反馈执行进度与阶段结果]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.2: 流式反馈执行进度与阶段结果]
 - [Source: _bmad-output/planning-artifacts/architecture.md#应用通信与执行模型]
 - [Source: _bmad-output/planning-artifacts/prd.md#非功能需求]
 
@@ -83,4 +83,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/4-2-stream-execution-progress-and-stage-results.md
+- _bmad-output/implementation-artifacts/5-2-stream-execution-progress-and-stage-results.md

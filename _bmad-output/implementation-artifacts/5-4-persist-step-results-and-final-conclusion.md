@@ -1,4 +1,4 @@
-# Story 4.4: 保存步骤结果与最终结论
+# Story 5.4: 保存步骤结果与最终结论
 
 Status: ready-for-dev
 
@@ -60,11 +60,11 @@ so that 我之后可以回看、复盘并继续追问。
 ### Previous Story Intelligence
 
 - Story 2.2 的 Drizzle / Postgres 基线为本故事提供迁移与 schema 约束。
-- Story 4.1 到 4.3 已建立 execution identity、流式反馈和结论模型，本故事负责把它们变成可回放事实。
+- Story 5.1 到 5.3 已建立 execution identity、流式反馈和结论模型，本故事负责把它们变成可回放事实。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 4.4: 保存步骤结果与最终结论]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.4: 保存步骤结果与最终结论]
 - [Source: _bmad-output/planning-artifacts/architecture.md#数据架构]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 
@@ -84,4 +84,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/4-4-persist-step-results-and-final-conclusion.md
+- _bmad-output/implementation-artifacts/5-4-persist-step-results-and-final-conclusion.md

@@ -1,4 +1,4 @@
-# Story 6.1: 服务端权限校验与越权拦截
+# Story 7.1: 服务端权限校验与越权拦截
 
 Status: ready-for-dev
 
@@ -59,12 +59,12 @@ so that 系统不会返回超出用户项目、区域或组织边界的数据。
 ### Previous Story Intelligence
 
 - Story 1.x 与 2.x 已建立受保护会话和本人 owner 隔离。
-- Story 6.1 需要把服务端 session scope 真正纳入分析入口，而不仅是登录门禁。
-- Story 6.2 审计会复用这里的权限失败事件。
+- Story 7.1 需要把服务端 session scope 真正纳入分析入口，而不仅是登录门禁。
+- Story 7.2 审计会复用这里的权限失败事件。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.1: 服务端权限校验与越权拦截]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 7.1: 服务端权限校验与越权拦截]
 - [Source: _bmad-output/planning-artifacts/architecture.md#安全与权限边界]
 - [Source: _bmad-output/planning-artifacts/prd.md#非功能需求]
 
@@ -84,4 +84,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/6-1-server-side-authorization-enforcement.md
+- _bmad-output/implementation-artifacts/7-1-server-side-authorization-enforcement.md
