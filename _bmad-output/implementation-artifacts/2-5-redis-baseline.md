@@ -1,6 +1,6 @@
 # Story 2.5: 接入 Redis 并建立基础约定
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,16 +18,16 @@ so that 后续限流、任务元数据、流式状态和后台执行能够复用
 
 ## Tasks / Subtasks
 
-- [ ] 建立统一 Redis 客户端与配置入口（AC: 1, 3）
-  - [ ] 在 `src/infrastructure/redis/` 下集中放置客户端工厂、配置读取和健康检查逻辑。
-  - [ ] 明确 `REDIS_URL` 与运行时失败策略；连接失败不能静默假成功。
-  - [ ] 不将受保护会话主存储切回 Redis。
-- [ ] 建立基础 namespace 约定（AC: 2, 3）
-  - [ ] 至少定义应用前缀与后续 worker / stream / rate-limit 可复用的 key builder。
-  - [ ] 保证本地、测试和未来环境可通过前缀隔离。
-- [ ] 补充文档与验证（AC: 1, 2, 3）
-  - [ ] 更新 Compose / `.env.example` / 文档，写清宿主机与容器内地址差异。
-  - [ ] 新增契约测试，验证配置入口、namespace 约定与最小健康检查。
+- [x] 建立统一 Redis 客户端与配置入口（AC: 1, 3）
+  - [x] 在 `src/infrastructure/redis/` 下集中放置客户端工厂、配置读取和健康检查逻辑。
+  - [x] 明确 `REDIS_URL` 与运行时失败策略；连接失败不能静默假成功。
+  - [x] 不将受保护会话主存储切回 Redis。
+- [x] 建立基础 namespace 约定（AC: 2, 3）
+  - [x] 至少定义应用前缀与后续 worker / stream / rate-limit 可复用的 key builder。
+  - [x] 保证本地、测试和未来环境可通过前缀隔离。
+- [x] 补充文档与验证（AC: 1, 2, 3）
+  - [x] 更新 Compose / `.env.example` / 文档，写清宿主机与容器内地址差异。
+  - [x] 新增契约测试，验证配置入口、namespace 约定与最小健康检查。
 
 ## Dev Notes
 
@@ -75,16 +75,27 @@ so that 后续限流、任务元数据、流式状态和后台执行能够复用
 
 ### Agent Model Used
 
-GPT-5 Codex
+Claude Opus 4.6
 
 ### Debug Log References
 
-- _Pending during implementation._
+- 无阻塞问题。
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 使用官方 `redis` (node-redis) v5.11.0，遵循 postgres/client.ts 工厂模式
+- Key namespace 采用 `oa:` 前缀，4 个命名空间 (rate/worker/stream/cache)
+- 支持 `REDIS_KEY_PREFIX` 环境变量实现环境隔离
+- 健康检查通过 PING 命令返回 `{ ok, latencyMs }`
+- 13 项契约测试全部通过，57 项 Story 2.x 测试零回归
 
 ### File List
 
-- _bmad-output/implementation-artifacts/2-5-redis-baseline.md
+- src/infrastructure/redis/client.ts (新建)
+- src/infrastructure/redis/keys.ts (新建)
+- src/infrastructure/redis/health.ts (新建)
+- src/infrastructure/redis/index.ts (新建)
+- tests/story-2-5-redis-baseline.test.mjs (新建)
+- docs/local-infrastructure.md (修改 — 补充 Redis 客户端与 key namespace 约定章节)
+- package.json (修改 — 添加 redis 依赖)
+- _bmad-output/implementation-artifacts/2-5-redis-baseline.md (修改)

@@ -5,6 +5,7 @@ import {
   InvalidAnalysisQuestionError,
 } from '@/application/analysis-session/use-cases';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
+import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 const analysisSessionUseCases = createAnalysisSessionUseCases({
@@ -41,6 +42,11 @@ export async function POST(request: Request) {
     const createdSession = await analysisSessionUseCases.createSession({
       questionText,
       owner: session,
+    });
+
+    await analysisIntentUseCases.recognizeAndStoreIntent({
+      sessionId: createdSession.id,
+      questionText: createdSession.questionText,
     });
 
     return NextResponse.redirect(

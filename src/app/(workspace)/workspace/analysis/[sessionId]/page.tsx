@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
+import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
+import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { requireRequestSession } from '@/infrastructure/session/server-auth';
 
 type AnalysisSessionPageProps = {
@@ -30,6 +32,10 @@ export default async function AnalysisSessionPage({
   if (!analysisSession) {
     notFound();
   }
+
+  const intent = await analysisIntentUseCases.getIntentBySessionId(
+    analysisSession.id,
+  );
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px]">
@@ -76,6 +82,28 @@ export default async function AnalysisSessionPage({
             </div>
           </div>
         </article>
+
+        {intent && (
+          <article className="glass-panel p-6" data-testid="intent-result">
+            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+              意图识别结果
+            </p>
+            <div className="mt-4 space-y-4">
+              <div className="rounded-3xl bg-white/76 p-5">
+                <p className="text-xs text-[color:var(--ink-600)]">分析类型</p>
+                <p className="mt-2 text-lg font-semibold text-[color:var(--ink-900)]" data-testid="intent-type">
+                  {getIntentTypeLabel(intent.type)}
+                </p>
+              </div>
+              <div className="rounded-3xl bg-white/76 p-5">
+                <p className="text-xs text-[color:var(--ink-600)]">核心目标</p>
+                <p className="mt-2 text-base leading-7 text-[color:var(--ink-900)]" data-testid="intent-goal">
+                  {intent.goal}
+                </p>
+              </div>
+            </div>
+          </article>
+        )}
       </div>
 
       <aside className="space-y-6">
