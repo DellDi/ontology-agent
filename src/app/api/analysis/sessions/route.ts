@@ -4,11 +4,11 @@ import {
   createAnalysisSessionUseCases,
   InvalidAnalysisQuestionError,
 } from '@/application/analysis-session/use-cases';
-import { createMemoryAnalysisSessionStore } from '@/infrastructure/analysis-session/memory-analysis-session-store';
+import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createMemoryAnalysisSessionStore(),
+  analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
 
 function redirectToWorkspace(request: Request, params: URLSearchParams) {
