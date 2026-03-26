@@ -15,7 +15,7 @@ import { createAuthUseCases } from '@/application/auth/use-cases';
 import { createDevErpAuthAdapter } from '@/infrastructure/erp-auth/dev-erp-auth-adapter';
 import { isDevErpAuthEnabled } from '@/infrastructure/erp-auth/dev-auth-config';
 
-import { createMemorySessionStore } from './memory-session-store';
+import { createPostgresSessionStore } from './postgres-session-store';
 import {
   createSessionCookieValue,
   getClearedSessionCookieOptions,
@@ -26,7 +26,7 @@ import {
 
 const authUseCases = createAuthUseCases({
   erpAuthAdapter: createDevErpAuthAdapter(),
-  sessionStore: createMemorySessionStore(),
+  sessionStore: createPostgresSessionStore(),
 });
 
 function readStringValue(formData: FormData, key: string) {

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
-import { createMemoryAnalysisSessionStore } from '@/infrastructure/analysis-session/memory-analysis-session-store';
+import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { requireRequestSession } from '@/infrastructure/session/server-auth';
 
 type AnalysisSessionPageProps = {
@@ -11,7 +11,7 @@ type AnalysisSessionPageProps = {
 };
 
 const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createMemoryAnalysisSessionStore(),
+  analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
 
 export default async function AnalysisSessionPage({
