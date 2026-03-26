@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { RedisClientType } from 'redis';
 
-import type { JobQueue } from '@/application/job/ports';
-import type { Job, JobSubmission } from '@/domain/job-contract/models';
-import { redisKeys } from '@/infrastructure/redis/keys';
+import type { JobQueue } from '../../application/job/ports';
+import type { Job, JobSubmission } from '../../domain/job-contract/models';
+import { redisKeys } from '../redis/keys';
 
 const QUEUE_KEY = 'oa:job:queue';
 

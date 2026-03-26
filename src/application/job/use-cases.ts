@@ -2,7 +2,7 @@ import {
   type Job,
   type JobSubmission,
   validateJobPayload,
-} from '@/domain/job-contract/models';
+} from '../../domain/job-contract/models';
 
 import type { JobQueue } from './ports';
 

@@ -54,16 +54,16 @@ development_status:
   epic-2: in-progress
   2-1-docker-compose-baseline: review
   2-2-postgres-drizzle-platform-schema: review
-  2-3-session-persistence-to-postgres: ready-for-dev
-  2-4-analysis-session-persistence-to-postgres: ready-for-dev
-  2-5-redis-baseline: ready-for-dev
+  2-3-session-persistence-to-postgres: review
+  2-4-analysis-session-persistence-to-postgres: review
+  2-5-redis-baseline: review
   2-6-worker-skeleton-and-job-contract: review
   2-7-auth-and-next-path-hardening: review
   epic-2-retrospective: optional
 
   epic-3: in-progress
   3-1-structured-analysis-intent: review
-  3-2-context-extraction-display: ready-for-dev
+  3-2-context-extraction-display: review
   3-3-user-corrects-extracted-context: ready-for-dev
   3-4-expand-candidate-factors: ready-for-dev
   3-5-generate-and-display-analysis-plan: ready-for-dev

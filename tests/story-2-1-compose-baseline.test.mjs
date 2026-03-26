@@ -88,10 +88,9 @@ test('本地基础设施文档覆盖常用命令、边界和后续扩展位', as
   }
 });
 
-test('Story 2.1 基线不提前接入 worker、neo4j、cube 服务', async () => {
+test('Story 2.1 基线仍不接入 neo4j、cube 服务', async () => {
   const compose = await readRepoFile('compose.yaml');
 
-  assert.doesNotMatch(compose, /^\s{2}worker:\s*$/m);
   assert.doesNotMatch(compose, /^\s{2}neo4j:\s*$/m);
   assert.doesNotMatch(compose, /^\s{2}cube:\s*$/m);
 });

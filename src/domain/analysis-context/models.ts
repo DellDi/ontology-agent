@@ -1,0 +1,279 @@
+import { normalizeQuestionText } from '@/domain/analysis-session/models';
+
+export const ANALYSIS_CONTEXT_FIELD_STATES = [
+  'missing',
+  'uncertain',
+  'confirmed',
+] as const;
+
+export type AnalysisContextFieldState =
+  (typeof ANALYSIS_CONTEXT_FIELD_STATES)[number];
+
+export type AnalysisContextField = {
+  label: string;
+  value: string;
+  state: AnalysisContextFieldState;
+  note?: string;
+};
+
+export type AnalysisContextConstraint = {
+  label: string;
+  value: string;
+};
+
+export type AnalysisContext = {
+  targetMetric: AnalysisContextField;
+  entity: AnalysisContextField;
+  timeRange: AnalysisContextField;
+  comparison: AnalysisContextField;
+  constraints: AnalysisContextConstraint[];
+};
+
+type ExtractionResult = {
+  value: string;
+  state: AnalysisContextFieldState;
+  note?: string;
+};
+
+const METRIC_RULES: Array<{
+  label: string;
+  pattern: RegExp;
+}> = [
+  {
+    label: '收费回款率',
+    pattern: /收费回款率|回款率/,
+  },
+  {
+    label: '收费率',
+    pattern: /收费率/,
+  },
+  {
+    label: '投诉量',
+    pattern: /投诉量|投诉率/,
+  },
+  {
+    label: '工单完工率',
+    pattern: /工单完工率|完工率/,
+  },
+  {
+    label: '工单超时率',
+    pattern: /工单超时率|超时率/,
+  },
+  {
+    label: '满意度评分',
+    pattern: /满意度评分|满意度/,
+  },
+];
+
+const TIME_RANGE_RULES: Array<{
+  label: string;
+  pattern: RegExp;
+}> = [
+  {
+    label: '近三个月',
+    pattern: /近三个月|最近三个月/,
+  },
+  {
+    label: '本月',
+    pattern: /本月/,
+  },
+  {
+    label: '上月',
+    pattern: /上月/,
+  },
+  {
+    label: '本季度',
+    pattern: /本季度/,
+  },
+  {
+    label: '今年',
+    pattern: /今年/,
+  },
+  {
+    label: '去年',
+    pattern: /去年/,
+  },
+];
+
+const COMPARISON_RULES: Array<{
+  label: string;
+  pattern: RegExp;
+}> = [
+  {
+    label: '相比去年同期',
+    pattern: /相比去年同期|较去年同期|与去年同期相比/,
+  },
+  {
+    label: '同比',
+    pattern: /同比/,
+  },
+  {
+    label: '环比',
+    pattern: /环比/,
+  },
+];
+
+function toField(
+  label: string,
+  extractionResult: ExtractionResult,
+): AnalysisContextField {
+  return {
+    label,
+    value: extractionResult.value,
+    state: extractionResult.state,
+    note: extractionResult.note,
+  };
+}
+
+function extractMetric(questionText: string): ExtractionResult {
+  for (const rule of METRIC_RULES) {
+    if (rule.pattern.test(questionText)) {
+      return {
+        value: rule.label,
+        state: 'confirmed',
+      };
+    }
+  }
+
+  if (/收费|投诉|工单|满意度|运营/.test(questionText)) {
+    return {
+      value: '指标描述不够具体',
+      state: 'uncertain',
+      note: '请补充具体指标口径，例如收费回款率、投诉量或工单超时率。',
+    };
+  }
+
+  return {
+    value: '待补充目标指标',
+    state: 'missing',
+    note: '尚未识别到明确目标指标。',
+  };
+}
+
+function extractEntity(
+  questionText: string,
+  constraints: AnalysisContextConstraint[],
+): ExtractionResult {
+  const projectMatch = questionText.match(/项目\s*([\p{L}\p{N}_-]+)/u);
+  const areaMatch = questionText.match(/区域\s*([\p{L}\p{N}_-]+)/u);
+
+  const entities: string[] = [];
+
+  if (projectMatch?.[1]) {
+    const projectValue = `项目 ${projectMatch[1]}`;
+    entities.push(projectValue);
+    constraints.push({
+      label: '项目约束',
+      value: projectValue,
+    });
+  }
+
+  if (areaMatch?.[1]) {
+    const areaValue = `区域 ${areaMatch[1]}`;
+    entities.push(areaValue);
+    constraints.push({
+      label: '区域约束',
+      value: areaValue,
+    });
+  }
+
+  if (entities.length > 0) {
+    return {
+      value: entities.join(' / '),
+      state: 'confirmed',
+    };
+  }
+
+  return {
+    value: '待补充实体对象',
+    state: 'missing',
+    note: '尚未识别到项目、区域等明确实体。',
+  };
+}
+
+function extractTimeRange(questionText: string): ExtractionResult {
+  for (const rule of TIME_RANGE_RULES) {
+    if (rule.pattern.test(questionText)) {
+      return {
+        value: rule.label,
+        state: 'confirmed',
+      };
+    }
+  }
+
+  return {
+    value: '待补充时间范围',
+    state: 'missing',
+    note: '建议明确时间范围，例如近三个月或本季度。',
+  };
+}
+
+function extractComparison(questionText: string): ExtractionResult {
+  for (const rule of COMPARISON_RULES) {
+    if (rule.pattern.test(questionText)) {
+      return {
+        value: rule.label,
+        state: 'confirmed',
+      };
+    }
+  }
+
+  if (/对比|比较|相比|较|趋势|波动|变化|上升|下降/.test(questionText)) {
+    return {
+      value: '存在趋势或比较语义',
+      state: 'uncertain',
+      note: '请补充比较基线，例如同比、环比或明确参考时间段。',
+    };
+  }
+
+  return {
+    value: '待补充比较方式',
+    state: 'missing',
+    note: '尚未识别到同比、环比或显式对比关系。',
+  };
+}
+
+export function getContextFieldStateLabel(state: AnalysisContextFieldState) {
+  switch (state) {
+    case 'confirmed':
+      return '已确认';
+    case 'uncertain':
+      return '待确认';
+    case 'missing':
+      return '待补充';
+    default:
+      return state;
+  }
+}
+
+export function extractAnalysisContext(
+  questionText: string,
+): AnalysisContext {
+  const normalizedQuestionText = normalizeQuestionText(questionText);
+  const constraints: AnalysisContextConstraint[] = [];
+
+  const targetMetric = toField(
+    '目标指标',
+    extractMetric(normalizedQuestionText),
+  );
+  const entity = toField(
+    '实体对象',
+    extractEntity(normalizedQuestionText, constraints),
+  );
+  const timeRange = toField(
+    '时间范围',
+    extractTimeRange(normalizedQuestionText),
+  );
+  const comparison = toField(
+    '比较方式',
+    extractComparison(normalizedQuestionText),
+  );
+
+  return {
+    targetMetric,
+    entity,
+    timeRange,
+    comparison,
+    constraints,
+  };
+}
