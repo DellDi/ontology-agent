@@ -64,11 +64,17 @@ export function parseScopeList(value: FormDataEntryValue | string | null) {
 }
 
 export function sanitizeNextPath(nextPath: string | null | undefined) {
-  if (!nextPath || !nextPath.startsWith('/') || nextPath.startsWith('//')) {
+  if (!nextPath) {
     return '/workspace';
   }
 
-  const parsedPath = new URL(nextPath, 'http://localhost');
+  const trimmed = nextPath.trim().replace(/\\/g, '/');
+
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
+    return '/workspace';
+  }
+
+  const parsedPath = new URL(trimmed, 'http://localhost');
   const normalizedPath = `${parsedPath.pathname}${parsedPath.search}${parsedPath.hash}`;
 
   if (

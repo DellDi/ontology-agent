@@ -10,7 +10,8 @@
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
     "lint": "eslint",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "worker:dev": "npx tsx --tsconfig tsconfig.json src/worker/main.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.1",
@@ -31,6 +32,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

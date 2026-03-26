@@ -1,6 +1,6 @@
 # Story 2.7: 收紧认证与跳转安全边界
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,16 +18,16 @@ so that 在继续更多故事前不会把临时安全风险继续放大。
 
 ## Tasks / Subtasks
 
-- [ ] 收紧开发期认证入口（AC: 1）
-  - [ ] 明确 dev stub 启用条件，避免在非开发环境默认暴露。
-  - [ ] 若当前通过环境变量或配置控制，补充默认安全值与失败行为。
-- [ ] 加强 `next` 跳转校验（AC: 2, 3）
-  - [ ] 只允许站内相对路径或显式白名单路径。
-  - [ ] 拦截外部 URL、协议相对路径、双斜杠、编码绕过和副作用型跳转。
-  - [ ] 保持登录成功后回到受保护页面的正常体验。
-- [ ] 建立安全回归测试（AC: 1, 2, 3）
-  - [ ] 覆盖正常站内回跳。
-  - [ ] 覆盖恶意 `next`、未登录访问受保护路径和无效环境配置。
+- [x] 收紧开发期认证入口（AC: 1）
+  - [x] 明确 dev stub 启用条件，避免在非开发环境默认暴露。
+  - [x] 若当前通过环境变量或配置控制，补充默认安全值与失败行为。
+- [x] 加强 `next` 跳转校验（AC: 2, 3）
+  - [x] 只允许站内相对路径或显式白名单路径。
+  - [x] 拦截外部 URL、协议相对路径、双斜杠、编码绕过和副作用型跳转。
+  - [x] 保持登录成功后回到受保护页面的正常体验。
+- [x] 建立安全回归测试（AC: 1, 2, 3）
+  - [x] 覆盖正常站内回跳。
+  - [x] 覆盖恶意 `next`、未登录访问受保护路径和无效环境配置。
 
 ## Dev Notes
 
@@ -76,16 +76,27 @@ so that 在继续更多故事前不会把临时安全风险继续放大。
 
 ### Agent Model Used
 
-GPT-5 Codex
+Claude Opus 4.6
 
 ### Debug Log References
 
-- _Pending during implementation._
+- Story 2.7 新增 12 个安全测试全部通过
+- 现有 auth-hardening.test.mjs 3/3 回归通过
+- ESLint 零错误，TypeScript 零错误
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- `isDevErpAuthEnabled` 新增 production 安全门禁：NODE_ENV=production 时无条件返回 false
+- `sanitizeNextPath` 强化：新增 trim() 防空白前缀绕过、replace(/\\/g, '/') 防反斜杠绕过
+- 12 个安全测试覆盖：正常回跳、外部 URL、协议相对路径、反斜杠、空白前缀、非 workspace 路径、路径穿越、空路径、未登录重定向、代码安全检查
+- 保持现有 auth-hardening.test.mjs（ENABLE_DEV_ERP_AUTH=0 场景）完全兼容
 
 ### File List
 
-- _bmad-output/implementation-artifacts/2-7-auth-and-next-path-hardening.md
+- src/infrastructure/erp-auth/dev-auth-config.ts（修改：新增 production 安全门禁）
+- src/domain/auth/models.ts（修改：sanitizeNextPath 强化 trim + 反斜杠防护）
+- tests/story-2-7-auth-hardening.test.mjs（新增：12 个安全回归测试）
+
+### Change Log
+
+- 2026-03-26: Story 2.7 实现完成 — 认证入口 production 门禁 + next 跳转安全强化 + 12 个安全测试

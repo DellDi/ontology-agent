@@ -59,10 +59,25 @@ services:
     volumes:
       - redis-data:/data
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - .:/workspace
+      - worker-node-modules:/workspace/node_modules
+      - pnpm-store:/pnpm/store
+    working_dir: /workspace
+    command: ["bash", "-lc", "if [ ! -f node_modules/.modules.yaml ]; then pnpm install --frozen-lockfile; fi && pnpm worker:dev"]
+
 volumes:
   postgres-data:
   redis-data:
   web-node-modules:
+  worker-node-modules:
   pnpm-store:
-
-# Story 2.1 只保留 worker 的扩展位说明；真正的 worker 服务在后续故事接入。

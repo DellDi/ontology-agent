@@ -57,8 +57,8 @@ development_status:
   2-3-session-persistence-to-postgres: ready-for-dev
   2-4-analysis-session-persistence-to-postgres: ready-for-dev
   2-5-redis-baseline: ready-for-dev
-  2-6-worker-skeleton-and-job-contract: ready-for-dev
-  2-7-auth-and-next-path-hardening: ready-for-dev
+  2-6-worker-skeleton-and-job-contract: review
+  2-7-auth-and-next-path-hardening: review
   epic-2-retrospective: optional
 
   epic-3: in-progress

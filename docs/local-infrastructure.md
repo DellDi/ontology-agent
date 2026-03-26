@@ -9,7 +9,7 @@ Story 2.1 为本项目提供统一的本地基础设施入口，通过一个 Com
 - `web` 继续运行现有 Next.js App Router 工程
 - `postgres` 只提供数据库服务，不提前引入 Drizzle schema 或迁移
 - `redis` 只提供本地开发端口，不引入密码、ACL 或公网暴露
-- `worker` 目前只保留扩展位说明，不在 Story 2.1 中启动
+- `worker` 独立进程消费 Redis 任务队列，与 web 进程职责分离
 
 ## 使用前准备
 
@@ -134,10 +134,50 @@ const result = await checkRedisHealth(redis);
 
 ## 后续扩展位
 
-当前 `compose.yaml` 故意不定义 `worker`、`neo4j`、`cube` 服务。
+当前 `compose.yaml` 已定义 `web`、`worker`、`postgres`、`redis` 四个服务。
 
 后续故事扩展建议：
 
-- `worker`：沿用同一 Compose 项目名接入独立服务
 - `neo4j` / `cube`：保持延后，不在本阶段提前引入
 - 持久化迁移：由后续 Story 2.2 到 2.5 逐步完成
+
+## Worker 进程
+
+### 角色
+
+Worker 是独立于 web 的后台进程，负责消费 Redis 任务队列中的 job 并执行。web 进程只负责投递任务，不在 Route Handler 内同步执行长任务。
+
+### 任务契约
+
+任务通过 `src/domain/job-contract/models.ts` 定义显式类型：
+
+- **JobType**: 支持的任务类型（当前仅 `health-check`）
+- **JobPayload**: 任务载荷，包含 `type` 和 `data`
+- **JobStatus**: 状态流转 `pending → processing → completed / failed`
+- **Job**: 完整任务记录，包含 id、状态、结果、错误信息和时间戳
+
+非法 payload 通过 `validateJobPayload()` 拒绝，抛出 `InvalidJobPayloadError`。
+
+### 队列机制
+
+使用 Redis List（LPUSH/RPOP）作为简单可靠的任务队列：
+
+- Web 侧通过 `JobQueue.submit()` 投递任务
+- Worker 通过 `JobQueue.consume()` 消费任务
+- 任务元数据存储在 `oa:worker:{jobId}:data` key 中
+
+### 本地运行
+
+```bash
+# 单独启动 worker（需要 Redis 已启动）
+pnpm worker:dev
+
+# 通过 Docker Compose 启动（包含 Redis 依赖）
+docker compose up -d worker
+```
+
+### 扩展新任务类型
+
+1. 在 `src/domain/job-contract/models.ts` 的 `JOB_TYPES` 添加新类型
+2. 在 `src/worker/handlers.ts` 注册对应 handler
+3. 补充测试覆盖
