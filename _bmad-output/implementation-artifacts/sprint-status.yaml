@@ -3,7 +3,7 @@
 # project: ontology-agent
 # project_key: NOKEY
 # tracking_system: file-system
-# story_location: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts
+# story_location: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts
 #
 # STATUS DEFINITIONS:
 # ==================
@@ -39,7 +39,7 @@ last_updated: 2026-03-26
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
-story_location: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts
+story_location: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts
 
 development_status:
   epic-1: in-progress
@@ -70,28 +70,37 @@ development_status:
   epic-3-retrospective: optional
 
   epic-4: in-progress
-  4-1-submit-analysis-plan-for-execution: ready-for-dev
-  4-2-stream-execution-progress-and-stage-results: ready-for-dev
-  4-3-ranked-causal-conclusions-with-evidence: ready-for-dev
-  4-4-persist-step-results-and-final-conclusion: ready-for-dev
+  4-1-server-side-llm-provider-adapter-and-openai-compatible-integration: ready-for-dev
+  4-2-structured-output-contracts-and-prompt-schema-guardrails: ready-for-dev
+  4-3-erp-read-anti-corruption-layer-and-scope-filtering-baseline: ready-for-dev
+  4-4-cube-semantic-read-path-integration: ready-for-dev
+  4-5-neo4j-graph-adapter-and-sync-baseline: ready-for-dev
+  4-6-analysis-tool-registry-and-orchestration-bridge: ready-for-dev
   epic-4-retrospective: optional
 
   epic-5: in-progress
-  5-1-follow-up-on-existing-conclusion: ready-for-dev
-  5-2-add-factors-or-narrow-scope: ready-for-dev
-  5-3-replan-after-user-correction: ready-for-dev
-  5-4-preserve-multi-round-history: ready-for-dev
+  5-1-submit-analysis-plan-for-execution: ready-for-dev
+  5-2-stream-execution-progress-and-stage-results: ready-for-dev
+  5-3-ranked-causal-conclusions-with-evidence: ready-for-dev
+  5-4-persist-step-results-and-final-conclusion: ready-for-dev
   epic-5-retrospective: optional
 
   epic-6: in-progress
-  6-1-server-side-authorization-enforcement: ready-for-dev
-  6-2-audit-analysis-and-tool-events: ready-for-dev
-  6-3-self-hosted-container-deployment-baseline: ready-for-dev
-  6-4-observability-and-availability-monitoring: ready-for-dev
+  6-1-follow-up-on-existing-conclusion: ready-for-dev
+  6-2-add-factors-or-narrow-scope: ready-for-dev
+  6-3-replan-after-user-correction: ready-for-dev
+  6-4-preserve-multi-round-history: ready-for-dev
   epic-6-retrospective: optional
 
   epic-7: in-progress
-  7-1-mobile-latest-analysis-summary: ready-for-dev
-  7-2-mobile-key-evidence-view: ready-for-dev
-  7-3-mobile-lightweight-follow-up: ready-for-dev
+  7-1-server-side-authorization-enforcement: ready-for-dev
+  7-2-audit-analysis-and-tool-events: ready-for-dev
+  7-3-self-hosted-container-deployment-baseline: ready-for-dev
+  7-4-observability-and-availability-monitoring: ready-for-dev
   epic-7-retrospective: optional
+
+  epic-8: in-progress
+  8-1-mobile-latest-analysis-summary: ready-for-dev
+  8-2-mobile-key-evidence-view: ready-for-dev
+  8-3-mobile-lightweight-follow-up: ready-for-dev
+  epic-8-retrospective: optional

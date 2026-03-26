@@ -1,4 +1,4 @@
-# Story 4.1: 提交分析计划到后台执行
+# Story 5.1: 提交分析计划到后台执行
 
 Status: ready-for-dev
 
@@ -31,9 +31,9 @@ so that 系统可以按照既定步骤而不是单次查询完成分析。
 
 ## Dev Notes
 
-- 本故事是“提交执行”，不是“展示结果”；流式反馈属于 Story 4.2，结论输出属于 Story 4.3。
+- 本故事是“提交执行”，不是“展示结果”；流式反馈属于 Story 5.2，结论输出属于 Story 5.3。
 - 即使 worker 还很薄，也应先把 execution application service 和 queue / dispatcher port 抽稳，避免未来返工。
-- 执行与会话的关联字段从一开始就要明确，因为 4.4、5.x 和 7.x 都要回放它。
+- 执行与会话的关联字段从一开始就要明确，因为 5.4、6.x 和 8.x 都要回放它。
 
 ### Architecture Compliance
 
@@ -64,7 +64,7 @@ so that 系统可以按照既定步骤而不是单次查询完成分析。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 4.1: 提交分析计划到后台执行]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.1: 提交分析计划到后台执行]
 - [Source: _bmad-output/planning-artifacts/architecture.md#应用通信与执行模型]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 
@@ -84,4 +84,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/4-1-submit-analysis-plan-for-execution.md
+- _bmad-output/implementation-artifacts/5-1-submit-analysis-plan-for-execution.md

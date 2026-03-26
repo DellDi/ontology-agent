@@ -199,8 +199,12 @@ pnpm create next-app@latest ontology-agent --ts --app
 - 现有 ERP posgres 仍然是业务操作数据的事实来源，新平台不直接写入 ERP 拥有的业务表。
 - 新平台自有数据，例如会话、对话元数据、保存的分析结果、认证查询、用户反馈和审计事件，存放在独立的 posgres schema 中。
 - `Drizzle ORM` 与迁移能力仅用于平台自有表；ERP schema 视为外部契约，而不是由本项目掌控的内部结构。
+- `ERP Read Anti-Corruption Layer` 负责从 ERP 暴露组织、项目、区域和业务事实的只读访问边界，并在进入分析链路前完成 scope 过滤。
 - `Cube Core 1.6.x` 作为语义层，应连接到只读副本或 ETL 维护的分析 schema，而不是 ERP 主写路径。
+- `Cube Semantic Query Adapter` 负责把分析请求转换为受治理的指标查询，不允许执行绕过语义层的 ad hoc ERP 直查。
 - `Neo4j 5.26 LTS` 用于存储实体关系和经过治理的因果边，数据来源于 ETL 与受控增强流程。
+- `Neo4j Graph Adapter` 负责候选因素扩展、关系查询和因果边读取；图谱写入来自受控同步流程，而不是分析请求临时写图。
+- `Graph / Semantic ETL Sync Baseline` 负责把 ERP 事实、语义层需要的聚合结构和图谱边界同步到各自读模型。
 - `Zod 4` 作为 Route Handlers、Worker 载荷、工具调用契约以及外部管理 API 的统一校验边界。
 - `Redis 8.2+` 作为共享基础设施，用于限流、短时缓存、任务元数据和流式协调。
 
@@ -209,6 +213,8 @@ pnpm create next-app@latest ontology-agent --ts --app
 - Java ERP 仍然是身份权威。Next.js 平台负责在服务端完成 token 校验或交换，然后签发 HTTP-only 的应用会话 Cookie。
 - 授权模式采用带作用域的 RBAC，权限来源于 ERP 角色、组织层级和项目/小区边界。
 - 浏览器端不允许直连 posgres、Cube、Neo4j、Redis 或 LLM Provider。
+- `LLM Provider Adapter` 必须只存在于服务端，统一承接 OpenAI-compatible 模型调用、密钥管理、超时、重试、限流和健康检查。
+- `Prompt Registry + Structured Output Guardrails` 必须位于服务端编排边界内，使用 Zod 驱动意图、上下文增强、计划步骤、工具选择和结论摘要的结构化输出约束。
 - 对高成本分析能力和模型接口使用基于 Redis 的“按用户 + 按组织”双层限流。
 - 密钥只存在于服务端。传输链路默认加密，静态加密依赖数据库、存储和基础设施策略。
 - 对分析请求、工具调用、导出操作以及涉及权限边界的行为都要求可审计。
@@ -217,6 +223,7 @@ pnpm create next-app@latest ontology-agent --ts --app
 
 - 主应用契约采用基于 Next Route Handlers 的 `REST + SSE`。
 - 长耗时分析统一采用“提交 -> 入队 -> 流式返回状态和结果”的模式。
+- `Tool Registry + Orchestration Bridge` 负责把 LLM、ERP、Cube、Neo4j 等能力以受控工具方式挂接到应用服务与 worker 中，而不是让页面或单个 route 临时拼装调用链。
 - 内部编排优先使用应用服务加作业 Worker，而不是在 MVP 阶段建设分布式微服务网络。
 - 错误处理采用稳定错误码、结构化 problem details 与 trace ID。
 - `OpenAPI` 仅用于外部或管理面 API；内部路由契约保持 code-first，并由 Zod 驱动。
@@ -239,8 +246,8 @@ pnpm create next-app@latest ontology-agent --ts --app
 - 基础设施接入采用分阶段策略，而不是在当前阶段一次性引入所有中间件：
   - Phase 1：`web + postgres + redis + docker compose`
   - Phase 2：`worker skeleton`
-  - Phase 3：`neo4j`
-  - Phase 4：`cube`
+  - Phase 3：`llm provider adapter + prompt/schema guardrails + ERP read anti-corruption layer`
+  - Phase 4：`cube semantic query adapter + neo4j graph adapter + graph/semantic sync baseline`
 - 完整目标态进程拓扑仍然包括：
   - `web`：Next.js 应用
   - `worker`：后台分析执行进程
@@ -258,10 +265,12 @@ pnpm create next-app@latest ontology-agent --ts --app
 4. 插入最小基础设施基线：`Docker Compose + Postgres + Redis`
 5. 建立平台自有 postgres schema、迁移机制与真实持久化
 6. 引入最小 `worker skeleton`，为长任务执行留出进程边界
-7. 继续推进意图识别、上下文抽取与计划生成
-8. 在真正需要关系推理时接入 Neo4j
-9. 在真正需要语义层读路径时接入 Cube
-10. 完善流式 UI、审计轨迹与可观测性
+7. 继续推进意图识别、上下文抽取与计划生成，先站稳 provider-agnostic 的契约与 UI 骨架
+8. 接入服务端 `LLM Provider Adapter`、`Prompt Registry + Structured Output Guardrails` 与 `ERP Read Anti-Corruption Layer`
+9. 接入 `Cube Semantic Query Adapter`、`Neo4j Graph Adapter` 与最小 `Graph / Semantic ETL Sync Baseline`
+10. 建立 `Tool Registry + Orchestration Bridge`，把真实模型与真实数据能力接入 worker / application orchestration
+11. 再推进执行、流式反馈、归因结论与结果持久化
+12. 最后完善多轮追问、审计轨迹、治理、移动端与可观测性
 
 **跨组件依赖：**
 - 认证决策会直接影响 API 鉴权、缓存作用域和审计日志

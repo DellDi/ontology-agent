@@ -1,4 +1,4 @@
-# Story 6.2: 记录分析与工具调用审计日志
+# Story 7.2: 记录分析与工具调用审计日志
 
 Status: ready-for-dev
 
@@ -60,12 +60,12 @@ so that 企业可以追溯系统行为并满足内部治理要求。
 ### Previous Story Intelligence
 
 - Story 2.2 的 Drizzle / Postgres 基线为审计表提供直接落点。
-- Story 6.1 的权限失败结果需要在这里被持续记录。
-- Story 6.4 的 trace / correlation id 可与这里形成互补，但不能互相替代。
+- Story 7.1 的权限失败结果需要在这里被持续记录。
+- Story 7.4 的 trace / correlation id 可与这里形成互补，但不能互相替代。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.2: 记录分析与工具调用审计日志]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 7.2: 记录分析与工具调用审计日志]
 - [Source: _bmad-output/planning-artifacts/prd.md#非功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#安全与权限边界]
 
@@ -85,4 +85,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/6-2-audit-analysis-and-tool-events.md
+- _bmad-output/implementation-artifacts/7-2-audit-analysis-and-tool-events.md

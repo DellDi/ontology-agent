@@ -1,4 +1,4 @@
-# Story 5.1: 基于既有结论发起追问
+# Story 6.1: 基于既有结论发起追问
 
 Status: ready-for-dev
 
@@ -31,7 +31,7 @@ so that 我可以逐层下钻到更具体的原因。
 ## Dev Notes
 
 - 这是“在同一会话内继续一轮”，不是新建独立分析。
-- iteration / follow-up 模型会影响 5.2 到 5.4 的历史、重规划和演化展示。
+- iteration / follow-up 模型会影响 6.2 到 6.4 的历史、重规划和演化展示。
 - 追问入口仍应通过服务端身份与权限边界处理。
 
 ### Architecture Compliance
@@ -58,12 +58,12 @@ so that 我可以逐层下钻到更具体的原因。
 
 ### Previous Story Intelligence
 
-- Story 4.4 必须先保留既有计划、结果和结论，否则无法可靠承接追问。
+- Story 5.4 必须先保留既有计划、结果和结论，否则无法可靠承接追问。
 - 本故事会为 7.3 的移动端轻量追问提供基础会话内多轮模型。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 5.1: 基于既有结论发起追问]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.1: 基于既有结论发起追问]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#应用通信与执行模型]
 
@@ -83,4 +83,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/5-1-follow-up-on-existing-conclusion.md
+- _bmad-output/implementation-artifacts/6-1-follow-up-on-existing-conclusion.md

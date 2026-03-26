@@ -1,4 +1,4 @@
-# Story 6.4: 建立运行监控与可用性观测
+# Story 7.4: 建立运行监控与可用性观测
 
 Status: ready-for-dev
 
@@ -58,12 +58,12 @@ so that 我们可以在试点阶段及时发现问题并维持目标可用性。
 
 ### Previous Story Intelligence
 
-- Story 6.2 的审计事件会与这里的 trace / correlation id 形成互补。
-- Story 6.3 的自托管容器基线为观测组件和 exporter 提供部署落点。
+- Story 7.2 的审计事件会与这里的 trace / correlation id 形成互补。
+- Story 7.3 的自托管容器基线为观测组件和 exporter 提供部署落点。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.4: 建立运行监控与可用性观测]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 7.4: 建立运行监控与可用性观测]
 - [Source: _bmad-output/planning-artifacts/prd.md#非功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#基础设施与部署]
 
@@ -83,4 +83,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/6-4-observability-and-availability-monitoring.md
+- _bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md

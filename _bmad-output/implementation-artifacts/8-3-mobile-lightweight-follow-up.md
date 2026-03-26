@@ -1,4 +1,4 @@
-# Story 7.3: 移动端发起轻量追问
+# Story 8.3: 移动端发起轻量追问
 
 Status: ready-for-dev
 
@@ -58,13 +58,13 @@ so that 我可以推动既有分析继续深入而不需要重建会话。
 
 ### Previous Story Intelligence
 
-- Story 5.1 已建立基于既有结论发起追问的会话内模型。
-- Story 7.1 / 7.2 已建立移动端只读摘要与证据视图；7.3 在其上增加轻量写入口。
-- Story 6.1 的服务端权限校验必须先覆盖移动端入口，避免新旁路。
+- Story 6.1 已建立基于既有结论发起追问的会话内模型。
+- Story 8.1 / 8.2 已建立移动端只读摘要与证据视图；8.3 在其上增加轻量写入口。
+- Story 7.1 的服务端权限校验必须先覆盖移动端入口，避免新旁路。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 7.3: 移动端发起轻量追问]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 8.3: 移动端发起轻量追问]
 - [Source: _bmad-output/planning-artifacts/prd.md#功能需求]
 - [Source: _bmad-output/planning-artifacts/architecture.md#应用通信与执行模型]
 
@@ -84,4 +84,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/7-3-mobile-lightweight-follow-up.md
+- _bmad-output/implementation-artifacts/8-3-mobile-lightweight-follow-up.md

@@ -1,4 +1,4 @@
-# Story 6.3: 建立自托管容器化部署基线
+# Story 7.3: 建立自托管容器化部署基线
 
 Status: ready-for-dev
 
@@ -61,11 +61,11 @@ so that 我们可以在自有环境中运行系统而不依赖公有云专属托
 
 - Story 2.1 已建立本地 Compose 基线，但仍偏开发环境。
 - Story 2.6 的 worker skeleton 会成为这里容器边界的一部分。
-- Story 6.4 的观测组件最好在这套容器基线上继续接入。
+- Story 7.4 的观测组件最好在这套容器基线上继续接入。
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 6.3: 建立自托管容器化部署基线]
+- [Source: _bmad-output/planning-artifacts/epics.md#Story 7.3: 建立自托管容器化部署基线]
 - [Source: _bmad-output/planning-artifacts/architecture.md#基础设施与部署]
 - [Source: _bmad-output/planning-artifacts/prd.md#非功能需求]
 
@@ -85,4 +85,4 @@ GPT-5 Codex
 
 ### File List
 
-- _bmad-output/implementation-artifacts/6-3-self-hosted-container-deployment-baseline.md
+- _bmad-output/implementation-artifacts/7-3-self-hosted-container-deployment-baseline.md
