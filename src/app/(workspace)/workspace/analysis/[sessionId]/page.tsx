@@ -5,8 +5,10 @@ import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-se
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
+import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { requireRequestSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
+import { CandidateFactorPanel } from './_components/candidate-factor-panel';
 
 type AnalysisSessionPageProps = {
   params: Promise<{
@@ -48,6 +50,11 @@ export default async function AnalysisSessionPage({
   const contextReadModel = await analysisContextUseCases.getCurrentContext({
     sessionId: analysisSession.id,
     questionText: analysisSession.questionText,
+  });
+  const candidateFactorReadModel = factorExpansionUseCases.buildCandidateFactorReadModel({
+    intentType: intent?.type ?? 'general-analysis',
+    questionText: analysisSession.questionText,
+    contextReadModel,
   });
 
   return (
@@ -125,6 +132,8 @@ export default async function AnalysisSessionPage({
       </div>
 
       <aside className="space-y-6">
+        <CandidateFactorPanel readModel={candidateFactorReadModel} />
+
         <article className="glass-panel p-6">
           <p className="text-sm font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
             证据辅助区

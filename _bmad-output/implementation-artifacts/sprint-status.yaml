@@ -65,7 +65,7 @@ development_status:
   3-1-structured-analysis-intent: review
   3-2-context-extraction-display: review
   3-3-user-corrects-extracted-context: review
-  3-4-expand-candidate-factors: ready-for-dev
+  3-4-expand-candidate-factors: review
   3-5-generate-and-display-analysis-plan: ready-for-dev
   epic-3-retrospective: optional
 

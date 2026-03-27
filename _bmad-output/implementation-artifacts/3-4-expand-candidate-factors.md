@@ -1,6 +1,6 @@
 # Story 3.4: 扩展候选影响因素
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,15 +18,15 @@ so that 我能理解系统为何要从这些方向展开分析。
 
 ## Tasks / Subtasks
 
-- [ ] 建立候选因素模型与扩展规则（AC: 1, 2, 3）
-  - [ ] 区分“候选因素”和“最终原因”，不要提前输出结论语义。
-  - [ ] 为可解释依据定义最小字段。
-- [ ] 将因素扩展接入上下文准备流程（AC: 1, 2）
-  - [ ] 仅对需要归因 / 影响分析的问题触发。
-  - [ ] 结果挂到当前会话 read model 中。
-- [ ] 覆盖分支测试（AC: 2, 3）
-  - [ ] 归因类问题生成候选因素。
-  - [ ] 简单查询类问题跳过因素扩展。
+- [x] 建立候选因素模型与扩展规则（AC: 1, 2, 3）
+  - [x] 区分“候选因素”和“最终原因”，不要提前输出结论语义。
+  - [x] 为可解释依据定义最小字段。
+- [x] 将因素扩展接入上下文准备流程（AC: 1, 2）
+  - [x] 仅对需要归因 / 影响分析的问题触发。
+  - [x] 结果挂到当前会话 read model 中。
+- [x] 覆盖分支测试（AC: 2, 3）
+  - [x] 归因类问题生成候选因素。
+  - [x] 简单查询类问题跳过因素扩展。
 
 ## Dev Notes
 
@@ -74,12 +74,33 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test tests/story-3-4-candidate-factors.test.mjs`
+- `node --test --test-concurrency=1 tests/story-3-2-context-extraction-display.test.mjs tests/story-3-3-context-correction.test.mjs tests/story-3-4-candidate-factors.test.mjs`
+- `node --test --test-concurrency=1 tests/*.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增规则型 `factor-expansion` 领域与用例层，在不引入 Neo4j 的前提下完成候选因素扩展契约。
+- 归因 / 影响类问题现在会在分析页右侧生成候选影响因素列表，并明确标注“这些因素不是最终结论”。
+- 每个候选因素都带有与当前指标、实体或时间范围绑定的可解释依据，避免只给出空洞标签。
+- 对直接查询或基础对比类问题，系统会明确展示“已跳过候选因素扩展”，不再强行渲染无关因素。
+- 分析页右侧从纯占位容器升级为真实候选因素面板，为 Story 3.5 的计划生成和 Story 4.3 的证据解释预留稳定入口。
+- 新增 Story 3.4 集成测试，覆盖归因类问题扩展与非归因类问题跳过两个主分支。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-4-expand-candidate-factors.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/candidate-factor-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/application/factor-expansion/use-cases.ts
+- src/domain/factor-expansion/models.ts
+- src/infrastructure/factor-expansion/index.ts
+- tests/story-3-4-candidate-factors.test.mjs
+
+## Change Log
+
+- 2026-03-27: 完成 Story 3.4，实现候选影响因素扩展规则、分析页展示面板与分支集成测试。
