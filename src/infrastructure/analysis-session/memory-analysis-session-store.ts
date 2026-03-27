@@ -33,5 +33,9 @@ export function createMemoryAnalysisSessionStore(): AnalysisSessionStore {
           right.updatedAt.localeCompare(left.updatedAt),
         );
     },
+
+    async delete(sessionId) {
+      store.delete(sessionId);
+    },
   };
 }

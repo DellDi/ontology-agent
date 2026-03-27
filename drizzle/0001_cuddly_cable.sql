@@ -1,0 +1,5 @@
+ALTER TABLE "platform"."analysis_sessions" ADD COLUMN "organization_id" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "platform"."analysis_sessions" ADD COLUMN "project_ids" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "platform"."analysis_sessions" ADD COLUMN "area_ids" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "platform"."analysis_sessions" ADD COLUMN "saved_context" jsonb DEFAULT '{"targetMetric":{"label":"目标指标","value":"待补充目标指标","state":"missing","note":"尚未识别到明确目标指标。"},"entity":{"label":"实体对象","value":"待补充实体对象","state":"missing","note":"尚未识别到项目、区域等明确实体。"},"timeRange":{"label":"时间范围","value":"待补充时间范围","state":"missing","note":"建议明确时间范围，例如近三个月或本季度。"},"comparison":{"label":"比较方式","value":"待补充比较方式","state":"missing","note":"尚未识别到同比、环比或显式对比关系。"},"constraints":[]}'::jsonb NOT NULL;--> statement-breakpoint
+CREATE INDEX "analysis_sessions_org_owner_idx" ON "platform"."analysis_sessions" USING btree ("organization_id","owner_user_id");

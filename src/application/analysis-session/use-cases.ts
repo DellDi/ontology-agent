@@ -2,10 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import {
   type AnalysisSession,
+  getMissingScopedTargetsMessage,
+  isSessionAccessibleInScope,
   normalizeQuestionText,
   validateQuestionText,
 } from '@/domain/analysis-session/models';
-import type { AuthSession } from '@/domain/auth/models';
+import { extractAnalysisContext } from '@/domain/analysis-context/models';
+import { hasScopedTargets, type AuthSession } from '@/domain/auth/models';
 
 import type { AnalysisSessionStore } from './ports';
 
@@ -37,11 +40,22 @@ export function createAnalysisSessionUseCases({
         throw new InvalidAnalysisQuestionError(validationMessage);
       }
 
+      if (!hasScopedTargets(owner)) {
+        throw new InvalidAnalysisQuestionError(
+          getMissingScopedTargetsMessage(),
+        );
+      }
+
       const timestamp = new Date().toISOString();
+      const normalizedQuestionText = normalizeQuestionText(questionText);
       const session: AnalysisSession = {
         id: randomUUID(),
         ownerUserId: owner.userId,
-        questionText: normalizeQuestionText(questionText),
+        organizationId: owner.scope.organizationId,
+        projectIds: [...owner.scope.projectIds],
+        areaIds: [...owner.scope.areaIds],
+        questionText: normalizedQuestionText,
+        savedContext: extractAnalysisContext(normalizedQuestionText),
         status: 'pending',
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -52,22 +66,71 @@ export function createAnalysisSessionUseCases({
 
     async getOwnedSession({
       sessionId,
-      ownerUserId,
+      owner,
     }: {
       sessionId: string;
-      ownerUserId: string;
+      owner: AuthSession;
     }) {
       const session = await analysisSessionStore.getById(sessionId);
 
-      if (!session || session.ownerUserId !== ownerUserId) {
+      if (!session) {
+        return null;
+      }
+
+      if (session.ownerUserId !== owner.userId) {
+        return null;
+      }
+
+      if (
+        !isSessionAccessibleInScope(session, {
+          userId: owner.userId,
+          scope: owner.scope,
+        })
+      ) {
         return null;
       }
 
       return session;
     },
 
-    async listOwnedSessions(ownerUserId: string) {
-      return await analysisSessionStore.listByOwner(ownerUserId);
+    async listOwnedSessions(owner: AuthSession) {
+      const sessions = await analysisSessionStore.listByOwner(owner.userId);
+
+      return sessions.filter((session) =>
+        isSessionAccessibleInScope(session, {
+          userId: owner.userId,
+          scope: owner.scope,
+        }),
+      );
+    },
+
+    async deleteOwnedSession({
+      sessionId,
+      owner,
+    }: {
+      sessionId: string;
+      owner: AuthSession;
+    }) {
+      const session = await analysisSessionStore.getById(sessionId);
+
+      if (!session) {
+        return;
+      }
+
+      if (session.ownerUserId !== owner.userId) {
+        return;
+      }
+
+      if (
+        !isSessionAccessibleInScope(session, {
+          userId: owner.userId,
+          scope: owner.scope,
+        })
+      ) {
+        return;
+      }
+
+      await analysisSessionStore.delete(sessionId);
     },
   };
 }

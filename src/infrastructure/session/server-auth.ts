@@ -96,8 +96,12 @@ export async function requireRequestSession(loginReturnPath = '/workspace') {
   return session;
 }
 
-export async function requireWorkspaceSession(pathname = '/workspace') {
-  const session = await requireRequestSession(pathname);
+export async function getWorkspaceSessionState() {
+  const session = await getRequestSession();
+
+  if (!session) {
+    return null;
+  }
 
   try {
     authUseCases.assertWorkspaceAccess(session);
@@ -115,6 +119,16 @@ export async function requireWorkspaceSession(pathname = '/workspace') {
 
     throw error;
   }
+}
+
+export async function requireWorkspaceSession(pathname = '/workspace') {
+  const workspaceSessionState = await getWorkspaceSessionState();
+
+  if (!workspaceSessionState) {
+    redirect(`/login?next=${encodeURIComponent(pathname)}`);
+  }
+
+  return workspaceSessionState;
 }
 
 export async function logoutCurrentSession() {

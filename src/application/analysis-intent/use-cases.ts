@@ -22,6 +22,12 @@ export function createAnalysisIntentUseCases({
       sessionId: string;
       questionText: string;
     }): Promise<AnalysisIntent> {
+      const failureToken = process.env.FAIL_ANALYSIS_INTENT_FOR_TEST?.trim();
+
+      if (failureToken && questionText.includes(failureToken)) {
+        throw new Error('analysis-intent-test-failure');
+      }
+
       const result = recognizeIntentFromQuestion(questionText);
 
       const intent: AnalysisIntent = {

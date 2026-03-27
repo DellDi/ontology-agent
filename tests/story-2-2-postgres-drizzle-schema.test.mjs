@@ -70,8 +70,12 @@ test('platform schema 只定义最小 auth_sessions 与 analysis_sessions 表', 
 
   assert.match(analysisSchema, /analysis_sessions/);
   assert.match(analysisSchema, /owner_user_id/);
+  assert.match(analysisSchema, /organization_id/);
+  assert.match(analysisSchema, /project_ids/);
+  assert.match(analysisSchema, /area_ids/);
   assert.match(analysisSchema, /question_text/);
   assert.match(analysisSchema, /status/);
+  assert.match(analysisSchema, /saved_context/);
   assert.match(analysisSchema, /created_at/);
   assert.match(analysisSchema, /updated_at/);
 
