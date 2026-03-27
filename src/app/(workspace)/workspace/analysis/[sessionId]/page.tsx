@@ -4,10 +4,12 @@ import { createAnalysisSessionUseCases } from '@/application/analysis-session/us
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
+import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { requireRequestSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
+import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
 
 type AnalysisSessionPageProps = {
@@ -55,6 +57,11 @@ export default async function AnalysisSessionPage({
     intentType: intent?.type ?? 'general-analysis',
     questionText: analysisSession.questionText,
     contextReadModel,
+  });
+  const analysisPlanReadModel = analysisPlanningUseCases.buildPlanReadModel({
+    intentType: intent?.type ?? 'general-analysis',
+    contextReadModel,
+    candidateFactorReadModel,
   });
 
   return (
@@ -129,6 +136,8 @@ export default async function AnalysisSessionPage({
           sessionId={analysisSession.id}
           initialReadModel={contextReadModel}
         />
+
+        <AnalysisPlanPanel readModel={analysisPlanReadModel} />
       </div>
 
       <aside className="space-y-6">
