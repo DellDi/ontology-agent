@@ -1,6 +1,6 @@
 # Story 3.5: 生成并展示多步分析计划
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,16 +18,16 @@ so that 我可以理解系统接下来准备如何完成这次归因分析。
 
 ## Tasks / Subtasks
 
-- [ ] 建立分析计划模型（AC: 1, 2, 3）
-  - [ ] 定义步骤、顺序、依赖关系和计划摘要字段。
-  - [ ] 区分计划骨架与执行结果，不在本故事引入后台执行。
-- [ ] 接入计划生成流程与展示（AC: 1, 2, 3）
-  - [ ] 基于 intent、上下文和候选因素生成多步计划或极简计划。
-  - [ ] 在分析页中展示可读的计划时间线或列表。
-- [ ] 覆盖计划生成与渲染测试（AC: 1, 2, 3）
-  - [ ] 验证复杂问题生成多步计划。
-  - [ ] 验证简单问题不被强行复杂化。
-  - [ ] 验证依赖关系展示清晰。
+- [x] 建立分析计划模型（AC: 1, 2, 3）
+  - [x] 定义步骤、顺序、依赖关系和计划摘要字段。
+  - [x] 区分计划骨架与执行结果，不在本故事引入后台执行。
+- [x] 接入计划生成流程与展示（AC: 1, 2, 3）
+  - [x] 基于 intent、上下文和候选因素生成多步计划或极简计划。
+  - [x] 在分析页中展示可读的计划时间线或列表。
+- [x] 覆盖计划生成与渲染测试（AC: 1, 2, 3）
+  - [x] 验证复杂问题生成多步计划。
+  - [x] 验证简单问题不被强行复杂化。
+  - [x] 验证依赖关系展示清晰。
 
 ## Dev Notes
 
@@ -76,12 +76,33 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test tests/story-3-5-analysis-plan.test.mjs`
+- `node --test --test-concurrency=1 tests/story-3-4-candidate-factors.test.mjs tests/story-3-5-analysis-plan.test.mjs`
+- `node --test --test-concurrency=1 tests/*.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增 deterministic 的 `analysis-plan` 领域模型与应用层 builder，稳定定义计划摘要、步骤顺序和依赖关系。
+- 复杂归因问题现在会生成四步计划骨架，覆盖口径确认、指标校验、候选因素验证和归因判断汇总。
+- 简单查询问题会降级为极简计划，只保留必要的查询口径确认与结果返回步骤，不再强行复杂化。
+- 分析页新增计划面板，用户可以在执行前直接看到步骤顺序、每步目标和依赖步骤，不再是黑盒式过渡。
+- 计划生成继续停留在服务端 read model 阶段，没有引入 worker、队列或执行结果持久化，保持与 Story 3.5 边界一致。
+- 新增 Story 3.5 集成测试，覆盖复杂计划、极简计划和依赖关系展示。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-5-generate-and-display-analysis-plan.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-plan-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/application/analysis-planning/use-cases.ts
+- src/domain/analysis-plan/models.ts
+- src/infrastructure/analysis-planning/index.ts
+- tests/story-3-5-analysis-plan.test.mjs
+
+## Change Log
+
+- 2026-03-27: 完成 Story 3.5，实现多步/极简分析计划生成、依赖关系展示与集成验证。
