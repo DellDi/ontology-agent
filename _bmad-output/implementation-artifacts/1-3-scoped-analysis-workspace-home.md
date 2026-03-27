@@ -1,6 +1,6 @@
 # Story 1.3: 权限范围内的分析工作台首页
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -120,3 +120,4 @@ GPT-5 Codex
 ## Change Log
 
 - 2026-03-25：完成 Story 1.3，实现权限范围内的工作台首页、品牌化入口布局、范围摘要与空状态提示。
+- 2026-03-27：Epic 1 代码审查完成，Story 1.3 正式结项并回写状态。

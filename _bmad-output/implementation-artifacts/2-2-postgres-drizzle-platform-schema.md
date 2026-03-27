@@ -216,6 +216,7 @@ GPT-5 Codex
 - 后续排障已确认最初失败根因有二：宿主机 `.env` 使用了仅适用于容器网络的 `postgres` 主机名，且本机已有本地 Postgres 占用 `127.0.0.1:5432`；现已改为宿主机使用 `127.0.0.1:55432`，而 Compose 内 `web` 容器仍显式连接 `postgres:5432`。
 - 同次排障还修复了 Postgres 18 官方镜像的卷挂载路径问题，现改为将 `postgres-data` 挂载到 `/var/lib/postgresql`，避免容器因旧数据目录布局直接退出。
 - 现已成功执行 `docker compose up -d postgres redis`、宿主机 `pg` 连接探测、`pnpm db:migrate`，并通过 `psql` 验证数据库中已存在 `platform` schema、`auth_sessions` / `analysis_sessions` 两张表及对应索引。
+- 结合 Epic 1 review 修复，`platform.analysis_sessions` 已扩展保存 `organizationId`、`projectIds`、`areaIds` 与 `savedContext`，并生成增量迁移 `drizzle/0001_cuddly_cable.sql` 支撑作用域隔离与基础上下文快照回放。
 
 ### File List
 
@@ -239,3 +240,4 @@ GPT-5 Codex
 ## Change Log
 
 - 2026-03-25：完成 Story 2.2，建立 Drizzle/Postgres 基线、独立 platform schema、最小会话表结构与首个 migration。
+- 2026-03-27：为 Epic 1 review 修复追加分析会话作用域快照与 `savedContext` 持久化字段，并生成增量迁移 `0001_cuddly_cable.sql`。

@@ -97,10 +97,16 @@ Cascade (Claude)
 - 领域模型字段（id、ownerUserId、questionText、status、createdAt、updatedAt）完整映射到 Postgres 行，`listByOwner` 使用 `desc(updatedAt)` 倒序返回。
 - 3 处消费者全部切换：`src/app/api/analysis/sessions/route.ts`、`src/app/(workspace)/workspace/page.tsx`、`src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx`。
 - application / domain / 页面组件层零改动，API 路由与前端 URL 完全不变，UI 无法感知底层存储切换。
-- 用户隔离由 `use-cases.ts` 中 `getOwnedSession()` 的 `ownerUserId` 比较保证，repository 查询按 `ownerUserId` 过滤。
+- 用户隔离当前由 `use-cases.ts` 中的 `ownerUserId` 比较加作用域快照校验共同保证，repository 查询仍以 `ownerUserId` 为首层过滤。
 - `memory-analysis-session-store.ts` 保留未删除，可作为测试或回退使用。
 - 新增 `tests/story-2-4-analysis-session-persistence.test.mjs`，13 项契约测试覆盖：store 文件存在、接口兼容、schema 复用、字段映射、排序逻辑、3 处切换验证、数据库细节隔离、客户端存储安全、port 稳定性、use-cases 用户隔离、memory store 保留。
 - 运行时集成测试（创建落库、历史列表、跨用户隔离、重启后回看）需在 Docker Compose 环境中执行。
+- 结合 Epic 1 review 修复，分析会话 Postgres store 已继续映射组织/项目/区域作用域快照、`savedContext` 基础上下文快照，并补充 `delete(sessionId)` 以支持创建失败回滚。
+- 当前 `listOwnedSessions()` / `getOwnedSession()` 已升级为 scope-aware 读取：除了 `ownerUserId`，还会基于当前工作台作用域校验组织、项目和区域边界。
+
+### Change Log
+
+- 2026-03-27：为 Epic 1 review 修复补充会话作用域快照、`savedContext` 持久化、删除接口与 scope-aware 读取约束。
 
 ### File List
 

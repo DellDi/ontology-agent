@@ -1,6 +1,6 @@
 # Story 1.5: 历史分析会话列表与回看
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -98,9 +98,11 @@ GPT-5 Codex
 - 本故事已补充 UX 对“会话历史栏”和一致性标签体系的约束。
 - 会话模型新增了最小 `updatedAt` 字段，用于支持“最近更新时间”展示，但没有提前扩展结果表或审计表。
 - 工作台首页已经从占位“最近分析”切换为真实“历史会话”区，列表按 `updatedAt` 倒序展示，并复用现有 `/workspace/analysis/[sessionId]` 作为回看入口。
-- 历史会话只按当前登录用户进行服务端过滤；其他用户既不会出现在列表中，也不能通过直链访问详情页。
+- 历史会话始终以当前登录用户为首层服务端过滤；当前实现还会继续叠加组织、项目和区域作用域校验，其他用户或超范围会话都不会出现在列表中，也不能通过直链访问详情页。
 - 空历史状态会在主工作台内给出明确提示，保持与 UX 规格一致的面板语义，而不是跳转到空白列表页。
 - `node --test --test-concurrency=1 tests/story-1-1-foundation.test.mjs tests/story-1-2-auth.test.mjs tests/story-1-3-workspace-home.test.mjs tests/story-1-4-analysis-session.test.mjs tests/story-1-5-history.test.mjs`、`pnpm lint`、`pnpm build` 全部通过。
+- Epic 1 review 修复后，历史列表与详情页不再只按 `ownerUserId` 过滤，而是同时校验组织、项目和区域作用域，避免权限收缩或跨组织复用工号时泄露旧会话。
+- Epic 1 review 修复后，详情页优先展示会话创建时保存的基础上下文快照，并在未登录深链访问时保留原分析页回跳路径。
 
 ### File List
 
@@ -118,3 +120,4 @@ GPT-5 Codex
 ## Change Log
 
 - 2026-03-25：完成 Story 1.5，实现历史会话列表、空状态、本人回看和跨用户隔离。
+- 2026-03-27：完成 Epic 1 review 修复回写，补充 scope-aware 历史隔离、深链登录回跳与基础上下文快照复盘，并回写为 done。

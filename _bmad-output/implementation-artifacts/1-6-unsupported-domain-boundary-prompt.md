@@ -1,6 +1,6 @@
 # Story 1.6: 非支持领域问题的边界提示
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -99,6 +99,7 @@ GPT-5 Codex
 - 会外问题仍在会话创建入口被拦截，但提示文案已经升级为更明确的产品边界说明，不会继续进入后续分析流程。
 - Story 1.3 的首页测试已同步调整为新的产品事实：首页现在应该明确展示范围说明，而不是回避相关字样。
 - `node --test --test-concurrency=1 tests/story-1-1-foundation.test.mjs tests/story-1-2-auth.test.mjs tests/story-1-3-workspace-home.test.mjs tests/story-1-4-analysis-session.test.mjs tests/story-1-5-history.test.mjs tests/story-1-6-scope-boundary.test.mjs`、`pnpm lint`、`pnpm build` 全部通过。
+- Epic 1 review 修复后，范围边界归一化已补充 `NFKC` 标准化和空白折叠，`C R M`、全角字符、拆字输入等变体也会被稳定拦截。
 
 ### File List
 
@@ -114,3 +115,4 @@ GPT-5 Codex
 ## Change Log
 
 - 2026-03-25：完成 Story 1.6，实现非支持领域边界策略、工作台范围说明和统一阻断提示。
+- 2026-03-27：完成 Epic 1 review 修复回写，补充变体关键词归一化拦截，并回写为 done。

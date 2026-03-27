@@ -1,6 +1,6 @@
 # Story 1.2: ERP 身份接入与受保护会话
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -98,9 +98,11 @@ GPT-5 Codex
 - 已实现 `/api/auth/login`、`/api/auth/callback`、`/api/auth/logout` 三个 Route Handlers，并通过 HTTP-only Cookie 持有服务端会话标识。
 - 会话内容已带入用户标识、组织编号、项目范围、区域范围和角色编码，满足后续 Story 对权限上下文的复用需求。
 - 受保护页面改为由 `src/app/(workspace)/layout.tsx` 在服务端统一校验；未登录会跳转 `/login`，已登录但无可用范围会返回克制的权限提示，不泄露敏感对象。
-- 为满足“退出后会话失效”且不提前引入数据库，本故事采用了最小内存会话存储；Cookie 仅保存签名后的 session id，服务端可主动吊销。
+- 初始版本为满足“退出后会话失效”且不提前引入数据库，曾采用最小内存会话存储；Cookie 契约始终只保存签名后的 session id，服务端可主动吊销。
 - 登录页与受保护工作台延续了亮色、克制、高信任的 UX 基线，而不是落成默认后台登录页。
 - `node --test tests/story-1-1-foundation.test.mjs tests/story-1-2-auth.test.mjs`、`pnpm lint`、`pnpm build` 全部通过。
+- 后续 Story 2.3 已将服务端会话存储正式迁移到 Postgres，登录、退出与受保护页面的应用层契约保持不变。
+- 后续 Story 2.7 与 Epic 1 review 修复已补齐开发期 ERP stub 环境门禁，并将 `next` 回跳路径收紧到受控白名单。
 
 ### File List
 
@@ -132,3 +134,4 @@ GPT-5 Codex
 ## Change Log
 
 - 2026-03-25：完成 Story 1.2，实现 ERP 防腐层、服务端会话签发、登录入口、受保护工作台拦截与退出失效验证。
+- 2026-03-27：结合 Story 2.3 / 2.7 与 Epic 1 review 修复，补记 Postgres 会话持久化与认证安全收口结果，并回写为 done。

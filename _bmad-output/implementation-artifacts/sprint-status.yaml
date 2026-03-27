@@ -1,9 +1,9 @@
 # generated: 2026-03-25
-# last_updated: 2026-03-26
+# last_updated: 2026-03-27
 # project: ontology-agent
 # project_key: NOKEY
 # tracking_system: file-system
-# story_location: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts
+# story_location: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts
 #
 # STATUS DEFINITIONS:
 # ==================
@@ -39,16 +39,16 @@ last_updated: 2026-03-27
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
-story_location: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts
+story_location: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts
 
 development_status:
-  epic-1: in-progress
-  1-1-manual-nextjs-foundation: review
-  1-2-erp-auth-protected-session: review
-  1-3-scoped-analysis-workspace-home: review
-  1-4-create-analysis-session: review
-  1-5-analysis-session-history-and-replay: review
-  1-6-unsupported-domain-boundary-prompt: review
+  epic-1: done
+  1-1-manual-nextjs-foundation: done
+  1-2-erp-auth-protected-session: done
+  1-3-scoped-analysis-workspace-home: done
+  1-4-create-analysis-session: done
+  1-5-analysis-session-history-and-replay: done
+  1-6-unsupported-domain-boundary-prompt: done
   epic-1-retrospective: optional
 
   epic-2: in-progress

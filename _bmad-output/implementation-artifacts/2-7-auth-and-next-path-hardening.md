@@ -90,6 +90,7 @@ Claude Opus 4.6
 - `sanitizeNextPath` 强化：新增 trim() 防空白前缀绕过、replace(/\\/g, '/') 防反斜杠绕过
 - 12 个安全测试覆盖：正常回跳、外部 URL、协议相对路径、反斜杠、空白前缀、非 workspace 路径、路径穿越、空路径、未登录重定向、代码安全检查
 - 保持现有 auth-hardening.test.mjs（ENABLE_DEV_ERP_AUTH=0 场景）完全兼容
+- 结合 Epic 1 review 修复，详情页未登录访问现在会保留 `/workspace/analysis/[sessionId]` 深链回跳，安全收紧未破坏真实站内分析回看路径。
 
 ### File List
 
@@ -100,3 +101,4 @@ Claude Opus 4.6
 ### Change Log
 
 - 2026-03-26: Story 2.7 实现完成 — 认证入口 production 门禁 + next 跳转安全强化 + 12 个安全测试
+- 2026-03-27：补记深链分析页登录回跳的联动验证结果。
