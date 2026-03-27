@@ -277,3 +277,117 @@ export function extractAnalysisContext(
     constraints,
   };
 }
+
+export type ContextCorrection = {
+  targetMetric?: { value: string; note?: string };
+  entity?: { value: string; note?: string };
+  timeRange?: { value: string; note?: string };
+  comparison?: { value: string; note?: string };
+};
+
+export type VersionedAnalysisContext = {
+  sessionId: string;
+  ownerUserId: string;
+  version: number;
+  context: AnalysisContext;
+  originalQuestionText: string;
+  createdAt: string;
+};
+
+export function applyContextCorrection(
+  context: AnalysisContext,
+  correction: ContextCorrection,
+): AnalysisContext {
+  const corrected = { ...context };
+
+  if (correction.targetMetric) {
+    corrected.targetMetric = {
+      ...context.targetMetric,
+      value: correction.targetMetric.value,
+      state: 'confirmed',
+      note: correction.targetMetric.note,
+    };
+  }
+
+  if (correction.entity) {
+    corrected.entity = {
+      ...context.entity,
+      value: correction.entity.value,
+      state: 'confirmed',
+      note: correction.entity.note,
+    };
+  }
+
+  if (correction.timeRange) {
+    corrected.timeRange = {
+      ...context.timeRange,
+      value: correction.timeRange.value,
+      state: 'confirmed',
+      note: correction.timeRange.note,
+    };
+  }
+
+  if (correction.comparison) {
+    corrected.comparison = {
+      ...context.comparison,
+      value: correction.comparison.value,
+      state: 'confirmed',
+      note: correction.comparison.note,
+    };
+  }
+
+  return corrected;
+}
+
+export class ContextCorrectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ContextCorrectionError';
+  }
+}
+
+export function validateContextCorrection(correction: unknown): ContextCorrection {
+  if (!correction || typeof correction !== 'object') {
+    throw new ContextCorrectionError('修正内容必须是一个对象。');
+  }
+
+  const candidate = correction as Record<string, unknown>;
+  const validFields = ['targetMetric', 'entity', 'timeRange', 'comparison'];
+  const hasAtLeastOne = validFields.some(
+    (field) => candidate[field] !== undefined,
+  );
+
+  if (!hasAtLeastOne) {
+    throw new ContextCorrectionError(
+      '至少需要修正一个字段（targetMetric、entity、timeRange 或 comparison）。',
+    );
+  }
+
+  const result: ContextCorrection = {};
+
+  for (const field of validFields) {
+    const entry = candidate[field];
+
+    if (entry === undefined) {
+      continue;
+    }
+
+    if (!entry || typeof entry !== 'object') {
+      throw new ContextCorrectionError(`字段 ${field} 必须包含 value 属性。`);
+    }
+
+    const entryObj = entry as Record<string, unknown>;
+
+    if (typeof entryObj.value !== 'string' || !entryObj.value.trim()) {
+      throw new ContextCorrectionError(`字段 ${field}.value 不能为空。`);
+    }
+
+    (result as Record<string, unknown>)[field] = {
+      value: entryObj.value.trim(),
+      note:
+        typeof entryObj.note === 'string' ? entryObj.note.trim() : undefined,
+    };
+  }
+
+  return result;
+}

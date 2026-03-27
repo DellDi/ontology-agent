@@ -1,9 +1,9 @@
-import { createAnalysisContextUseCases } from '@/application/analysis-context/use-cases';
 import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
+import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { requireRequestSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
@@ -17,7 +17,6 @@ type AnalysisSessionPageProps = {
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
-const analysisContextUseCases = createAnalysisContextUseCases();
 
 export default async function AnalysisSessionPage({
   params,
@@ -39,7 +38,14 @@ export default async function AnalysisSessionPage({
   const intent = await analysisIntentUseCases.getIntentBySessionId(
     analysisSession.id,
   );
-  const analysisContextReadModel = analysisContextUseCases.buildContextReadModel({
+
+  await analysisContextUseCases.initializeContext({
+    sessionId: analysisSession.id,
+    ownerUserId: currentUser.userId,
+    questionText: analysisSession.questionText,
+  });
+
+  const contextReadModel = await analysisContextUseCases.getCurrentContext({
     sessionId: analysisSession.id,
     questionText: analysisSession.questionText,
   });
@@ -112,7 +118,10 @@ export default async function AnalysisSessionPage({
           </article>
         )}
 
-        <AnalysisContextPanel context={analysisContextReadModel.context} />
+        <AnalysisContextPanel
+          sessionId={analysisSession.id}
+          initialReadModel={contextReadModel}
+        />
       </div>
 
       <aside className="space-y-6">
