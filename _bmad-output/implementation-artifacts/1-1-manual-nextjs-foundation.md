@@ -1,6 +1,6 @@
 # Story 1.1: 手工初始化 Next.js 分析平台骨架
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -139,3 +139,4 @@ GPT-5 Codex
 ## Change Log
 
 - 2026-03-25：完成 Story 1.1 初始化，实现官方脚手架引导的 Next.js App Router 骨架、DIP3 亮色品牌基线与基础回归验证。
+- 2026-03-27：Epic 1 代码审查完成，Story 1.1 作为底座故事已正式结项并回写状态。

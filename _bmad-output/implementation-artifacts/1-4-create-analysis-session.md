@@ -1,6 +1,6 @@
 # Story 1.4: 创建新的分析会话
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -83,7 +83,7 @@ GPT-5 Codex
 ### Implementation Plan
 
 - 先编写会先失败的集成测试，验证创建成功、空输入失败、未登录失败和超范围问题拦截四条主路径。
-- 建立分析会话的最小领域模型、应用层用例和内存仓储，让会话对象先具备稳定 `id`、状态和原问题文本。
+- 建立分析会话的最小领域模型、应用层用例和最小仓储边界，让会话对象先具备稳定 `id`、状态和原问题文本。
 - 在工作台首页接入真实“新建分析”表单，通过服务端 Route Handler 创建会话并跳转到会话页。
 - 为会话页铺设三段式工作台兼容骨架，只保留主分析区与证据辅助区容器，不提前实现 Epic 2 组件。
 
@@ -99,12 +99,14 @@ GPT-5 Codex
 - 本故事默认 Story 1.1-1.3 已建立项目骨架、受保护会话和工作台入口。
 - 已新增 `src/domain/analysis-session`、`src/application/analysis-session` 与 `src/infrastructure/analysis-session`，建立最小分析会话模型和服务端用例。
 - 会话记录已包含 `id`、`ownerUserId`、`questionText`、`status`、`createdAt`，并通过服务端仓储统一创建和读取。
-- 当前“最小持久化结构”采用内存仓储实现，而不是直接接入 Postgres；这样可以在不新增数据库依赖和迁移配置的前提下先满足故事闭环，并为后续真实仓储替换保留接口边界。
+- 初始版本的“最小持久化结构”先采用了内存仓储实现，以便在当时不新增数据库依赖和迁移配置的前提下先满足故事闭环；后续已迁移到 Postgres 并保留同一应用层边界。
 - 工作台首页已接入真实“新建分析”表单，服务端创建会话时只使用当前受保护会话中的用户身份，不信任浏览器提交的用户标识。
 - 对空问题、超长问题和明显超出物业分析范围的问题，服务端会返回明确错误并带回工作台首页。
 - 创建成功后会跳转到 `/workspace/analysis/[sessionId]`，页面已保留原问题文本和“待分析”状态，作为后续意图识别和计划生成的稳定起点。
 - 会话页整体结构已与 PC 三段式方向兼容：左侧导航继续承载身份与权限，主区承载分析主内容，右侧承载证据辅助区。
 - `node --test --test-concurrency=1 tests/story-1-1-foundation.test.mjs tests/story-1-2-auth.test.mjs tests/story-1-3-workspace-home.test.mjs tests/story-1-4-analysis-session.test.mjs`、`pnpm lint`、`pnpm build` 全部通过。
+- Epic 1 review 修复后，创建会话前已追加“当前必须具备项目或区域范围”的服务端校验，和首页空状态提示保持一致。
+- Epic 1 review 修复后，分析会话已补充组织/项目/区域作用域快照与 `savedContext` 基础上下文快照，并在意图识别下游失败时自动回滚，避免留下幽灵会话。
 
 ### File List
 
@@ -124,3 +126,4 @@ GPT-5 Codex
 ## Change Log
 
 - 2026-03-25：完成 Story 1.4，实现分析会话创建、最小会话持久化结构、会话页路由与三段式画布骨架。
+- 2026-03-27：完成 Epic 1 review 修复回写，补充无范围创建拦截、会话作用域快照、基础上下文快照与失败回滚逻辑，并回写为 done。

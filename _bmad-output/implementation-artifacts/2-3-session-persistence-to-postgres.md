@@ -104,6 +104,11 @@ Cascade (Claude)
 - `memory-session-store.ts` 保留未删除，可作为测试或回退使用。
 - 新增 `tests/story-2-3-session-persistence.test.mjs`，12 项契约测试覆盖：store 文件存在、接口兼容、schema 复用、字段映射、过期检查、server-auth 切换、cookie 契约、注销流程、端口稳定性、路由安全。
 - 当前环境无运行中 Postgres 实例，运行时集成测试（登录落库、跨请求持久化、重启后会话存活）需在 Docker Compose 环境中执行 story-1-2 级别集成测试验证。
+- 当前实现已继续作为认证事实源使用，并与 Story 2.7 的安全门禁和 Epic 1 review 修复一起完成回归验证，无需回退到 memory store。
+
+### Change Log
+
+- 2026-03-27：回写当前认证事实源状态，确认已与 Story 2.7 及 Epic 1 review 修复联动验证。
 
 ### File List
 
