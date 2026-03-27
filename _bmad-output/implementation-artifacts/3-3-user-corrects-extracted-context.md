@@ -1,6 +1,6 @@
 # Story 3.3: 用户修正抽取结果
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,16 +18,16 @@ so that 后续分析计划建立在我确认过的上下文上。
 
 ## Tasks / Subtasks
 
-- [ ] 建立上下文修正与版本回退模型（AC: 1, 2, 3）
-  - [ ] 为上下文确认、修正、撤销定义显式版本或确认状态。
-  - [ ] 保留原始问题文本，不允许修正覆盖问题源输入。
-- [ ] 增加服务端写入口（AC: 1, 2）
-  - [ ] 通过 Route Handler 或 Server Action 保存修正，不能只存在 client state。
-  - [ ] 后续计划生成逻辑必须读取“当前确认版本”。
-- [ ] 覆盖修正 / 撤销 / 越权测试（AC: 1, 2, 3）
-  - [ ] 验证修正后重新读取会话得到最新上下文。
-  - [ ] 验证撤销回到上一个确认版本。
-  - [ ] 验证跨用户或无权限修改被拒绝。
+- [x] 建立上下文修正与版本回退模型（AC: 1, 2, 3）
+  - [x] 为上下文确认、修正、撤销定义显式版本或确认状态。
+  - [x] 保留原始问题文本，不允许修正覆盖问题源输入。
+- [x] 增加服务端写入口（AC: 1, 2）
+  - [x] 通过 Route Handler 或 Server Action 保存修正，不能只存在 client state。
+  - [x] 后续计划生成逻辑必须读取“当前确认版本”。
+- [x] 覆盖修正 / 撤销 / 越权测试（AC: 1, 2, 3）
+  - [x] 验证修正后重新读取会话得到最新上下文。
+  - [x] 验证撤销回到上一个确认版本。
+  - [x] 验证跨用户或无权限修改被拒绝。
 
 ## Dev Notes
 
@@ -77,12 +77,38 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `docker compose up -d postgres redis`
+- `pnpm db:migrate`
+- `node --test tests/story-3-3-context-correction.test.mjs`（先因测试基线与数据库未启动失败，后通过）
+- `node --test --test-concurrency=1 tests/story-3-2-context-extraction-display.test.mjs tests/story-3-3-context-correction.test.mjs`
+- `node --test --test-concurrency=1 tests/*.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- 补全了 `analysis-context` 的版本化修正与撤销用例，最新确认版本现在由服务端 store 统一读取。
+- 新增 `/api/analysis/sessions/[sessionId]/context` 读写入口，支持获取当前上下文、保存修正和撤销上一次修正。
+- 会话页的上下文面板升级为可交互组件，用户现在可以在页面里直接修正目标指标、实体、时间范围和比较方式，并可撤销上一次修正。
+- 修正不会覆盖原始问题文本；原始问题会持续作为只读事实保留在当前会话上下文中。
+- 补全 Story 3.3 集成测试，覆盖修正、撤销、跨用户拒绝、非法载荷拒绝，以及会话页已渲染修正入口。
+- 本次继续实现前，先启动了本地 `postgres` / `redis` 并执行 `pnpm db:migrate`，否则当前 Postgres 持久化链路无法通过真实登录与建会话测试。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-3-user-corrects-extracted-context.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-context-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/app/api/analysis/sessions/[sessionId]/context/route.ts
+- src/application/analysis-context/ports.ts
+- src/application/analysis-context/use-cases.ts
+- src/domain/analysis-context/models.ts
+- src/infrastructure/analysis-context/index.ts
+- src/infrastructure/analysis-context/memory-analysis-context-store.ts
+- tests/story-3-3-context-correction.test.mjs
+
+## Change Log
+
+- 2026-03-27: 完成 Story 3.3，实现分析上下文修正/撤销的服务端写入口、版本回退模型、页面交互和集成回归验证。
