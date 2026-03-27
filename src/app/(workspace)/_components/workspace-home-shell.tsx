@@ -61,31 +61,37 @@ export function WorkspaceHomeShell({
           </div>
         ) : null}
 
-        <form
-          action="/api/analysis/sessions"
-          method="post"
-          className="mt-6 space-y-4"
-        >
-          <label className="block">
-            <span className="field-label">自然语言问题</span>
-            <textarea
-              className="field-input min-h-[132px] resize-y"
-              name="question"
-              placeholder="例如：为什么本月某项目的收费回款率下降了？"
-              defaultValue={draftQuestion}
-              maxLength={300}
-            />
-          </label>
+        {model.canCreateAnalysis ? (
+          <form
+            action="/api/analysis/sessions"
+            method="post"
+            className="mt-6 space-y-4"
+          >
+            <label className="block">
+              <span className="field-label">自然语言问题</span>
+              <textarea
+                className="field-input min-h-[132px] resize-y"
+                name="question"
+                placeholder="例如：为什么本月某项目的收费回款率下降了？"
+                defaultValue={draftQuestion}
+                maxLength={300}
+              />
+            </label>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-[color:var(--ink-600)]">
-              问题将作为会话起点保留，后续分析能力会围绕这条原始问题继续展开。
-            </p>
-            <button className="primary-button" type="submit">
-              创建分析会话
-            </button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-[color:var(--ink-600)]">
+                问题将作为会话起点保留，后续分析能力会围绕这条原始问题继续展开。
+              </p>
+              <button className="primary-button" type="submit">
+                创建分析会话
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-6 status-banner" data-tone="info">
+            当前会话还没有可直接发起分析的项目或区域范围。
           </div>
-        </form>
+        )}
       </article>
 
       <article className="grid gap-4 md:grid-cols-2">

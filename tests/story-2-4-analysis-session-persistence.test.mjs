@@ -22,7 +22,7 @@ test('Story 2.4 工件存在：postgres-analysis-session-store.ts', async () => 
   );
 });
 
-test('postgres-analysis-session-store 实现 AnalysisSessionStore 接口（create / getById / listByOwner）', async () => {
+test('postgres-analysis-session-store 实现 AnalysisSessionStore 接口（create / getById / listByOwner / delete）', async () => {
   const storeSource = await readRepoFile(
     'src/infrastructure/analysis-session/postgres-analysis-session-store.ts',
   );
@@ -32,6 +32,7 @@ test('postgres-analysis-session-store 实现 AnalysisSessionStore 接口（creat
   assert.match(storeSource, /async create\(/);
   assert.match(storeSource, /async getById\(/);
   assert.match(storeSource, /async listByOwner\(/);
+  assert.match(storeSource, /async delete\(/);
 });
 
 test('postgres-analysis-session-store 复用 platform.analysis_sessions 表', async () => {
@@ -52,14 +53,18 @@ test('postgres-analysis-session-store 复用 platform.analysis_sessions 表', as
   );
 });
 
-test('postgres-analysis-session-store 保留 ownerUserId / questionText / status / 时间字段映射', async () => {
+test('postgres-analysis-session-store 保留 ownerUserId / 作用域快照 / 问题文本 / 上下文字段映射', async () => {
   const storeSource = await readRepoFile(
     'src/infrastructure/analysis-session/postgres-analysis-session-store.ts',
   );
 
   for (const field of [
     'ownerUserId',
+    'organizationId',
+    'projectIds',
+    'areaIds',
     'questionText',
+    'savedContext',
     'status',
     'createdAt',
     'updatedAt',
@@ -139,20 +144,21 @@ test('分析会话消费者不使用浏览器客户端存储', async () => {
 // 4. 契约测试：AnalysisSessionStore port 接口未被修改
 // ---------------------------------------------------------------------------
 
-test('AnalysisSessionStore port 接口保持稳定', async () => {
+test('AnalysisSessionStore port 接口保持稳定并支持删除', async () => {
   const ports = await readRepoFile('src/application/analysis-session/ports.ts');
 
   assert.match(ports, /interface AnalysisSessionStore/);
   assert.match(ports, /create\(session: AnalysisSession\): Promise<AnalysisSession>/);
   assert.match(ports, /getById\(sessionId: string\): Promise<AnalysisSession \| null>/);
   assert.match(ports, /listByOwner\(ownerUserId: string\): Promise<AnalysisSession\[\]>/);
+  assert.match(ports, /delete\(sessionId: string\): Promise<void>/);
 });
 
 // ---------------------------------------------------------------------------
 // 5. 契约测试：use-cases 层保持稳定（用户隔离由 getOwnedSession 保证）
 // ---------------------------------------------------------------------------
 
-test('use-cases 层用户隔离逻辑保持稳定', async () => {
+test('use-cases 层用户隔离逻辑保持稳定并带上当前作用域校验', async () => {
   const useCases = await readRepoFile(
     'src/application/analysis-session/use-cases.ts',
   );
@@ -160,13 +166,13 @@ test('use-cases 层用户隔离逻辑保持稳定', async () => {
   assert.match(useCases, /getOwnedSession/);
   assert.match(
     useCases,
-    /ownerUserId/,
-    '用户隔离通过 ownerUserId 比较实现',
+    /organizationId|projectIds|areaIds/,
+    '用户隔离应带上组织或作用域快照校验',
   );
   assert.match(
     useCases,
-    /session\.ownerUserId !== ownerUserId/,
-    '跨用户访问时返回 null',
+    /session\.ownerUserId/,
+    '跨用户访问时仍应保留 ownerUserId 校验',
   );
 });
 

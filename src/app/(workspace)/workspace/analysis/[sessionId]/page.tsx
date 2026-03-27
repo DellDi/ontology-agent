@@ -7,7 +7,7 @@ import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
-import { requireRequestSession } from '@/infrastructure/session/server-auth';
+import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
@@ -25,14 +25,17 @@ const analysisSessionUseCases = createAnalysisSessionUseCases({
 export default async function AnalysisSessionPage({
   params,
 }: AnalysisSessionPageProps) {
-  const [{ sessionId }, currentUser] = await Promise.all([
-    params,
-    requireRequestSession('/workspace'),
-  ]);
+  const { sessionId } = await params;
+  const { session: currentUser, accessDeniedMessage } =
+    await requireWorkspaceSession(`/workspace/analysis/${sessionId}`);
+
+  if (accessDeniedMessage) {
+    return null;
+  }
 
   const analysisSession = await analysisSessionUseCases.getOwnedSession({
     sessionId,
-    ownerUserId: currentUser.userId,
+    owner: currentUser,
   });
 
   if (!analysisSession) {
@@ -47,11 +50,13 @@ export default async function AnalysisSessionPage({
     sessionId: analysisSession.id,
     ownerUserId: currentUser.userId,
     questionText: analysisSession.questionText,
+    initialContext: analysisSession.savedContext,
   });
 
   const contextReadModel = await analysisContextUseCases.getCurrentContext({
     sessionId: analysisSession.id,
     questionText: analysisSession.questionText,
+    savedContext: analysisSession.savedContext,
   });
   const candidateFactorReadModel = factorExpansionUseCases.buildCandidateFactorReadModel({
     intentType: intent?.type ?? 'general-analysis',

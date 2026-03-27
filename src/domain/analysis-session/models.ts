@@ -2,13 +2,24 @@ import {
   getUnsupportedScopeMessage,
   isUnsupportedAnalysisQuestion,
 } from '@/domain/scope-boundary/policy';
+import type { AnalysisContext } from '@/domain/analysis-context/models';
+import type { PermissionScope } from '@/domain/auth/models';
 
 export type AnalysisSessionStatus = 'pending';
+
+export type AnalysisSessionScopeSnapshot = Pick<
+  PermissionScope,
+  'organizationId' | 'projectIds' | 'areaIds'
+>;
 
 export type AnalysisSession = {
   id: string;
   ownerUserId: string;
+  organizationId: string;
+  projectIds: string[];
+  areaIds: string[];
   questionText: string;
+  savedContext: AnalysisContext;
   status: AnalysisSessionStatus;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +50,38 @@ export function validateQuestionText(questionText: string) {
   }
 
   return null;
+}
+
+export function getMissingScopedTargetsMessage() {
+  return '当前账号还没有可直接发起分析的项目或区域范围。';
+}
+
+export function isSessionAccessibleInScope(
+  session: Pick<
+    AnalysisSession,
+    'ownerUserId' | 'organizationId' | 'projectIds' | 'areaIds'
+  >,
+  viewer: {
+    userId: string;
+    scope: AnalysisSessionScopeSnapshot;
+  },
+) {
+  if (session.ownerUserId !== viewer.userId) {
+    return false;
+  }
+
+  if (session.organizationId !== viewer.scope.organizationId) {
+    return false;
+  }
+
+  const hasProjectAccess = session.projectIds.every((projectId) =>
+    viewer.scope.projectIds.includes(projectId),
+  );
+  const hasAreaAccess = session.areaIds.every((areaId) =>
+    viewer.scope.areaIds.includes(areaId),
+  );
+
+  return hasProjectAccess && hasAreaAccess;
 }
 
 export function getAnalysisSessionStatusLabel(

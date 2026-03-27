@@ -2,11 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import nextEnv from '@next/env';
+import { Pool } from 'pg';
 
 const PORT = 3104;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 let serverProcess;
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd());
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 function getCookieHeader(setCookieHeader) {
   return setCookieHeader.split(';', 1)[0];
@@ -119,11 +126,13 @@ test.before(async () => {
 
 test.after(async () => {
   if (!serverProcess) {
+    await pool.end();
     return;
   }
 
   serverProcess.kill('SIGINT');
   await once(serverProcess, 'exit');
+  await pool.end();
 });
 
 test('历史会话按时间倒序展示，且可回看本人会话详情', async () => {
@@ -216,4 +225,104 @@ test('空历史列表会显示明确空状态', async () => {
   const html = await response.text();
   assert.match(html, /还没有历史分析会话/);
   assert.match(html, /从上方的新建分析开始第一条问题/);
+});
+
+test('同一 employeeId 在不同组织下不能看到旧组织的历史会话', async () => {
+  const orgACookie = await login({
+    employeeId: 'shared-employee',
+    displayName: '共享工号用户',
+    organizationId: 'org-a',
+    projectIds: 'project-a',
+    areaIds: 'area-a',
+  });
+
+  await createSession(orgACookie, '为什么项目 alpha 的收费率下降了？');
+
+  const orgBCookie = await login({
+    employeeId: 'shared-employee',
+    displayName: '共享工号用户',
+    organizationId: 'org-b',
+    projectIds: 'project-b',
+    areaIds: 'area-b',
+  });
+
+  const workspaceResponse = await fetch(`${BASE_URL}/workspace`, {
+    headers: {
+      Cookie: orgBCookie,
+    },
+  });
+
+  const html = await workspaceResponse.text();
+  assert.doesNotMatch(html, /为什么项目 alpha 的收费率下降了/);
+});
+
+test('未登录访问详情页时会保留原深链作为回跳路径', async () => {
+  const cookie = await login({
+    employeeId: 'u-5005',
+    displayName: '深链测试员',
+  });
+
+  const sessionId = await createSession(cookie, '为什么项目 river 的收费率下降了？');
+  const response = await fetch(`${BASE_URL}/workspace/analysis/${sessionId}`, {
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 307);
+  assert.match(
+    response.headers.get('location') ?? '',
+    new RegExp(`/login\\?next=%2Fworkspace%2Fanalysis%2F${sessionId}$`),
+  );
+});
+
+test('详情页优先展示已保存的基础上下文快照', async () => {
+  const cookie = await login({
+    employeeId: 'u-5006',
+    displayName: '上下文快照用户',
+  });
+
+  const sessionId = await createSession(
+    cookie,
+    '为什么项目 river 的收费率下降了？',
+  );
+
+  const savedContext = {
+    targetMetric: {
+      label: '目标指标',
+      value: '快照收费指标',
+      state: 'confirmed',
+    },
+    entity: {
+      label: '实体对象',
+      value: '项目 snapshot-river',
+      state: 'confirmed',
+    },
+    timeRange: {
+      label: '时间范围',
+      value: '快照周期',
+      state: 'confirmed',
+    },
+    comparison: {
+      label: '比较方式',
+      value: '快照对比基线',
+      state: 'confirmed',
+    },
+    constraints: [],
+  };
+
+  await pool.query(
+    'update platform.analysis_sessions set saved_context = $1::jsonb where id = $2',
+    [JSON.stringify(savedContext), sessionId],
+  );
+
+  const detailResponse = await fetch(`${BASE_URL}/workspace/analysis/${sessionId}`, {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  assert.equal(detailResponse.status, 200);
+  const html = await detailResponse.text();
+  assert.match(html, /快照收费指标/);
+  assert.match(html, /项目 snapshot-river/);
+  assert.match(html, /快照周期/);
 });

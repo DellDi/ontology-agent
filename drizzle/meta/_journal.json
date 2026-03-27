@@ -8,6 +8,13 @@
       "when": 1774445939078,
       "tag": "0000_clear_senator_kelly",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774603972104,
+      "tag": "0001_cuddly_cable",
+      "breakpoints": true
     }
   ]
 }

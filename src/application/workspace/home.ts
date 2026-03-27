@@ -46,6 +46,7 @@ export type WorkspaceHomeModel = {
         description: string;
       }
     | null;
+  canCreateAnalysis: boolean;
 };
 
 export function createWorkspaceHomeModel(
@@ -96,6 +97,7 @@ export function createWorkspaceHomeModel(
           title: '当前会话还没有可直接发起分析的项目或区域范围',
           description: '请联系管理员补充分配项目或区域权限，当前仍可确认组织与角色上下文。',
         },
+    canCreateAnalysis: hasTargets,
   };
 }
 

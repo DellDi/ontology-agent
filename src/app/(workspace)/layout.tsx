@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
+import { getWorkspaceSessionState } from '@/infrastructure/session/server-auth';
 
 type WorkspaceLayoutProps = {
   children: ReactNode;
@@ -9,9 +9,13 @@ type WorkspaceLayoutProps = {
 export default async function WorkspaceLayout({
   children,
 }: WorkspaceLayoutProps) {
-  const { session, accessDeniedMessage } = await requireWorkspaceSession(
-    '/workspace',
-  );
+  const workspaceSessionState = await getWorkspaceSessionState();
+
+  if (!workspaceSessionState) {
+    return <>{children}</>;
+  }
+
+  const { session, accessDeniedMessage } = workspaceSessionState;
 
   if (accessDeniedMessage) {
     return (

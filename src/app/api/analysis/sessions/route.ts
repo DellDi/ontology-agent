@@ -25,6 +25,9 @@ function redirectToWorkspace(request: Request, params: URLSearchParams) {
 
 export async function POST(request: Request) {
   const session = await getRequestSession();
+  let createdSession:
+    | Awaited<ReturnType<typeof analysisSessionUseCases.createSession>>
+    | null = null;
 
   if (!session) {
     return NextResponse.redirect(new URL('/login?next=/workspace', request.url), {
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
       : '';
 
   try {
-    const createdSession = await analysisSessionUseCases.createSession({
+    createdSession = await analysisSessionUseCases.createSession({
       questionText,
       owner: session,
     });
@@ -56,6 +59,13 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
+    if (!(error instanceof InvalidAnalysisQuestionError) && createdSession) {
+      await analysisSessionUseCases.deleteOwnedSession({
+        sessionId: createdSession.id,
+        owner: session,
+      });
+    }
+
     const searchParams = new URLSearchParams();
 
     if (error instanceof InvalidAnalysisQuestionError) {

@@ -57,15 +57,15 @@ async function waitForServerReady(processHandle) {
   });
 }
 
-async function login() {
+async function login(overrides = {}) {
   const formData = new FormData();
-  formData.set('employeeId', 'u-4001');
-  formData.set('displayName', '陈分析');
-  formData.set('organizationId', 'org-sh-020');
-  formData.set('projectIds', 'project-moon');
-  formData.set('areaIds', 'area-river');
-  formData.set('roleCodes', 'PROPERTY_ANALYST');
-  formData.set('next', '/workspace');
+  formData.set('employeeId', overrides.employeeId ?? 'u-4001');
+  formData.set('displayName', overrides.displayName ?? '陈分析');
+  formData.set('organizationId', overrides.organizationId ?? 'org-sh-020');
+  formData.set('projectIds', overrides.projectIds ?? 'project-moon');
+  formData.set('areaIds', overrides.areaIds ?? 'area-river');
+  formData.set('roleCodes', overrides.roleCodes ?? 'PROPERTY_ANALYST');
+  formData.set('next', overrides.next ?? '/workspace');
 
   const response = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
@@ -84,6 +84,7 @@ test.before(async () => {
       ...process.env,
       SESSION_SECRET: 'story-1-4-test-secret',
       ENABLE_DEV_ERP_AUTH: '1',
+      FAIL_ANALYSIS_INTENT_FOR_TEST: '故障注入',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -206,4 +207,95 @@ test('明显超出物业分析范围的问题会被拦截', async () => {
 
   const html = await homePage.text();
   assert.match(html, /当前版本仅支持物业分析场景/);
+});
+
+test('无项目和区域范围的账号不能创建分析会话', async () => {
+  const cookie = await login({
+    employeeId: 'u-4002',
+    displayName: '范围受限用户',
+    projectIds: '',
+    areaIds: '',
+  });
+  const formData = new FormData();
+  formData.set('question', '为什么本月项目 moon 的收费回款率下降了？');
+
+  const response = await fetch(`${BASE_URL}/api/analysis/sessions`, {
+    method: 'POST',
+    headers: {
+      Cookie: cookie,
+    },
+    body: formData,
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 303);
+  assert.match(response.headers.get('location') ?? '', /\/workspace\?error=/);
+
+  const homePage = await fetch(response.headers.get('location'), {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  const html = await homePage.text();
+  assert.match(html, /还没有可直接发起分析的项目或区域范围/);
+});
+
+test('越界领域关键词的空格或全角变体同样会被拦截', async () => {
+  const cookie = await login({
+    employeeId: 'u-4003',
+    displayName: '边界绕过测试',
+  });
+  const formData = new FormData();
+  formData.set('question', '请帮我分析 C R M 转化率和 客 服 系统 质检');
+
+  const response = await fetch(`${BASE_URL}/api/analysis/sessions`, {
+    method: 'POST',
+    headers: {
+      Cookie: cookie,
+    },
+    body: formData,
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 303);
+
+  const homePage = await fetch(response.headers.get('location'), {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  const html = await homePage.text();
+  assert.match(html, /当前版本仅支持物业分析场景/);
+});
+
+test('意图识别下游失败时不会留下幽灵会话', async () => {
+  const cookie = await login({
+    employeeId: 'u-4004',
+    displayName: '故障注入测试',
+  });
+  const formData = new FormData();
+  formData.set('question', '故障注入：为什么本月项目 moon 的收费回款率下降了？');
+
+  const response = await fetch(`${BASE_URL}/api/analysis/sessions`, {
+    method: 'POST',
+    headers: {
+      Cookie: cookie,
+    },
+    body: formData,
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 303);
+  assert.match(response.headers.get('location') ?? '', /\/workspace\?error=/);
+
+  const homePage = await fetch(`${BASE_URL}/workspace`, {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  const html = await homePage.text();
+  assert.doesNotMatch(html, /故障注入：为什么本月项目 moon 的收费回款率下降了/);
 });

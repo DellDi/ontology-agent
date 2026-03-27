@@ -12,6 +12,10 @@ export const UNSUPPORTED_ANALYSIS_AREAS = [
   '呼叫中心',
 ] as const;
 
+function normalizeBoundaryText(questionText: string) {
+  return questionText.normalize('NFKC').replace(/[\s\u3000]+/g, '').toLowerCase();
+}
+
 const UNSUPPORTED_PATTERNS: Array<{
   label: (typeof UNSUPPORTED_ANALYSIS_AREAS)[number];
   pattern: RegExp;
@@ -35,10 +39,11 @@ const UNSUPPORTED_PATTERNS: Array<{
 ];
 
 export function findUnsupportedAnalysisAreas(questionText: string) {
+  const normalizedQuestionText = normalizeBoundaryText(questionText);
   const hits = new Set<(typeof UNSUPPORTED_ANALYSIS_AREAS)[number]>();
 
   for (const rule of UNSUPPORTED_PATTERNS) {
-    if (rule.pattern.test(questionText)) {
+    if (rule.pattern.test(normalizedQuestionText)) {
       hits.add(rule.label);
     }
   }

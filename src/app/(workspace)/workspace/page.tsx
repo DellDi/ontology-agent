@@ -1,7 +1,7 @@
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createWorkspaceHomeModel } from '@/application/workspace/home';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
 
 import { WorkspaceHomeShell } from '../_components/workspace-home-shell';
 
@@ -27,15 +27,17 @@ const analysisSessionUseCases = createAnalysisSessionUseCases({
 export default async function WorkspacePage({
   searchParams,
 }: WorkspacePageProps) {
-  const session = await getRequestSession();
+  const { session, accessDeniedMessage } = await requireWorkspaceSession(
+    '/workspace',
+  );
   const params = (await searchParams) ?? {};
 
-  if (!session) {
+  if (accessDeniedMessage) {
     return null;
   }
 
   const historySessions = await analysisSessionUseCases.listOwnedSessions(
-    session.userId,
+    session,
   );
   const model = createWorkspaceHomeModel(session, historySessions);
 

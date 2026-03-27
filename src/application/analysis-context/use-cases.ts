@@ -46,18 +46,32 @@ export function createAnalysisContextUseCases(
     async getCurrentContext({
       sessionId,
       questionText,
+      savedContext,
     }: {
       sessionId: string;
       questionText: string;
+      savedContext?: AnalysisContext;
     }): Promise<AnalysisContextReadModel> {
       if (!store) {
-        return this.buildContextReadModel({ sessionId, questionText });
+        return {
+          sessionId,
+          version: 0,
+          context: savedContext ?? extractAnalysisContext(questionText),
+          canUndo: false,
+          originalQuestionText: questionText,
+        };
       }
 
       const latest = await store.getLatest(sessionId);
 
       if (!latest) {
-        return this.buildContextReadModel({ sessionId, questionText });
+        return {
+          sessionId,
+          version: 0,
+          context: savedContext ?? extractAnalysisContext(questionText),
+          canUndo: false,
+          originalQuestionText: questionText,
+        };
       }
 
       return {
@@ -73,10 +87,12 @@ export function createAnalysisContextUseCases(
       sessionId,
       ownerUserId,
       questionText,
+      initialContext,
     }: {
       sessionId: string;
       ownerUserId: string;
       questionText: string;
+      initialContext?: AnalysisContext;
     }): Promise<VersionedAnalysisContext> {
       if (!store) {
         throw new ContextCorrectionError('上下文存储未配置。');
@@ -92,7 +108,7 @@ export function createAnalysisContextUseCases(
         sessionId,
         ownerUserId,
         version: 1,
-        context: extractAnalysisContext(questionText),
+        context: initialContext ?? extractAnalysisContext(questionText),
         originalQuestionText: questionText,
         createdAt: new Date().toISOString(),
       };

@@ -11,7 +11,11 @@ function rowToAnalysisSession(
   return {
     id: row.id,
     ownerUserId: row.ownerUserId,
+    organizationId: row.organizationId,
+    projectIds: row.projectIds,
+    areaIds: row.areaIds,
     questionText: row.questionText,
+    savedContext: row.savedContext as AnalysisSession['savedContext'],
     status: row.status as AnalysisSession['status'],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -28,7 +32,11 @@ export function createPostgresAnalysisSessionStore(
       await resolvedDb.insert(analysisSessions).values({
         id: session.id,
         ownerUserId: session.ownerUserId,
+        organizationId: session.organizationId,
+        projectIds: session.projectIds,
+        areaIds: session.areaIds,
         questionText: session.questionText,
+        savedContext: session.savedContext,
         status: session.status,
         createdAt: new Date(session.createdAt),
         updatedAt: new Date(session.updatedAt),
@@ -61,6 +69,12 @@ export function createPostgresAnalysisSessionStore(
         .orderBy(desc(analysisSessions.updatedAt));
 
       return rows.map(rowToAnalysisSession);
+    },
+
+    async delete(sessionId: string) {
+      await resolvedDb
+        .delete(analysisSessions)
+        .where(eq(analysisSessions.id, sessionId));
     },
   };
 }

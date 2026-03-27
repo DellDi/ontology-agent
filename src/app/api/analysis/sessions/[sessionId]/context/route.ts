@@ -23,7 +23,7 @@ async function resolveOwnerAndSession(sessionId: string) {
 
   const analysisSession = await analysisSessionUseCases.getOwnedSession({
     sessionId,
-    ownerUserId: authSession.userId,
+    owner: authSession,
   });
 
   if (!analysisSession) {
@@ -34,6 +34,7 @@ async function resolveOwnerAndSession(sessionId: string) {
     sessionId: analysisSession.id,
     ownerUserId: authSession.userId,
     questionText: analysisSession.questionText,
+    initialContext: analysisSession.savedContext,
   });
 
   return { authSession, analysisSession };
@@ -50,6 +51,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   const readModel = await analysisContextUseCases.getCurrentContext({
     sessionId: resolved.analysisSession.id,
     questionText: resolved.analysisSession.questionText,
+    savedContext: resolved.analysisSession.savedContext,
   });
 
   return NextResponse.json(readModel);
