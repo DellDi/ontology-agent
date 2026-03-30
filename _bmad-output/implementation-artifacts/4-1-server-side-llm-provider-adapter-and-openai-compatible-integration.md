@@ -1,6 +1,6 @@
 # Story 4.1: 服务端 LLM Provider 适配层与 OpenAI 兼容接入
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -95,6 +95,7 @@ GPT-5 Codex
 - 本次已将 Story 4.1 的底层 transport 从 `fetch` 版升级为 `openai` SDK 版，但对上层继续保持相同的 provider port 和调用接口，不影响后续 4.x / 5.x 故事接线。
 - adapter 统一处理超时、429、provider 不可用和结构错误，避免把原始 provider 报错直接暴露给上层；SDK 内建重试已关闭，仍由本项目自己的 fallback / retry 策略负责控制。
 - 已根据 code review 收口 4 个运行时边界问题：Redis 限流键改为原子更新、Redis 连接增加显式超时保护、常见 4xx 模型错误纳入 fallback 链、健康检查从“仅目录检查”升级为“目录 + 真实模型调用能力检查”。
+- 后续复核中又继续收口了 3 个残留问题：原子限流恢复为“首次请求设置 TTL”的固定窗口语义、Redis 连接超时后显式 `destroy()` 避免后台悬挂连接、`/models` 从健康检查硬依赖降级为可选探测。
 - 已复用 Redis 建立模型调用限流，key 维度绑定 `userId + organizationId + purpose`，满足“按用户 + 按组织”的服务端节流边界。
 - 已扩展 `.env.example` 与 `docs/local-infrastructure.md`，明确 LLM provider 的服务端环境变量、健康检查路径和安全边界。
 - 当前默认 provider 配置已切到阿里云百炼兼容接口：`https://dashscope.aliyuncs.com/compatible-mode/v1`。
@@ -127,3 +128,4 @@ GPT-5 Codex
 - 2026-03-30：完成 Story 4.1，实现服务端统一 LLM adapter、OpenAI-compatible 接口、Redis 限流、健康检查与故事级契约测试。
 - 2026-03-30：将 Story 4.1 的 provider adapter 从 `fetch` transport 升级为 `openai` SDK transport，并保持上层接口不变。
 - 2026-03-30：根据 code review 修复健康检查代表性、Redis 连接超时、4xx fallback 与限流原子性问题。
+- 2026-03-30：根据第二轮 review 复核，修复固定窗口 TTL 语义回归、Redis 超时后连接泄漏风险，以及 `/models` 健康检查硬依赖问题。

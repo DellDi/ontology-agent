@@ -232,10 +232,23 @@ async function withRedisClient<T>(
   }
 
   const { redis } = createRedisClient();
+  let timedOut = false;
+  const connectPromise = redis.connect().catch((error) => {
+    if (timedOut) {
+      return;
+    }
+
+    throw error;
+  });
+
   await withTimeout(
-    redis.connect(),
+    connectPromise,
     timeoutMs,
-    () => new LlmProviderTimeoutError('Redis 限流连接超时。'),
+    () => {
+      timedOut = true;
+      redis.destroy();
+      return new LlmProviderTimeoutError('Redis 限流连接超时。');
+    },
   );
 
   try {
@@ -364,27 +377,27 @@ export function createOpenAiCompatibleLlmProvider({
         redis,
         context.timeoutMs ?? config.timeoutMs,
         async (redisClient) => {
-        await enforceLlmRateLimit({
-          redis: redisClient,
-          userId: context.userId,
-          organizationId: context.organizationId,
-          purpose: context.purpose,
-          maxRequests: config.rateLimit.maxRequests,
-          windowSeconds: config.rateLimit.windowSeconds,
-        });
+          await enforceLlmRateLimit({
+            redis: redisClient,
+            userId: context.userId,
+            organizationId: context.organizationId,
+            purpose: context.purpose,
+            maxRequests: config.rateLimit.maxRequests,
+            windowSeconds: config.rateLimit.windowSeconds,
+          });
 
-        const payload = await performResponseRequest(request, context);
+          const payload = await performResponseRequest(request, context);
 
-        return {
-          provider: config.provider,
-          model: String(payload.model ?? request.model ?? config.model),
-          text: getResponseText(payload),
-          finishReason:
-            typeof payload.finish_reason === 'string'
-              ? payload.finish_reason
-              : null,
-          raw: payload,
-        };
+          return {
+            provider: config.provider,
+            model: String(payload.model ?? request.model ?? config.model),
+            text: getResponseText(payload),
+            finishReason:
+              typeof payload.finish_reason === 'string'
+                ? payload.finish_reason
+                : null,
+            raw: payload,
+          };
         },
       );
     },
@@ -397,31 +410,31 @@ export function createOpenAiCompatibleLlmProvider({
         redis,
         context.timeoutMs ?? config.timeoutMs,
         async (redisClient) => {
-        await enforceLlmRateLimit({
-          redis: redisClient,
-          userId: context.userId,
-          organizationId: context.organizationId,
-          purpose: context.purpose,
-          maxRequests: config.rateLimit.maxRequests,
-          windowSeconds: config.rateLimit.windowSeconds,
-        });
+          await enforceLlmRateLimit({
+            redis: redisClient,
+            userId: context.userId,
+            organizationId: context.organizationId,
+            purpose: context.purpose,
+            maxRequests: config.rateLimit.maxRequests,
+            windowSeconds: config.rateLimit.windowSeconds,
+          });
 
-        const payload = await performChatCompletionRequest(request, context);
-        const firstChoice =
-          Array.isArray(payload.choices) && payload.choices[0]
-            ? (payload.choices[0] as JsonRecord)
-            : null;
+          const payload = await performChatCompletionRequest(request, context);
+          const firstChoice =
+            Array.isArray(payload.choices) && payload.choices[0]
+              ? (payload.choices[0] as JsonRecord)
+              : null;
 
-        return {
-          provider: config.provider,
-          model: String(payload.model ?? request.model ?? config.model),
-          text: getChatCompletionText(payload),
-          finishReason:
-            firstChoice && typeof firstChoice.finish_reason === 'string'
-              ? firstChoice.finish_reason
-              : null,
-          raw: payload,
-        };
+          return {
+            provider: config.provider,
+            model: String(payload.model ?? request.model ?? config.model),
+            text: getChatCompletionText(payload),
+            finishReason:
+              firstChoice && typeof firstChoice.finish_reason === 'string'
+                ? firstChoice.finish_reason
+                : null,
+            raw: payload,
+          };
         },
       );
     },
@@ -430,7 +443,13 @@ export function createOpenAiCompatibleLlmProvider({
       const startedAt = Date.now();
 
       try {
-        await openaiClient.models.list({ timeout: config.timeoutMs });
+        try {
+          await openaiClient.models.list({ timeout: config.timeoutMs });
+        } catch {
+          // `/models` 对部分 OpenAI-compatible provider 只是可选能力，
+          // 健康检查仍以真实模型调用是否成功为准。
+        }
+
         await openaiClient.responses.create(
           {
             model: resolveProviderModelName(config.model),
