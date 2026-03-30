@@ -46,6 +46,16 @@ test('redis-job-queue 实现提交、消费、状态更新和按 ID 读取能力
   assert.match(content, /rPop\(/, '消费任务应从队列弹出');
   assert.match(content, /status:\s*'pending'/, '提交后初始状态应为 pending');
   assert.match(content, /status\s*=\s*'processing'/, '消费后状态应更新为 processing');
+  assert.match(
+    content,
+    /redisKeys\./,
+    '队列 key 也应复用统一 redis key builder',
+  );
+  assert.doesNotMatch(
+    content,
+    /const QUEUE_KEY = 'oa:job:queue'/,
+    '不应把队列 key 写死为固定 oa 前缀',
+  );
 });
 
 test('job use-cases 对 payload 做校验并提供任务状态流转接口', async () => {

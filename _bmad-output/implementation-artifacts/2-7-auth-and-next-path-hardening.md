@@ -1,6 +1,6 @@
 # Story 2.7: 收紧认证与跳转安全边界
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

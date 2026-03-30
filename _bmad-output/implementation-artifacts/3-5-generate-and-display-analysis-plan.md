@@ -1,6 +1,6 @@
 # Story 3.5: 生成并展示多步分析计划
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

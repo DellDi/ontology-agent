@@ -5,13 +5,13 @@ import type { JobQueue } from '../../application/job/ports';
 import type { Job, JobSubmission } from '../../domain/job-contract/models';
 import { redisKeys } from '../redis/keys';
 
-const QUEUE_KEY = 'oa:job:queue';
-
 function jobStorageKey(jobId: string) {
   return redisKeys.worker(jobId, 'data');
 }
 
 export function createRedisJobQueue(redis: RedisClientType): JobQueue {
+  const queueKey = redisKeys.jobQueue();
+
   return {
     async submit(submission: JobSubmission): Promise<Job> {
       const job: Job = {
@@ -26,13 +26,13 @@ export function createRedisJobQueue(redis: RedisClientType): JobQueue {
       };
 
       await redis.set(jobStorageKey(job.id), JSON.stringify(job));
-      await redis.lPush(QUEUE_KEY, job.id);
+      await redis.lPush(queueKey, job.id);
 
       return job;
     },
 
     async consume(): Promise<Job | null> {
-      const jobId = await redis.rPop(QUEUE_KEY);
+      const jobId = await redis.rPop(queueKey);
 
       if (!jobId) {
         return null;

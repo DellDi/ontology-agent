@@ -278,6 +278,37 @@ export function extractAnalysisContext(
   };
 }
 
+export function isLegacyPlaceholderAnalysisContext(
+  context: AnalysisContext | undefined,
+) {
+  if (!context) {
+    return false;
+  }
+
+  return (
+    context.targetMetric.value === '待补充目标指标' &&
+    context.targetMetric.state === 'missing' &&
+    context.entity.value === '待补充实体对象' &&
+    context.entity.state === 'missing' &&
+    context.timeRange.value === '待补充时间范围' &&
+    context.timeRange.state === 'missing' &&
+    context.comparison.value === '待补充比较方式' &&
+    context.comparison.state === 'missing' &&
+    context.constraints.length === 0
+  );
+}
+
+export function resolveStoredAnalysisContext(
+  questionText: string,
+  savedContext?: AnalysisContext,
+): AnalysisContext {
+  if (!savedContext || isLegacyPlaceholderAnalysisContext(savedContext)) {
+    return extractAnalysisContext(questionText);
+  }
+
+  return savedContext;
+}
+
 export type ContextCorrection = {
   targetMetric?: { value: string; note?: string };
   entity?: { value: string; note?: string };

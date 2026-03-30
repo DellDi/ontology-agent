@@ -1,6 +1,6 @@
 # Story 2.2: 初始化 Postgres 与 Drizzle 平台 schema
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -217,6 +217,12 @@ GPT-5 Codex
 - 同次排障还修复了 Postgres 18 官方镜像的卷挂载路径问题，现改为将 `postgres-data` 挂载到 `/var/lib/postgresql`，避免容器因旧数据目录布局直接退出。
 - 现已成功执行 `docker compose up -d postgres redis`、宿主机 `pg` 连接探测、`pnpm db:migrate`，并通过 `psql` 验证数据库中已存在 `platform` schema、`auth_sessions` / `analysis_sessions` 两张表及对应索引。
 - 结合 Epic 1 review 修复，`platform.analysis_sessions` 已扩展保存 `organizationId`、`projectIds`、`areaIds` 与 `savedContext`，并生成增量迁移 `drizzle/0001_cuddly_cable.sql` 支撑作用域隔离与基础上下文快照回放。
+- 2026-03-30 根据 Epic 2 code review 修复，`src/infrastructure/postgres/client.ts` 已改为默认 `DATABASE_URL` 场景下的进程级单例缓存，避免不同 consumer 在模块加载时反复创建 `pg.Pool`。
+- 针对旧会话必须可访问的产品决策，后续读取链路已补上兼容策略：旧迁移留下的空作用域快照与占位 `saved_context` 不再被静默当成真实数据使用，而是走兼容可见与上下文回退逻辑。
+
+### Change Log
+
+- 2026-03-30：根据 Epic 2 review 修复 Postgres client pool 复用问题，并补充旧 `analysis_sessions` 升级兼容说明。
 
 ### File List
 

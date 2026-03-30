@@ -5,6 +5,10 @@ function prefixed(namespace: string, ...parts: string[]) {
 }
 
 export const redisKeys = {
+  jobQueue() {
+    return prefixed('job', 'queue');
+  },
+
   rate(userId: string, resource: string) {
     return prefixed('rate', userId, resource);
   },

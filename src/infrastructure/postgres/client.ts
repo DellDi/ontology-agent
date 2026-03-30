@@ -10,6 +10,10 @@ export type PostgresDatabaseClient = {
   pool: Pool;
 };
 
+type GlobalPostgresCache = typeof globalThis & {
+  __ontologyAgentPostgresClient?: PostgresDatabaseClient;
+};
+
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -23,6 +27,15 @@ function getDatabaseUrl() {
 export function createPostgresDb(
   connectionString = getDatabaseUrl(),
 ): PostgresDatabaseClient {
+  const globalCache = globalThis as GlobalPostgresCache;
+
+  if (
+    connectionString === getDatabaseUrl() &&
+    globalCache.__ontologyAgentPostgresClient
+  ) {
+    return globalCache.__ontologyAgentPostgresClient;
+  }
+
   const pool = new Pool({
     connectionString,
   });
@@ -31,8 +44,14 @@ export function createPostgresDb(
     schema,
   });
 
-  return {
+  const client = {
     db,
     pool,
   };
+
+  if (connectionString === getDatabaseUrl()) {
+    globalCache.__ontologyAgentPostgresClient = client;
+  }
+
+  return client;
 }

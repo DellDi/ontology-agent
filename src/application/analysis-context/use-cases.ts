@@ -2,6 +2,7 @@ import {
   extractAnalysisContext,
   applyContextCorrection,
   ContextCorrectionError,
+  resolveStoredAnalysisContext,
   type AnalysisContext,
   type ContextCorrection,
   type VersionedAnalysisContext,
@@ -56,7 +57,7 @@ export function createAnalysisContextUseCases(
         return {
           sessionId,
           version: 0,
-          context: savedContext ?? extractAnalysisContext(questionText),
+          context: resolveStoredAnalysisContext(questionText, savedContext),
           canUndo: false,
           originalQuestionText: questionText,
         };
@@ -68,7 +69,7 @@ export function createAnalysisContextUseCases(
         return {
           sessionId,
           version: 0,
-          context: savedContext ?? extractAnalysisContext(questionText),
+          context: resolveStoredAnalysisContext(questionText, savedContext),
           canUndo: false,
           originalQuestionText: questionText,
         };
@@ -108,7 +109,7 @@ export function createAnalysisContextUseCases(
         sessionId,
         ownerUserId,
         version: 1,
-        context: initialContext ?? extractAnalysisContext(questionText),
+        context: resolveStoredAnalysisContext(questionText, initialContext),
         originalQuestionText: questionText,
         createdAt: new Date().toISOString(),
       };

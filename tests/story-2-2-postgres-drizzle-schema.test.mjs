@@ -100,6 +100,11 @@ test('数据库客户端入口使用 drizzle-orm/node-postgres 且不替换 memo
   assert.match(client, /from 'drizzle-orm\/node-postgres'/);
   assert.match(client, /from 'pg'/);
   assert.match(client, /createPostgresDb/);
+  assert.match(
+    client,
+    /globalThis|singleton|cached/i,
+    '数据库客户端应包含单例或缓存逻辑，避免每个 consumer 新建 Pool',
+  );
 
   assert.match(memorySessionStore, /createMemorySessionStore/);
   assert.match(memoryAnalysisStore, /createMemoryAnalysisSessionStore/);
