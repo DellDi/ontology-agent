@@ -1,6 +1,6 @@
 # Story 2.5: 接入 Redis 并建立基础约定
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -88,6 +88,7 @@ Claude Opus 4.6
 - 支持 `REDIS_KEY_PREFIX` 环境变量实现环境隔离
 - 健康检查通过 PING 命令返回 `{ ok, latencyMs }`
 - 13 项契约测试全部通过，57 项 Story 2.x 测试零回归
+- 2026-03-30 根据 Epic 2 code review 修复，worker 队列 list key 已不再硬编码 `oa:job:queue`，而是统一通过 `redisKeys.jobQueue()` 生成，保证 `REDIS_KEY_PREFIX` 对队列本体和任务载荷使用同一命名空间契约。
 
 ### File List
 
@@ -99,3 +100,7 @@ Claude Opus 4.6
 - docs/local-infrastructure.md (修改 — 补充 Redis 客户端与 key namespace 约定章节)
 - package.json (修改 — 添加 redis 依赖)
 - _bmad-output/implementation-artifacts/2-5-redis-baseline.md (修改)
+
+### Change Log
+
+- 2026-03-30：修复 worker queue list key 未复用共享 Redis namespace builder 的问题。

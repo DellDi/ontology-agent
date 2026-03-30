@@ -1,6 +1,6 @@
 # Story 3.1: 生成结构化分析意图
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

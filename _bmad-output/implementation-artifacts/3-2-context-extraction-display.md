@@ -1,6 +1,6 @@
 # Story 3.2: 抽取分析上下文并在会话中展示
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

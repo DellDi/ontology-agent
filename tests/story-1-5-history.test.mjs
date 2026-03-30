@@ -326,3 +326,76 @@ test('详情页优先展示已保存的基础上下文快照', async () => {
   assert.match(html, /项目 snapshot-river/);
   assert.match(html, /快照周期/);
 });
+
+test('旧迁移留下的空作用域与占位上下文会话仍可回看，并回退到问题推导上下文', async () => {
+  const cookie = await login({
+    employeeId: 'u-5007',
+    displayName: '旧会话兼容用户',
+    organizationId: 'org-legacy',
+    projectIds: 'project-legacy',
+    areaIds: 'area-legacy',
+  });
+
+  const sessionId = await createSession(cookie, '为什么项目 legacy 的收费率下降了？');
+
+  const placeholderContext = {
+    targetMetric: {
+      label: '目标指标',
+      value: '待补充目标指标',
+      state: 'missing',
+      note: '尚未识别到明确目标指标。',
+    },
+    entity: {
+      label: '实体对象',
+      value: '待补充实体对象',
+      state: 'missing',
+      note: '尚未识别到项目、区域等明确实体。',
+    },
+    timeRange: {
+      label: '时间范围',
+      value: '待补充时间范围',
+      state: 'missing',
+      note: '建议明确时间范围，例如近三个月或本季度。',
+    },
+    comparison: {
+      label: '比较方式',
+      value: '待补充比较方式',
+      state: 'missing',
+      note: '尚未识别到同比、环比或显式对比关系。',
+    },
+    constraints: [],
+  };
+
+  await pool.query(
+    `update platform.analysis_sessions
+      set organization_id = '',
+          project_ids = '{}'::text[],
+          area_ids = '{}'::text[],
+          saved_context = $1::jsonb
+      where id = $2`,
+    [JSON.stringify(placeholderContext), sessionId],
+  );
+
+  const workspaceResponse = await fetch(`${BASE_URL}/workspace`, {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  assert.equal(workspaceResponse.status, 200);
+  const workspaceHtml = await workspaceResponse.text();
+  assert.match(workspaceHtml, /为什么项目 legacy 的收费率下降了/);
+
+  const detailResponse = await fetch(`${BASE_URL}/workspace/analysis/${sessionId}`, {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  assert.equal(detailResponse.status, 200);
+  const detailHtml = await detailResponse.text();
+  assert.match(detailHtml, /收费率/);
+  assert.match(detailHtml, /项目 legacy/);
+  assert.doesNotMatch(detailHtml, /待补充目标指标/);
+  assert.doesNotMatch(detailHtml, /待补充实体对象/);
+});

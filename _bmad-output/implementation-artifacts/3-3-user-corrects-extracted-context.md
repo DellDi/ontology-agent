@@ -1,6 +1,6 @@
 # Story 3.3: 用户修正抽取结果
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

@@ -70,6 +70,15 @@ export function isSessionAccessibleInScope(
     return false;
   }
 
+  const isLegacyMigratedSession =
+    !session.organizationId &&
+    session.projectIds.length === 0 &&
+    session.areaIds.length === 0;
+
+  if (isLegacyMigratedSession) {
+    return true;
+  }
+
   if (session.organizationId !== viewer.scope.organizationId) {
     return false;
   }

@@ -1,6 +1,6 @@
 # Story 2.3: 将受保护会话持久化迁移到 Postgres
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

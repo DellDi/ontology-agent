@@ -1,6 +1,6 @@
 # Story 2.4: 将分析会话与历史持久化迁移到 Postgres
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -103,10 +103,13 @@ Cascade (Claude)
 - 运行时集成测试（创建落库、历史列表、跨用户隔离、重启后回看）需在 Docker Compose 环境中执行。
 - 结合 Epic 1 review 修复，分析会话 Postgres store 已继续映射组织/项目/区域作用域快照、`savedContext` 基础上下文快照，并补充 `delete(sessionId)` 以支持创建失败回滚。
 - 当前 `listOwnedSessions()` / `getOwnedSession()` 已升级为 scope-aware 读取：除了 `ownerUserId`，还会基于当前工作台作用域校验组织、项目和区域边界。
+- 2026-03-30 根据 Epic 2 code review 和“旧会话必须保留可访问”的决定，旧迁移阶段遗留的空作用域快照会话现在仍可出现在历史与详情中；若 `savedContext` 仍是迁移占位值，则详情页会回退到基于原问题推导的基础上下文，而不是展示伪造占位文案。
+- 已新增集成级回归覆盖旧会话兼容路径，确保历史列表可见、详情可打开，且不会展示 `待补充目标指标` / `待补充实体对象` 这类迁移占位内容。
 
 ### Change Log
 
 - 2026-03-27：为 Epic 1 review 修复补充会话作用域快照、`savedContext` 持久化、删除接口与 scope-aware 读取约束。
+- 2026-03-30：补充旧 `analysis_sessions` 迁移兼容策略，保证空作用域快照和占位上下文的历史会话仍可访问。
 
 ### File List
 

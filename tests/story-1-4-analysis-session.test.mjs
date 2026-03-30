@@ -275,8 +275,9 @@ test('意图识别下游失败时不会留下幽灵会话', async () => {
     employeeId: 'u-4004',
     displayName: '故障注入测试',
   });
+  const uniqueQuestion = `故障注入：为什么本月项目 moon 的收费回款率下降了？-${Date.now()}`;
   const formData = new FormData();
-  formData.set('question', '故障注入：为什么本月项目 moon 的收费回款率下降了？');
+  formData.set('question', uniqueQuestion);
 
   const response = await fetch(`${BASE_URL}/api/analysis/sessions`, {
     method: 'POST',
@@ -297,5 +298,5 @@ test('意图识别下游失败时不会留下幽灵会话', async () => {
   });
 
   const html = await homePage.text();
-  assert.doesNotMatch(html, /故障注入：为什么本月项目 moon 的收费回款率下降了/);
+  assert.doesNotMatch(html, new RegExp(uniqueQuestion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });

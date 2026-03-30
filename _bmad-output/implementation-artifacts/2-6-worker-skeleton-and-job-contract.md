@@ -1,6 +1,6 @@
 # Story 2.6: 建立 Worker Skeleton 与最小任务契约
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -96,6 +96,7 @@ Claude Opus 4.6
 - compose.yaml 新增 worker 服务，依赖 Redis healthy
 - package.json 新增 worker:dev 脚本（tsx 运行 TS 入口）
 - 更新 docs/local-infrastructure.md 说明 worker 角色和扩展方式
+- 2026-03-30 根据 Epic 2 code review 修复，Redis 队列本体的 list key 已改为复用共享 key builder，与任务记录 key 一样遵守 `REDIS_KEY_PREFIX` 隔离策略，避免多环境共用同一队列名。
 
 ### File List
 
@@ -113,3 +114,4 @@ Claude Opus 4.6
 ### Change Log
 
 - 2026-03-26: Story 2.6 实现完成 — Worker 骨架 + 最小任务契约 + Redis 队列 + 9 个测试
+- 2026-03-30: 修复 worker queue list key 未接入统一 Redis namespace 契约的问题

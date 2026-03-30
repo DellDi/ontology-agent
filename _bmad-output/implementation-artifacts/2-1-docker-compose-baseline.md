@@ -1,6 +1,6 @@
 # Story 2.1: 建立 Docker Compose 本地基础设施基线
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
