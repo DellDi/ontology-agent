@@ -29,6 +29,9 @@ importers:
       redis:
         specifier: ^5.11.0
         version: 5.11.0
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@next/env':
         specifier: 16.2.1

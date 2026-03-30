@@ -255,7 +255,7 @@ export function AnalysisContextPanel({
   }
 
   return (
-    <article className="glass-panel p-6" data-testid="analysis-context">
+    <article className="glass-panel p-6" data-testid="analysis-context-panel">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
