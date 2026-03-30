@@ -26,18 +26,21 @@ export async function enforceLlmRateLimit({
     `llm:${organizationId}:${purpose}`,
   );
 
-  const multi = redis.multi();
-  multi.incr(rateLimitKey);
-  multi.expire(rateLimitKey, windowSeconds);
-
-  const result = await multi.exec();
-  const firstReply = Array.isArray(result) ? result[0] : null;
-  const requestCount =
-    typeof firstReply === 'number'
-      ? firstReply
-      : Array.isArray(firstReply) && typeof firstReply[1] === 'number'
-        ? firstReply[1]
-        : 0;
+  const requestCount = Number(
+    await redis.eval(
+      `
+        local current = redis.call('INCR', KEYS[1])
+        if current == 1 then
+          redis.call('EXPIRE', KEYS[1], ARGV[1])
+        end
+        return current
+      `,
+      {
+        keys: [rateLimitKey],
+        arguments: [String(windowSeconds)],
+      },
+    ),
+  );
 
   if (requestCount > maxRequests) {
     throw new LlmRateLimitExceededError(
