@@ -91,6 +91,29 @@ _本文档用于记录 AI 代理在本项目中实现代码时必须遵守的关
 - 当前仓库允许“架构文档与代码状态短暂不一致”，但实现时必须明确记录偏差，而不是默默改写历史
 - 当用户明确指定实现路线时，以用户最新决定为准；例如本项目实际初始化已改为官方 `create-next-app`，虽然早期文档曾写“手工初始化”
 
+### 智能体与框架规则
+
+- 当前默认策略是：**先保持自有编排边界，不提前引入重型智能体框架**。
+- 当前应优先复用并扩展这些自有层：
+  - `LLM Provider Adapter`
+  - `Prompt Registry / Structured Output Guardrails`
+  - `Tool Registry + Orchestration Bridge`
+  - `Worker + Redis`
+- 在 `Epic 5` 之前，不要主动引入 `Vercel AI SDK`、`LangGraph`、`LangChain`、`AutoGen` 或 Google ADK 作为系统底座。
+- 只有在 `Epic 5` 开始需要明显更强的流式 UI、token streaming、tool call 结果渲染时，才考虑引入 `Vercel AI SDK`，且只作为 **Next.js 交互层增强**，不接管服务端业务编排。
+- 只有当以下故事阶段暴露出“执行图状态”复杂度时，才考虑升级到 `LangGraph`：
+  - `5.2` 流式执行进度与阶段结果
+  - `5.4` 持久化步骤结果与最终结论
+  - `6.2` 增加因素或缩小范围
+  - `6.3` 用户修正后重规划
+  - `6.4` 保留多轮历史
+- 判断是否该引入 `LangGraph` 的真实信号是：
+  - 需要从中间状态恢复执行
+  - 需要复杂分支和重规划
+  - 需要人工确认点
+  - `Worker + Redis + Tool Registry` 已经不足以优雅表达执行流程
+- 当前不应把 `LangChain`、`AutoGen`、Google ADK 作为主实现方向；如后续确有需要，也应先通过架构决策再引入。
+
 ### 关键不要遗漏的规则
 
 - 当前开发期 ERP 认证 stub 仍然过宽，任何实现都不要把它误当成生产安全方案
@@ -104,9 +127,8 @@ _本文档用于记录 AI 代理在本项目中实现代码时必须遵守的关
   - 不支持：客服系统、CRM、营销、呼叫中心
 - 任何新分析能力都不能绕过这个范围边界；优先复用 `src/domain/scope-boundary/policy.ts`
 - 当前实现事实优先于早期规划文本，特别是以下差异要注意：
-  - 数据库尚未接入
-  - Worker 尚未接入
-  - Cube / Neo4j / Redis 尚未接入
+  - Postgres、Redis、Worker 与服务端 LLM adapter 已经接入
+  - Cube / Neo4j / ERP 只读防腐层仍未接入
   - 认证仍为开发 stub
 - 做 code review 时，优先关注：
   - 权限绕过
@@ -130,4 +152,4 @@ _本文档用于记录 AI 代理在本项目中实现代码时必须遵守的关
 - 保持精简，只记录 AI 容易做错的部分
 - 当 Postgres、Redis、Worker、真实 ERP 认证等真正落地后，及时替换这里的“当前仍未接入”说明
 
-Last Updated: 2026-03-25
+Last Updated: 2026-03-30

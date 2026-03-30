@@ -27,6 +27,7 @@ cp .env.example .env
 - 宿主机 `.env` 中的 `DATABASE_URL` / `REDIS_URL` 默认指向 `127.0.0.1`，便于直接运行 `pnpm db:migrate` 等本地命令
 - `compose.yaml` 会为 `web` 容器显式覆写内部连接地址，使容器内仍通过 `postgres` / `redis` 服务名通信
 - `SESSION_SECRET` 需要在本地 `.env` 中设置为自定义值
+- `DASHSCOPE_API_KEY` 只允许存在于服务端环境变量中，不能下沉到浏览器端代码或公开配置
 
 ## 常用命令
 
@@ -131,6 +132,41 @@ import { checkRedisHealth } from '@/infrastructure/redis';
 const result = await checkRedisHealth(redis);
 // → { ok: true, latencyMs: 2 }
 ```
+
+## LLM Provider 约定
+
+### 服务端接入边界
+
+- 所有模型调用统一走 `src/application/llm/` + `src/infrastructure/llm/`，不要在 `src/app/` 页面或 Route Handler 中零散直连 provider。
+- 当前实现采用 OpenAI-compatible HTTP 接口，默认约定：
+  - `POST {LLM_PROVIDER_BASE_URL}/responses`
+  - `POST {LLM_PROVIDER_BASE_URL}/chat/completions`
+  - `GET {LLM_PROVIDER_BASE_URL}/models` 作为基础健康检查
+- Provider 密钥只通过 `LLM_PROVIDER_API_KEY` 在服务端注入。
+
+### 环境变量
+
+```bash
+LLM_PROVIDER_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+DASHSCOPE_API_KEY=replace-with-a-real-dashscope-key
+LLM_PROVIDER_MODEL=bailian/qwen3.5-plus
+LLM_FALLBACK_MODELS=bailian/kimi-2.5,bailian/MiniMax-M2.5,bailian/glm-5,bailian/MiniMax/MiniMax-M2.7
+LLM_REQUEST_TIMEOUT_MS=15000
+LLM_MAX_RETRIES=2
+LLM_RATE_LIMIT_MAX_REQUESTS=20
+LLM_RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+- 当前默认主模型：`bailian/qwen3.5-plus`
+- 默认第一 fallback：`bailian/kimi-2.5`
+- 其它备用：`bailian/MiniMax-M2.5`、`bailian/glm-5`、`bailian/MiniMax/MiniMax-M2.7`
+- 发送到百炼兼容接口时会自动去掉前缀，例如 `bailian/qwen3.5-plus -> qwen3.5-plus`
+
+### 限流约定
+
+- 模型限流复用 Redis，共享 `redisKeys.rate(...)` 体系。
+- 当前 key 维度为 `userId + organizationId + purpose`，保证“按用户 + 按组织”的服务端节流边界。
+- Provider 返回 `429`、请求超时、结构错误、不可用错误，都应在 adapter 层转成稳定的服务端错误，而不是把原始 provider 报错直接抛给页面层。
 
 ## 后续扩展位
 
