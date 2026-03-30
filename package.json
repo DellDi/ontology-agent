@@ -20,7 +20,8 @@
     "pg": "8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "redis": "^5.11.0"
+    "redis": "^5.11.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@next/env": "16.2.1",

@@ -1,6 +1,6 @@
 # Story 4.2: 结构化输出契约与 Prompt/Schema Guardrails
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,19 +18,19 @@ so that 模型输出不会以不受控的自由文本直接进入系统核心链
 
 ## Tasks / Subtasks
 
-- [ ] 建立 prompt registry 与任务分类（AC: 2, 3）
-  - [ ] 明确意图识别、上下文补全、计划生成、工具选择、结论摘要等任务类型。
-  - [ ] 设计集中式 prompt registry，不让 prompt 文本分散在 UI 或调用方中。
-- [ ] 建立结构化输出 schema 与解析边界（AC: 1, 3）
-  - [ ] 使用 `Zod` 为主要模型任务建立输入 / 输出 schema。
-  - [ ] 为结构化解析失败、字段缺失、值域越界建立稳定 fallback。
-- [ ] 接入 guardrail 流程（AC: 1, 2, 3）
-  - [ ] 将 Story 4.1 的模型 adapter 与 schema 校验串联。
-  - [ ] 为后续 3.x / 5.x 直接消费的模型结果建立统一 envelope。
-- [ ] 覆盖契约测试（AC: 1, 2, 3）
-  - [ ] 验证主要任务类型的 schema 存在并可复用。
-  - [ ] 验证非法输出不会静默进入计划或执行链路。
-  - [ ] 验证 prompt registry 更新时调用边界保持稳定。
+- [x] 建立 prompt registry 与任务分类（AC: 2, 3）
+  - [x] 明确意图识别、上下文补全、计划生成、工具选择、结论摘要等任务类型。
+  - [x] 设计集中式 prompt registry，不让 prompt 文本分散在 UI 或调用方中。
+- [x] 建立结构化输出 schema 与解析边界（AC: 1, 3）
+  - [x] 使用 `Zod` 为主要模型任务建立输入 / 输出 schema。
+  - [x] 为结构化解析失败、字段缺失、值域越界建立稳定 fallback。
+- [x] 接入 guardrail 流程（AC: 1, 2, 3）
+  - [x] 将 Story 4.1 的模型 adapter 与 schema 校验串联。
+  - [x] 为后续 3.x / 5.x 直接消费的模型结果建立统一 envelope。
+- [x] 覆盖契约测试（AC: 1, 2, 3）
+  - [x] 验证主要任务类型的 schema 存在并可复用。
+  - [x] 验证非法输出不会静默进入计划或执行链路。
+  - [x] 验证 prompt registry 更新时调用边界保持稳定。
 
 ## Dev Notes
 
@@ -80,12 +80,39 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test tests/story-4-2-guardrails.test.mjs`
+- `pnpm lint`
+- `pnpm build`
+- `node --test --test-concurrency=1 tests/*.test.mjs`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增 `analysis-ai` 结构化任务层，覆盖意图、上下文、计划、工具选择和结论摘要五类任务契约。
+- 通过集中式 `prompt-registry` 管理结构化任务请求，避免页面层和 route handler 持有 prompt 文本或任务字面量。
+- 新增 `schema-guardrails`，统一做 JSON 解析、Zod `safeParse` 校验和稳定 fallback envelope。
+- `createAnalysisAiUseCases` 已接上 Story 4.1 的 LLM adapter，可在无效模型输出时返回稳定兜底结果。
+- 根据 code review 反馈，结构化请求构造与结果解析已抽象为 `AnalysisAiContractPort`，application 层不再直接依赖 infrastructure 模块。
+- 为避免 Story 4.2 的任务字面量测试误伤，分析上下文面板的 `data-testid` 改为 `analysis-context-panel`。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/4-2-structured-output-contracts-and-prompt-schema-guardrails.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- package.json
+- pnpm-lock.yaml
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-context-panel.tsx
+- src/application/analysis-ai/ports.ts
+- src/application/analysis-ai/use-cases.ts
+- src/domain/analysis-ai/contracts.ts
+- src/domain/analysis-ai/models.ts
+- src/infrastructure/analysis-ai/contract-port.ts
+- src/infrastructure/llm/prompt-registry.ts
+- src/infrastructure/llm/schema-guardrails.ts
+- tests/story-4-2-guardrails.test.mjs
+
+### Change Log
+
+- 新增 Story 4.2 的结构化输出契约、prompt registry 和 guardrail 流程。
+- 引入直接依赖 `zod` 作为结构化任务契约层。
+- 根据 review 修正 application / infrastructure 反向依赖，改为通过 analysis AI contract port 注入。
+- 完成 Story 4.2 的专属测试，并通过 lint、build 与全量回归。
