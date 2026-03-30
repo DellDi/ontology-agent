@@ -83,6 +83,8 @@ GPT-5 Codex
 ### Debug Log References
 
 - `node --test tests/story-4-1-llm-provider-adapter.test.mjs`（先失败，后通过）
+- `NODE_OPTIONS=--conditions=react-server npx tsx --test tests/story-4-1-bailian-smoke.test.mts`
+- `pnpm test:smoke:bailian`
 - `pnpm lint`
 - `pnpm build`
 - `node --test --test-concurrency=1 tests/*.test.mjs`
@@ -99,12 +101,14 @@ GPT-5 Codex
 - 已复用 Redis 建立模型调用限流，key 维度绑定 `userId + organizationId + purpose`，满足“按用户 + 按组织”的服务端节流边界。
 - 已扩展 `.env.example` 与 `docs/local-infrastructure.md`，明确 LLM provider 的服务端环境变量、健康检查路径和安全边界。
 - 当前默认 provider 配置已切到阿里云百炼兼容接口：`https://dashscope.aliyuncs.com/compatible-mode/v1`。
-- 当前默认主模型为 `bailian/kimi-2.5`；默认 fallback 链为 `bailian/qwen3.5-plus`、`bailian/MiniMax/MiniMax-M2.7`、`bailian/glm-5`。
+- 当前默认主模型为 `bailian/kimi-k2.5`；默认 fallback 链为 `bailian/qwen3.5-plus`、`bailian/MiniMax/MiniMax-M2.7`、`bailian/glm-5`。
 - 发送到百炼接口前会自动把应用层模型标识规范化为 provider 实际模型名，例如 `bailian/qwen3.5-plus -> qwen3.5-plus`。
 - API key 现统一从 `DASHSCOPE_API_KEY` 读取，没有把密钥写入仓库文件。
+- 已新增真实百炼 smoke test：`tests/story-4-1-bailian-smoke.test.mts`。默认跳过，只有显式设置 `RUN_BAILIAN_SMOKE_TEST=1` 时才执行，并通过 `NODE_OPTIONS=--conditions=react-server` 兼容 `server-only` 标记模块。
+- smoke test 当前采用“健康检查 + chat completions 最小生成”路径，优先验证真实百炼配置、OpenAI-compatible 接线和服务端 adapter 在真实 provider 下的可用性，同时避免把 `responses` 端点的账户/模型兼容差异误判成基础联通失败。
 - 未把 3.x 的 intent / context / planning 逻辑强绑到真实 LLM，保留 Story 4.2 的 prompt registry / schema guardrails 继续收束上层调用契约。
 - 故事级测试 `tests/story-4-1-llm-provider-adapter.test.mjs` 已升级为显式约束 `openai` SDK 接入，覆盖统一入口、OpenAI-compatible 配置、限流、错误模型、健康检查和浏览器端无密钥暴露。
-- 验证通过：`node --test tests/story-4-1-llm-provider-adapter.test.mjs`、`pnpm lint`、`pnpm build`、`node --test --test-concurrency=1 tests/*.test.mjs`，当前全量回归 `159/159` 通过。
+- 验证通过：`node --test tests/story-4-1-llm-provider-adapter.test.mjs`、`NODE_OPTIONS=--conditions=react-server npx tsx --test tests/story-4-1-bailian-smoke.test.mts`、`pnpm test:smoke:bailian`、`pnpm lint`、`pnpm build`、`node --test --test-concurrency=1 tests/*.test.mjs`。
 
 ### File List
 
@@ -122,6 +126,7 @@ GPT-5 Codex
 - src/infrastructure/llm/openai-compatible-adapter.ts
 - src/infrastructure/llm/rate-limit.ts
 - tests/story-4-1-llm-provider-adapter.test.mjs
+- tests/story-4-1-bailian-smoke.test.mts
 
 ## Change Log
 
@@ -129,3 +134,4 @@ GPT-5 Codex
 - 2026-03-30：将 Story 4.1 的 provider adapter 从 `fetch` transport 升级为 `openai` SDK transport，并保持上层接口不变。
 - 2026-03-30：根据 code review 修复健康检查代表性、Redis 连接超时、4xx fallback 与限流原子性问题。
 - 2026-03-30：根据第二轮 review 复核，修复固定窗口 TTL 语义回归、Redis 超时后连接泄漏风险，以及 `/models` 健康检查硬依赖问题。
+- 2026-03-30：新增面向真实百炼配置的 smoke test，并补充 `pnpm test:smoke:bailian` 一键命令与运行说明。

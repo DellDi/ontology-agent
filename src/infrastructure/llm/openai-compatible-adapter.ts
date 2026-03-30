@@ -5,6 +5,7 @@ import type {
   LlmInvocationContext,
   LlmProviderConfig,
   LlmProviderHealth,
+  LlmResponseFormatConfig,
   LlmResponseRequest,
   LlmTextResult,
 } from '@/application/llm/models';
@@ -222,6 +223,28 @@ function createOpenAiClient(config: LlmProviderConfig) {
   });
 }
 
+function mapResponseFormat(
+  responseFormat: LlmResponseFormatConfig | undefined,
+) {
+  if (!responseFormat) {
+    return undefined;
+  }
+
+  if (responseFormat.type === 'json_object') {
+    return {
+      type: 'json_object' as const,
+    };
+  }
+
+  return {
+    type: 'json_schema' as const,
+    name: responseFormat.name ?? 'structured_output',
+    schema: responseFormat.schema ?? { type: 'object' },
+    description: responseFormat.description,
+    strict: responseFormat.strict ?? true,
+  };
+}
+
 async function withRedisClient<T>(
   injectedRedis: RedisClientType | undefined,
   timeoutMs: number,
@@ -284,6 +307,11 @@ export function createOpenAiCompatibleLlmProvider({
               model: resolveProviderModelName(model),
               input: request.input,
               instructions: request.systemPrompt,
+              text: request.responseFormat
+                ? {
+                    format: mapResponseFormat(request.responseFormat),
+                  }
+                : undefined,
             },
             { timeout: context.timeoutMs ?? config.timeoutMs },
           );

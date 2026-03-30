@@ -1,6 +1,6 @@
 # Story 4.2: 结构化输出契约与 Prompt/Schema Guardrails
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -92,6 +92,7 @@ GPT-5 Codex
 - 新增 `schema-guardrails`，统一做 JSON 解析、Zod `safeParse` 校验和稳定 fallback envelope。
 - `createAnalysisAiUseCases` 已接上 Story 4.1 的 LLM adapter，可在无效模型输出时返回稳定兜底结果。
 - 根据 code review 反馈，结构化请求构造与结果解析已抽象为 `AnalysisAiContractPort`，application 层不再直接依赖 infrastructure 模块。
+- 根据后续 review 反馈，结构化任务请求现在会显式携带 `responseFormat`，并由 OpenAI-compatible adapter 映射到 provider 的 `text.format` 能力，而不再只靠 prompt 约定。
 - 为避免 Story 4.2 的任务字面量测试误伤，分析上下文面板的 `data-testid` 改为 `analysis-context-panel`。
 
 ### File List
@@ -103,9 +104,11 @@ GPT-5 Codex
 - src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-context-panel.tsx
 - src/application/analysis-ai/ports.ts
 - src/application/analysis-ai/use-cases.ts
+- src/application/llm/models.ts
 - src/domain/analysis-ai/contracts.ts
 - src/domain/analysis-ai/models.ts
 - src/infrastructure/analysis-ai/contract-port.ts
+- src/infrastructure/llm/openai-compatible-adapter.ts
 - src/infrastructure/llm/prompt-registry.ts
 - src/infrastructure/llm/schema-guardrails.ts
 - tests/story-4-2-guardrails.test.mjs
@@ -115,4 +118,5 @@ GPT-5 Codex
 - 新增 Story 4.2 的结构化输出契约、prompt registry 和 guardrail 流程。
 - 引入直接依赖 `zod` 作为结构化任务契约层。
 - 根据 review 修正 application / infrastructure 反向依赖，改为通过 analysis AI contract port 注入。
+- 根据 review 修正“只靠 prompt 约定”的问题，为结构化任务补充 provider 级 `responseFormat` 映射。
 - 完成 Story 4.2 的专属测试，并通过 lint、build 与全量回归。

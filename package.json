@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:smoke:bailian": "NODE_OPTIONS=--conditions=react-server RUN_BAILIAN_SMOKE_TEST=1 npx tsx --test tests/story-4-1-bailian-smoke.test.mts",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
@@ -21,6 +22,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "redis": "^5.11.0",
+    "server-only": "^0.0.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

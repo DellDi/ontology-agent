@@ -108,6 +108,44 @@ test('Schema guardrails 为五类主要任务建立 Zod 输入/输出契约', as
   assert.match(guardrails, /fallback/i, 'guardrail 应包含稳定 fallback 逻辑');
 });
 
+test('结构化任务请求会显式携带 provider 级 schema 元数据，而不只靠 prompt 约定', async () => {
+  const llmModels = await readRepoFile('src/application/llm/models.ts');
+  const registry = await readRepoFile('src/infrastructure/llm/prompt-registry.ts');
+  const adapter = await readRepoFile(
+    'src/infrastructure/llm/openai-compatible-adapter.ts',
+  );
+  const builtRequest = await runTsSnippet(`
+    import promptRegistryModule from './src/infrastructure/llm/prompt-registry.ts';
+
+    const { buildStructuredTaskRequest } = promptRegistryModule;
+
+    const request = buildStructuredTaskRequest('analysis-intent', {
+      questionText: '为什么收费率下降了',
+    });
+
+    console.log(JSON.stringify(request));
+  `);
+
+  assert.match(
+    llmModels,
+    /responseFormat\??:\s*LlmResponseFormatConfig/,
+    'LlmResponseRequest 应显式携带结构化响应元数据',
+  );
+  assert.match(
+    registry,
+    /z\.toJSONSchema|toJSONSchema/,
+    '结构化任务应基于 schema 生成 provider 可消费的 JSON schema',
+  );
+  assert.match(
+    adapter,
+    /text:\s*request\.responseFormat|format:\s*mapResponseFormat\(request\.responseFormat\)/s,
+    'OpenAI-compatible adapter 应把 responseFormat 映射到 responses.create 的 text.format',
+  );
+  assert.equal(builtRequest.responseFormat.type, 'json_schema');
+  assert.equal(typeof builtRequest.responseFormat.name, 'string');
+  assert.equal(typeof builtRequest.responseFormat.schema, 'object');
+});
+
 test('Application use case 通过 port 注入结构化契约，不直接依赖 infrastructure 模块', async () => {
   const useCases = await readRepoFile('src/application/analysis-ai/use-cases.ts');
   const ports = await readRepoFile('src/application/analysis-ai/ports.ts');
@@ -170,7 +208,7 @@ test('Analysis AI use case 会串联 Story 4.1 adapter 与 schema guardrail', as
         async createResponse() {
           return {
             provider: 'openai-compatible',
-            model: 'bailian/kimi-2.5',
+            model: 'bailian/kimi-k2.5',
             text: '{"type":"invalid","goal":123}',
             finishReason: 'stop',
             raw: { provider: 'fake' },
