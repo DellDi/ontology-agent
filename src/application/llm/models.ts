@@ -30,10 +30,19 @@ export type LlmMessage = {
   content: string;
 };
 
+export type LlmResponseFormatConfig = {
+  type: 'json_schema' | 'json_object';
+  name?: string;
+  schema?: Record<string, unknown>;
+  description?: string;
+  strict?: boolean | null;
+};
+
 export type LlmResponseRequest = {
   input: string;
   systemPrompt?: string;
   model?: string;
+  responseFormat?: LlmResponseFormatConfig;
 };
 
 export type LlmChatCompletionRequest = {

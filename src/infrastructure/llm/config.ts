@@ -2,7 +2,7 @@ import type { LlmProviderConfig } from '@/application/llm/models';
 
 const DEFAULT_BAILIAN_BASE_URL =
   'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const DEFAULT_BAILIAN_MODEL = 'bailian/kimi-2.5';
+const DEFAULT_BAILIAN_MODEL = 'bailian/kimi-k2.5';
 const DEFAULT_BAILIAN_FALLBACK_MODELS = [
   'bailian/qwen3.5-plus',
   'bailian/MiniMax/MiniMax-M2.7',

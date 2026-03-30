@@ -1,11 +1,20 @@
-import type { LlmResponseRequest } from '@/application/llm/models';
+import type {
+  LlmResponseFormatConfig,
+  LlmResponseRequest,
+} from '@/application/llm/models';
 import type { AnalysisAiTaskType } from '@/domain/analysis-ai/models';
+import { z } from 'zod';
 import {
   analysisContextInputSchema,
+  analysisContextOutputSchema,
   analysisIntentInputSchema,
+  analysisIntentOutputSchema,
   analysisPlanInputSchema,
+  analysisPlanOutputSchema,
   conclusionSummaryInputSchema,
+  conclusionSummaryOutputSchema,
   toolSelectionInputSchema,
+  toolSelectionOutputSchema,
   type AnalysisContextInput,
   type AnalysisIntentInput,
   type AnalysisPlanInput,
@@ -19,6 +28,20 @@ type PromptDefinition<TInput> = {
   inputSchema: { parse: (value: unknown) => TInput };
   buildRequest: PromptBuilder<TInput>;
 };
+
+function buildResponseFormat(
+  name: string,
+  description: string,
+  schema: Record<string, unknown>,
+): LlmResponseFormatConfig {
+  return {
+    type: 'json_schema',
+    name,
+    description,
+    schema,
+    strict: true,
+  };
+}
 
 function buildStructuredPrompt(taskName: string, input: Record<string, unknown>) {
   return JSON.stringify(
@@ -45,6 +68,11 @@ const promptDefinitions: Record<AnalysisAiTaskType, PromptDefinition<unknown>> =
         systemPrompt:
           '你是物业数据分析系统的意图识别模块。请把用户问题映射为受控 JSON 输出。',
         input: buildStructuredPrompt('analysis-intent', typedInput),
+        responseFormat: buildResponseFormat(
+          'analysis_intent',
+          '物业分析问题的结构化意图识别结果。',
+          z.toJSONSchema(analysisIntentOutputSchema),
+        ),
       };
     },
   },
@@ -56,6 +84,11 @@ const promptDefinitions: Record<AnalysisAiTaskType, PromptDefinition<unknown>> =
         systemPrompt:
           '你是物业数据分析系统的上下文抽取模块。请输出字段化上下文，不要输出自然语言解释。',
         input: buildStructuredPrompt('analysis-context', typedInput),
+        responseFormat: buildResponseFormat(
+          'analysis_context',
+          '物业分析问题的结构化上下文抽取结果。',
+          z.toJSONSchema(analysisContextOutputSchema),
+        ),
       };
     },
   },
@@ -67,6 +100,11 @@ const promptDefinitions: Record<AnalysisAiTaskType, PromptDefinition<unknown>> =
         systemPrompt:
           '你是物业分析编排规划模块。请生成可执行的结构化计划骨架。',
         input: buildStructuredPrompt('analysis-plan', typedInput),
+        responseFormat: buildResponseFormat(
+          'analysis_plan',
+          '物业分析编排计划的结构化输出。',
+          z.toJSONSchema(analysisPlanOutputSchema),
+        ),
       };
     },
   },
@@ -78,6 +116,11 @@ const promptDefinitions: Record<AnalysisAiTaskType, PromptDefinition<unknown>> =
         systemPrompt:
           '你是物业分析工具选择模块。请只输出工具决策 JSON，不要解释过程。',
         input: buildStructuredPrompt('tool-selection', typedInput),
+        responseFormat: buildResponseFormat(
+          'tool_selection',
+          '物业分析工具选择结果的结构化输出。',
+          z.toJSONSchema(toolSelectionOutputSchema),
+        ),
       };
     },
   },
@@ -89,6 +132,11 @@ const promptDefinitions: Record<AnalysisAiTaskType, PromptDefinition<unknown>> =
         systemPrompt:
           '你是物业分析结果总结模块。请输出保守、可解释的结论摘要 JSON。',
         input: buildStructuredPrompt('conclusion-summary', typedInput),
+        responseFormat: buildResponseFormat(
+          'conclusion_summary',
+          '物业分析结论摘要的结构化输出。',
+          z.toJSONSchema(conclusionSummaryOutputSchema),
+        ),
       };
     },
   },

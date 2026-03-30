@@ -71,7 +71,7 @@ development_status:
 
   epic-4: in-progress
   4-1-server-side-llm-provider-adapter-and-openai-compatible-integration: done
-  4-2-structured-output-contracts-and-prompt-schema-guardrails: review
+  4-2-structured-output-contracts-and-prompt-schema-guardrails: done
   4-3-erp-read-anti-corruption-layer-and-scope-filtering-baseline: ready-for-dev
   4-4-cube-semantic-read-path-integration: ready-for-dev
   4-5-neo4j-graph-adapter-and-sync-baseline: ready-for-dev

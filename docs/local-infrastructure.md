@@ -149,17 +149,17 @@ const result = await checkRedisHealth(redis);
 ```bash
 LLM_PROVIDER_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 DASHSCOPE_API_KEY=replace-with-a-real-dashscope-key
-LLM_PROVIDER_MODEL=bailian/qwen3.5-plus
-LLM_FALLBACK_MODELS=bailian/kimi-2.5,bailian/MiniMax-M2.5,bailian/glm-5,bailian/MiniMax/MiniMax-M2.7
+LLM_PROVIDER_MODEL=bailian/kimi-k2.5
+LLM_FALLBACK_MODELS=bailian/qwen3.5-plus,bailian/glm-5,bailian/MiniMax/MiniMax-M2.7
 LLM_REQUEST_TIMEOUT_MS=15000
 LLM_MAX_RETRIES=2
 LLM_RATE_LIMIT_MAX_REQUESTS=20
 LLM_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-- 当前默认主模型：`bailian/qwen3.5-plus`
-- 默认第一 fallback：`bailian/kimi-2.5`
-- 其它备用：`bailian/MiniMax-M2.5`、`bailian/glm-5`、`bailian/MiniMax/MiniMax-M2.7`
+- 当前默认主模型：`bailian/kimi-k2.5`
+- 默认第一 fallback：`bailian/qwen3.5-plus`
+- 其它备用：`bailian/glm-5`、`bailian/MiniMax/MiniMax-M2.7`
 - 发送到百炼兼容接口时会自动去掉前缀，例如 `bailian/qwen3.5-plus -> qwen3.5-plus`
 
 ### 限流约定
@@ -167,6 +167,20 @@ LLM_RATE_LIMIT_WINDOW_SECONDS=60
 - 模型限流复用 Redis，共享 `redisKeys.rate(...)` 体系。
 - 当前 key 维度为 `userId + organizationId + purpose`，保证“按用户 + 按组织”的服务端节流边界。
 - Provider 返回 `429`、请求超时、结构错误、不可用错误，都应在 adapter 层转成稳定的服务端错误，而不是把原始 provider 报错直接抛给页面层。
+
+### 真实百炼 Smoke Test
+
+如需验证本地环境变量是否真的能打通百炼兼容接口，可执行：
+
+```bash
+pnpm test:smoke:bailian
+```
+
+约定：
+
+- 该命令会显式设置 `RUN_BAILIAN_SMOKE_TEST=1`
+- 测试会复用当前 LLM adapter，并对真实百炼配置执行一次健康检查与一次最小文本生成
+- 默认全量回归不会执行这条测试，避免把外部 provider 波动引入日常开发反馈
 
 ## 后续扩展位
 
