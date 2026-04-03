@@ -539,6 +539,10 @@ AI 侧建议统一将收费项目实体命名为：
 * `departmentId`：所属部门 ID
 * `sentryId`：岗位 ID
 * `sentryName`：岗位名称
+* `userAccount`：用户账号
+* `password`：用户密码
+* `userTelephone`：手机号
+* `userPassword`：用户密码（加密）
 
 ---
 

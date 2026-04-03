@@ -58,7 +58,7 @@ export default async function AnalysisSessionPage({
     questionText: analysisSession.questionText,
     savedContext: analysisSession.savedContext,
   });
-  const candidateFactorReadModel = factorExpansionUseCases.buildCandidateFactorReadModel({
+  const candidateFactorReadModel = await factorExpansionUseCases.buildCandidateFactorReadModel({
     intentType: intent?.type ?? 'general-analysis',
     questionText: analysisSession.questionText,
     contextReadModel,
