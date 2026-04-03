@@ -73,10 +73,10 @@ development_status:
   4-1-server-side-llm-provider-adapter-and-openai-compatible-integration: done
   4-2-structured-output-contracts-and-prompt-schema-guardrails: done
   4-3-erp-read-anti-corruption-layer-and-scope-filtering-baseline: done
-  4-4-cube-semantic-read-path-integration: review
-  4-5-neo4j-graph-adapter-and-sync-baseline: review
+  4-4-cube-semantic-read-path-integration: done
+  4-5-neo4j-graph-adapter-and-sync-baseline: done
   4-6-analysis-tool-registry-and-orchestration-bridge: ready-for-dev
-  4-7-local-compose-services-for-cube-and-neo4j: ready-for-dev
+  4-7-local-compose-services-for-cube-and-neo4j: done
   epic-4-retrospective: optional
 
   epic-5: in-progress

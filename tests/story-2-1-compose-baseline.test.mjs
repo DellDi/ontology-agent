@@ -88,9 +88,10 @@ test('本地基础设施文档覆盖常用命令、边界和后续扩展位', as
   }
 });
 
-test('Story 2.1 基线仍不接入 neo4j、cube 服务', async () => {
+test('Story 2.1 基线中的核心服务仍然保留，后续故事可继续扩展更多基础设施', async () => {
   const compose = await readRepoFile('compose.yaml');
 
-  assert.doesNotMatch(compose, /^\s{2}neo4j:\s*$/m);
-  assert.doesNotMatch(compose, /^\s{2}cube:\s*$/m);
+  assert.match(compose, /^\s{2}web:\s*$/m);
+  assert.match(compose, /^\s{2}postgres:\s*$/m);
+  assert.match(compose, /^\s{2}redis:\s*$/m);
 });

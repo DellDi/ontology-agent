@@ -1,6 +1,6 @@
 # Story 4.5: Neo4j 图谱接入与关系/因果边同步基线
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -82,6 +82,7 @@ GPT-5 Codex
 ### Debug Log References
 
 - `node --test tests/story-4-5-neo4j-graph.test.mjs`
+- `pnpm test:smoke:neo4j`
 - `node --test tests/story-3-4-candidate-factors.test.mjs`
 - `pnpm lint`
 - `pnpm build`
@@ -96,7 +97,9 @@ GPT-5 Codex
 - 当前不需要你再补充额外真实业务信息才能继续推进 4.5；如果后续要把图谱从“baseline”升级到“业务可信的因果图”，再补实际房屋实体表、已确认因果边和更细的主数据关系会更有价值。
 - 根据 4.4 / 4.5 联合 code review，Neo4j 读路径已从只查 `causal` 边调整为消费当前同步基线真实写入的关系边，不再因为图谱真实启用而普遍退回静态候选因素。
 - 候选因素扩展链路现在对 Neo4j 故障做了显式降级保护：图谱不可用时回退到治理规则候选方向，不再让分析会话页直接 500。
-- 旧的 `Story 3.4` 端到端页面测试已按真实图谱/规则降级双路径校准；当前仍有一条独立后续项：本地 `neo4j` 服务加入 `compose.yaml` 由 `Story 4.7` 负责，不在本次 4.5 修复批次内一并处理。
+- 旧的 `Story 3.4` 端到端页面测试已按真实图谱/规则降级双路径校准。
+- 本地 `neo4j` 服务加入 `compose.yaml` 已由 `Story 4.7` 补齐，当前 4.5 的本地图谱联调不再停留在环境变量预留阶段。
+- 已补充真实 Neo4j smoke test：写入一组最小组织 / 项目 / 收费项目 / 应收 / 实收图数据后，`fee-analysis` 能返回真实图谱候选因素，不再退回静态规则路径。
 
 ### File List
 
@@ -118,8 +121,11 @@ GPT-5 Codex
 - src/shared/types/graph.ts
 - tests/story-3-4-candidate-factors.test.mjs
 - tests/story-4-5-neo4j-graph.test.mjs
+- tests/story-4-5-neo4j-smoke.test.mjs
 
 ## Change Log
 
 - 2026-04-03：完成 Story 4.5 的 Neo4j adapter、受控同步基线、图谱候选因素读路径接入与专属测试回归。
 - 2026-04-03：根据 code review 修复真实图谱关系读取与页面降级保护，复跑 `tests/story-4-5-neo4j-graph.test.mjs`、`pnpm lint`、`pnpm build`；`tests/story-3-4-candidate-factors.test.mjs` 已同步校准为真实图谱/规则降级兼容断言。
+- 2026-04-03：由 Story 4.7 对齐本地 `neo4j` Compose 服务、健康检查与 cypher-shell 验证路径，完成本地图谱联调基线。
+- 2026-04-03：新增 `pnpm test:smoke:neo4j`，以真实 Neo4j 服务验证最小图谱写入与 `fee-analysis` 候选因素读取链路。

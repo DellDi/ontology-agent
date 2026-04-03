@@ -46,3 +46,6 @@ next-env.d.ts
 _bmad
 .agents
 .claude
+
+# local analytics runtime data
+cube/conf/.cubestore/

@@ -1,6 +1,6 @@
 # Story 4.4: Cube 语义层只读查询接入
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -92,7 +92,7 @@ GPT-5 Codex
 - 新增 `docs/data-contracts/cube-semantic-baseline.md`，把首批指标口径、权限切片和“待业务确认”项显式文档化，避免后续执行层在业务代码里重复定义口径。
 - 当前 4.4 不构成必须等待用户补充信息的硬阻塞；并且相关业务口径已进一步确认：收缴率分母使用 `chargeSum`，工单时效同时保留“响应时长”和“关闭时长”，满意度在 `satisfaction` 之外继续纳入 `satisfactionEval` 客户评价满意度语义。
 - 根据 4.4 / 4.5 联合 code review，本故事已把 `average-response-duration-hours` 正式下推到平台语义契约与 metric catalog，不再停留在文档描述层。
-- 本故事仍保留一个独立后续项：本地 `cube` 实例与 `compose.yaml` 对齐由 `Story 4.7` 负责，不在本次 4.4 修复批次内一并处理。
+- 本地 `cube` 实例与 `compose.yaml` 的对齐已由 `Story 4.7` 补齐，当前 4.4 的本地联调不再依赖纯环境变量占位。
 
 ### File List
 
@@ -114,3 +114,4 @@ GPT-5 Codex
 
 - 2026-04-03：完成 Story 4.4 的 Cube 配置、语义指标 contract、只读 adapter、指标口径文档与专属测试基线。
 - 2026-04-03：根据 code review 补齐 `average-response-duration-hours` 的正式语义契约与指标目录映射，并复跑 `tests/story-4-4-semantic-query.test.mjs`、`pnpm lint`、`pnpm build`。
+- 2026-04-03：由 Story 4.7 对齐本地 `cube` Compose 服务、最小模型与 token 生成脚本，完成本地真实服务联调基线。
