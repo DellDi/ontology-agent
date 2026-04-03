@@ -40,6 +40,25 @@ export function CandidateFactorPanel({
               <p className="mt-3 text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
                 {readModel.basisLabel}
               </p>
+              {(factor.relationType || factor.direction || factor.source) ? (
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  {factor.relationType ? (
+                    <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 font-medium text-[color:var(--brand-700)]">
+                      关系：{factor.relationType}
+                    </span>
+                  ) : null}
+                  {factor.direction ? (
+                    <span className="rounded-full bg-white px-3 py-1 font-medium text-[color:var(--ink-600)]">
+                      方向：{factor.direction}
+                    </span>
+                  ) : null}
+                  {factor.source ? (
+                    <span className="rounded-full bg-white px-3 py-1 font-medium text-[color:var(--ink-600)]">
+                      来源：{factor.source}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">
                 {factor.rationale}
               </p>
