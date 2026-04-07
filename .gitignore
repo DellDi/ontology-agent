@@ -49,3 +49,6 @@ _bmad
 
 # local analytics runtime data
 cube/conf/.cubestore/
+
+# original mysql sql files
+docs/original-mysql/*.sql

@@ -68,6 +68,9 @@ export const analysisPlanOutputSchema = z.object({
 export const toolSelectionInputSchema = z.object({
   questionText: z.string().min(1),
   planSummary: z.string().min(1).optional(),
+  stepId: z.string().min(1),
+  stepTitle: z.string().min(1).optional(),
+  stepObjective: z.string().min(1).optional(),
 });
 
 export const toolSelectionOutputSchema = z.object({
