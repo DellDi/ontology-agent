@@ -6,6 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -56,6 +58,28 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
 
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - .:/workspace
+      - web-node-modules:/workspace/node_modules
+      - pnpm-store:/pnpm/store
+    working_dir: /workspace
+    command:
+      [
+        "bash",
+        "-lc",
+        "echo 'Running database migrations...' && pnpm install --frozen-lockfile && pnpm db:migrate && echo 'Migrations complete'",
+      ]
+    restart: "no"
+
   redis:
     image: redis:8.2.5-bookworm
     command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
@@ -75,6 +99,8 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       cube:
