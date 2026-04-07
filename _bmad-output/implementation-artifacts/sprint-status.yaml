@@ -81,9 +81,9 @@ development_status:
 
   epic-5: in-progress
   5-1-submit-analysis-plan-for-execution: review
-  5-2-stream-execution-progress-and-stage-results: ready-for-dev
-  5-3-ranked-causal-conclusions-with-evidence: ready-for-dev
-  5-4-persist-step-results-and-final-conclusion: ready-for-dev
+  5-2-stream-execution-progress-and-stage-results: review
+  5-3-ranked-causal-conclusions-with-evidence: review
+  5-4-persist-step-results-and-final-conclusion: review
   epic-5-retrospective: optional
 
   epic-6: in-progress

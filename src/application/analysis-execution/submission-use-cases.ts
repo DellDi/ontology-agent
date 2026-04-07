@@ -4,6 +4,7 @@ import {
   type AnalysisExecutionPlanSnapshot,
   validateAnalysisExecutionPlanSnapshot,
 } from '@/domain/analysis-execution/models';
+import type { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 
 type JobUseCases = {
   submitJob: (submission: {
@@ -23,8 +24,12 @@ export type SubmittedAnalysisExecution = {
 
 export function createAnalysisExecutionSubmissionUseCases({
   jobUseCases,
+  analysisExecutionStreamUseCases,
 }: {
   jobUseCases: JobUseCases;
+  analysisExecutionStreamUseCases?: ReturnType<
+    typeof createAnalysisExecutionStreamUseCases
+  >;
 }) {
   return {
     async submitExecution({
@@ -47,6 +52,16 @@ export function createAnalysisExecutionSubmissionUseCases({
           questionText: session.questionText,
           submittedAt,
           plan: executablePlan,
+        },
+      });
+
+      await analysisExecutionStreamUseCases?.publishExecutionStatus({
+        sessionId: session.id,
+        executionId: job.id,
+        status: job.status,
+        message: '执行任务已进入后台队列，等待 worker 开始处理。',
+        metadata: {
+          planStepCount: executablePlan.steps.length,
         },
       });
 

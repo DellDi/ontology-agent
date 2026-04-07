@@ -4,6 +4,7 @@ import {
   buildAnalysisPlan,
   type AnalysisPlanMode,
 } from '@/domain/analysis-plan/models';
+import type { AnalysisExecutionPlanSnapshot } from '@/domain/analysis-execution/models';
 import type { AnalysisIntentType } from '@/domain/analysis-intent/models';
 
 export type AnalysisPlanStepReadModel = {
@@ -22,6 +23,29 @@ export type AnalysisPlanReadModel = {
 };
 
 export function createAnalysisPlanningUseCases() {
+  function buildPlanReadModelFromSnapshot(
+    plan: AnalysisExecutionPlanSnapshot,
+  ): AnalysisPlanReadModel {
+    const titleById = new Map(
+      plan.steps.map((step) => [step.id, `步骤 ${step.order} · ${step.title}`]),
+    );
+
+    return {
+      mode: plan.mode,
+      headline: '分析计划',
+      summary: plan.summary,
+      steps: plan.steps.map((step) => ({
+        id: step.id,
+        order: step.order,
+        title: step.title,
+        objective: step.objective,
+        dependencyLabels: step.dependencyIds
+          .map((dependencyId) => titleById.get(dependencyId))
+          .filter((value): value is string => Boolean(value)),
+      })),
+    };
+  }
+
   function buildPlanFromInputs({
     intentType,
     contextReadModel,
@@ -56,6 +80,14 @@ export function createAnalysisPlanningUseCases() {
       });
     },
 
+    buildPlanReadModelFromSnapshot({
+      planSnapshot,
+    }: {
+      planSnapshot: AnalysisExecutionPlanSnapshot;
+    }): AnalysisPlanReadModel {
+      return buildPlanReadModelFromSnapshot(planSnapshot);
+    },
+
     buildPlanReadModel({
       intentType,
       contextReadModel,
@@ -71,24 +103,7 @@ export function createAnalysisPlanningUseCases() {
         candidateFactorReadModel,
       });
 
-      const titleById = new Map(
-        plan.steps.map((step) => [step.id, `步骤 ${step.order} · ${step.title}`]),
-      );
-
-      return {
-        mode: plan.mode,
-        headline: '分析计划',
-        summary: plan.summary,
-        steps: plan.steps.map((step) => ({
-          id: step.id,
-          order: step.order,
-          title: step.title,
-          objective: step.objective,
-          dependencyLabels: step.dependencyIds
-            .map((dependencyId) => titleById.get(dependencyId))
-            .filter((value): value is string => Boolean(value)),
-        })),
-      };
+      return buildPlanReadModelFromSnapshot(plan);
     },
   };
 }

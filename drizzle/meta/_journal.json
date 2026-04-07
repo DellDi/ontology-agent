@@ -36,6 +36,13 @@
       "when": 1775554860180,
       "tag": "0004_typed_erp_staging",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775560500000,
+      "tag": "0005_analysis_execution_snapshots",
+      "breakpoints": true
     }
   ]
 }
