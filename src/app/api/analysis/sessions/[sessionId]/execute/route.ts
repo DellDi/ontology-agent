@@ -75,9 +75,13 @@ export async function POST(request: Request, { params }: RouteContext) {
   });
 
   try {
-    const execution = await withJobUseCases(async (jobUseCases) => {
+    const execution = await withJobUseCases(async ({
+      jobUseCases,
+      analysisExecutionStreamUseCases,
+    }) => {
       const submissionUseCases = createAnalysisExecutionSubmissionUseCases({
         jobUseCases,
+        analysisExecutionStreamUseCases,
       });
 
       return await submissionUseCases.submitExecution({

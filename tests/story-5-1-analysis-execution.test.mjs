@@ -5,6 +5,8 @@ import { once } from 'node:events';
 import net from 'node:net';
 import { promisify } from 'node:util';
 
+import { ensureAnalysisExecutionSnapshotsTable } from './helpers/ensure-analysis-execution-snapshots-table.mjs';
+
 const execFileAsync = promisify(execFile);
 
 let port;
@@ -154,6 +156,15 @@ test.before(async () => {
   process.env.DATABASE_URL = TEST_DATABASE_URL;
   process.env.REDIS_URL = TEST_REDIS_URL;
   process.env.REDIS_KEY_PREFIX = TEST_REDIS_KEY_PREFIX;
+
+  await execFileAsync('pnpm', ['db:migrate'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DATABASE_URL: TEST_DATABASE_URL,
+    },
+  });
+  await ensureAnalysisExecutionSnapshotsTable(TEST_DATABASE_URL);
 
   await execFileAsync('pnpm', ['build'], {
     cwd: process.cwd(),

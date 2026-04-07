@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
+import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
+import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
@@ -9,8 +11,12 @@ import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
+import { AnalysisConclusionPanel } from './_components/analysis-conclusion-panel';
+import { AnalysisExecutionStreamPanel } from './_components/analysis-execution-stream-panel';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
+import { withJobUseCases } from '@/infrastructure/job/runtime';
+import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 
 type AnalysisSessionPageProps = {
   params: Promise<{
@@ -33,6 +39,10 @@ function readSearchParam(
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
+const analysisExecutionPersistenceUseCases =
+  createAnalysisExecutionPersistenceUseCases({
+    snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
+  });
 
 export default async function AnalysisSessionPage({
   params,
@@ -77,15 +87,44 @@ export default async function AnalysisSessionPage({
     questionText: analysisSession.questionText,
     contextReadModel,
   });
-  const analysisPlanReadModel = analysisPlanningUseCases.buildPlanReadModel({
-    intentType: intent?.type ?? 'general-analysis',
-    contextReadModel,
-    candidateFactorReadModel,
-  });
   const executionId = readSearchParam(resolvedSearchParams.executionId);
   const executionError = readSearchParam(
     resolvedSearchParams.executionError,
   );
+  const latestExecutionSnapshot =
+    await analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
+      sessionId: analysisSession.id,
+      ownerUserId: currentUser.userId,
+    });
+  const analysisPlanReadModel = latestExecutionSnapshot
+    ? analysisPlanningUseCases.buildPlanReadModelFromSnapshot({
+        planSnapshot: latestExecutionSnapshot.planSnapshot,
+      })
+    : analysisPlanningUseCases.buildPlanReadModel({
+        intentType: intent?.type ?? 'general-analysis',
+        contextReadModel,
+        candidateFactorReadModel,
+      });
+  const resolvedExecutionId = executionId || latestExecutionSnapshot?.executionId || '';
+  const executionStreamReadModel = executionId
+    ? await withJobUseCases(async ({ analysisExecutionStreamUseCases }) =>
+        await analysisExecutionStreamUseCases.buildReadModel({
+          sessionId: analysisSession.id,
+          executionId,
+        }),
+      )
+    : latestExecutionSnapshot
+      ? {
+          sessionId: analysisSession.id,
+          executionId: latestExecutionSnapshot.executionId,
+          currentStatus: latestExecutionSnapshot.status,
+          hasEvents: latestExecutionSnapshot.stepResults.length > 0,
+          events: latestExecutionSnapshot.stepResults,
+        }
+      : null;
+  const conclusionReadModel = executionStreamReadModel
+    ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
+    : null;
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px]">
@@ -192,6 +231,18 @@ export default async function AnalysisSessionPage({
           sessionId={analysisSession.id}
           readModel={analysisPlanReadModel}
         />
+
+        {conclusionReadModel ? (
+          <AnalysisConclusionPanel readModel={conclusionReadModel} />
+        ) : null}
+
+        {resolvedExecutionId && executionStreamReadModel ? (
+          <AnalysisExecutionStreamPanel
+            sessionId={analysisSession.id}
+            executionId={resolvedExecutionId}
+            initialReadModel={executionStreamReadModel}
+          />
+        ) : null}
       </div>
 
       <aside className="space-y-6">

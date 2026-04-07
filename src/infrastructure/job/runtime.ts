@@ -1,10 +1,17 @@
 import { createJobUseCases } from '@/application/job/use-cases';
+import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
+import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
 import { createRedisJobQueue } from '@/infrastructure/job/redis-job-queue';
 import { createRedisClient } from '@/infrastructure/redis/client';
 
 export async function withJobUseCases<T>(
   execute: (
-    jobUseCases: ReturnType<typeof createJobUseCases>,
+    services: {
+      jobUseCases: ReturnType<typeof createJobUseCases>;
+      analysisExecutionStreamUseCases: ReturnType<
+        typeof createAnalysisExecutionStreamUseCases
+      >;
+    },
   ) => Promise<T>,
 ) {
   const { redis } = createRedisClient();
@@ -14,8 +21,15 @@ export async function withJobUseCases<T>(
     const jobUseCases = createJobUseCases({
       jobQueue: createRedisJobQueue(redis),
     });
+    const analysisExecutionStreamUseCases =
+      createAnalysisExecutionStreamUseCases({
+        eventStore: createRedisAnalysisExecutionEventStore(redis),
+      });
 
-    return await execute(jobUseCases);
+    return await execute({
+      jobUseCases,
+      analysisExecutionStreamUseCases,
+    });
   } finally {
     await redis.quit();
   }

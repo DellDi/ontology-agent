@@ -1,6 +1,6 @@
 # Story 5.3: 输出带证据与富渲染块的归因结论
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -19,18 +19,18 @@ so that 我可以直接理解哪些因素最可能导致指标变化。
 
 ## Tasks / Subtasks
 
-- [ ] 建立归因结果与证据摘要模型（AC: 1, 2, 3, 4）
-  - [ ] 区分原因排序、证据摘要、置信或说明字段。
-  - [ ] 结果必须可解释，不能只返回黑盒分数。
-  - [ ] 为结果块定义可持久化、可投影的 render schema。
-- [ ] 将结论输出接入执行链路（AC: 1, 2, 3, 4）
-  - [ ] 从 execution 阶段结果生成可读结论。
-  - [ ] 在分析页展示主要原因与关键证据。
-  - [ ] 至少接入一种图表或表格类结构化结果块。
-- [ ] 覆盖稳定性与可解释性测试（AC: 1, 2, 3, 4）
-  - [ ] 验证每条原因至少有一条证据摘要。
-  - [ ] 使用 deterministic fixture 验证相同输入下计划骨架 / 排序稳定。
-  - [ ] 验证结果块可被后续持久化和移动端投影消费。
+- [x] 建立归因结果与证据摘要模型（AC: 1, 2, 3, 4）
+  - [x] 区分原因排序、证据摘要、置信或说明字段。
+  - [x] 结果必须可解释，不能只返回黑盒分数。
+  - [x] 为结果块定义可持久化、可投影的 render schema。
+- [x] 将结论输出接入执行链路（AC: 1, 2, 3, 4）
+  - [x] 从 execution 阶段结果生成可读结论。
+  - [x] 在分析页展示主要原因与关键证据。
+  - [x] 至少接入一种图表或表格类结构化结果块。
+- [x] 覆盖稳定性与可解释性测试（AC: 1, 2, 3, 4）
+  - [x] 验证每条原因至少有一条证据摘要。
+  - [x] 使用 deterministic fixture 验证相同输入下计划骨架 / 排序稳定。
+  - [x] 验证结果块可被后续持久化和移动端投影消费。
 
 ## Dev Notes
 
@@ -80,12 +80,25 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-5-3-ranked-conclusions.test.mjs`
+- `node --test --test-concurrency=1 tests/story-5-1-analysis-execution.test.mjs tests/story-5-2-execution-stream.test.mjs tests/story-5-3-ranked-conclusions.test.mjs tests/story-5-4-persist-results.test.mjs tests/story-2-6-worker-skeleton.test.mjs tests/story-3-5-analysis-plan.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增可解释的归因结论 read model，按阶段结果稳定生成原因排序、证据摘要与置信表达。
+- 归因结果现在统一输出为 render blocks，并至少包含表格类结构化表达，供 PC 页面、持久化和移动端投影复用。
+- 分析会话页新增归因结论面板，直接展示原因排序、关键证据和结构化结果块。
+- 补充 deterministic fixture 与页面集成测试，验证相同输入下排序稳定且每条原因都带证据摘要。
 
 ### File List
 
+- _bmad-output/implementation-artifacts/sprint-status.yaml
 - _bmad-output/implementation-artifacts/5-3-ranked-causal-conclusions-with-evidence.md
+- src/domain/analysis-execution/stream-models.ts
+- src/domain/analysis-result/models.ts
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-stream-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- tests/story-5-3-ranked-conclusions.test.mjs

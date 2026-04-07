@@ -1,6 +1,6 @@
 # Story 5.4: 保存步骤结果与最终结论
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -19,17 +19,17 @@ so that 我之后可以回看、复盘并继续追问。
 
 ## Tasks / Subtasks
 
-- [ ] 建立 execution / result persistence 模型（AC: 1, 2, 3, 4）
-  - [ ] 为计划快照、步骤结果、当前结论状态和失败位置建立可持久化结构。
-  - [ ] 区分“执行中断”“部分完成”“最终完成”。
-  - [ ] 为 render blocks 和 mobile projection 预留稳定字段边界。
-- [ ] 接入读取与回放路径（AC: 1, 2, 3, 4）
-  - [ ] 重新打开会话时从持久化层恢复主要结果。
-  - [ ] 保持 owner-only 读取与会话关联。
-  - [ ] 为 PC 全量回放和移动端摘要读取提供同源 read model 基础。
-- [ ] 覆盖回放与失败态测试（AC: 1, 2, 3）
-  - [ ] 验证成功执行后的回放。
-  - [ ] 验证失败或中断后保留步骤结果和失败位置。
+- [x] 建立 execution / result persistence 模型（AC: 1, 2, 3, 4）
+  - [x] 为计划快照、步骤结果、当前结论状态和失败位置建立可持久化结构。
+  - [x] 区分“执行中断”“部分完成”“最终完成”。
+  - [x] 为 render blocks 和 mobile projection 预留稳定字段边界。
+- [x] 接入读取与回放路径（AC: 1, 2, 3, 4）
+  - [x] 重新打开会话时从持久化层恢复主要结果。
+  - [x] 保持 owner-only 读取与会话关联。
+  - [x] 为 PC 全量回放和移动端摘要读取提供同源 read model 基础。
+- [x] 覆盖回放与失败态测试（AC: 1, 2, 3）
+  - [x] 验证成功执行后的回放。
+  - [x] 验证失败或中断后保留步骤结果和失败位置。
 
 ## Dev Notes
 
@@ -80,12 +80,35 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-5-4-persist-results.test.mjs`
+- `node --test --test-concurrency=1 tests/story-5-1-analysis-execution.test.mjs tests/story-5-2-execution-stream.test.mjs tests/story-5-3-ranked-conclusions.test.mjs tests/story-5-4-persist-results.test.mjs tests/story-2-6-worker-skeleton.test.mjs tests/story-3-5-analysis-plan.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增 execution snapshot 持久化模型、Postgres schema 和 store，保存计划快照、步骤结果、当前结论状态、失败位置与移动端最小投影。
+- 会话详情页重新打开时会优先从持久化快照恢复计划骨架、阶段结果和归因结论，不需要重新执行即可回看上次分析。
+- 持久化结果块现在同时覆盖最终结论块和阶段结果 render blocks，失败态仍会保留失败位置与已完成步骤。
+- 为 5.x 端到端测试补充快照表保障逻辑，确保测试环境与新迁移一致，并验证成功回放与失败态持久化。
 
 ### File List
 
+- _bmad-output/implementation-artifacts/sprint-status.yaml
 - _bmad-output/implementation-artifacts/5-4-persist-step-results-and-final-conclusion.md
+- drizzle/0005_analysis_execution_snapshots.sql
+- drizzle/meta/_journal.json
+- src/application/analysis-execution/persistence-ports.ts
+- src/application/analysis-execution/persistence-use-cases.ts
+- src/application/analysis-planning/use-cases.ts
+- src/domain/analysis-execution/persistence-models.ts
+- src/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store.ts
+- src/infrastructure/postgres/schema/analysis-execution-snapshots.ts
+- src/infrastructure/postgres/schema/index.ts
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/worker/main.ts
+- tests/helpers/ensure-analysis-execution-snapshots-table.mjs
+- tests/story-5-1-analysis-execution.test.mjs
+- tests/story-5-2-execution-stream.test.mjs
+- tests/story-5-3-ranked-conclusions.test.mjs
+- tests/story-5-4-persist-results.test.mjs

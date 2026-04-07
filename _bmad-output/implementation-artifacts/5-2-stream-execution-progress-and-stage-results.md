@@ -1,6 +1,6 @@
 # Story 5.2: 流式反馈执行进度、稳定事件协议与阶段结果
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -20,19 +20,19 @@ so that 我不需要等到任务全部结束才知道系统正在做什么。
 
 ## Tasks / Subtasks
 
-- [ ] 建立 SSE 或等价服务端推流入口（AC: 1, 2, 3, 4, 5）
-  - [ ] 定义 execution event envelope。
-  - [ ] 定义 render part / block schema。
-  - [ ] 为 execution 建立稳定事件流模型。
-  - [ ] 客户端只负责订阅和渲染，不直接订阅 Redis。
-- [ ] 接入执行状态与阶段结果发布（AC: 1, 2, 3, 4, 5）
-  - [ ] 覆盖 running / completed / failed 等状态。
-  - [ ] 为超过 10 秒的执行提供持续反馈。
-  - [ ] 建立 Next.js 交互层 stream adapter。
-- [ ] 覆盖 SSE 合约与页面订阅测试（AC: 1, 2, 3, 4, 5）
-  - [ ] 验证事件序列稳定。
-  - [ ] 验证页面不会长时间无反馈。
-  - [ ] 验证至少 3 种非纯文本阶段结果块的渲染。
+- [x] 建立 SSE 或等价服务端推流入口（AC: 1, 2, 3, 4, 5）
+  - [x] 定义 execution event envelope。
+  - [x] 定义 render part / block schema。
+  - [x] 为 execution 建立稳定事件流模型。
+  - [x] 客户端只负责订阅和渲染，不直接订阅 Redis。
+- [x] 接入执行状态与阶段结果发布（AC: 1, 2, 3, 4, 5）
+  - [x] 覆盖 running / completed / failed 等状态。
+  - [x] 为超过 10 秒的执行提供持续反馈。
+  - [x] 建立 Next.js 交互层 stream adapter。
+- [x] 覆盖 SSE 合约与页面订阅测试（AC: 1, 2, 3, 4, 5）
+  - [x] 验证事件序列稳定。
+  - [x] 验证页面不会长时间无反馈。
+  - [x] 验证至少 3 种非纯文本阶段结果块的渲染。
 
 ## Dev Notes
 
@@ -83,12 +83,32 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-5-2-execution-stream.test.mjs`
+- `node --test --test-concurrency=1 tests/story-3-5-analysis-plan.test.mjs tests/story-5-1-analysis-execution.test.mjs tests/story-5-2-execution-stream.test.mjs tests/story-2-6-worker-skeleton.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 建立了 Redis-backed execution event log、稳定 execution event envelope 和 render block schema。
+- 新增 `/api/analysis/sessions/[sessionId]/stream` SSE route，支持按 executionId 回放并持续推送事件。
+- worker 现在会发布 `pending / processing / stage-result / completed / failed` 等执行事件，会话页新增流式分析画布并支持首屏回放。
+- 补充了 story-5-2 集成测试，验证 SSE 合约、非纯文本阶段结果块和页面回放渲染。
 
 ### File List
 
+- _bmad-output/implementation-artifacts/sprint-status.yaml
 - _bmad-output/implementation-artifacts/5-2-stream-execution-progress-and-stage-results.md
+- src/domain/analysis-execution/stream-models.ts
+- src/application/analysis-execution/stream-ports.ts
+- src/application/analysis-execution/stream-use-cases.ts
+- src/infrastructure/analysis-execution/redis-analysis-execution-event-store.ts
+- src/infrastructure/job/runtime.ts
+- src/application/analysis-execution/submission-use-cases.ts
+- src/app/api/analysis/sessions/[sessionId]/execute/route.ts
+- src/worker/handlers.ts
+- src/worker/main.ts
+- src/app/api/analysis/sessions/[sessionId]/stream/route.ts
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-stream-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- tests/story-5-2-execution-stream.test.mjs
