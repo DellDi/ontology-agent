@@ -9,7 +9,6 @@ export type ErpScopedRecord = {
   organizationId: string;
   organizationPath?: string | null;
   projectId?: string | null;
-  areaId?: string | null;
   deleted?: boolean;
 };
 
@@ -56,7 +55,6 @@ export type ErpOwner = {
   projectId: string;
   projectName: string | null;
   organizationId: string;
-  areaId: string | null;
 };
 
 export type ErpChargeItem = {
@@ -76,7 +74,6 @@ export type ErpReceivable = {
   organizationId: string;
   projectId: string | null;
   projectName: string | null;
-  areaId: string | null;
   houseId: string | null;
   houseName: string | null;
   ownerId: string | null;
@@ -99,7 +96,6 @@ export type ErpPayment = {
   organizationId: string;
   projectId: string | null;
   projectName: string | null;
-  areaId: string | null;
   houseId: string | null;
   houseName: string | null;
   ownerId: string | null;
@@ -119,7 +115,6 @@ export type ErpServiceOrder = {
   organizationPath: string | null;
   projectId: string | null;
   projectName: string | null;
-  areaId: string | null;
   houseId: string | null;
   customerId: string | null;
   customerName: string | null;

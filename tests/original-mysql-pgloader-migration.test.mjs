@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 
 const repoRoot = process.cwd();
 
@@ -20,39 +20,59 @@ test('schema exports house and system user staging tables', async () => {
   assert.match(index, /erpSystemUsers/);
 });
 
-test('schema keeps the imported ERP staging tables free of foreign keys', async () => {
+test('schema keeps ERP staging as typed mirror tables without foreign keys', async () => {
   const schema = await readFile(
     `${repoRoot}/src/infrastructure/postgres/schema/erp-staging.ts`,
     'utf8',
   );
+  const receivablesBlock = schema.match(
+    /export const erpReceivables[\s\S]*?export const erpPayments/,
+  )?.[0] ?? '';
+  const serviceOrdersBlock = schema.match(
+    /export const erpServiceOrders[\s\S]*?export const erpHouses/,
+  )?.[0] ?? '';
 
-  assert.match(schema, /houseId: text\('house_id'\)/);
   assert.doesNotMatch(schema, /references\(/);
-  assert.match(schema, /organizationCode: text\('organization_code'\)/);
-  assert.match(schema, /organizationType: text\('organization_type'\)/);
-  assert.match(schema, /createUserName: text\('create_user_name'\)/);
+  assert.match(schema, /sourceId: bigint\('source_id', \{ mode: 'bigint' \}\)\.primaryKey\(\)/);
+  assert.match(schema, /organizationType: integer\('organization_type'\)/);
+  assert.match(schema, /organizationEnableState: integer\('organization_enable_state'\)/);
+  assert.match(schema, /organizationId: bigint\('organization_id', \{ mode: 'bigint' \}\)/);
   assert.match(schema, /proNature: text\('pro_nature'\)/);
   assert.match(schema, /greenArea: numeric\('green_area'\)/);
-  assert.match(schema, /precinctArea: text\('precinct_area'\)/);
-  assert.match(schema, /enterpriseId: text\('enterprise_id'\)/);
+  assert.match(schema, /parkingAmount: integer\('parking_amount'\)/);
+  assert.match(schema, /isDelete: integer\('is_delete'\)/);
+  assert.match(schema, /enterpriseId: bigint\('enterprise_id', \{ mode: 'bigint' \}\)/);
   assert.match(schema, /shouldAccountBook: integer\('should_account_book'\)/);
-  assert.match(schema, /accountBook: integer\('account_book'\)/);
-  assert.match(schema, /actualAccountBook: integer\('actual_account_book'\)/);
+  assert.doesNotMatch(receivablesBlock, /accountBook: integer\('account_book'\)/);
+  assert.doesNotMatch(
+    receivablesBlock,
+    /actualAccountBook: integer\('actual_account_book'\)/,
+  );
+  assert.match(schema, /customerId: integer\('customer_id'\)/);
+  assert.match(schema, /satisfaction: integer\('satisfaction'\)/);
   assert.match(schema, /isShow: integer\('is_show'\)/);
-  assert.match(schema, /rentStatus: text\('rent_status'\)/);
+  assert.match(schema, /areaId: text\('area_id'\)/);
+  assert.match(schema, /buildingId: text\('building_id'\)/);
+  assert.match(schema, /regionalCompanyId: text\('regional_company_id'\)/);
+  assert.match(schema, /sourceId: bigint\('source_id', \{ mode: 'bigint' \}\)\.primaryKey\(\)/);
   assert.match(schema, /password: text\('password'\)/);
   assert.match(schema, /userTelephone: text\('user_telephone'\)/);
   assert.match(schema, /userPassword: text\('user_password'\)/);
+  assert.match(schema, /userType: integer\('user_type'\)/);
+  assert.doesNotMatch(
+    serviceOrdersBlock,
+    /organizationPath: text\('organization_path'\)/,
+  );
 });
 
 test('pgloader migration generator emits the expected load structure', async () => {
-  const module = await import(
+  const migrationModule = await import(
     `${repoRoot}/scripts/pgloader/original-mysql-migration.mjs`
   );
 
-  assert.equal(typeof module.buildOriginalMysqlPgloaderLoad, 'function');
+  assert.equal(typeof migrationModule.buildOriginalMysqlPgloaderLoad, 'function');
 
-  const load = module.buildOriginalMysqlPgloaderLoad({
+  const load = migrationModule.buildOriginalMysqlPgloaderLoad({
     mysqlUrl: 'mysql://user:pass@localhost:3306/original_mysql',
     postgresUrl: 'postgresql://user:pass@localhost:5432/ontology',
   });
@@ -69,42 +89,56 @@ test('pgloader migration generator emits the expected load structure', async () 
   assert.match(load, /foreign keys/i);
 });
 
-test('drizzle migration does not add foreign keys for the staging import', async () => {
+test('latest drizzle staging migration stays free of foreign keys and reflects typed columns', async () => {
+  const migrationFiles = (await readdir(`${repoRoot}/drizzle`))
+    .filter((fileName) => /^000\d+.*\.sql$/.test(fileName))
+    .sort();
+  const latestMigration = migrationFiles.at(-1);
+
+  assert.ok(latestMigration, '应存在 drizzle migration 文件');
+
   const migration = await readFile(
-    `${repoRoot}/drizzle/0003_premium_romulus.sql`,
+    `${repoRoot}/drizzle/${latestMigration}`,
     'utf8',
   );
+  const receivablesTableBlock = migration.match(
+    /CREATE TABLE "erp_staging"\."dw_datacenter_charge"[\s\S]*?CREATE TABLE "erp_staging"\."dw_datacenter_bill"/,
+  )?.[0] ?? '';
 
   assert.doesNotMatch(migration, /FOREIGN KEY/i);
   assert.doesNotMatch(migration, /REFERENCES/i);
   assert.match(migration, /"organization_code" text/);
+  assert.match(migration, /"organization_type" integer/);
+  assert.match(migration, /"organization_id" bigint/);
   assert.match(migration, /"pro_nature" text/);
   assert.match(migration, /"should_account_book" integer/);
-  assert.match(migration, /"account_book" integer/);
-  assert.match(migration, /"actual_account_book" integer/);
+  assert.doesNotMatch(receivablesTableBlock, /"account_book" integer/);
+  assert.doesNotMatch(receivablesTableBlock, /"actual_account_book" integer/);
+  assert.match(migration, /"customer_id" integer/);
+  assert.match(migration, /"satisfaction" integer/);
   assert.match(migration, /"is_show" integer/);
   assert.match(migration, /"password" text/);
 });
 
 test('mysql view materializer emits deduped view definitions', async () => {
-  const module = await import(
+  const specsModule = await import(
     `${repoRoot}/scripts/pgloader/original-mysql-specs.mjs`
   );
 
-  assert.equal(typeof module.buildProjectedMysqlSelectSql, 'function');
+  assert.equal(typeof specsModule.buildProjectedMysqlSelectSql, 'function');
   assert.equal(
-    typeof module.buildMaterializedMysqlViewDefinition,
+    typeof specsModule.buildMaterializedMysqlViewDefinition,
     'function',
   );
-  assert.equal(Array.isArray(module.originalMysqlTableSpecs), true);
+  assert.equal(Array.isArray(specsModule.originalMysqlTableSpecs), true);
 
-  const chargeSpec = module.originalMysqlTableSpecs.find(
+  const chargeSpec = specsModule.originalMysqlTableSpecs.find(
     (spec) => spec.sourceTable === 'dw_datacenter_charge',
   );
 
   assert.ok(chargeSpec);
 
-  const sql = module.buildMaterializedMysqlViewDefinition(
+  const sql = specsModule.buildMaterializedMysqlViewDefinition(
     chargeSpec,
     'newsee-datacenter',
   );
@@ -116,17 +150,17 @@ test('mysql view materializer emits deduped view definitions', async () => {
 });
 
 test('mysql temp table materializer emits deduped create table definitions', async () => {
-  const module = await import(
+  const specsModule = await import(
     `${repoRoot}/scripts/pgloader/original-mysql-specs.mjs`
   );
 
-  const chargeSpec = module.originalMysqlTableSpecs.find(
+  const chargeSpec = specsModule.originalMysqlTableSpecs.find(
     (spec) => spec.sourceTable === 'dw_datacenter_charge',
   );
 
   assert.ok(chargeSpec);
 
-  const sql = module.buildProjectedMysqlCreateTableSql(
+  const sql = specsModule.buildProjectedMysqlCreateTableSql(
     chargeSpec,
     'newsee-datacenter',
     'newsee_datacenter_pgloader_debug',
