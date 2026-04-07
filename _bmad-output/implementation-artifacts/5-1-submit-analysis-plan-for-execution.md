@@ -1,6 +1,6 @@
 # Story 5.1: 提交分析计划到后台执行
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,16 +18,16 @@ so that 系统可以按照既定步骤而不是单次查询完成分析。
 
 ## Tasks / Subtasks
 
-- [ ] 建立 analysis execution 模型与提交入口（AC: 1, 2, 3）
-  - [ ] 定义 execution identity、状态和与 session / plan 的关联。
-  - [ ] 新增执行提交 Route Handler，不在请求线程内同步跑完整分析。
-- [ ] 建立最小 dispatcher / enqueue 边界（AC: 1, 3）
-  - [ ] 将执行提交到 worker / queue 契约，而不是页面轮询直跑。
-  - [ ] 对不可执行计划给出稳定拒绝结果。
-- [ ] 覆盖执行提交测试（AC: 1, 2, 3）
-  - [ ] 验证 execution record 创建。
-  - [ ] 验证 owner / scope 校验。
-  - [ ] 验证步骤顺序信息被保留。
+- [x] 建立 analysis execution 模型与提交入口（AC: 1, 2, 3）
+  - [x] 定义 execution identity、状态和与 session / plan 的关联。
+  - [x] 新增执行提交 Route Handler，不在请求线程内同步跑完整分析。
+- [x] 建立最小 dispatcher / enqueue 边界（AC: 1, 3）
+  - [x] 将执行提交到 worker / queue 契约，而不是页面轮询直跑。
+  - [x] 对不可执行计划给出稳定拒绝结果。
+- [x] 覆盖执行提交测试（AC: 1, 2, 3）
+  - [x] 验证 execution record 创建。
+  - [x] 验证 owner / scope 校验。
+  - [x] 验证步骤顺序信息被保留。
 
 ## Dev Notes
 
@@ -76,12 +76,33 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-5-1-analysis-execution.test.mjs`
+- `node --test --test-concurrency=1 tests/story-2-6-worker-skeleton.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增 analysis execution 提交用例，基于当前会话和计划快照创建 `analysis-execution` 任务并投递到 Redis 队列。
+- 新增 `/api/analysis/sessions/[sessionId]/execute`，在服务端重建当前计划后提交执行，不在请求线程内同步跑完整分析。
+- 分析计划面板新增“开始执行分析”入口；会话页支持展示执行提交成功/失败反馈和 execution ID。
+- `analysis-execution` 任务类型已接入 job contract 与 worker handler，占位结果为后续 5.2/5.3 流式与结论输出保留边界。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-1-submit-analysis-plan-for-execution.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/app/api/analysis/sessions/[sessionId]/execute/route.ts
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-plan-panel.tsx
+- src/application/analysis-execution/submission-use-cases.ts
+- src/application/analysis-planning/use-cases.ts
+- src/domain/analysis-execution/models.ts
+- src/domain/job-contract/models.ts
+- src/infrastructure/job/runtime.ts
+- src/worker/handlers.ts
+- tests/story-5-1-analysis-execution.test.mjs
+
+### Change Log
+
+- 2026-04-07: 完成 Story 5.1，新增执行提交路由、队列投递边界、页面执行入口与故事级测试覆盖。

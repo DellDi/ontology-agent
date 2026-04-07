@@ -1,4 +1,6 @@
-export const JOB_TYPES = ['health-check'] as const;
+import { validateAnalysisExecutionJobData } from '@/domain/analysis-execution/models';
+
+export const JOB_TYPES = ['health-check', 'analysis-execution'] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
 
@@ -64,14 +66,21 @@ export function validateJobPayload(payload: unknown): JobPayload {
     throw new InvalidJobPayloadError('任务数据必须是一个键值对象。');
   }
 
-  return {
+  const normalizedPayload = {
     type: candidate.type as JobType,
     data: data as Record<string, unknown>,
   };
+
+  if (normalizedPayload.type === 'analysis-execution') {
+    validateAnalysisExecutionJobData(normalizedPayload.data);
+  }
+
+  return normalizedPayload;
 }
 
 const JOB_TYPE_LABELS: Record<JobType, string> = {
   'health-check': '健康检查',
+  'analysis-execution': '分析执行',
 };
 
 export function getJobTypeLabel(type: JobType): string {

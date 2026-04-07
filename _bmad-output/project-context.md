@@ -101,6 +101,9 @@ _本文档用于记录 AI 代理在本项目中实现代码时必须遵守的关
   - `Worker + Redis`
 - 在 `Epic 5` 之前，不要主动引入 `Vercel AI SDK`、`LangGraph`、`LangChain`、`AutoGen` 或 Google ADK 作为系统底座。
 - 只有在 `Epic 5` 开始需要明显更强的流式 UI、token streaming、tool call 结果渲染时，才考虑引入 `Vercel AI SDK`，且只作为 **Next.js 交互层增强**，不接管服务端业务编排。
+- 若在 `Epic 5` 引入 `Vercel AI SDK`，必须先定义稳定的 `execution event envelope` 与 `render block / message part schema`，不要把原始 SSE payload 直接固化为页面最终状态结构。
+- `PC` 与移动端应共享同源的结果 render schema；移动端只能做受限投影，不应维护第二套独立结果协议。
+- 交互层的 canonical source of truth 仍然是服务端 execution events 与持久化结果模型，而不是 client component 的本地临时状态。
 - 只有当以下故事阶段暴露出“执行图状态”复杂度时，才考虑升级到 `LangGraph`：
   - `5.2` 流式执行进度与阶段结果
   - `5.4` 持久化步骤结果与最终结论

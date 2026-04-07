@@ -22,7 +22,40 @@ export type AnalysisPlanReadModel = {
 };
 
 export function createAnalysisPlanningUseCases() {
+  function buildPlanFromInputs({
+    intentType,
+    contextReadModel,
+    candidateFactorReadModel,
+  }: {
+    intentType: AnalysisIntentType;
+    contextReadModel: AnalysisContextReadModel;
+    candidateFactorReadModel: CandidateFactorReadModel;
+  }) {
+    return buildAnalysisPlan({
+      intentType,
+      context: contextReadModel.context,
+      candidateFactors: candidateFactorReadModel.factors,
+      shouldExpandFactors: candidateFactorReadModel.mode === 'expand',
+    });
+  }
+
   return {
+    buildPlan({
+      intentType,
+      contextReadModel,
+      candidateFactorReadModel,
+    }: {
+      intentType: AnalysisIntentType;
+      contextReadModel: AnalysisContextReadModel;
+      candidateFactorReadModel: CandidateFactorReadModel;
+    }) {
+      return buildPlanFromInputs({
+        intentType,
+        contextReadModel,
+        candidateFactorReadModel,
+      });
+    },
+
     buildPlanReadModel({
       intentType,
       contextReadModel,
@@ -32,11 +65,10 @@ export function createAnalysisPlanningUseCases() {
       contextReadModel: AnalysisContextReadModel;
       candidateFactorReadModel: CandidateFactorReadModel;
     }): AnalysisPlanReadModel {
-      const plan = buildAnalysisPlan({
+      const plan = buildPlanFromInputs({
         intentType,
-        context: contextReadModel.context,
-        candidateFactors: candidateFactorReadModel.factors,
-        shouldExpandFactors: candidateFactorReadModel.mode === 'expand',
+        contextReadModel,
+        candidateFactorReadModel,
       });
 
       const titleById = new Map(

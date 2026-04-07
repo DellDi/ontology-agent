@@ -18,6 +18,19 @@ const handlers: Record<string, JobHandler> = {
       timestamp: new Date().toISOString(),
     };
   },
+  'analysis-execution': async (job) => {
+    const plan = job.data.plan as
+      | { steps?: { id?: string; order?: number; title?: string }[] }
+      | undefined;
+
+    return {
+      executionId: job.id,
+      sessionId: String(job.data.sessionId ?? ''),
+      processedStepCount: Array.isArray(plan?.steps) ? plan.steps.length : 0,
+      acceptedAt: new Date().toISOString(),
+      stage: 'queued-for-stream',
+    };
+  },
 };
 
 export function getJobHandler(type: string): JobHandler | undefined {

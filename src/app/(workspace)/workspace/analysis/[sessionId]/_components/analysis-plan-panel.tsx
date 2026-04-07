@@ -1,10 +1,14 @@
 import type { AnalysisPlanReadModel } from '@/application/analysis-planning/use-cases';
 
 type AnalysisPlanPanelProps = {
+  sessionId: string;
   readModel: AnalysisPlanReadModel;
 };
 
-export function AnalysisPlanPanel({ readModel }: AnalysisPlanPanelProps) {
+export function AnalysisPlanPanel({
+  sessionId,
+  readModel,
+}: AnalysisPlanPanelProps) {
   return (
     <article className="glass-panel p-6" data-testid="analysis-plan-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -67,6 +71,24 @@ export function AnalysisPlanPanel({ readModel }: AnalysisPlanPanelProps) {
             </div>
           </section>
         ))}
+      </div>
+
+      <div className="mt-6 rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-5">
+        <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+          执行入口
+        </p>
+        <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]">
+          系统会将当前计划提交到后台执行，不会在当前请求里同步跑完整个分析链路。
+        </p>
+        <form
+          action={`/api/analysis/sessions/${sessionId}/execute`}
+          className="mt-4"
+          method="post"
+        >
+          <button className="primary-button" type="submit">
+            开始执行分析
+          </button>
+        </form>
       </div>
     </article>
   );

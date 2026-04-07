@@ -1,0 +1,368 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn, execFile } from 'node:child_process';
+import { once } from 'node:events';
+import net from 'node:net';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+let port;
+let baseUrl;
+let serverProcess;
+const TEST_SESSION_SECRET = 'story-5-1-test-secret';
+const TEST_DATABASE_URL =
+  process.env.DATABASE_URL ??
+  'postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent';
+const TEST_REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
+const TEST_REDIS_KEY_PREFIX = process.env.REDIS_KEY_PREFIX ?? 'dip3';
+
+async function getAvailablePort() {
+  return await new Promise((resolve, reject) => {
+    const server = net.createServer();
+
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+
+      if (!address || typeof address === 'string') {
+        server.close(() => {
+          reject(new Error('Failed to resolve an available test port.'));
+        });
+        return;
+      }
+
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(address.port);
+      });
+    });
+
+    server.on('error', reject);
+  });
+}
+
+async function waitForServerReady(processHandle) {
+  const start = Date.now();
+
+  while (Date.now() - start < 30_000) {
+    if (processHandle.exitCode !== null) {
+      throw new Error(
+        `Next server exited early with code ${processHandle.exitCode}.`,
+      );
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/`, {
+        redirect: 'manual',
+      });
+
+      if (response.status > 0) {
+        return;
+      }
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+
+  throw new Error('Next server did not become ready in time.');
+}
+
+async function runTsSnippet(code) {
+  const { stdout } = await execFileAsync(
+    'node',
+    ['--import', 'tsx', '--input-type=module', '-e', code],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        DATABASE_URL: TEST_DATABASE_URL,
+        REDIS_URL: TEST_REDIS_URL,
+        REDIS_KEY_PREFIX: TEST_REDIS_KEY_PREFIX,
+        SESSION_SECRET: TEST_SESSION_SECRET,
+      },
+    },
+  );
+
+  return JSON.parse(stdout.trim());
+}
+
+async function login({
+  employeeId = 'exec-u-1',
+  displayName = '执行测试员',
+  organizationId = 'org-exec',
+  projectIds = 'project-exec',
+  areaIds = 'area-exec',
+} = {}) {
+  const result = await runTsSnippet(`
+    import sessionStoreModule from './src/infrastructure/session/postgres-session-store.ts';
+    import sessionCookieModule from './src/infrastructure/session/session-cookie.ts';
+
+    const { createPostgresSessionStore } = sessionStoreModule;
+    const {
+      createSessionCookieValue,
+      getSessionCookieName,
+    } = sessionCookieModule;
+
+    const sessionStore = createPostgresSessionStore();
+    const session = await sessionStore.createSession({
+      userId: ${JSON.stringify(employeeId)},
+      displayName: ${JSON.stringify(displayName)},
+      scope: {
+        organizationId: ${JSON.stringify(organizationId)},
+        projectIds: ${JSON.stringify(projectIds.split(',').filter(Boolean))},
+        areaIds: ${JSON.stringify(areaIds.split(',').filter(Boolean))},
+        roleCodes: ['PROPERTY_ANALYST'],
+      },
+    });
+
+    console.log(JSON.stringify({
+      cookie: \`\${getSessionCookieName()}=\${createSessionCookieValue(session.sessionId)}\`,
+    }));
+  `);
+
+  return result.cookie;
+}
+
+async function createSession(cookie, questionText) {
+  const formData = new FormData();
+  formData.set('question', questionText);
+
+  const response = await fetch(`${baseUrl}/api/analysis/sessions`, {
+    method: 'POST',
+    headers: {
+      Cookie: cookie,
+    },
+    body: formData,
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 303);
+  const location = response.headers.get('location') ?? '';
+  assert.match(location, /\/workspace\/analysis\/[a-z0-9-]+$/);
+
+  return location.split('/').pop();
+}
+
+test.before(async () => {
+  port = await getAvailablePort();
+  baseUrl = `http://127.0.0.1:${port}`;
+  process.env.SESSION_SECRET = TEST_SESSION_SECRET;
+  process.env.DATABASE_URL = TEST_DATABASE_URL;
+  process.env.REDIS_URL = TEST_REDIS_URL;
+  process.env.REDIS_KEY_PREFIX = TEST_REDIS_KEY_PREFIX;
+
+  await execFileAsync('pnpm', ['build'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      SESSION_SECRET: TEST_SESSION_SECRET,
+      DATABASE_URL: TEST_DATABASE_URL,
+      REDIS_URL: TEST_REDIS_URL,
+      REDIS_KEY_PREFIX: TEST_REDIS_KEY_PREFIX,
+      ENABLE_DEV_ERP_AUTH: '1',
+    },
+  });
+
+  serverProcess = spawn('pnpm', ['exec', 'next', 'start', '--port', String(port)], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      SESSION_SECRET: TEST_SESSION_SECRET,
+      DATABASE_URL: TEST_DATABASE_URL,
+      REDIS_URL: TEST_REDIS_URL,
+      REDIS_KEY_PREFIX: TEST_REDIS_KEY_PREFIX,
+      ENABLE_DEV_ERP_AUTH: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  await waitForServerReady(serverProcess);
+});
+
+test.after(async () => {
+  if (!serverProcess) {
+    return;
+  }
+
+  serverProcess.kill('SIGINT');
+  await once(serverProcess, 'exit');
+});
+
+test('会话页在存在计划时提供开始执行分析入口', async () => {
+  const cookie = await login();
+  const sessionId = await createSession(
+    cookie,
+    '为什么本月所有项目的收缴率排名发生变化了？',
+  );
+
+  const response = await fetch(`${baseUrl}/workspace/analysis/${sessionId}`, {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.match(html, /开始执行分析/);
+  assert.match(html, /系统会将当前计划提交到后台执行/);
+});
+
+test('提交执行后会创建 execution record，并把用户带回会话页展示当前状态', async () => {
+  const cookie = await login({
+    employeeId: 'exec-u-owner',
+    displayName: '执行拥有者',
+  });
+  const sessionId = await createSession(
+    cookie,
+    '为什么本月项目 moon 的收费回款率下降了？',
+  );
+
+  const response = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/execute`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(response.status, 303);
+  const location = response.headers.get('location') ?? '';
+  assert.match(
+    location,
+    new RegExp(`/workspace/analysis/${sessionId}\\?executionId=[a-z0-9-]+`),
+  );
+
+  const redirectUrl = new URL(location);
+  const executionId = redirectUrl.searchParams.get('executionId');
+  assert.ok(executionId, '重定向地址应包含 executionId');
+
+  const pageResponse = await fetch(location, {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  assert.equal(pageResponse.status, 200);
+  const html = await pageResponse.text();
+
+  assert.match(html, /已提交执行/);
+  assert.match(html, /执行任务已进入后台队列/);
+  assert.match(html, new RegExp(executionId));
+
+  const executionRecord = await runTsSnippet(`
+    import redisClientModule from './src/infrastructure/redis/client.ts';
+    import redisJobQueueModule from './src/infrastructure/job/redis-job-queue.ts';
+    import jobUseCasesModule from './src/application/job/use-cases.ts';
+
+    const { createRedisClient } = redisClientModule;
+    const { createRedisJobQueue } = redisJobQueueModule;
+    const { createJobUseCases } = jobUseCasesModule;
+
+    const { redis } = createRedisClient();
+    await redis.connect();
+
+    try {
+      const jobUseCases = createJobUseCases({
+        jobQueue: createRedisJobQueue(redis),
+      });
+      const job = await jobUseCases.getJob(${JSON.stringify(executionId)});
+      console.log(JSON.stringify(job));
+    } finally {
+      await redis.quit();
+    }
+  `);
+
+  assert.equal(executionRecord.type, 'analysis-execution');
+  assert.equal(executionRecord.data.sessionId, sessionId);
+  assert.equal(executionRecord.data.ownerUserId, 'exec-u-owner');
+  assert.ok(Array.isArray(executionRecord.data.plan.steps));
+  assert.deepEqual(
+    executionRecord.data.plan.steps.map((step) => step.order),
+    executionRecord.data.plan.steps.map((_, index) => index + 1),
+  );
+});
+
+test('其他用户不能为不属于自己的会话提交执行', async () => {
+  const ownerCookie = await login({
+    employeeId: 'exec-owner',
+    displayName: '执行拥有者',
+  });
+  const intruderCookie = await login({
+    employeeId: 'exec-intruder',
+    displayName: '执行闯入者',
+  });
+  const sessionId = await createSession(
+    ownerCookie,
+    '为什么本月项目 moon 的收费回款率下降了？',
+  );
+
+  const response = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/execute`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: intruderCookie,
+      },
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(response.status, 404);
+});
+
+test('非法计划会被稳定拒绝，不会进入执行队列', async () => {
+  const result = await runTsSnippet(`
+    import submissionModule from './src/application/analysis-execution/submission-use-cases.ts';
+
+    const { createAnalysisExecutionSubmissionUseCases } = submissionModule;
+
+    const useCases = createAnalysisExecutionSubmissionUseCases({
+      jobUseCases: {
+        async submitJob() {
+          throw new Error('不应为非法计划提交任务');
+        },
+        async getJob() {
+          return null;
+        },
+      },
+    });
+
+    try {
+      await useCases.submitExecution({
+        session: {
+          id: 'session-invalid',
+          ownerUserId: 'owner-1',
+          organizationId: 'org-1',
+          projectIds: ['project-1'],
+          areaIds: ['area-1'],
+          questionText: '测试非法计划',
+          savedContext: {},
+          status: 'pending',
+          createdAt: '2026-04-07T00:00:00.000Z',
+          updatedAt: '2026-04-07T00:00:00.000Z',
+        },
+        plan: {
+          mode: 'minimal',
+          summary: '非法计划',
+          steps: [],
+        },
+      });
+    } catch (error) {
+      console.log(JSON.stringify({
+        name: error.name,
+        message: error.message,
+      }));
+    }
+  `);
+
+  assert.equal(result.name, 'InvalidAnalysisExecutionPlanError');
+  assert.match(result.message, /至少包含一个步骤/);
+});

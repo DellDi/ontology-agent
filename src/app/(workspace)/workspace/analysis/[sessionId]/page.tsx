@@ -16,7 +16,19 @@ type AnalysisSessionPageProps = {
   params: Promise<{
     sessionId: string;
   }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function readSearchParam(
+  value: string | string[] | undefined,
+  fallback = '',
+) {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return fallback;
+}
 
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
@@ -24,8 +36,10 @@ const analysisSessionUseCases = createAnalysisSessionUseCases({
 
 export default async function AnalysisSessionPage({
   params,
+  searchParams,
 }: AnalysisSessionPageProps) {
   const { sessionId } = await params;
+  const resolvedSearchParams = (await searchParams) ?? {};
   const { session: currentUser, accessDeniedMessage } =
     await requireWorkspaceSession(`/workspace/analysis/${sessionId}`);
 
@@ -68,6 +82,10 @@ export default async function AnalysisSessionPage({
     contextReadModel,
     candidateFactorReadModel,
   });
+  const executionId = readSearchParam(resolvedSearchParams.executionId);
+  const executionError = readSearchParam(
+    resolvedSearchParams.executionError,
+  );
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px]">
@@ -142,7 +160,38 @@ export default async function AnalysisSessionPage({
           initialReadModel={contextReadModel}
         />
 
-        <AnalysisPlanPanel readModel={analysisPlanReadModel} />
+        {(executionId || executionError) ? (
+          <article
+            className="glass-panel p-6"
+            data-testid="analysis-execution-feedback"
+          >
+            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+              执行提交状态
+            </p>
+            {executionError ? (
+              <div className="status-banner mt-4" data-tone="error">
+                {executionError}
+              </div>
+            ) : (
+              <>
+                <div className="status-banner mt-4" data-tone="success">
+                  已提交执行
+                </div>
+                <p className="mt-4 text-sm leading-7 text-[color:var(--ink-600)]">
+                  执行任务已进入后台队列，后续会按当前计划逐步处理。
+                </p>
+                <p className="mt-3 text-sm text-[color:var(--ink-900)]">
+                  Execution ID：{executionId}
+                </p>
+              </>
+            )}
+          </article>
+        ) : null}
+
+        <AnalysisPlanPanel
+          sessionId={analysisSession.id}
+          readModel={analysisPlanReadModel}
+        />
       </div>
 
       <aside className="space-y-6">
