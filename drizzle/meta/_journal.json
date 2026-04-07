@@ -22,6 +22,13 @@
       "when": 1775182259401,
       "tag": "0002_reflective_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775532139257,
+      "tag": "0003_premium_romulus",
+      "breakpoints": true
     }
   ]
 }

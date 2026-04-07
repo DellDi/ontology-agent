@@ -1,0 +1,260 @@
+export const originalMysqlTableSpecs = [
+  {
+    sourceTable: 'dw_datacenter_system_organization',
+    primaryKey: 'sourceId',
+    columns: [
+      ['sourceId', 'source_id'],
+      ['organizationParentId', 'organization_parent_id'],
+      ['organizationLevel', 'organization_level'],
+      ['organizationName', 'organization_name'],
+      ['organizationShortName', 'organization_short_name'],
+      ['organizationNature', 'organization_nature'],
+      ['enterpriseId', 'enterprise_id'],
+      ['groupId', 'group_id'],
+      ['companyId', 'company_id'],
+      ['departmentId', 'department_id'],
+      ['organizationEnableState', 'organization_enable_state'],
+      ['isDeleted', 'is_deleted'],
+      ['organizationCode', 'organization_code'],
+      ['organizationType', 'organization_type'],
+      ['remark', 'remark'],
+      ['versionId', 'version_id'],
+      ['createUserId', 'create_user_id'],
+      ['createUserName', 'create_user_name'],
+      ['createTime', 'create_time'],
+      ['updateUserId', 'update_user_id'],
+      ['updateUserName', 'update_user_name'],
+      ['updateTime', 'update_time'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_precinct',
+    primaryKey: 'precinctID',
+    columns: [
+      ['precinctID', 'precinct_id'],
+      ['precinctNo', 'precinct_no'],
+      ['precinctName', 'precinct_name'],
+      ['orgID', 'org_id'],
+      ['organizationId', 'organization_id'],
+      ['enterpriseId', 'enterprise_id'],
+      ['areaName', 'area_name'],
+      ['precinctType', 'precinct_type'],
+      ['precinctTypeName', 'precinct_type_name'],
+      ['deliveryTime', 'delivery_time'],
+      ['contractArea', 'contract_area'],
+      ['proNature', 'pro_nature'],
+      ['greenArea', 'green_area'],
+      ['nozzleArea', 'nozzle_area'],
+      ['payChargeArea', 'pay_charge_area'],
+      ['precinctArea', 'precinct_area'],
+      ['totalHouseHolder', 'total_house_holder'],
+      ['isDelete', 'is_delete'],
+      ['deleteFlag', 'delete_flag'],
+      ['createDate', 'create_date'],
+      ['updateDate', 'update_date'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_owner',
+    primaryKey: 'id',
+    columns: [
+      ['id', 'record_id'],
+      ['enterpriseId', 'enterprise_id'],
+      ['ownerID', 'owner_id'],
+      ['ownerName', 'owner_name'],
+      ['ownerType', 'owner_type'],
+      ['isCurrent', 'is_current'],
+      ['houseID', 'house_id'],
+      ['houseName', 'house_name'],
+      ['precinctID', 'precinct_id'],
+      ['precinctName', 'precinct_name'],
+      ['orgID', 'org_id'],
+      ['isDelete', 'is_delete'],
+      ['createDate', 'create_date'],
+      ['updateDate', 'update_date'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_chargeitem',
+    primaryKey: 'chargeItemID',
+    columns: [
+      ['chargeItemID', 'charge_item_id'],
+      ['chargeItemCode', 'charge_item_code'],
+      ['chargeItemName', 'charge_item_name'],
+      ['chargeItemType', 'charge_item_type'],
+      ['chargeItemTypeName', 'charge_item_type_name'],
+      ['chargeItemClass', 'charge_item_class'],
+      ['chargeItemClassName', 'charge_item_class_name'],
+      ['oneLevelChargeItemName', 'one_level_charge_item_name'],
+      ['organizationID', 'organization_id'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_charge',
+    primaryKey: 'id',
+    columns: [
+      ['id', 'record_id'],
+      ['organizationID', 'organization_id'],
+      ['precinctID', 'precinct_id'],
+      ['precinctName', 'precinct_name'],
+      ['houseID', 'house_id'],
+      ['houseName', 'house_name'],
+      ['ownerID', 'owner_id'],
+      ['ownerName', 'owner_name'],
+      ['chargeItemID', 'charge_item_id'],
+      ['chargeItemCode', 'charge_item_code'],
+      ['chargeItemName', 'charge_item_name'],
+      ['shouldChargeDate', 'should_charge_date'],
+      ['calcStartDate', 'calc_start_date'],
+      ['calcEndDate', 'calc_end_date'],
+      ['actualChargeSum', 'actual_charge_sum'],
+      ['chargeSum', 'charge_sum'],
+      ['discount', 'discount'],
+      ['delaySum', 'delay_sum'],
+      ['delayDiscount', 'delay_discount'],
+      ['paidChargeSum', 'paid_charge_sum'],
+      ['arrears', 'arrears'],
+      ['isCheck', 'is_check'],
+      ['isDelete', 'is_delete'],
+      ['createDate', 'create_date'],
+      ['updateDate', 'update_date'],
+      ['isFreezed', 'is_freezed'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_bill',
+    primaryKey: 'id',
+    columns: [
+      ['id', 'record_id'],
+      ['organizationID', 'organization_id'],
+      ['precinctID', 'precinct_id'],
+      ['precinctName', 'precinct_name'],
+      ['houseID', 'house_id'],
+      ['houseName', 'house_name'],
+      ['ownerID', 'owner_id'],
+      ['ownerName', 'owner_name'],
+      ['chargeItemID', 'charge_item_id'],
+      ['chargeItemCode', 'charge_item_code'],
+      ['chargeItemName', 'charge_item_name'],
+      ['chargeDetailID', 'charge_detail_id'],
+      ['chargePaid', 'charge_paid'],
+      ['discount', 'discount'],
+      ['delaySum', 'delay_sum'],
+      ['operatorDate', 'operator_date'],
+      ['calcStartDate', 'calc_start_date'],
+      ['calcEndDate', 'calc_end_date'],
+      ['isEnterAccount', 'is_enter_account'],
+      ['isCanceled', 'is_canceled'],
+      ['dataType', 'data_type'],
+      ['refundStatus', 'refund_status'],
+      ['isAccount', 'is_account'],
+      ['isDelete', 'is_delete'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_services',
+    primaryKey: 'servicesNo',
+    columns: [
+      ['servicesNo', 'services_no'],
+      ['organizationId', 'organization_id'],
+      ['precinctID', 'precinct_id'],
+      ['precinctName', 'precinct_name'],
+      ['houseID', 'house_id'],
+      ['customerID', 'customer_id'],
+      ['customerName', 'customer_name'],
+      ['serviceTypeId', 'service_type_id'],
+      ['serviceTypeName', 'service_type_name'],
+      ['serviceStyleId', 'service_style_id'],
+      ['serviceStyleName', 'service_style_name'],
+      ['serviceKindId', 'service_kind_id'],
+      ['serviceKindIdName', 'service_kind_id_name'],
+      ['serviceSourceId', 'service_source_id'],
+      ['serviceSourceName', 'service_source_name'],
+      ['serviceStatus', 'service_status'],
+      ['serviceStatusName', 'service_status_name'],
+      ['content', 'content'],
+      ['createDateTime', 'create_date_time'],
+      ['accomplishDate', 'accomplish_date'],
+      ['updateDateTime', 'update_date_time'],
+      ['satisfaction', 'satisfaction'],
+      ['satisfactionEval', 'satisfaction_eval'],
+      ['isCompleted', 'is_completed'],
+      ['isDelete', 'is_delete'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_house',
+    primaryKey: 'id',
+    columns: [
+      ['houseID', 'house_id'],
+      ['orgID', 'org_id'],
+      ['precinctID', 'precinct_id'],
+      ['precinctName', 'precinct_name'],
+      ['houseName', 'house_name'],
+      ['roomType', 'room_type'],
+      ['roomTypeName', 'room_type_name'],
+      ['houseType', 'house_type'],
+      ['chargeArea', 'charge_area'],
+      ['buildArea', 'build_area'],
+      ['isShow', 'is_show'],
+      ['isSpilt', 'is_spilt'],
+      ['isVirtual', 'is_virtual'],
+      ['stage', 'stage'],
+      ['rentStage', 'rent_stage'],
+      ['decorateStage', 'decorate_stage'],
+      ['rentStatus', 'rent_status'],
+      ['ownerProperty', 'owner_property'],
+      ['isBlockUp', 'is_block_up'],
+      ['isDelete', 'is_delete'],
+      ['createDate', 'create_date'],
+      ['updateDate', 'update_date'],
+      ['syncDate', 'sync_date'],
+    ],
+  },
+  {
+    sourceTable: 'dw_datacenter_system_user',
+    primaryKey: 'sourceId',
+    columns: [
+      ['sourceId', 'source_id'],
+      ['organizationId', 'organization_id'],
+      ['userAccount', 'user_account'],
+      ['password', 'password'],
+      ['userTelephone', 'user_telephone'],
+      ['userPassword', 'user_password'],
+      ['isDeleted', 'is_deleted'],
+      ['isActived', 'is_actived'],
+      ['syncDate', 'sync_date'],
+    ],
+  },
+];
+
+export function getOriginalMysqlSourceTableNames() {
+  return originalMysqlTableSpecs.map((spec) => spec.sourceTable);
+}
+
+export function buildProjectedMysqlSelectSql(spec, sourceDatabase) {
+  const selectColumns = spec.columns
+    .map(([sourceColumn, targetColumn]) => `      \`${sourceColumn}\` AS \`${targetColumn}\``)
+    .join(',\n');
+  const outputColumns = spec.columns
+    .map(([, targetColumn]) => `      \`${targetColumn}\``)
+    .join(',\n');
+  const dedupeSuffix = spec.primaryKey
+    ? `,\n      ROW_NUMBER() OVER (PARTITION BY \`${spec.primaryKey}\` ORDER BY \`${spec.primaryKey}\`) AS __row_number`
+    : '';
+  const dedupeFilter = spec.primaryKey ? '\n  WHERE __row_number = 1' : '';
+
+  return `SELECT\n${outputColumns}\nFROM (\n  SELECT\n${selectColumns}${dedupeSuffix}\n  FROM \`${sourceDatabase}\`.\`${spec.sourceTable}\`\n) AS deduped${dedupeFilter}`;
+}
+
+export function buildProjectedMysqlCreateViewSql(spec, sourceDatabase, targetDatabase) {
+  return `CREATE OR REPLACE VIEW \`${targetDatabase}\`.\`${spec.sourceTable}\` AS\n${buildProjectedMysqlSelectSql(spec, sourceDatabase)};`;
+}
+
+export function buildMaterializedMysqlViewDefinition(spec, sourceDatabase) {
+  return `${spec.sourceTable} AS $$\n${buildProjectedMysqlSelectSql(spec, sourceDatabase)}\n$$`;
+}
+
+export function buildProjectedMysqlCreateTableSql(spec, sourceDatabase, targetDatabase) {
+  return buildProjectedMysqlCreateViewSql(spec, sourceDatabase, targetDatabase);
+}
