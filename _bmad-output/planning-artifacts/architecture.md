@@ -356,6 +356,31 @@ pnpm create next-app@latest ontology-agent --ts --app
   - Redis / Worker 队列
   - ERP / Cube / Neo4j 的工具治理边界
 
+### AI Interaction Rendering Layer
+
+为避免把传输协议直接固化为页面状态结构，`Epic 5` 起需要显式增加一层 **AI Interaction Rendering Layer**。这层仍属于 Next.js 交互边界，不改变平台内部编排主线。
+
+**职责：**
+
+- 定义统一 `execution event envelope`
+- 定义统一 `render block / message part schema`
+- 将 worker 阶段结果、工具结果和最终结论映射为可消费的 UI parts
+- 提供 renderer registry，支持：
+  - 文本说明
+  - 表格
+  - 图表
+  - 证据卡
+  - 结论卡
+  - 执行节点 / 时间线
+- 为 `PC` 与 `mobile` 提供同源 schema 的不同投影
+
+**边界约束：**
+
+- 可采用 `Vercel AI SDK` 作为 stream adapter 与 UI message lifecycle 实现
+- canonical source of truth 仍然是服务端 execution events 与结果模型
+- `Worker + Redis + Tool Registry + Orchestration Bridge` 继续作为内部执行主线
+- 浏览器端不应直接消费原始 worker 协调状态；应消费服务端整形后的 interaction events 与 render blocks
+
 **不应在这些阶段提前引入：**
 
 - `Epic 2`：基础设施基线阶段
