@@ -29,6 +29,13 @@
       "when": 1775532139257,
       "tag": "0003_premium_romulus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775554860180,
+      "tag": "0004_typed_erp_staging",
+      "breakpoints": true
     }
   ]
 }

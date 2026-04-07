@@ -76,7 +76,7 @@ async function createProjectionDatabase(mysqlUrl, projectionDb) {
   const connection = await mysql.createConnection(connectionInfo);
 
   try {
-    await connection.query(`CREATE DATABASE \`${projectionDb}\``);
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${projectionDb}\``);
   } finally {
     await connection.end();
   }

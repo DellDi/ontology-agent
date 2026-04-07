@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MYSQL_URL="${MYSQL_URL:-mysql://7f00413c-3041-4b7b-9b04-ea9f40f671f4:uaBjtUvxcj3WJp5n@jms.new-see.com:33061/newsee-datacenter}"
+MYSQL_URL="${MYSQL_URL:-mysql://5a318aeb-2af9-4d0d-a7d4-f3a7f352fcd2:KO3AUkPpLr6QZMWK@jms.new-see.com:33061/newsee-datacenter}"
 DATABASE_URL="${DATABASE_URL:-postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent}"
 
 PGLOADER_BIN="${PGLOADER_BIN:-pgloader}"
