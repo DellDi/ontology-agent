@@ -75,7 +75,7 @@ development_status:
   4-3-erp-read-anti-corruption-layer-and-scope-filtering-baseline: done
   4-4-cube-semantic-read-path-integration: done
   4-5-neo4j-graph-adapter-and-sync-baseline: done
-  4-6-analysis-tool-registry-and-orchestration-bridge: ready-for-dev
+  4-6-analysis-tool-registry-and-orchestration-bridge: review
   4-7-local-compose-services-for-cube-and-neo4j: done
   epic-4-retrospective: optional
 
