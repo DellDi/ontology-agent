@@ -58,13 +58,9 @@ test('pgloader migration generator emits the expected load structure', async () 
   });
 
   assert.match(load, /LOAD DATABASE/i);
-  assert.match(load, /MATERIALIZE VIEWS/i);
-  assert.match(load, /dw_datacenter_system_organization AS \$\$/i);
+  assert.doesNotMatch(load, /MATERIALIZE VIEWS/i);
+  assert.match(load, /INCLUDING ONLY TABLE NAMES MATCHING 'dw_datacenter_system_organization', 'dw_datacenter_precinct', 'dw_datacenter_owner', 'dw_datacenter_chargeitem', 'dw_datacenter_charge', 'dw_datacenter_bill', 'dw_datacenter_services', 'dw_datacenter_house', 'dw_datacenter_system_user'/i);
   assert.doesNotMatch(load, /ALTER TABLE NAMES MATCHING/i);
-  assert.match(
-    load,
-    /INCLUDING ONLY TABLE NAMES MATCHING 'dw_datacenter_system_organization', 'dw_datacenter_precinct', 'dw_datacenter_owner', 'dw_datacenter_chargeitem', 'dw_datacenter_charge', 'dw_datacenter_bill', 'dw_datacenter_services', 'dw_datacenter_house', 'dw_datacenter_system_user'/i,
-  );
   assert.match(load, /dw_datacenter_house/i);
   assert.match(load, /dw_datacenter_system_user/i);
   assert.match(load, /workers = 1, concurrency = 1/i);
@@ -114,6 +110,29 @@ test('mysql view materializer emits deduped view definitions', async () => {
   );
 
   assert.match(sql, /dw_datacenter_charge AS \$\$/i);
+  assert.match(sql, /SELECT/i);
+  assert.match(sql, /ROW_NUMBER\(\) OVER \(PARTITION BY `id` ORDER BY `id`\)/i);
+  assert.match(sql, /FROM `newsee-datacenter`\.`dw_datacenter_charge`/i);
+});
+
+test('mysql temp table materializer emits deduped create table definitions', async () => {
+  const module = await import(
+    `${repoRoot}/scripts/pgloader/original-mysql-specs.mjs`
+  );
+
+  const chargeSpec = module.originalMysqlTableSpecs.find(
+    (spec) => spec.sourceTable === 'dw_datacenter_charge',
+  );
+
+  assert.ok(chargeSpec);
+
+  const sql = module.buildProjectedMysqlCreateTableSql(
+    chargeSpec,
+    'newsee-datacenter',
+    'newsee_datacenter_pgloader_debug',
+  );
+
+  assert.match(sql, /CREATE TABLE `newsee_datacenter_pgloader_debug`\.`dw_datacenter_charge` AS/i);
   assert.match(sql, /SELECT/i);
   assert.match(sql, /ROW_NUMBER\(\) OVER \(PARTITION BY `id` ORDER BY `id`\)/i);
   assert.match(sql, /FROM `newsee-datacenter`\.`dw_datacenter_charge`/i);

@@ -256,5 +256,5 @@ export function buildMaterializedMysqlViewDefinition(spec, sourceDatabase) {
 }
 
 export function buildProjectedMysqlCreateTableSql(spec, sourceDatabase, targetDatabase) {
-  return buildProjectedMysqlCreateViewSql(spec, sourceDatabase, targetDatabase);
+  return `CREATE TABLE \`${targetDatabase}\`.\`${spec.sourceTable}\` AS\n${buildProjectedMysqlSelectSql(spec, sourceDatabase)};`;
 }
