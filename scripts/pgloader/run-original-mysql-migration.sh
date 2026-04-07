@@ -42,6 +42,7 @@ const mysql = require('mysql2/promise');
   const sourceUrl = new URL(process.env.MYSQL_URL);
   const database = decodeURIComponent(sourceUrl.pathname.replace(/^\/+/, ''));
   const tableNames = [
+    'dw_datacenter_system_organization',
     'dw_datacenter_precinct',
     'dw_datacenter_owner',
     'dw_datacenter_chargeitem',
@@ -49,6 +50,7 @@ const mysql = require('mysql2/promise');
     'dw_datacenter_bill',
     'dw_datacenter_services',
     'dw_datacenter_house',
+    'dw_datacenter_system_user',
   ];
 
   async function withRetry(run) {
@@ -125,9 +127,6 @@ const connectionString = process.env.DATABASE_URL;
 async function main() {
   const client = new Client({ connectionString });
   await client.connect();
-  await client.query(
-    'ALTER TABLE erp_staging.dw_datacenter_chargeitem ALTER COLUMN organization_id DROP NOT NULL',
-  );
   await client.query(`
     TRUNCATE TABLE
       erp_staging.dw_datacenter_system_organization,

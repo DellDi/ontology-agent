@@ -25,14 +25,14 @@ import {
 
 type OrganizationPathMap = Map<string, string | null>;
 
-function normalizeText(value: string | null | undefined) {
-  const normalizedValue = value?.trim();
+function normalizeText(value: string | number | bigint | null | undefined) {
+  const normalizedValue = String(value ?? '').trim();
 
   return normalizedValue ? normalizedValue : null;
 }
 
 function normalizeRequiredText(
-  value: string | null | undefined,
+  value: string | number | bigint | null | undefined,
   fallback: string,
 ) {
   return normalizeText(value) ?? fallback;
@@ -49,7 +49,7 @@ function safeNumber(value: string | number | null | undefined) {
   return Number.isFinite(normalizedValue) ? normalizedValue : null;
 }
 
-function isDeletedFlag(value: string | null | undefined) {
+function isDeletedFlag(value: string | number | bigint | null | undefined) {
   const normalizedValue = normalizeText(value)?.toLowerCase();
 
   return (
@@ -60,7 +60,7 @@ function isDeletedFlag(value: string | null | undefined) {
   );
 }
 
-function isCurrentFlag(value: string | null | undefined) {
+function isCurrentFlag(value: string | number | bigint | null | undefined) {
   const normalizedValue = normalizeText(value)?.toLowerCase();
 
   return (
@@ -80,7 +80,7 @@ function createOrganizationPathMap(
 ): OrganizationPathMap {
   return new Map(
     organizations.map((organization) => [
-      organization.sourceId,
+      normalizeRequiredText(organization.sourceId, '0'),
       normalizeText(organization.organizationPath),
     ]),
   );
@@ -103,7 +103,7 @@ function mapOrganizationRow(
   row: typeof erpOrganizations.$inferSelect,
 ): ErpOrganization {
   return {
-    id: row.sourceId,
+    id: normalizeRequiredText(row.sourceId, '0'),
     parentId: normalizeText(row.organizationParentId),
     name: normalizeRequiredText(row.organizationName, '未命名组织'),
     shortName: normalizeText(row.organizationShortName),
@@ -141,7 +141,7 @@ function mapPrecinctRow(row: typeof erpPrecincts.$inferSelect): ErpProject {
 
 function mapOwnerRow(row: typeof erpOwners.$inferSelect): ErpOwner {
   return {
-    recordId: row.recordId,
+    recordId: normalizeRequiredText(row.recordId, '0'),
     ownerId: row.ownerId,
     ownerName: normalizeRequiredText(row.ownerName, '未命名客户'),
     ownerType: normalizeText(row.ownerType),
@@ -150,8 +150,7 @@ function mapOwnerRow(row: typeof erpOwners.$inferSelect): ErpOwner {
     houseName: normalizeText(row.houseName),
     projectId: row.precinctId,
     projectName: normalizeText(row.precinctName),
-    organizationId: row.orgId,
-    areaId: normalizeText(row.areaId),
+    organizationId: normalizeRequiredText(row.orgId, ''),
   };
 }
 
@@ -167,7 +166,7 @@ function mapChargeItemRow(
     classCode: normalizeText(row.chargeItemClass),
     className: normalizeText(row.chargeItemClassName),
     oneLevelName: normalizeText(row.oneLevelChargeItemName),
-    organizationId: row.organizationId,
+    organizationId: normalizeRequiredText(row.organizationId, ''),
   };
 }
 
@@ -175,11 +174,10 @@ function mapReceivableRow(
   row: typeof erpReceivables.$inferSelect,
 ): ErpReceivable {
   return {
-    recordId: row.recordId,
+    recordId: normalizeRequiredText(row.recordId, '0'),
     organizationId: row.organizationId,
     projectId: normalizeText(row.precinctId),
     projectName: normalizeText(row.precinctName),
-    areaId: normalizeText(row.areaId),
     houseId: normalizeText(row.houseId),
     houseName: normalizeText(row.houseName),
     ownerId: normalizeText(row.ownerId),
@@ -202,11 +200,10 @@ function mapPaymentRow(
   row: typeof erpPayments.$inferSelect,
 ): ErpPayment {
   return {
-    recordId: row.recordId,
+    recordId: normalizeRequiredText(row.recordId, '0'),
     organizationId: row.organizationId,
     projectId: normalizeText(row.precinctId),
     projectName: normalizeText(row.precinctName),
-    areaId: normalizeText(row.areaId),
     houseId: normalizeText(row.houseId),
     houseName: normalizeText(row.houseName),
     ownerId: normalizeText(row.ownerId),
@@ -223,14 +220,14 @@ function mapPaymentRow(
 
 function mapServiceOrderRow(
   row: typeof erpServiceOrders.$inferSelect,
+  organizationPath: string | null,
 ): ErpServiceOrder {
   return {
     id: row.servicesNo,
     organizationId: row.organizationId,
-    organizationPath: normalizeText(row.organizationPath),
+    organizationPath,
     projectId: normalizeText(row.precinctId),
     projectName: normalizeText(row.precinctName),
-    areaId: normalizeText(row.areaId),
     houseId: normalizeText(row.houseId),
     customerId: normalizeText(row.customerId),
     customerName: normalizeText(row.customerName),
@@ -285,7 +282,6 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
               project.organizationId,
             ),
             projectId: project.id,
-            areaId: project.areaId,
           }),
         );
     },
@@ -308,7 +304,6 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
               owner.organizationId,
             ),
             projectId: owner.projectId,
-            areaId: owner.areaId,
           }),
         );
     },
@@ -365,11 +360,20 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
     },
 
     async listServiceOrders(scope: ErpPermissionScope) {
-      const rows = await resolvedDb.select().from(erpServiceOrders);
+      const [rows, organizations] = await Promise.all([
+        resolvedDb.select().from(erpServiceOrders),
+        resolvedDb.select().from(erpOrganizations),
+      ]);
+      const organizationPaths = createOrganizationPathMap(organizations);
 
       return rows
         .filter((row) => !isDeletedFlag(row.isDelete))
-        .map(mapServiceOrderRow)
+        .map((row) =>
+          mapServiceOrderRow(
+            row,
+            resolveOrganizationPath(organizationPaths, row.organizationId),
+          ),
+        )
         .filter((serviceOrder) =>
           canAccessErpScope(scope, {
             organizationId: serviceOrder.organizationId,
