@@ -51,10 +51,11 @@ export function buildOriginalMysqlPgloaderLoad({
   const sourceDatabase = decodeURIComponent(
     new URL(mysqlUrl).pathname.replace(/^\/+/, ''),
   );
-  const materializeDatabase = materializeSourceDatabase ?? sourceDatabase;
-  const materializedViews = selectedSpecs
-    .map((spec) => `     ${buildMaterializedMysqlViewDefinition(spec, materializeDatabase)}`)
-    .join(',\n');
+  const materializedViews = materializeSourceDatabase
+    ? selectedSpecs
+      .map((spec) => `     ${buildMaterializedMysqlViewDefinition(spec, materializeSourceDatabase)}`)
+      .join(',\n')
+    : '';
   const materializeViewsClause = materializedViews
     ? `     MATERIALIZE VIEWS\n${materializedViews},\n`
     : '';

@@ -1,5 +1,7 @@
 import mysql from 'mysql2/promise';
+import { readFileSync } from 'node:fs';
 import {
+  buildProjectedMysqlSelectSql,
   originalMysqlTableSpecs,
 } from './original-mysql-specs.mjs';
 
@@ -40,6 +42,30 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+
+    if (current === '--source-columns-json') {
+      args.sourceColumnsByTable = argv[index + 1]
+        ? JSON.parse(argv[index + 1])
+        : {};
+      index += 1;
+      continue;
+    }
+
+    if (current === '--source-columns-file') {
+      args.sourceColumnsByTable = argv[index + 1]
+        ? JSON.parse(readFileSync(argv[index + 1], 'utf8'))
+        : {};
+      index += 1;
+      continue;
+    }
+
+    if (current === '--table-names') {
+      args.tableNames = argv[index + 1]
+        ? argv[index + 1].split(',').map((name) => name.trim()).filter(Boolean)
+        : [];
+      index += 1;
+      continue;
+    }
   }
 
   return args;
@@ -67,6 +93,96 @@ async function dropProjectionDatabase(mysqlUrl, projectionDb) {
   }
 }
 
+function selectProjectionSpecs(sourceColumnsByTable, tableNames) {
+  const allowedTableNames = Array.isArray(tableNames) && tableNames.length > 0
+    ? new Set(tableNames)
+    : sourceColumnsByTable
+      ? new Set(Object.keys(sourceColumnsByTable))
+      : null;
+
+  return originalMysqlTableSpecs
+    .filter((spec) => !allowedTableNames || allowedTableNames.has(spec.sourceTable))
+    .map((spec) => {
+      const availableColumns = sourceColumnsByTable?.[spec.sourceTable];
+      if (!Array.isArray(availableColumns) || availableColumns.length === 0) {
+        return spec;
+      }
+
+      const filteredColumns = spec.columns.filter(
+        ([sourceColumn]) => availableColumns.includes(sourceColumn),
+      );
+
+      return {
+        ...spec,
+        columns: filteredColumns,
+      };
+    })
+    .filter((spec) => spec.columns.length > 0);
+}
+
+async function createProjectionTables(mysqlUrl, projectionDb, sourceColumnsByTable, tableNames) {
+  const connectionInfo = parseMysqlUrl(mysqlUrl);
+  const sourceDatabase = connectionInfo.database;
+  const selectedSpecs = selectProjectionSpecs(sourceColumnsByTable, tableNames);
+
+  async function withRetry(run) {
+    let lastError;
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      try {
+        return await run();
+      } catch (error) {
+        lastError = error;
+        if (attempt === 9) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+
+    throw lastError;
+  }
+
+  for (const spec of selectedSpecs) {
+    await withRetry(async () => {
+      const connection = await mysql.createConnection(connectionInfo);
+      try {
+        const [metadataRows] = await connection.query(
+          `SHOW COLUMNS FROM \`${sourceDatabase}\`.\`${spec.sourceTable}\``,
+        );
+        const metadataBySourceColumn = new Map(
+          metadataRows.map((row) => [row.Field, row]),
+        );
+        const projectedColumns = spec.columns.filter(([sourceColumn]) => metadataBySourceColumn.has(sourceColumn));
+
+        if (projectedColumns.length === 0) {
+          return;
+        }
+
+        const columnDefinitions = projectedColumns
+          .map(([sourceColumn, targetColumn]) => {
+            const metadata = metadataBySourceColumn.get(sourceColumn);
+            return `  \`${targetColumn}\` ${metadata.Type}`;
+          })
+          .join(',\n');
+        const targetColumns = projectedColumns
+          .map(([, targetColumn]) => `\`${targetColumn}\``)
+          .join(', ');
+
+        await connection.query(`DROP TABLE IF EXISTS \`${projectionDb}\`.\`${spec.sourceTable}\``);
+        await connection.query(
+          `CREATE TABLE \`${projectionDb}\`.\`${spec.sourceTable}\` (\n${columnDefinitions}\n)`,
+        );
+        await connection.query(
+          `INSERT INTO \`${projectionDb}\`.\`${spec.sourceTable}\` (${targetColumns})\n${buildProjectedMysqlSelectSql({ ...spec, columns: projectedColumns }, sourceDatabase)}`,
+        );
+      } finally {
+        await connection.end();
+      }
+    });
+  }
+}
+
 async function dropMaterializedViews(mysqlUrl) {
   const connectionInfo = parseMysqlUrl(mysqlUrl);
   const connection = await mysql.createConnection(connectionInfo);
@@ -81,7 +197,13 @@ async function dropMaterializedViews(mysqlUrl) {
 }
 
 async function main() {
-  const { action = 'create', mysqlUrl, projectionDb } = parseArgs(
+  const {
+    action = 'create',
+    mysqlUrl,
+    projectionDb,
+    sourceColumnsByTable,
+    tableNames,
+  } = parseArgs(
     process.argv.slice(2),
   );
 
@@ -100,6 +222,11 @@ async function main() {
 
   if (action === 'drop') {
     await dropProjectionDatabase(mysqlUrl, projectionDb);
+    return;
+  }
+
+  if (action === 'create-tables') {
+    await createProjectionTables(mysqlUrl, projectionDb, sourceColumnsByTable, tableNames);
     return;
   }
 
