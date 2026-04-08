@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 const repoRoot = process.cwd();
+const execFileAsync = promisify(execFile);
 
 async function readRepoFile(relativePath) {
   return readFile(path.join(repoRoot, relativePath), 'utf8');
@@ -25,6 +28,22 @@ async function listSourceFiles(relativeDir) {
   );
 
   return files.flat();
+}
+
+async function runTsSnippet(code) {
+  const { stdout } = await execFileAsync(
+    'node',
+    ['--import', 'tsx', '--input-type=module', '-e', code],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        NODE_OPTIONS: '--conditions=react-server',
+      },
+    },
+  );
+
+  return JSON.parse(stdout.trim());
 }
 
 const requiredPaths = [
@@ -134,7 +153,7 @@ test('LLM config 与错误模型覆盖超时、429、provider 不可用和结构
   assert.match(errors, /LlmProviderResponseError/);
   assert.match(config, /dashscope\.aliyuncs\.com\/compatible-mode\/v1/);
   assert.match(config, /bailian\/qwen3\.5-plus/);
-  assert.match(config, /bailian\/kimi-2\.5/);
+  assert.match(config, /bailian\/kimi-k2\.5/);
   assert.match(config, /resolveProviderModelName/);
 });
 
@@ -231,4 +250,103 @@ test('浏览器端源码中不直接持有 LLM provider 密钥或调用 provider
   assert.doesNotMatch(combined, /OPENAI_API_KEY/);
   assert.doesNotMatch(combined, /\/responses/);
   assert.doesNotMatch(combined, /\/chat\/completions/);
+});
+
+test('OpenAI-compatible adapter 会在空文本或 payload.error 时继续 fallback，并兼容 text.value 结构', async () => {
+  const result = await runTsSnippet(`
+    import adapterModule from './src/infrastructure/llm/openai-compatible-adapter.ts';
+
+    const { createOpenAiCompatibleLlmProvider } = adapterModule;
+
+    const calls = [];
+    const provider = createOpenAiCompatibleLlmProvider({
+      config: {
+        provider: 'openai-compatible',
+        baseUrl: 'https://example.com',
+        apiKey: 'fake-key',
+        model: 'primary-model',
+        fallbackModels: ['fallback-model'],
+        timeoutMs: 1000,
+        maxRetries: 0,
+        rateLimit: {
+          maxRequests: 10,
+          windowSeconds: 60,
+        },
+      },
+      redis: {
+        async eval() {
+          return 1;
+        },
+      },
+      client: {
+        responses: {
+          async create(request) {
+            calls.push(request.model);
+
+            if (request.model === 'primary-model') {
+              return {
+                model: request.model,
+                output: [],
+                output_text: '',
+                error: {
+                  message: 'primary-model 没有返回可用文本',
+                },
+              };
+            }
+
+            return {
+              model: request.model,
+              output_text: '',
+              output: [
+                {
+                  type: 'message',
+                  content: [
+                    {
+                      type: 'output_text',
+                      text: {
+                        value: '{"ok":true}',
+                      },
+                    },
+                  ],
+                },
+              ],
+            };
+          },
+        },
+        chat: {
+          completions: {
+            async create() {
+              throw new Error('chat not used');
+            },
+          },
+        },
+        models: {
+          async list() {
+            return { data: [] };
+          },
+        },
+      },
+    });
+
+    const response = await provider.createResponse(
+      {
+        input: 'test',
+      },
+      {
+        userId: 'user-1',
+        organizationId: 'org-1',
+        purpose: 'test',
+      },
+    );
+
+    console.log(JSON.stringify({
+      calls,
+      model: response.model,
+      text: response.text,
+    }));
+  `);
+
+  assert.deepEqual(result.calls, ['primary-model', 'fallback-model']);
+  assert.equal(result.model, 'fallback-model');
+  assert.equal(result.text, '{"ok":true}');
 });

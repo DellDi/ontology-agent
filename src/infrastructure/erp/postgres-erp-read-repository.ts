@@ -1,8 +1,10 @@
 import type { ErpReadPort } from '@/application/erp-read/ports';
+import { and, inArray, or, sql } from 'drizzle-orm';
 import {
   canAccessErpScope,
   isComplaintServiceOrder,
   normalizeSatisfactionLevel,
+  normalizeErpPermissionScope,
   type ErpChargeItem,
   type ErpOrganization,
   type ErpOwner,
@@ -24,6 +26,11 @@ import {
 } from '@/infrastructure/postgres/schema';
 
 type OrganizationPathMap = Map<string, string | null>;
+
+type OrganizationScopeResolution = {
+  normalizedScope: ErpPermissionScope;
+  organizationIds: string[];
+};
 
 function normalizeText(value: string | number | bigint | null | undefined) {
   const normalizedValue = String(value ?? '').trim();
@@ -99,6 +106,26 @@ function resolveOrganizationPath(
   return organizationPaths.get(normalizedOrganizationId) ?? null;
 }
 
+function buildTextInCondition(
+  column: { getSQL(): unknown },
+  values: string[],
+) {
+  return sql`${column} in (${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )})`;
+}
+
+function buildBigIntTextInCondition(
+  column: { getSQL(): unknown },
+  values: string[],
+) {
+  return sql`${column}::text in (${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )})`;
+}
+
 function mapOrganizationRow(
   row: typeof erpOrganizations.$inferSelect,
 ): ErpOrganization {
@@ -120,12 +147,16 @@ function mapOrganizationRow(
 }
 
 function mapPrecinctRow(row: typeof erpPrecincts.$inferSelect): ErpProject {
+  const normalizedOrganizationId = normalizeText(row.organizationId);
+
   return {
     id: row.precinctId,
     code: normalizeText(row.precinctNo),
     name: normalizeRequiredText(row.precinctName, '未命名项目'),
     organizationId:
-      normalizeText(row.organizationId) ?? normalizeRequiredText(row.orgId, ''),
+      normalizedOrganizationId && normalizedOrganizationId !== '0'
+        ? normalizedOrganizationId
+        : normalizeRequiredText(row.orgId, ''),
     areaId: normalizeText(row.areaId),
     areaName: normalizeText(row.areaName),
     enterpriseId: normalizeText(row.enterpriseId),
@@ -249,9 +280,62 @@ function mapServiceOrderRow(
 export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
   const resolvedDb = db ?? createPostgresDb().db;
 
+  async function resolveOrganizationScope(
+    scope: ErpPermissionScope,
+  ): Promise<OrganizationScopeResolution> {
+    const normalizedScope = normalizeErpPermissionScope(scope);
+    const rows = await resolvedDb
+      .select({
+        organizationId: erpOrganizations.sourceId,
+      })
+      .from(erpOrganizations)
+      .where(
+        and(
+          sql`coalesce(${erpOrganizations.isDeleted}, 0) <> 1`,
+          sql`(
+            ${erpOrganizations.sourceId}::text = ${normalizedScope.organizationId}
+            or coalesce(${erpOrganizations.organizationPath}, '') like ${`%/${normalizedScope.organizationId}/%`}
+          )`,
+        ),
+      );
+
+    const organizationIds = [
+      ...new Set(
+        rows
+          .map((row) => normalizeRequiredText(row.organizationId, ''))
+          .filter(Boolean),
+      ),
+    ];
+
+    return {
+      normalizedScope,
+      organizationIds,
+    };
+  }
+
+  function buildProjectScopeCondition(
+    column: { getSQL(): unknown },
+    projectIds: string[],
+  ) {
+    if (projectIds.length === 0) {
+      return undefined;
+    }
+
+    return inArray(column as never, projectIds);
+  }
+
   return {
     async listOrganizations(scope: ErpPermissionScope) {
-      const rows = await resolvedDb.select().from(erpOrganizations);
+      const { organizationIds } = await resolveOrganizationScope(scope);
+
+      if (organizationIds.length === 0) {
+        return [];
+      }
+
+      const rows = await resolvedDb
+        .select()
+        .from(erpOrganizations)
+        .where(buildBigIntTextInCondition(erpOrganizations.sourceId, organizationIds));
 
       return rows
         .map(mapOrganizationRow)
@@ -265,109 +349,175 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
     },
 
     async listProjects(scope: ErpPermissionScope) {
-      const [rows, organizations] = await Promise.all([
-        resolvedDb.select().from(erpPrecincts),
-        resolvedDb.select().from(erpOrganizations),
-      ]);
-      const organizationPaths = createOrganizationPathMap(organizations);
+      const { normalizedScope, organizationIds } = await resolveOrganizationScope(scope);
+
+      if (organizationIds.length === 0) {
+        return [];
+      }
+
+      const rows = await resolvedDb
+        .select()
+        .from(erpPrecincts)
+        .where(
+          and(
+            sql`coalesce(${erpPrecincts.isDelete}, 0) <> 1`,
+            sql`coalesce(${erpPrecincts.deleteFlag}, 0) <> 1`,
+            or(
+              buildTextInCondition(erpPrecincts.orgId, organizationIds),
+              buildBigIntTextInCondition(
+                erpPrecincts.organizationId,
+                organizationIds,
+              ),
+            ),
+            buildProjectScopeCondition(
+              erpPrecincts.precinctId,
+              normalizedScope.projectIds,
+            ),
+          ),
+        );
 
       return rows
-        .filter((row) => !isDeletedFlag(row.isDelete) && !isDeletedFlag(row.deleteFlag))
         .map(mapPrecinctRow)
-        .filter((project) =>
-          canAccessErpScope(scope, {
-            organizationId: project.organizationId,
-            organizationPath: resolveOrganizationPath(
-              organizationPaths,
-              project.organizationId,
-            ),
-            projectId: project.id,
-          }),
-        );
+        .filter((project) => canAccessErpScope(scope, { organizationId: project.organizationId, projectId: project.id }));
     },
 
     async listCurrentOwners(scope: ErpPermissionScope) {
-      const [rows, organizations] = await Promise.all([
-        resolvedDb.select().from(erpOwners),
-        resolvedDb.select().from(erpOrganizations),
-      ]);
-      const organizationPaths = createOrganizationPathMap(organizations);
+      const { normalizedScope, organizationIds } = await resolveOrganizationScope(scope);
+
+      if (organizationIds.length === 0) {
+        return [];
+      }
+
+      const rows = await resolvedDb
+        .select()
+        .from(erpOwners)
+        .where(
+          and(
+            sql`coalesce(${erpOwners.isCurrent}, '') in ('1', 'true', 'yes', 'y')`,
+            buildTextInCondition(erpOwners.orgId, organizationIds),
+            buildProjectScopeCondition(erpOwners.precinctId, normalizedScope.projectIds),
+          ),
+        );
 
       return rows
-        .filter((row) => isCurrentFlag(row.isCurrent))
         .map(mapOwnerRow)
         .filter((owner) =>
           canAccessErpScope(scope, {
             organizationId: owner.organizationId,
-            organizationPath: resolveOrganizationPath(
-              organizationPaths,
-              owner.organizationId,
-            ),
             projectId: owner.projectId,
           }),
         );
     },
 
-    async listChargeItems(_scope: ErpPermissionScope) {
-      void _scope;
-      const rows = await resolvedDb.select().from(erpChargeItems);
+    async listChargeItems(scope: ErpPermissionScope) {
+      const { organizationIds } = await resolveOrganizationScope(scope);
+
+      if (organizationIds.length === 0) {
+        return [];
+      }
+
+      const rows = await resolvedDb
+        .select()
+        .from(erpChargeItems)
+        .where(
+          and(
+            sql`coalesce(${erpChargeItems.deleteFlag}, 0) <> 1`,
+            buildTextInCondition(erpChargeItems.organizationId, organizationIds),
+          ),
+        );
 
       return rows.map(mapChargeItemRow);
     },
 
     async listReceivables(scope: ErpPermissionScope) {
-      const [rows, organizations] = await Promise.all([
-        resolvedDb.select().from(erpReceivables),
-        resolvedDb.select().from(erpOrganizations),
-      ]);
-      const organizationPaths = createOrganizationPathMap(organizations);
+      const { normalizedScope, organizationIds } = await resolveOrganizationScope(scope);
+
+      if (organizationIds.length === 0) {
+        return [];
+      }
+
+      const rows = await resolvedDb
+        .select()
+        .from(erpReceivables)
+        .where(
+          and(
+            sql`coalesce(${erpReceivables.isDelete}, 0) <> 1`,
+            buildTextInCondition(erpReceivables.organizationId, organizationIds),
+            buildProjectScopeCondition(
+              erpReceivables.precinctId,
+              normalizedScope.projectIds,
+            ),
+          ),
+        );
 
       return rows
-        .filter((row) => !isDeletedFlag(row.isDelete))
         .map(mapReceivableRow)
         .filter((receivable) =>
           canAccessErpScope(scope, {
             organizationId: receivable.organizationId,
-            organizationPath: resolveOrganizationPath(
-              organizationPaths,
-              receivable.organizationId,
-            ),
             projectId: receivable.projectId,
           }),
         );
     },
 
     async listPayments(scope: ErpPermissionScope) {
-      const [rows, organizations] = await Promise.all([
-        resolvedDb.select().from(erpPayments),
-        resolvedDb.select().from(erpOrganizations),
-      ]);
-      const organizationPaths = createOrganizationPathMap(organizations);
+      const { normalizedScope, organizationIds } = await resolveOrganizationScope(scope);
+
+      if (organizationIds.length === 0) {
+        return [];
+      }
+
+      const rows = await resolvedDb
+        .select()
+        .from(erpPayments)
+        .where(
+          and(
+            sql`coalesce(${erpPayments.isDelete}, 0) <> 1`,
+            buildTextInCondition(erpPayments.organizationId, organizationIds),
+            buildProjectScopeCondition(
+              erpPayments.precinctId,
+              normalizedScope.projectIds,
+            ),
+          ),
+        );
 
       return rows
-        .filter((row) => !isDeletedFlag(row.isDelete))
         .map(mapPaymentRow)
         .filter((payment) =>
           canAccessErpScope(scope, {
             organizationId: payment.organizationId,
-            organizationPath: resolveOrganizationPath(
-              organizationPaths,
-              payment.organizationId,
-            ),
             projectId: payment.projectId,
           }),
         );
     },
 
     async listServiceOrders(scope: ErpPermissionScope) {
-      const [rows, organizations] = await Promise.all([
-        resolvedDb.select().from(erpServiceOrders),
-        resolvedDb.select().from(erpOrganizations),
-      ]);
-      const organizationPaths = createOrganizationPathMap(organizations);
+      const { normalizedScope, organizationIds } = await resolveOrganizationScope(scope);
+
+      if (organizationIds.length === 0) {
+        return [];
+      }
+
+      const organizationRows = await resolvedDb
+        .select()
+        .from(erpOrganizations)
+        .where(buildBigIntTextInCondition(erpOrganizations.sourceId, organizationIds));
+      const organizationPaths = createOrganizationPathMap(organizationRows);
+      const rows = await resolvedDb
+        .select()
+        .from(erpServiceOrders)
+        .where(
+          and(
+            sql`coalesce(${erpServiceOrders.isDelete}, 0) <> 1`,
+            buildTextInCondition(erpServiceOrders.organizationId, organizationIds),
+            buildProjectScopeCondition(
+              erpServiceOrders.precinctId,
+              normalizedScope.projectIds,
+            ),
+          ),
+        );
 
       return rows
-        .filter((row) => !isDeletedFlag(row.isDelete))
         .map((row) =>
           mapServiceOrderRow(
             row,

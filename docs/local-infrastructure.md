@@ -175,7 +175,7 @@ const result = await checkRedisHealth(redis);
 LLM_PROVIDER_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 DASHSCOPE_API_KEY=replace-with-a-real-dashscope-key
 LLM_PROVIDER_MODEL=bailian/kimi-k2.5
-LLM_FALLBACK_MODELS=bailian/qwen3.5-plus,bailian/glm-5,bailian/MiniMax/MiniMax-M2.7
+LLM_FALLBACK_MODELS=bailian/qwen3.6-plus,bailian/glm-5,bailian/MiniMax/MiniMax-M2.7
 LLM_REQUEST_TIMEOUT_MS=15000
 LLM_MAX_RETRIES=2
 LLM_RATE_LIMIT_MAX_REQUESTS=20
@@ -183,9 +183,9 @@ LLM_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
 - 当前默认主模型：`bailian/kimi-k2.5`
-- 默认第一 fallback：`bailian/qwen3.5-plus`
+- 默认第一 fallback：`bailian/qwen3.6-plus`
 - 其它备用：`bailian/glm-5`、`bailian/MiniMax/MiniMax-M2.7`
-- 发送到百炼兼容接口时会自动去掉前缀，例如 `bailian/qwen3.5-plus -> qwen3.5-plus`
+- 发送到百炼兼容接口时会自动去掉前缀，例如 `bailian/qwen3.6-plus -> qwen3.5-plus`
 
 ### 限流约定
 

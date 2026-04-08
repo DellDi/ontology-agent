@@ -130,13 +130,26 @@ const promptDefinitions: Record<AnalysisAiTaskType, PromptDefinition<unknown>> =
       const typedInput = input as ConclusionSummaryInput;
       return {
         systemPrompt:
-          '你是物业分析结果总结模块。请输出保守、可解释的结论摘要 JSON。',
-        input: buildStructuredPrompt('conclusion-summary', typedInput),
-        responseFormat: buildResponseFormat(
-          'conclusion_summary',
-          '物业分析结论摘要的结构化输出。',
-          z.toJSONSchema(conclusionSummaryOutputSchema),
+          '你是物业分析结果总结模块。请只返回一个 JSON 对象，字段必须包含 summary、conclusion、evidence、confidence。evidence 必须是数组元素形如 { "label": "...", "detail": "..." }，confidence 必须是 0 到 1 之间的数字。',
+        input: JSON.stringify(
+          {
+            task: 'conclusion-summary',
+            requirements: [
+              '只返回一个 JSON 对象，不要输出 markdown。',
+              '必须包含字段：summary、conclusion、evidence、confidence。',
+              'evidence 必须是数组，数组元素必须包含 label 和 detail。',
+              'confidence 必须是 0 到 1 之间的数字。',
+              '无法确定时请返回保守值，不要编造超出输入的信息。',
+            ],
+            input: typedInput,
+            outputContract: z.toJSONSchema(conclusionSummaryOutputSchema),
+          },
+          null,
+          2,
         ),
+        responseFormat: {
+          type: 'json_object',
+        },
       };
     },
   },

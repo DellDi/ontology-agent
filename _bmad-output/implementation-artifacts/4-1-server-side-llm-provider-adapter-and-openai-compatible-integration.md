@@ -101,8 +101,8 @@ GPT-5 Codex
 - 已复用 Redis 建立模型调用限流，key 维度绑定 `userId + organizationId + purpose`，满足“按用户 + 按组织”的服务端节流边界。
 - 已扩展 `.env.example` 与 `docs/local-infrastructure.md`，明确 LLM provider 的服务端环境变量、健康检查路径和安全边界。
 - 当前默认 provider 配置已切到阿里云百炼兼容接口：`https://dashscope.aliyuncs.com/compatible-mode/v1`。
-- 当前默认主模型为 `bailian/kimi-k2.5`；默认 fallback 链为 `bailian/qwen3.5-plus`、`bailian/MiniMax/MiniMax-M2.7`、`bailian/glm-5`。
-- 发送到百炼接口前会自动把应用层模型标识规范化为 provider 实际模型名，例如 `bailian/qwen3.5-plus -> qwen3.5-plus`。
+- 当前默认主模型为 `bailian/kimi-k2.5`；默认 fallback 链为 `bailian/qwen3.6-plus`、`bailian/MiniMax/MiniMax-M2.7`、`bailian/glm-5`。
+- 发送到百炼接口前会自动把应用层模型标识规范化为 provider 实际模型名，例如 `bailian/qwen3.6-plus -> qwen3.5-plus`。
 - API key 现统一从 `DASHSCOPE_API_KEY` 读取，没有把密钥写入仓库文件。
 - 已新增真实百炼 smoke test：`tests/story-4-1-bailian-smoke.test.mts`。默认跳过，只有显式设置 `RUN_BAILIAN_SMOKE_TEST=1` 时才执行，并通过 `NODE_OPTIONS=--conditions=react-server` 兼容 `server-only` 标记模块。
 - smoke test 当前采用“健康检查 + chat completions 最小生成”路径，优先验证真实百炼配置、OpenAI-compatible 接线和服务端 adapter 在真实 provider 下的可用性，同时避免把 `responses` 端点的账户/模型兼容差异误判成基础联通失败。

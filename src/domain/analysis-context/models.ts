@@ -40,12 +40,24 @@ const METRIC_RULES: Array<{
   pattern: RegExp;
 }> = [
   {
+    label: '收缴率',
+    pattern: /收缴率/,
+  },
+  {
     label: '收费回款率',
     pattern: /收费回款率|回款率/,
   },
   {
+    label: '回款表现',
+    pattern: /回款表现|回款金额|回款/,
+  },
+  {
     label: '收费率',
     pattern: /收费率/,
+  },
+  {
+    label: '欠费压力',
+    pattern: /欠费压力|欠费/,
   },
   {
     label: '投诉量',
@@ -154,27 +166,76 @@ function extractEntity(
   questionText: string,
   constraints: AnalysisContextConstraint[],
 ): ExtractionResult {
-  const projectMatch = questionText.match(/项目\s*([\p{L}\p{N}_-]+)/u);
-  const areaMatch = questionText.match(/区域\s*([\p{L}\p{N}_-]+)/u);
-
   const entities: string[] = [];
+  const dedupe = new Set<string>();
+  const leadingClause = questionText
+    .split(/[，,。；;？?]/u, 1)[0]
+    ?.replace(/^(为什么|为何|请问)\s*/u, '')
+    .replace(/^(近三个月|最近三个月|本月|上月|本季度|今年|去年)\s*/u, '')
+    .trim();
 
-  if (projectMatch?.[1]) {
-    const projectValue = `项目 ${projectMatch[1]}`;
-    entities.push(projectValue);
+  const pushEntity = (
+    label: AnalysisContextConstraint['label'],
+    value: string | null | undefined,
+  ) => {
+    const normalizedValue = value?.trim();
+
+    if (!normalizedValue || dedupe.has(normalizedValue)) {
+      return;
+    }
+
+    dedupe.add(normalizedValue);
+    entities.push(normalizedValue);
     constraints.push({
-      label: '项目约束',
-      value: projectValue,
+      label,
+      value: normalizedValue,
     });
+  };
+
+  const projectAfterKeywordMatch = questionText.match(
+    /项目\s*(?!的)([\p{L}\p{N}_-]+)(?=[\s，,。；;？?]|$)/u,
+  );
+
+  if (projectAfterKeywordMatch?.[1]) {
+    pushEntity('项目约束', `项目 ${projectAfterKeywordMatch[1]}`);
   }
 
-  if (areaMatch?.[1]) {
-    const areaValue = `区域 ${areaMatch[1]}`;
-    entities.push(areaValue);
-    constraints.push({
-      label: '区域约束',
-      value: areaValue,
-    });
+  const areaAfterKeywordMatch = questionText.match(
+    /区域\s*(?!的)([\p{L}\p{N}_-]+)(?=[\s，,。；;？?]|$)/u,
+  );
+
+  if (areaAfterKeywordMatch?.[1]) {
+    pushEntity('区域约束', `区域 ${areaAfterKeywordMatch[1]}`);
+  }
+
+  const projectBeforeKeywordMatch = leadingClause?.match(
+    /^([\p{L}\p{N}_-]{2,}项目)(?=的|$)/u,
+  );
+
+  if (projectBeforeKeywordMatch?.[1]) {
+    pushEntity('项目约束', projectBeforeKeywordMatch[1]);
+  }
+
+  const areaBeforeKeywordMatch = leadingClause?.match(
+    /^([\p{L}\p{N}_-]{2,}区域)(?=的|$)/u,
+  );
+
+  if (areaBeforeKeywordMatch?.[1]) {
+    pushEntity('区域约束', areaBeforeKeywordMatch[1]);
+  }
+
+  if (entities.length === 0 && leadingClause) {
+    const genericEntityMatch = leadingClause.match(/^([^的，,。；;？?]{2,40})的/u);
+    const genericEntity = genericEntityMatch?.[1]?.trim();
+
+    if (
+      genericEntity &&
+      !/收缴率|收费回款率|收费率|回款表现|回款|欠费压力|欠费|投诉量|投诉|满意度|工单|异常|变化|波动|原因|表现|特点/u.test(
+        genericEntity,
+      )
+    ) {
+      pushEntity('实体约束', genericEntity);
+    }
   }
 
   if (entities.length > 0) {
