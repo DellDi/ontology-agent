@@ -55,15 +55,20 @@ export function createAnalysisExecutionSubmissionUseCases({
         },
       });
 
-      await analysisExecutionStreamUseCases?.publishExecutionStatus({
-        sessionId: session.id,
-        executionId: job.id,
-        status: job.status,
-        message: '执行任务已进入后台队列，等待 worker 开始处理。',
-        metadata: {
-          planStepCount: executablePlan.steps.length,
-        },
-      });
+      try {
+        await analysisExecutionStreamUseCases?.publishExecutionStatus({
+          sessionId: session.id,
+          executionId: job.id,
+          status: job.status,
+          message: '执行任务已进入后台队列，等待 worker 开始处理。',
+          metadata: {
+            planStepCount: executablePlan.steps.length,
+          },
+        });
+      } catch {
+        // Stream status is best-effort; once the job is queued we must not
+        // surface a submission failure and encourage duplicate retries.
+      }
 
       return {
         executionId: job.id,

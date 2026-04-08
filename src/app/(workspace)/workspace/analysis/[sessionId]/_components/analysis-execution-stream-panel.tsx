@@ -1,61 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
-import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 
 type AnalysisExecutionStreamPanelProps = {
-  sessionId: string;
-  executionId: string;
-  initialReadModel: AnalysisExecutionStreamReadModel;
+  events: AnalysisExecutionStreamEvent[];
 };
 
-function mergeEvents(
-  previousEvents: AnalysisExecutionStreamEvent[],
-  nextEvent: AnalysisExecutionStreamEvent,
-) {
-  if (previousEvents.some((event) => event.id === nextEvent.id)) {
-    return previousEvents;
-  }
-
-  return [...previousEvents, nextEvent].sort(
-    (left, right) => left.sequence - right.sequence,
-  );
-}
-
 export function AnalysisExecutionStreamPanel({
-  sessionId,
-  executionId,
-  initialReadModel,
+  events,
 }: AnalysisExecutionStreamPanelProps) {
-  const [events, setEvents] = useState(initialReadModel.events);
-
-  useEffect(() => {
-    const eventSource = new EventSource(
-      `/api/analysis/sessions/${sessionId}/stream?executionId=${executionId}`,
-    );
-
-    eventSource.onmessage = (message) => {
-      const nextEvent = JSON.parse(message.data) as AnalysisExecutionStreamEvent;
-      setEvents((previousEvents) => mergeEvents(previousEvents, nextEvent));
-
-      if (
-        nextEvent.kind === 'execution-status' &&
-        (nextEvent.status === 'completed' || nextEvent.status === 'failed')
-      ) {
-        eventSource.close();
-      }
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, [executionId, sessionId]);
 
   return (
     <article

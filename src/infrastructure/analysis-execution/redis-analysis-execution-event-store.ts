@@ -16,7 +16,9 @@ export function createRedisAnalysisExecutionEventStore(
   return {
     async append(input) {
       const streamKey = redisKeys.stream(input.sessionId);
-      const sequence = (await redis.lLen(streamKey)) + 1;
+      const sequence = await redis.incr(
+        redisKeys.streamSequence(input.sessionId),
+      );
 
       const event = validateAnalysisExecutionStreamEvent({
         id: randomUUID(),

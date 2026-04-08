@@ -12,11 +12,16 @@ import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
 import { AnalysisConclusionPanel } from './_components/analysis-conclusion-panel';
-import { AnalysisExecutionStreamPanel } from './_components/analysis-execution-stream-panel';
+import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
 import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/models';
+import {
+  buildExecutionStreamReadModelFromSnapshot,
+  getSessionScopedExecutionJob,
+  getSessionScopedExecutionSnapshot,
+} from './analysis-execution-display';
 
 type AnalysisSessionPageProps = {
   params: Promise<{
@@ -96,34 +101,84 @@ export default async function AnalysisSessionPage({
       sessionId: analysisSession.id,
       ownerUserId: currentUser.userId,
     });
-  const analysisPlanReadModel = latestExecutionSnapshot
+  const requestedExecutionSnapshot = executionId
+    ? await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+        executionId,
+        ownerUserId: currentUser.userId,
+      })
+    : null;
+  const sessionScopedRequestedExecutionSnapshot =
+    getSessionScopedExecutionSnapshot(
+      requestedExecutionSnapshot,
+      analysisSession.id,
+    );
+  const requestedExecutionRuntime =
+    executionId && !sessionScopedRequestedExecutionSnapshot
+      ? await withJobUseCases(async ({
+          jobUseCases,
+          analysisExecutionStreamUseCases,
+        }) => {
+          const requestedExecutionJob = getSessionScopedExecutionJob(
+            await jobUseCases.getJob(executionId),
+            {
+              sessionId: analysisSession.id,
+              ownerUserId: currentUser.userId,
+            },
+          );
+
+          return {
+            requestedExecutionJob,
+            requestedExecutionStreamReadModel: requestedExecutionJob
+              ? await analysisExecutionStreamUseCases.buildReadModel({
+                  sessionId: analysisSession.id,
+                  executionId: requestedExecutionJob.executionId,
+                })
+              : null,
+          };
+        })
+      : {
+          requestedExecutionJob: null,
+          requestedExecutionStreamReadModel: null,
+        };
+  const requestedExecutionIdForDisplay =
+    sessionScopedRequestedExecutionSnapshot?.executionId ??
+    requestedExecutionRuntime.requestedExecutionJob?.executionId ??
+    '';
+  const snapshotForDisplay =
+    sessionScopedRequestedExecutionSnapshot ??
+    (!requestedExecutionIdForDisplay ? latestExecutionSnapshot : null);
+  const planSnapshotForDisplay =
+    sessionScopedRequestedExecutionSnapshot?.planSnapshot ??
+    requestedExecutionRuntime.requestedExecutionJob?.planSnapshot ??
+    snapshotForDisplay?.planSnapshot ??
+    null;
+  const analysisPlanReadModel = planSnapshotForDisplay
     ? analysisPlanningUseCases.buildPlanReadModelFromSnapshot({
-        planSnapshot: latestExecutionSnapshot.planSnapshot,
+        planSnapshot: planSnapshotForDisplay,
       })
     : analysisPlanningUseCases.buildPlanReadModel({
         intentType: intent?.type ?? 'general-analysis',
         contextReadModel,
         candidateFactorReadModel,
       });
-  const resolvedExecutionId = executionId || latestExecutionSnapshot?.executionId || '';
-  const executionStreamReadModel = executionId
-    ? await withJobUseCases(async ({ analysisExecutionStreamUseCases }) =>
-        await analysisExecutionStreamUseCases.buildReadModel({
-          sessionId: analysisSession.id,
-          executionId,
-        }),
+  const resolvedExecutionId =
+    requestedExecutionIdForDisplay || snapshotForDisplay?.executionId || '';
+  const executionStreamReadModel = sessionScopedRequestedExecutionSnapshot
+    ? buildExecutionStreamReadModelFromSnapshot(
+        sessionScopedRequestedExecutionSnapshot,
       )
-    : latestExecutionSnapshot
-      ? {
-          sessionId: analysisSession.id,
-          executionId: latestExecutionSnapshot.executionId,
-          currentStatus: latestExecutionSnapshot.status,
-          hasEvents: latestExecutionSnapshot.stepResults.length > 0,
-          events: latestExecutionSnapshot.stepResults,
-        }
-      : null;
-  const conclusionReadModel = executionStreamReadModel
-    ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
+    : requestedExecutionRuntime.requestedExecutionStreamReadModel ??
+      (snapshotForDisplay
+        ? buildExecutionStreamReadModelFromSnapshot(snapshotForDisplay)
+        : null);
+  const conclusionReadModel =
+    sessionScopedRequestedExecutionSnapshot?.conclusionState ??
+    snapshotForDisplay?.conclusionState ??
+    null;
+  const liveConclusionReadModel = conclusionReadModel
+    ? conclusionReadModel
+    : executionStreamReadModel
+      ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
     : null;
 
   return (
@@ -199,7 +254,7 @@ export default async function AnalysisSessionPage({
           initialReadModel={contextReadModel}
         />
 
-        {(executionId || executionError) ? (
+        {(requestedExecutionIdForDisplay || executionError) ? (
           <article
             className="glass-panel p-6"
             data-testid="analysis-execution-feedback"
@@ -220,7 +275,7 @@ export default async function AnalysisSessionPage({
                   执行任务已进入后台队列，后续会按当前计划逐步处理。
                 </p>
                 <p className="mt-3 text-sm text-[color:var(--ink-900)]">
-                  Execution ID：{executionId}
+                  Execution ID：{requestedExecutionIdForDisplay}
                 </p>
               </>
             )}
@@ -232,16 +287,15 @@ export default async function AnalysisSessionPage({
           readModel={analysisPlanReadModel}
         />
 
-        {conclusionReadModel ? (
-          <AnalysisConclusionPanel readModel={conclusionReadModel} />
-        ) : null}
-
         {resolvedExecutionId && executionStreamReadModel ? (
-          <AnalysisExecutionStreamPanel
+          <AnalysisExecutionLiveShell
             sessionId={analysisSession.id}
             executionId={resolvedExecutionId}
             initialReadModel={executionStreamReadModel}
+            initialConclusionReadModel={liveConclusionReadModel}
           />
+        ) : liveConclusionReadModel ? (
+          <AnalysisConclusionPanel readModel={liveConclusionReadModel} />
         ) : null}
       </div>
 

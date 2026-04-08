@@ -1,3 +1,5 @@
+'use client';
+
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 
 type AnalysisConclusionPanelProps = {
