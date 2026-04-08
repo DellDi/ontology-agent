@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:real:analysis": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/run-real-analysis-regression.mts",
     "cube:token": "node scripts/generate-cube-dev-token.mjs",
     "test:smoke:bailian": "NODE_OPTIONS=--conditions=react-server RUN_BAILIAN_SMOKE_TEST=1 npx tsx --test tests/story-4-1-bailian-smoke.test.mts",
     "test:smoke:neo4j": "NODE_OPTIONS=--conditions=react-server RUN_NEO4J_SMOKE_TEST=1 npx tsx --test tests/story-4-5-neo4j-smoke.test.mjs --no-cache",
@@ -14,7 +15,7 @@
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
     "lint": "eslint",
     "lint:fix": "eslint . --fix",
-    "worker:dev": "npx tsx --tsconfig tsconfig.json src/worker/main.ts"
+    "worker:dev": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json src/worker/main.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.1",

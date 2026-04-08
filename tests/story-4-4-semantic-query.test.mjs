@@ -102,6 +102,34 @@ test('Cube adapter 将平台 metric contract 转换为受治理的 Cube load que
   assert.match(builder, /granularity/);
 });
 
+test('收费类指标会把 business-date 语义映射到 Finance.createdAt 时间成员', async () => {
+  const result = await runTsSnippet(`
+    import queryBuilderModule from './src/infrastructure/cube/query-builder.ts';
+
+    const { buildCubeLoadQuery } = queryBuilderModule;
+    const query = buildCubeLoadQuery({
+      metric: 'receivable-amount',
+      scope: {
+        organizationId: '2857',
+        projectIds: ['10030'],
+      },
+      dateRange: {
+        dimension: 'business-date',
+        from: '2026-01-31',
+        to: '2026-04-08',
+      },
+      limit: 20,
+    });
+
+    console.log(JSON.stringify(query.timeDimensions[0]));
+  `);
+
+  assert.deepEqual(result, {
+    dimension: 'Finance.createdAt',
+    dateRange: ['2026-01-31', '2026-04-08'],
+  });
+});
+
 test('Cube adapter 使用服务端 token 和只读 /v1/load 查询，不让页面层直连 Cube', async () => {
   const adapter = await readRepoFile(
     'src/infrastructure/cube/cube-semantic-query-adapter.ts',

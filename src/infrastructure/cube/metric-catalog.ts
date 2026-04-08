@@ -23,7 +23,7 @@ const SEMANTIC_METRICS: readonly SemanticMetricDefinition[] = [
       'charge-item-name': 'Finance.chargeItemName',
     },
     dateDimensions: {
-      'business-date': 'Finance.businessDate',
+      'business-date': 'Finance.createdAt',
     },
   },
   {
@@ -45,7 +45,7 @@ const SEMANTIC_METRICS: readonly SemanticMetricDefinition[] = [
       'charge-item-name': 'Finance.chargeItemName',
     },
     dateDimensions: {
-      'business-date': 'Finance.businessDate',
+      'business-date': 'Finance.createdAt',
     },
   },
   {
@@ -67,7 +67,7 @@ const SEMANTIC_METRICS: readonly SemanticMetricDefinition[] = [
       'charge-item-name': 'Finance.chargeItemName',
     },
     dateDimensions: {
-      'business-date': 'Finance.businessDate',
+      'business-date': 'Finance.createdAt',
     },
   },
   {

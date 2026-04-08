@@ -1,5 +1,6 @@
 import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { Job } from '@/domain/job-contract/models';
+import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
 
 type CompletionJobUseCases = {
   completeJob: (
@@ -59,11 +60,13 @@ export async function finalizeSuccessfulAnalysisExecution({
   analysisExecutionStreamUseCases: CompletionStreamUseCases;
   analysisExecutionPersistenceUseCases: CompletionPersistenceUseCases;
 }) {
+  const jobData = getValidatedAnalysisExecutionJobData(job);
+
   await jobUseCases.completeJob(job.id, result);
 
   try {
     await analysisExecutionStreamUseCases.publishExecutionStatus({
-      sessionId: String(job.data.sessionId ?? ''),
+      sessionId: jobData.sessionId,
       executionId: job.id,
       status: 'completed',
       message: '分析执行已完成，阶段结果已全部回传。',
@@ -71,27 +74,17 @@ export async function finalizeSuccessfulAnalysisExecution({
     });
 
     const events = await analysisExecutionStreamUseCases.listExecutionEvents({
-      sessionId: String(job.data.sessionId ?? ''),
+      sessionId: jobData.sessionId,
       executionId: job.id,
     });
     const conclusionReadModel = buildAnalysisConclusionReadModel(events);
 
     await analysisExecutionPersistenceUseCases.saveExecutionSnapshot({
       executionId: job.id,
-      sessionId: String(job.data.sessionId ?? ''),
-      ownerUserId: String(job.data.ownerUserId ?? ''),
+      sessionId: jobData.sessionId,
+      ownerUserId: jobData.ownerUserId,
       status: 'completed',
-      planSnapshot: job.data.plan as {
-        mode: 'minimal' | 'multi-step';
-        summary: string;
-        steps: {
-          id: string;
-          order: number;
-          title: string;
-          objective: string;
-          dependencyIds: string[];
-        }[];
-      },
+      planSnapshot: jobData.plan,
       events,
       conclusionReadModel,
     });

@@ -14,7 +14,7 @@ export type RankedConclusionCause = {
   rank: number;
   title: string;
   summary: string;
-  confidence: number;
+  confidence: number | null;
   evidence: AnalysisConclusionEvidence[];
 };
 
@@ -75,7 +75,7 @@ export function buildAnalysisConclusionReadModel(
     summary:
       event.message ??
       `${event.step?.title ?? `步骤 ${index + 1}`} 对当前归因排序产生了影响。`,
-    confidence: Number((0.86 - index * 0.08).toFixed(2)),
+    confidence: null,
     evidence: extractEvidence(event),
   }));
 

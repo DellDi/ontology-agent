@@ -7,6 +7,7 @@ import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/model
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
 import { getJobHandler } from './handlers';
+import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
 import { finalizeSuccessfulAnalysisExecution } from './finalize-analysis-execution';
 
 const POLL_INTERVAL_MS = 1000;
@@ -101,8 +102,10 @@ async function main() {
           err instanceof Error ? err.message : '未知错误';
         await jobUseCases.failJob(job.id, errorMessage);
         if (job.type === 'analysis-execution') {
+          const jobData = getValidatedAnalysisExecutionJobData(job);
+
           await analysisExecutionStreamUseCases.publishExecutionStatus({
-            sessionId: String(job.data.sessionId ?? ''),
+            sessionId: jobData.sessionId,
             executionId: job.id,
             status: 'failed',
             message: errorMessage,
@@ -113,27 +116,17 @@ async function main() {
 
           const events =
             await analysisExecutionStreamUseCases.listExecutionEvents({
-              sessionId: String(job.data.sessionId ?? ''),
+              sessionId: jobData.sessionId,
               executionId: job.id,
             });
           const conclusionReadModel = buildAnalysisConclusionReadModel(events);
 
           await analysisExecutionPersistenceUseCases.saveExecutionSnapshot({
             executionId: job.id,
-            sessionId: String(job.data.sessionId ?? ''),
-            ownerUserId: String(job.data.ownerUserId ?? ''),
+            sessionId: jobData.sessionId,
+            ownerUserId: jobData.ownerUserId,
             status: 'failed',
-            planSnapshot: job.data.plan as {
-              mode: 'minimal' | 'multi-step';
-              summary: string;
-              steps: {
-                id: string;
-                order: number;
-                title: string;
-                objective: string;
-                dependencyIds: string[];
-              }[];
-            },
+            planSnapshot: jobData.plan,
             events,
             conclusionReadModel,
           });

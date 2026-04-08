@@ -467,6 +467,11 @@ test('执行已完成后的流式副作用失败不会把成功路径重新标�
         data: {
           sessionId: 'session-1',
           ownerUserId: 'owner-1',
+          organizationId: 'org-1',
+          projectIds: ['project-1'],
+          areaIds: ['area-1'],
+          questionText: '测试完成态后处理',
+          submittedAt: '2026-04-08T00:00:00.000Z',
           plan: {
             mode: 'minimal',
             summary: '完成态计划',
@@ -578,4 +583,230 @@ test('execution 仍在执行时会使用任务里的计划快照作为页面计�
   assert.equal(result.executionId, 'job-in-flight');
   assert.equal(result.summary, '提交时锁定的计划摘要');
   assert.equal(result.firstStepTitle, '提交时步骤');
+});
+
+test('analysis execution handler 会通过真实 orchestration bridge 执行步骤并回传真实工具结果', async () => {
+  const result = await runTsSnippet(`
+    import handlersModule from './src/worker/handlers.ts';
+
+    const { createAnalysisExecutionJobHandler } = handlersModule;
+    const publishedEvents = [];
+    const executeCalls = [];
+
+    const handler = createAnalysisExecutionJobHandler({
+      analysisSessionStore: {
+        async getById(sessionId) {
+          return {
+            id: sessionId,
+            ownerUserId: 'owner-1',
+            organizationId: 'org-1',
+            projectIds: ['project-1'],
+            areaIds: ['area-1'],
+            questionText: '为什么本月收费回款率下降了？',
+            savedContext: {
+              targetMetric: { label: '目标指标', value: '收费回款率', state: 'confirmed' },
+              entity: { label: '实体对象', value: '项目 moon', state: 'confirmed' },
+              timeRange: { label: '时间范围', value: '本月', state: 'confirmed' },
+              comparison: { label: '比较方式', value: '同比', state: 'confirmed' },
+              constraints: [],
+            },
+            status: 'pending',
+            createdAt: '2026-04-08T00:00:00.000Z',
+            updatedAt: '2026-04-08T00:00:00.000Z',
+          };
+        },
+      },
+      analysisExecutionUseCases: {
+        async executeStep(input) {
+          executeCalls.push({
+            stepId: input.stepId,
+            metric: input.toolInputsByName['cube.semantic-query']?.metric ?? null,
+            entity: input.toolInputsByName['neo4j.graph-query']?.entity ?? null,
+            erpResource: input.toolInputsByName['erp.read-model']?.resource ?? null,
+            llmTaskType: input.toolInputsByName['llm.structured-analysis']?.taskType ?? null,
+          });
+
+          return {
+            status: 'completed',
+            strategy: '真实 bridge 结果',
+            tools: [
+              {
+                toolName: 'cube.semantic-query',
+                objective: '验证核心指标波动',
+                confidence: 0.93,
+              },
+            ],
+            events: [
+              {
+                ok: true,
+                toolName: 'cube.semantic-query',
+                correlationId: 'corr-1',
+                startedAt: '2026-04-08T00:00:00.000Z',
+                finishedAt: '2026-04-08T00:00:01.000Z',
+                output: {
+                  metric: 'collection-rate',
+                  rowCount: 1,
+                  rows: [
+                    {
+                      value: 0.74,
+                      time: '2026-04',
+                      dimensions: {
+                        'project-name': '项目 moon',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          };
+        },
+      },
+      analysisExecutionStreamUseCases: {
+        async publishEvent(event) {
+          publishedEvents.push(event);
+          return event;
+        },
+      },
+    });
+
+    const outcome = await handler(
+      {
+        id: 'job-real-handler',
+        type: 'analysis-execution',
+        status: 'processing',
+        data: {
+          sessionId: 'session-real-handler',
+          ownerUserId: 'owner-1',
+          organizationId: 'org-1',
+          projectIds: ['project-1'],
+          areaIds: ['area-1'],
+          questionText: '为什么本月收费回款率下降了？',
+          submittedAt: '2026-04-08T00:00:00.000Z',
+          plan: {
+            mode: 'multi-step',
+            summary: '先确认口径，再查指标。',
+            steps: [
+              {
+                id: 'inspect-metric-change',
+                order: 1,
+                title: '校验核心指标波动',
+                objective: '验证收费回款率是否真实下降',
+                dependencyIds: [],
+              },
+            ],
+          },
+        },
+        result: null,
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z',
+      },
+      {
+        redis: null,
+      },
+    );
+
+    console.log(JSON.stringify({
+      processedStepCount: outcome.processedStepCount,
+      executeCalls,
+      publishedKinds: publishedEvents.map((event) => event.kind),
+      stageToolName:
+        publishedEvents[1]?.renderBlocks.find((block) => block.type === 'tool-list')?.items[0]?.toolName ?? null,
+      stageHasMetricTable:
+        publishedEvents[1]?.renderBlocks.some((block) => block.type === 'table' && block.title === '指标结果') ?? false,
+    }));
+  `);
+
+  assert.equal(result.processedStepCount, 1);
+  assert.equal(result.executeCalls.length, 1);
+  assert.equal(result.executeCalls[0].stepId, 'inspect-metric-change');
+  assert.equal(result.executeCalls[0].metric, 'collection-rate');
+  assert.equal(result.executeCalls[0].entity, '项目 moon');
+  assert.equal(result.executeCalls[0].erpResource, 'receivables');
+  assert.equal(result.executeCalls[0].llmTaskType, 'conclusion-summary');
+  assert.deepEqual(result.publishedKinds, ['step-lifecycle', 'stage-result']);
+  assert.equal(result.stageToolName, 'cube.semantic-query');
+  assert.equal(result.stageHasMetricTable, true);
+});
+
+test('analysis execution handler 会在 worker 侧重新校验 job data，拒绝脏 planSnapshot', async () => {
+  const result = await runTsSnippet(`
+    import handlersModule from './src/worker/handlers.ts';
+
+    const { createAnalysisExecutionJobHandler } = handlersModule;
+
+    const handler = createAnalysisExecutionJobHandler({
+      analysisSessionStore: {
+        async getById(sessionId) {
+          return {
+            id: sessionId,
+            ownerUserId: 'owner-1',
+            organizationId: 'org-1',
+            projectIds: ['project-1'],
+            areaIds: ['area-1'],
+            questionText: '为什么本月收费回款率下降了？',
+            savedContext: {
+              targetMetric: { label: '目标指标', value: '收费回款率', state: 'confirmed' },
+              entity: { label: '实体对象', value: '项目 moon', state: 'confirmed' },
+              timeRange: { label: '时间范围', value: '本月', state: 'confirmed' },
+              comparison: { label: '比较方式', value: '同比', state: 'confirmed' },
+              constraints: [],
+            },
+            status: 'pending',
+            createdAt: '2026-04-08T00:00:00.000Z',
+            updatedAt: '2026-04-08T00:00:00.000Z',
+          };
+        },
+      },
+      analysisExecutionUseCases: {
+        async executeStep() {
+          throw new Error('不应执行到 orchestration');
+        },
+      },
+      analysisExecutionStreamUseCases: {
+        async publishEvent() {
+          throw new Error('不应发布事件');
+        },
+      },
+    });
+
+    try {
+      await handler(
+        {
+          id: 'job-invalid-plan',
+          type: 'analysis-execution',
+          status: 'processing',
+          data: {
+            sessionId: 'session-invalid-plan',
+            ownerUserId: 'owner-1',
+            organizationId: 'org-1',
+            projectIds: ['project-1'],
+            areaIds: ['area-1'],
+            questionText: '为什么本月收费回款率下降了？',
+            submittedAt: '2026-04-08T00:00:00.000Z',
+            plan: {
+              mode: 'minimal',
+              summary: '非法计划',
+              steps: [],
+            },
+          },
+          result: null,
+          error: null,
+          createdAt: '2026-04-08T00:00:00.000Z',
+          updatedAt: '2026-04-08T00:00:00.000Z',
+        },
+        {
+          redis: null,
+        },
+      );
+    } catch (error) {
+      console.log(JSON.stringify({
+        name: error.name,
+        message: error.message,
+      }));
+    }
+  `);
+
+  assert.equal(result.name, 'InvalidAnalysisExecutionPlanError');
+  assert.match(result.message, /至少包含一个步骤/);
 });
