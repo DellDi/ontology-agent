@@ -54,5 +54,15 @@ export function createGraphUseCases({
 
       return await graphWritePort.syncBaseline(batchParameters);
     },
+
+    async cleanupScopedData(
+      input: Parameters<GraphWritePort['cleanupScopedData']>[0],
+    ) {
+      if (!graphWritePort) {
+        throw new Error('Graph write port is not configured.');
+      }
+
+      return await graphWritePort.cleanupScopedData(input);
+    },
   };
 }

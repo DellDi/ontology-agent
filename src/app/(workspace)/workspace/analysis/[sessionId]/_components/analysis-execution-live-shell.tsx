@@ -34,16 +34,6 @@ export function AnalysisExecutionLiveShell({
   );
 
   useEffect(() => {
-    setEvents(initialReadModel.events);
-    setConclusionReadModel(
-      buildLiveConclusionReadModel({
-        events: initialReadModel.events,
-        fallbackReadModel: initialConclusionReadModel,
-      }),
-    );
-  }, [executionId, initialConclusionReadModel, initialReadModel.events]);
-
-  useEffect(() => {
     const eventSource = new EventSource(
       `/api/analysis/sessions/${sessionId}/stream?executionId=${executionId}`,
     );

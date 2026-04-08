@@ -92,7 +92,10 @@ export function createFactorExpansionUseCases({
           : ruleFallback.disclaimer,
         skipReason: ruleFallback.skipReason,
         basisLabel: '与当前指标或实体的相关依据',
-        factors: ruleFallback.factors,
+        factors: ruleFallback.factors.map((factor) => ({
+          ...factor,
+          source: 'governed-rule',
+        })),
       };
     },
   };

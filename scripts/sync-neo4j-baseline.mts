@@ -3,6 +3,7 @@ import nextEnvModule from '@next/env';
 import * as erpReadUseCasesModule from '../src/application/erp-read/use-cases';
 import * as graphSyncUseCasesModule from '../src/application/graph-sync/use-cases';
 import * as erpRepositoryModule from '../src/infrastructure/erp/postgres-erp-read-repository';
+import * as graphSyncRunStoreModule from '../src/infrastructure/graph-sync/postgres-graph-sync-run-store';
 import * as neo4jModule from '../src/infrastructure/neo4j';
 import * as postgresClientModule from '../src/infrastructure/postgres/client';
 
@@ -22,6 +23,9 @@ const { createErpReadUseCases } = resolveModuleExport(erpReadUseCasesModule);
 const { createGraphSyncUseCases } = resolveModuleExport(graphSyncUseCasesModule);
 const { createPostgresErpReadRepository } =
   resolveModuleExport(erpRepositoryModule);
+const { createPostgresGraphSyncRunStore } = resolveModuleExport(
+  graphSyncRunStoreModule,
+);
 const { graphUseCases } = resolveModuleExport(neo4jModule);
 const { createPostgresDb } = resolveModuleExport(postgresClientModule);
 
@@ -72,6 +76,7 @@ async function run() {
   const syncUseCases = createGraphSyncUseCases({
     erpReadUseCases,
     graphUseCases,
+    graphSyncRunStore: createPostgresGraphSyncRunStore(),
   });
 
   const summaries = [];
@@ -90,12 +95,17 @@ async function run() {
       },
     };
 
-    const result = await syncUseCases.syncBaseline({
+    const result = await syncUseCases.runOrganizationRebuild({
       session,
+      mode: 'org-rebuild',
+      triggerType: 'manual',
+      triggeredBy: 'scripts/sync-neo4j-baseline.mts',
+      cursorSnapshot: {},
     });
 
     summaries.push({
       organizationId,
+      runId: result.run.id,
       nodesWritten: result.nodesWritten,
       edgesWritten: result.edgesWritten,
     });

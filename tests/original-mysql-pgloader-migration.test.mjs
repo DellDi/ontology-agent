@@ -93,12 +93,15 @@ test('latest drizzle staging migration stays free of foreign keys and reflects t
   const migrationFiles = (await readdir(`${repoRoot}/drizzle`))
     .filter((fileName) => /^000\d+.*\.sql$/.test(fileName))
     .sort();
-  const latestMigration = migrationFiles.at(-1);
+  const latestStagingMigration = migrationFiles
+    .slice()
+    .reverse()
+    .find((fileName) => fileName.includes('typed_erp_staging'));
 
-  assert.ok(latestMigration, '应存在 drizzle migration 文件');
+  assert.ok(latestStagingMigration, '应存在 ERP staging drizzle migration 文件');
 
   const migration = await readFile(
-    `${repoRoot}/drizzle/${latestMigration}`,
+    `${repoRoot}/drizzle/${latestStagingMigration}`,
     'utf8',
   );
   const receivablesTableBlock = migration.match(

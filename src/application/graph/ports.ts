@@ -3,6 +3,7 @@ import type {
   GraphCandidateFactorQuery,
   GraphSyncBatch,
 } from '@/domain/graph/models';
+import type { GraphScopedCleanupInput } from '@/domain/graph-sync/models';
 
 export type GraphReadPort = {
   findCandidateFactors(
@@ -18,5 +19,9 @@ export type GraphWritePort = {
   syncBaseline(batch: GraphSyncBatch): Promise<{
     nodesWritten: number;
     edgesWritten: number;
+  }>;
+  cleanupScopedData(input: GraphScopedCleanupInput): Promise<{
+    deletedNodes: number;
+    deletedEdges: number;
   }>;
 };
