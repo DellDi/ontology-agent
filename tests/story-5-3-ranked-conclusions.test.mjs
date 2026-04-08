@@ -468,3 +468,70 @@ test('流式事件推进后会生成实时归因结论', async () => {
   assert.equal(result.causeCount, 1);
   assert.equal(result.firstCauseTitle, '实时原因一');
 });
+
+test('汇总归因阶段存在结构化分析摘要时，结论会优先使用真实摘要而不是通用步骤消息', async () => {
+  const result = await runTsSnippet(`
+    import resultModelsModule from './src/domain/analysis-result/models.ts';
+
+    const { buildAnalysisConclusionReadModel } = resultModelsModule;
+
+    const events = [
+      {
+        id: 'evt-1',
+        sessionId: 'session-1',
+        executionId: 'exec-1',
+        sequence: 1,
+        kind: 'stage-result',
+        timestamp: '2026-04-08T00:00:00.000Z',
+        step: { id: 'confirm-analysis-scope', order: 1, title: '确认分析口径', status: 'completed' },
+        stage: { key: 'confirm-analysis-scope', label: '步骤 1', status: 'completed' },
+        message: '步骤 1 已完成，真实工具结果已回传。',
+        renderBlocks: [
+          { type: 'status', title: '阶段状态', value: '已完成', tone: 'success' },
+          { type: 'kv-list', title: '阶段结果', items: [{ label: '当前步骤', value: '确认分析口径' }, { label: '进度', value: '1/4' }] },
+        ],
+      },
+      {
+        id: 'evt-2',
+        sessionId: 'session-1',
+        executionId: 'exec-1',
+        sequence: 2,
+        kind: 'stage-result',
+        timestamp: '2026-04-08T00:00:01.000Z',
+        step: { id: 'synthesize-attribution', order: 4, title: '汇总归因判断', status: 'completed' },
+        stage: { key: 'synthesize-attribution', label: '步骤 4', status: 'completed' },
+        message: '步骤 4 已完成，真实工具结果已回传。',
+        metadata: {
+          conclusionSummary: '丰和园小区项目收缴率异常，主要受历史欠费积压和当期回款偏低共同影响。',
+          conclusionText: '历史欠费积压与回款偏低',
+          conclusionConfidence: 0.82,
+          conclusionEvidence: [
+            { label: '收缴率', summary: '近三个月收缴率明显偏低。' },
+          ],
+        },
+        renderBlocks: [
+          { type: 'status', title: '阶段状态', value: '已完成', tone: 'success' },
+          { type: 'table', title: '指标结果', columns: ['时间', '维度', '值'], rows: [['2026-04', 'project=丰和园小区项目', '0.0331']] },
+          { type: 'markdown', title: '结构化分析摘要', content: '丰和园小区项目收缴率异常，主要受历史欠费积压和当期回款偏低共同影响。\\n\\n结论：历史欠费积压与回款偏低' },
+        ],
+      },
+    ];
+
+    const readModel = buildAnalysisConclusionReadModel(events);
+
+    console.log(JSON.stringify({
+      firstTitle: readModel.causes[0]?.title ?? null,
+      firstSummary: readModel.causes[0]?.summary ?? null,
+      firstConfidence: readModel.causes[0]?.confidence ?? null,
+      firstEvidence: readModel.causes[0]?.evidence.map((item) => item.summary) ?? [],
+    }));
+  `);
+
+  assert.equal(result.firstTitle, '历史欠费积压与回款偏低');
+  assert.match(result.firstSummary, /收缴率异常/);
+  assert.equal(result.firstConfidence, 0.82);
+  assert.ok(
+    result.firstEvidence.some((summary) => /0.0331|收缴率明显偏低/.test(summary)),
+  );
+  assert.doesNotMatch(result.firstSummary, /真实工具结果已回传/);
+});

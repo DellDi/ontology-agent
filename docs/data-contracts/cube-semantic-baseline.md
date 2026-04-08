@@ -2,70 +2,99 @@
 
 ## 目标
 
-本文件定义 Story 4.4 首批进入 Cube 语义层的指标基线，目的是让上层分析编排只消费统一的 metric contract，而不是在业务代码里重复拼指标口径。
+本文件定义当前进入 Cube 语义层的正式指标契约。收费指标不再使用模糊的 `business-date` 统一解释，而是拆成两套明确口径：
 
-当前基线优先覆盖两类主题：
+- 项目口径
+- 尾欠口径
 
-- 收费
-- 工单
+两套口径共享同一组组织 / 项目权限边界，但使用不同的应收时间语义。
 
-## 首批指标
+## 收费指标正式语义
 
-| 指标 Key | 中文名称 | 业务定义 | 当前公式 | 主事实主题 | 默认时间维度 | 备注 |
-|---|---|---|---|---|---|---|
-| `collection-rate` | 收缴率 | 在统一治理口径下的实收 / 应收本金 | `paid_amount / charge_sum` | 收费 | `business-date` | 分母已确认使用 `chargeSum` |
-| `receivable-amount` | 应收金额 | 在统一治理口径下的应收金额汇总 | `sum(receivable_amount)` | 收费 | `business-date` |  |
-| `paid-amount` | 实收金额 | 在统一治理口径下的实收金额汇总 | `sum(paid_amount)` | 收费 | `business-date` |  |
-| `service-order-count` | 工单总量 | 工单主题内的工单数量 | `count(service_order_id)` | 工单 | `created-at` |  |
-| `complaint-count` | 投诉量 | 工单主题中 `service_style_name = 投诉` 的数量 | `count(service_order_id where complaint)` | 工单（投诉子集） | `created-at` |  |
-| `average-satisfaction` | 平均满意度 | 基于工单 `satisfaction` 字段的平均值，并保留 `satisfactionEval` 作为客户评价满意度语义 | `avg(satisfaction)` | 工单（满意度派生） | `completed-at` | 同时纳入 `satisfactionEval` |
-| `average-close-duration-hours` | 平均关闭时长 | 工单从创建到完成的平均时长（小时） | `avg(completed_at - created_at)` | 工单 | `completed-at` | 保留 |
-| `average-response-duration-hours` | 平均响应时长 | 工单从创建到首次响应的平均时长（小时） | `avg(first_response_at - created_at)` | 工单 | `created-at` | 已纳入正式语义契约 |
+### 项目口径
 
-## 维度与权限切片
+项目口径表示“当年全年正常应收账单”：
 
-当前统一支持的核心维度：
+- 应收来源：`erp_staging.dw_datacenter_charge`
+- 应收过滤：
+  - `isDelete = 0`
+  - `isCheck = '审核通过'`
+  - `chargeItemType = '1'`
+- 应收金额字段：`actualChargeSum`
+- 应收时间语义：`shouldAccountBook`，即“应收账期”
+- 实收来源：`erp_staging.dw_datacenter_bill`
+- 实收过滤：
+  - `isDelete = 0`
+  - `isEnterAccount = 1`
+  - `(refundStatus IS NULL OR refundStatus != '待退款')`
+  - `precinct_collection_type != 1`
+  - `subjectCode` 在默认业务标志集合内
+- 实收金额字段：`chargePaid`
+- 实收时间语义：`operatorDate`，缺失时退回 `paidYear/paidMonth/paidDay`
 
-- `organization-id`
-- `project-id`
-- `project-name`
-- `charge-item-name`
-- `service-style-name`
-- `service-type-name`
+### 尾欠口径
 
-权限切片原则：
+尾欠口径表示“跨年未收的历史欠费账单”：
 
-- 所有指标查询都必须带入 `organizationId`
-- 如果当前会话已有 `projectIds`，则查询必须继续收窄到项目范围
-- `ChargeItem` 不单独做权限裁剪，但收费类指标仍通过组织 / 项目范围裁剪事实数据
-- `areaId` 不作为当前权限链的一部分
+- 应收来源与公共过滤与项目口径相同
+- 应收金额字段：`actualChargeSum`
+- 应收时间语义：`calcEndDate / calcEndYear`
+- 在实现里，尾欠 cohort 通过 `billing-cycle-end-date` 语义窗口圈定：
+  - 下界固定为历史起点
+  - 上界为统计年份的 `01-31`
+- 实收来源、过滤与金额字段与项目口径相同
+- 实收时间语义仍为 `payment-date`
 
-## 数据来源口径
+## 首批正式指标
 
-首批语义层建立在 Story 4.3 已完成的受控 read boundary 之上，不应直接裸连 ERP 原始主写表。
+| 指标 Key | 中文名称 | 来源主题 | 默认时间语义 |
+|---|---|---|---|
+| `project-collection-rate` | 项目口径收缴率 | 应收 + 实收 | `receivable-accounting-period` |
+| `project-receivable-amount` | 项目口径应收金额 | 应收 | `receivable-accounting-period` |
+| `project-paid-amount` | 项目口径实收金额 | 实收 | `payment-date` |
+| `tail-arrears-collection-rate` | 尾欠口径收缴率 | 应收 + 实收 | `billing-cycle-end-date` |
+| `tail-arrears-receivable-amount` | 尾欠口径应收金额 | 应收 | `billing-cycle-end-date` |
+| `tail-arrears-paid-amount` | 尾欠口径实收金额 | 实收 | `payment-date` |
+| `service-order-count` | 工单总量 | 工单 | `created-at` |
+| `complaint-count` | 投诉量 | 工单 | `created-at` |
+| `average-satisfaction` | 平均满意度 | 工单 | `completed-at` |
+| `average-close-duration-hours` | 平均关闭时长 | 工单 | `completed-at` |
+| `average-response-duration-hours` | 平均响应时长 | 工单 | `created-at` |
 
-当前来源约束：
+兼容别名：
 
-- 收费主题：基于应收与实收主题
-- 工单主题：基于工单表
-- 投诉主题：从工单主题切分，不单独建物理投诉表
-- 满意度主题：复用工单 `satisfaction` 与 `satisfactionEval` 字段
+- `collection-rate` -> `project-collection-rate`
+- `receivable-amount` -> `project-receivable-amount`
+- `paid-amount` -> `project-paid-amount`
 
-## 已确认业务口径
+## 收缴率计算
 
-你当前已经确认的口径如下：
+正式口径：
 
-1. 收缴率分母使用 `chargeSum`
-2. 工单时效同时保留“响应时长”和“关闭时长”
-3. 满意度继续以工单满意度为主，同时纳入 `satisfactionEval` 作为客户评价满意度语义
+- `收缴率 = 实收 / 应收 * 100`
+- 仅当 `应收 > 0` 时输出
+- 精度：`ROUND(value, 4)`
 
-## 后续实现提醒
+语义层实现上，收缴率不再直接绑定到单个 Cube measure，而是通过：
 
-- `average-close-duration-hours` 与 `average-response-duration-hours` 都已纳入当前 Story 4.4 的正式 metric contract
-- `satisfactionEval` 当前已纳入口径说明；如果后续需要把“满意 / 很满意 / 一般 / 不满意 / 很不满意”做成单独统计指标，可在下一轮语义指标扩展里新增枚举分布指标
+- 分子：对应口径下的 `paid-amount`
+- 分母：对应口径下的 `receivable-amount`
+- 在 adapter 层组合为最终 `collection-rate`
+
+## 明确时间语义
+
+| 语义 Key | 含义 | 底层字段 |
+|---|---|---|
+| `receivable-accounting-period` | 应收账期 | `shouldAccountBook` |
+| `billing-cycle-end-date` | 计费结束日期 | `calcEndDate / calcEndYear` |
+| `payment-date` | 实收日期 | `operatorDate` / `paidYear` / `paidMonth` / `paidDay` |
+| `created-at` | 工单创建时间 | `create_date_time` |
+| `completed-at` | 工单完成时间 | `accomplish_date` |
+
+`business-date` 仅保留为 legacy alias，不再作为收费主题的正式建模语义。
 
 ## 设计约束
 
-- 上层代码只能使用平台内部的 metric contract，不直接拼 Cube 原始 query object
-- 任何新指标都应先登记到语义指标目录，再暴露给分析编排层
-- 如果业务定义发生变化，应优先更新这里和语义层目录，而不是在执行故事中临时修正
+- 上层分析编排只消费平台内部 metric contract，不直接手写 Cube query。
+- 收费主题必须显式区分“应收 cohort 时间语义”和“实收支付时间语义”。
+- 项目口径和尾欠口径必须作为一等指标存在，不能再通过同一个泛化 Finance 指标硬混。

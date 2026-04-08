@@ -644,7 +644,7 @@ test('analysis execution handler 会通过真实 orchestration bridge 执行步�
                 startedAt: '2026-04-08T00:00:00.000Z',
                 finishedAt: '2026-04-08T00:00:01.000Z',
                 output: {
-                  metric: 'collection-rate',
+                  metric: 'project-collection-rate',
                   rowCount: 1,
                   rows: [
                     {
@@ -720,7 +720,7 @@ test('analysis execution handler 会通过真实 orchestration bridge 执行步�
   assert.equal(result.processedStepCount, 1);
   assert.equal(result.executeCalls.length, 1);
   assert.equal(result.executeCalls[0].stepId, 'inspect-metric-change');
-  assert.equal(result.executeCalls[0].metric, 'collection-rate');
+  assert.equal(result.executeCalls[0].metric, 'project-collection-rate');
   assert.equal(result.executeCalls[0].entity, '项目 moon');
   assert.equal(result.executeCalls[0].erpResource, 'receivables');
   assert.equal(result.executeCalls[0].llmTaskType, 'conclusion-summary');

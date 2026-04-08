@@ -2,6 +2,12 @@ export type SemanticMetricKey =
   | 'collection-rate'
   | 'receivable-amount'
   | 'paid-amount'
+  | 'project-collection-rate'
+  | 'project-receivable-amount'
+  | 'project-paid-amount'
+  | 'tail-arrears-collection-rate'
+  | 'tail-arrears-receivable-amount'
+  | 'tail-arrears-paid-amount'
   | 'service-order-count'
   | 'complaint-count'
   | 'average-satisfaction'
@@ -18,6 +24,9 @@ export type SemanticDimensionKey =
 
 export type SemanticDateDimensionKey =
   | 'business-date'
+  | 'receivable-accounting-period'
+  | 'billing-cycle-end-date'
+  | 'payment-date'
   | 'created-at'
   | 'completed-at';
 
@@ -48,6 +57,7 @@ export type MetricQueryRequest = {
   metric: SemanticMetricKey;
   scope: MetricQueryScope;
   dateRange?: MetricDateRange;
+  dateRanges?: MetricDateRange[];
   granularity?: SemanticGranularity;
   groupBy?: SemanticDimensionKey[];
   filters?: MetricFilter[];
@@ -73,7 +83,9 @@ export type SemanticMetricDefinition = {
   businessDefinition: string;
   formula: string;
   sourceFact: string;
-  cubeMeasure: string;
+  cubeMeasure?: string;
+  numeratorMetricKey?: SemanticMetricKey;
+  denominatorMetricKey?: SemanticMetricKey;
   defaultDateDimension: SemanticDateDimensionKey;
   scopeMembers: {
     organization: string;

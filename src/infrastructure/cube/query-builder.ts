@@ -9,7 +9,7 @@ import { getSemanticMetricDefinition } from './metric-catalog';
 
 type CubeFilter = {
   member: string;
-  operator: 'equals';
+  operator: 'equals' | 'gte' | 'lte';
   values: string[];
 };
 
@@ -31,6 +31,14 @@ function assertValues(values: string[], message: string) {
   if (values.length === 0) {
     throw new CubeMetricQueryValidationError(message);
   }
+}
+
+function normalizeDateRanges(request: MetricQueryRequest) {
+  if (request.dateRanges?.length) {
+    return request.dateRanges;
+  }
+
+  return request.dateRange ? [request.dateRange] : [];
 }
 
 function mapFilter(
@@ -67,6 +75,12 @@ export function buildCubeLoadQuery(request: MetricQueryRequest): CubeLoadQuery {
     );
   }
 
+  if (!definition.cubeMeasure) {
+    throw new CubeMetricQueryValidationError(
+      `Metric "${request.metric}" does not map to a single Cube measure.`,
+    );
+  }
+
   const groupBy = request.groupBy ?? [];
   const dimensions = groupBy.map((dimensionKey) => {
     const member = definition.dimensions[dimensionKey];
@@ -100,23 +114,21 @@ export function buildCubeLoadQuery(request: MetricQueryRequest): CubeLoadQuery {
     filters.push(...request.filters.map((filter) => mapFilter(definition, filter)));
   }
 
-  const timeDimensions: CubeTimeDimension[] = [];
-
-  if (request.dateRange) {
-    const member = definition.dateDimensions[request.dateRange.dimension];
+  const timeDimensions = normalizeDateRanges(request).map((dateRange) => {
+    const member = definition.dateDimensions[dateRange.dimension];
 
     if (!member) {
       throw new CubeMetricQueryValidationError(
-        `Metric "${request.metric}" does not support date dimension "${request.dateRange.dimension}".`,
+        `Metric "${request.metric}" does not support date dimension "${dateRange.dimension}".`,
       );
     }
 
-    timeDimensions.push({
+    return {
       dimension: member,
-      dateRange: [request.dateRange.from, request.dateRange.to],
+      dateRange: [dateRange.from, dateRange.to],
       granularity: request.granularity,
-    });
-  }
+    } satisfies CubeTimeDimension;
+  });
 
   return {
     measures: [definition.cubeMeasure],
