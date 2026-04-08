@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 
 import type { GraphSyncDirtyScopeStore } from '@/application/graph-sync/runtime-ports';
 import type {
@@ -160,17 +160,47 @@ export function createPostgresGraphSyncDirtyScopeStore(
       return updatePendingRow(pendingRow, scope);
     },
 
-    async listDispatchableBySource(sourceName) {
+    async listPendingBySource(sourceName) {
       const rows = await resolvedDb
         .select()
         .from(graphSyncDirtyScopes)
         .where(
-          sql`${graphSyncDirtyScopes.status} in ('pending', 'failed')
+          sql`${graphSyncDirtyScopes.status} = 'pending'
             and ${graphSyncDirtyScopes.sourceProgress} ? ${sourceName}`,
         )
         .orderBy(graphSyncDirtyScopes.firstDetectedAt);
 
       return rows.map(rowToGraphSyncDirtyScope);
+    },
+
+    async listFailedBySource(sourceName) {
+      const rows = await resolvedDb
+        .select()
+        .from(graphSyncDirtyScopes)
+        .where(
+          sql`${graphSyncDirtyScopes.status} = 'failed'
+            and ${graphSyncDirtyScopes.sourceProgress} ? ${sourceName}`,
+        )
+        .orderBy(graphSyncDirtyScopes.lastDetectedAt);
+
+      return rows.map(rowToGraphSyncDirtyScope);
+    },
+
+    async listDispatchableBySource(sourceName) {
+      return this.listPendingBySource(sourceName);
+    },
+
+    async markPending(scope) {
+      const rows = await resolvedDb
+        .update(graphSyncDirtyScopes)
+        .set({
+          status: 'pending',
+          errorSummary: null,
+        })
+        .where(eq(graphSyncDirtyScopes.id, scope.id))
+        .returning();
+
+      return rowToGraphSyncDirtyScope(rows[0]);
     },
 
     async markProcessing(scope) {
@@ -213,6 +243,53 @@ export function createPostgresGraphSyncDirtyScopeStore(
         .returning();
 
       return rowToGraphSyncDirtyScope(rows[0]);
+    },
+
+    async countByStatus() {
+      const rows = await resolvedDb
+        .select({
+          status: graphSyncDirtyScopes.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(graphSyncDirtyScopes)
+        .groupBy(graphSyncDirtyScopes.status);
+
+      const counts = {
+        pending: 0,
+        processing: 0,
+        completed: 0,
+        failed: 0,
+      } as const;
+
+      return rows.reduce<Record<'pending' | 'processing' | 'completed' | 'failed', number>>(
+        (accumulator, row) => {
+          const key = row.status as keyof typeof counts;
+
+          if (key in accumulator) {
+            accumulator[key] = row.count;
+          }
+
+          return accumulator;
+        },
+        {
+          ...counts,
+        },
+      );
+    },
+
+    async listRecentFailures(limit) {
+      if (limit <= 0) {
+        return [];
+      }
+
+      const rows = await resolvedDb
+        .select()
+        .from(graphSyncDirtyScopes)
+        .where(eq(graphSyncDirtyScopes.status, 'failed'))
+        .orderBy(desc(graphSyncDirtyScopes.lastDetectedAt))
+        .limit(limit);
+
+      return rows.map(rowToGraphSyncDirtyScope);
     },
   };
 }

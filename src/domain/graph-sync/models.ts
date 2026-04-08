@@ -2,6 +2,9 @@ export const GRAPH_SYNC_RUN_MODES = [
   'full-bootstrap',
   'org-rebuild',
   'incremental-rebuild',
+  'incremental-scan',
+  'dispatch',
+  'consistency-sweep',
 ] as const;
 
 export type GraphSyncRunMode = (typeof GRAPH_SYNC_RUN_MODES)[number];

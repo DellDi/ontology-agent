@@ -3,7 +3,7 @@ import runGraphSyncJobModule from './lib/run-graph-sync-job';
 const { runGraphSyncJobCli } = runGraphSyncJobModule;
 
 runGraphSyncJobCli({
-  job: 'incremental',
+  job: 'dispatch',
   defaultTriggerType: 'scheduler',
-  defaultTriggeredBy: 'scripts/sync-neo4j-incremental.mts',
+  defaultTriggeredBy: 'scripts/sync-neo4j-dispatch.mts',
 });

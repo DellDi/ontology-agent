@@ -1,3 +1,5 @@
+import { desc } from 'drizzle-orm';
+
 import type { GraphSyncRunStore } from '@/application/graph-sync/runtime-ports';
 import type { GraphSyncRun } from '@/domain/graph-sync/models';
 import { createPostgresDb, type PostgresDb } from '@/infrastructure/postgres/client';
@@ -75,6 +77,16 @@ export function createPostgresGraphSyncRunStore(
         .returning();
 
       return rowToGraphSyncRun(rows[0]);
+    },
+
+    async listRecent(limit) {
+      const rows = await resolvedDb
+        .select()
+        .from(graphSyncRuns)
+        .orderBy(desc(graphSyncRuns.updatedAt))
+        .limit(limit);
+
+      return rows.map(rowToGraphSyncRun);
     },
   };
 }

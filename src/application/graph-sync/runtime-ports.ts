@@ -3,14 +3,17 @@ import type {
   GraphSyncCursorPosition,
   GraphSyncCursorSnapshot,
   GraphSyncDirtyScope,
+  GraphSyncDirtyScopeStatus,
   GraphSyncIncrementalChange,
   GraphSyncRun,
+  GraphSyncRunMode,
   GraphSyncSourceName,
   GraphSyncTriggerType,
 } from '@/domain/graph-sync/models';
 
 export type GraphSyncRunStore = {
   save(run: GraphSyncRun): Promise<GraphSyncRun>;
+  listRecent(limit: number): Promise<GraphSyncRun[]>;
 };
 
 export type GraphSyncCursorStore = {
@@ -20,9 +23,19 @@ export type GraphSyncCursorStore = {
 
 export type GraphSyncDirtyScopeStore = {
   upsertPending(scope: GraphSyncDirtyScope): Promise<GraphSyncDirtyScope>;
+  listPendingBySource(
+    sourceName: GraphSyncSourceName,
+  ): Promise<GraphSyncDirtyScope[]>;
+  listFailedBySource(
+    sourceName: GraphSyncSourceName,
+  ): Promise<GraphSyncDirtyScope[]>;
   listDispatchableBySource(
     sourceName: GraphSyncSourceName,
   ): Promise<GraphSyncDirtyScope[]>;
+  markPending(
+    scope: GraphSyncDirtyScope,
+    input: { retryReason: string },
+  ): Promise<GraphSyncDirtyScope>;
   markProcessing(scope: GraphSyncDirtyScope): Promise<GraphSyncDirtyScope>;
   markCompleted(
     scope: GraphSyncDirtyScope,
@@ -32,6 +45,8 @@ export type GraphSyncDirtyScopeStore = {
     scope: GraphSyncDirtyScope,
     input: { lastRunId: string | null; errorSummary: string },
   ): Promise<GraphSyncDirtyScope>;
+  countByStatus(): Promise<Record<GraphSyncDirtyScopeStatus, number>>;
+  listRecentFailures(limit: number): Promise<GraphSyncDirtyScope[]>;
 };
 
 export type GraphSyncSourceScanPort = {
@@ -47,7 +62,8 @@ export type GraphSyncSourceScanPort = {
 export type GraphSyncOrganizationRebuildRunner = {
   runOrganizationRebuild(input: {
     organizationId: string;
-    sourceName: GraphSyncSourceName;
+    mode: GraphSyncRunMode;
+    sourceName?: GraphSyncSourceName | null;
     triggerType: GraphSyncTriggerType;
     triggeredBy: string;
     cursorSnapshot: GraphSyncCursorSnapshot;

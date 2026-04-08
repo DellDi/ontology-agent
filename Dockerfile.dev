@@ -8,4 +8,4 @@ ENV APP_PORT=3000
 
 RUN corepack enable
 
-CMD ["bash", "-lc", "if [ ! -f node_modules/.modules.yaml ]; then pnpm install --frozen-lockfile; fi && pnpm dev --hostname 0.0.0.0 --port $APP_PORT"]
+CMD ["bash", "-lc", "./scripts/docker/ensure-node-modules.sh && pnpm dev --hostname 0.0.0.0 --port $APP_PORT"]
