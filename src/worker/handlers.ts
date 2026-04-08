@@ -77,12 +77,20 @@ function resolveSemanticMetricKey(
   metricValue: string,
   questionText: string,
 ): SemanticMetricKey {
+  const usesTailArrearsSemantics =
+    /尾欠|历史欠费|跨年未收|历史遗留/.test(metricValue) ||
+    /尾欠|历史欠费|跨年未收|历史遗留/.test(questionText);
+
   if (/应收/.test(metricValue) || /应收/.test(questionText)) {
-    return 'receivable-amount';
+    return usesTailArrearsSemantics
+      ? 'tail-arrears-receivable-amount'
+      : 'project-receivable-amount';
   }
 
   if (/实收|回款金额/.test(metricValue) || /实收|回款金额/.test(questionText)) {
-    return 'paid-amount';
+    return usesTailArrearsSemantics
+      ? 'tail-arrears-paid-amount'
+      : 'project-paid-amount';
   }
 
   if (/投诉/.test(metricValue) || /投诉/.test(questionText)) {
@@ -105,15 +113,22 @@ function resolveSemanticMetricKey(
     return 'service-order-count';
   }
 
-  return 'collection-rate';
+  return usesTailArrearsSemantics
+    ? 'tail-arrears-collection-rate'
+    : 'project-collection-rate';
 }
 
 function resolveDateDimension(metric: SemanticMetricKey) {
   switch (metric) {
-    case 'collection-rate':
-    case 'receivable-amount':
-    case 'paid-amount':
-      return 'business-date' as const;
+    case 'project-collection-rate':
+    case 'project-receivable-amount':
+      return 'receivable-accounting-period' as const;
+    case 'project-paid-amount':
+    case 'tail-arrears-paid-amount':
+      return 'payment-date' as const;
+    case 'tail-arrears-collection-rate':
+    case 'tail-arrears-receivable-amount':
+      return 'billing-cycle-end-date' as const;
     case 'average-satisfaction':
     case 'average-close-duration-hours':
       return 'completed-at' as const;

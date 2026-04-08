@@ -78,7 +78,14 @@ const metricQueryScopeSchema = z.object({
 });
 
 const metricDateRangeSchema = z.object({
-  dimension: z.enum(['business-date', 'created-at', 'completed-at']),
+  dimension: z.enum([
+    'business-date',
+    'receivable-accounting-period',
+    'billing-cycle-end-date',
+    'payment-date',
+    'created-at',
+    'completed-at',
+  ]),
   from: z.string().min(1),
   to: z.string().min(1),
 });
@@ -100,6 +107,12 @@ export const cubeSemanticQueryInputSchema = z.object({
     'collection-rate',
     'receivable-amount',
     'paid-amount',
+    'project-collection-rate',
+    'project-receivable-amount',
+    'project-paid-amount',
+    'tail-arrears-collection-rate',
+    'tail-arrears-receivable-amount',
+    'tail-arrears-paid-amount',
     'service-order-count',
     'complaint-count',
     'average-satisfaction',
@@ -108,6 +121,7 @@ export const cubeSemanticQueryInputSchema = z.object({
   ]),
   scope: metricQueryScopeSchema,
   dateRange: metricDateRangeSchema.optional(),
+  dateRanges: z.array(metricDateRangeSchema).optional(),
   granularity: z.enum(['day', 'week', 'month', 'quarter', 'year']).optional(),
   groupBy: z
     .array(

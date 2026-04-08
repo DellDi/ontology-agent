@@ -575,6 +575,76 @@ test('tool selection 服务抛异常时仍会回退到步骤级保守映射', as
   );
 });
 
+test('汇总归因步骤回退时仍会带上 llm 结构化分析工具', async () => {
+  const result = await runTsSnippet(`
+    import toolingModule from './src/infrastructure/tooling/index.ts';
+
+    const { createAnalysisToolingServices } = toolingModule;
+
+    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.CUBE_API_TOKEN = 'fake-cube-token';
+    process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
+    process.env.NEO4J_USERNAME = 'neo4j';
+    process.env.NEO4J_PASSWORD = 'password';
+
+    const services = createAnalysisToolingServices({
+      analysisAiUseCases: {
+        async runTask(request) {
+          return {
+            taskType: request.taskType,
+            ok: true,
+            value: {
+              strategy: '模型返回未知工具',
+              tools: [{ toolName: 'unknown-tool', objective: 'unknown', confidence: 0.1 }],
+            },
+            issues: [],
+            providerResult: { provider: 'openai-compatible', model: 'demo', finishReason: 'stop' },
+          };
+        },
+      },
+      erpReadUseCases: {
+        async listOrganizations() { return []; },
+        async listProjects() { return []; },
+        async listCurrentOwners() { return []; },
+        async listChargeItems() { return []; },
+        async listReceivables() { return []; },
+        async listPayments() { return []; },
+        async listServiceOrders() { return []; },
+      },
+      semanticQueryUseCases: {
+        async runMetricQuery() {
+          return { metric: 'project-collection-rate', rows: [{ value: 1, time: null, dimensions: {} }] };
+        },
+      },
+      graphUseCases: {
+        async expandCandidateFactors() {
+          return { mode: 'expand', factors: [{ factorKey: 'f-1', factorLabel: '因素', explanation: 'ex', relationType: 'has-payment', direction: 'outbound', source: 'erp-derived' }] };
+        },
+      },
+    });
+
+    const output = await services.analysisExecutionUseCases.selectToolsForStep({
+      stepId: 'synthesize-attribution',
+      questionText: '近三个月丰和园小区项目的收缴率和欠费压力为什么异常？',
+      planSummary: '汇总结论',
+      stepTitle: '汇总归因判断',
+      stepObjective: '基于真实证据输出可读结论。',
+      context: {
+        userId: 'user-1',
+        organizationId: 'org-1',
+        purpose: 'analysis-execution',
+      },
+    });
+
+    console.log(JSON.stringify(output));
+  `);
+
+  assert.match(result.strategy, /回退到步骤级保守映射/);
+  assert.ok(
+    result.tools.some((tool) => tool.toolName === 'llm.structured-analysis'),
+  );
+});
+
 test('executeStep 遇到 empty-result 时会保留事件并继续产出阶段结果', async () => {
   const result = await runTsSnippet(`
     import toolingModule from './src/infrastructure/tooling/index.ts';
