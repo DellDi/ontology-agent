@@ -1,6 +1,6 @@
 # Story 7.6: 图谱同步运行元数据与组织级重建
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

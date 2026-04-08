@@ -133,7 +133,94 @@ test('Story 7.6 构造的 scoped cleanup Cypher 必须限制当前组织与当�
 
   assert.match(result.cypher, /scope_org_id = \$scopeOrgId/);
   assert.match(result.cypher, /last_seen_run_id <> \$lastSeenRunId/);
+  assert.match(result.cypher, /'charge-item'/);
   assert.doesNotMatch(result.cypher, /DETACH DELETE/);
+});
+
+test('Story 7.6 cleanup 失败时必须保留已写入统计并标记 partial', async () => {
+  const result = await runTsSnippet(`
+    import graphSyncUseCasesModule from './src/application/graph-sync/use-cases.ts';
+
+    const { createGraphSyncUseCases } = graphSyncUseCasesModule;
+
+    const savedRuns = [];
+
+    const useCases = createGraphSyncUseCases({
+      erpReadUseCases: {
+        async listOrganizations() {
+          return [{ id: 'org-1', name: '组织A' }];
+        },
+        async listProjects() {
+          return [{ id: 'project-1', name: '丰和园小区项目', organizationId: 'org-1' }];
+        },
+        async listCurrentOwners() {
+          return [];
+        },
+        async listChargeItems() {
+          return [{ id: 'charge-item-1', name: '物业费' }];
+        },
+        async listReceivables() {
+          return [{ recordId: 'receivable-1', organizationId: 'org-1', projectId: 'project-1', projectName: '丰和园小区项目', chargeItemId: 'charge-item-1', chargeItemName: '物业费' }];
+        },
+        async listPayments() {
+          return [];
+        },
+        async listServiceOrders() {
+          return [];
+        },
+      },
+      graphUseCases: {
+        async syncBaseline(batch) {
+          return {
+            nodesWritten: batch.nodes.length,
+            edgesWritten: batch.edges.length,
+          };
+        },
+        async cleanupScopedData() {
+          throw new Error('cleanup failed');
+        },
+      },
+      graphSyncRunStore: {
+        async save(run) {
+          savedRuns.push(run);
+          return run;
+        },
+      },
+    });
+
+    try {
+      await useCases.runOrganizationRebuild({
+        session: {
+          userId: 'sync-user',
+          displayName: 'sync-user',
+          sessionId: 'sync-session',
+          expiresAt: '2099-01-01T00:00:00.000Z',
+          scope: {
+            organizationId: 'org-1',
+            projectIds: [],
+            areaIds: [],
+            roleCodes: ['SYSTEM_SYNC'],
+          },
+        },
+        mode: 'org-rebuild',
+        triggerType: 'manual',
+        triggeredBy: 'test-suite',
+        cursorSnapshot: {},
+      });
+    } catch (error) {
+      console.log(JSON.stringify({
+        errorMessage: error instanceof Error ? error.message : String(error),
+        runStatuses: savedRuns.map((run) => run.status),
+        finalRun: savedRuns.at(-1),
+      }));
+    }
+  `);
+
+  assert.equal(result.errorMessage, 'cleanup failed');
+  assert.deepEqual(result.runStatuses, ['pending', 'running', 'partial']);
+  assert.equal(result.finalRun.errorSummary, 'cleanup failed');
+  assert.equal(result.finalRun.nodesWritten > 0, true);
+  assert.equal(result.finalRun.edgesWritten > 0, true);
 });
 
 test('Story 7.6 org-rebuild 失败时必须把 run 记录为 failed 并保留错误摘要', async () => {
