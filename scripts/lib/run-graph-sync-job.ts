@@ -212,6 +212,7 @@ export async function runGraphSyncJobCli(input: {
     | 'incremental'
     | 'dispatch'
     | 'consistency-sweep'
+    | 'diagnose-org'
     | 'status';
   defaultTriggerType: GraphSyncTriggerType;
   defaultTriggeredBy: string;
@@ -274,6 +275,8 @@ export async function runGraphSyncJobCli(input: {
   }
 }
 
-export default {
+const runGraphSyncJobModule = {
   runGraphSyncJobCli,
 };
+
+export default runGraphSyncJobModule;

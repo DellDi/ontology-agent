@@ -32,6 +32,10 @@
   - 对补偿范围执行定期巡检重建
   - 可选：`--organizationIds=org-1,org-2`
   - 可选：`--limit=50`
+- `pnpm graph:sync:diagnose-org --organizationIds=org-1`
+  - 诊断某个组织键是否能命中真实组织主数据
+  - 输出 `organization_path` 下的下级组织数、项目数、服务单数
+  - 同时对比 `precinct.organization_id` 与真实生效的 `precinct.org_id`
 - `pnpm graph:sync:status`
   - 输出最近 run、dirty scope 积压与失败摘要
 
@@ -64,9 +68,31 @@ pnpm graph:sync:status
 - `pending` 是否持续堆积
 - `failed` 中是否存在超过最大重试阈值的范围
 
+## 真实组织键说明
+
+- 当前 ERP 源数据的真实组织主数据来自 `erp_staging.dw_datacenter_system_organization`
+- graph sync 手工重建、`bootstrap` 默认发现、`consistency-sweep` 默认发现，都应使用能命中 `source_id` 的真实组织键
+- 在当前样本数据中，`erp_staging.dw_datacenter_precinct.organization_id` 可能出现大量 `0`，它不是可靠的组织键来源
+- 对项目范围真正生效的组织键通常是 `erp_staging.dw_datacenter_precinct.org_id`
+- 当 `org-rebuild` 需要覆盖下级组织时，实际作用域来自 `dw_datacenter_system_organization.organization_path`
+
+建议先执行：
+
+```bash
+pnpm graph:sync:diagnose-org --organizationIds=<org-id>
+```
+
+重点关注：
+
+- `matchedOrganization` 是否为空
+- `precinctOrganizationIdMatchCount` 是否只是命中伪值
+- `precinctOrgIdMatchCount`、`projectCount`、`serviceOrderCount` 是否能说明真实覆盖范围
+- `diagnostics` 是否提示“实际作用域键为 org_id”或“来自 organization_path 扩展”
+
 ## 人工介入顺序
 
 1. 先看 `pnpm graph:sync:status`
-2. 对 retryable failed scope 执行 `pnpm graph:sync:dispatch --retry-failed`
-3. 对单个高价值组织执行 `pnpm graph:sync:org --organizationIds=<org-id>`
-4. 如怀疑源端漏标或游标质量问题，执行 `pnpm graph:sync:consistency-sweep`
+2. 如怀疑组织键不真实，先看 `pnpm graph:sync:diagnose-org --organizationIds=<org-id>`
+3. 对 retryable failed scope 执行 `pnpm graph:sync:dispatch --retry-failed`
+4. 对单个高价值组织执行 `pnpm graph:sync:org --organizationIds=<org-id>`
+5. 如怀疑源端漏标或游标质量问题，执行 `pnpm graph:sync:consistency-sweep`

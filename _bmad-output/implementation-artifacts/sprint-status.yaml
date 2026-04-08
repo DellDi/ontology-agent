@@ -101,7 +101,7 @@ development_status:
   7-5-account-or-mobile-login-and-url-passwordless-bridge: ready-for-dev
   7-6-graph-sync-run-metadata-and-org-rebuild: done
   7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch: done
-  7-8-graph-sync-scheduling-compensation-and-consistency-sweep: review
+  7-8-graph-sync-scheduling-compensation-and-consistency-sweep: done
   epic-7-retrospective: optional
 
   epic-8: in-progress

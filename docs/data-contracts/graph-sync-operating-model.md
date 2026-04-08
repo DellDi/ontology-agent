@@ -246,7 +246,7 @@ Neo4j 写入时建议为所有节点/边补如下属性：
 | source | 组织提取方式 |
 |---|---|
 | `organizations` | `source_id` 或 path 自身 |
-| `projects` | `org_id` 或修正后的 `organization_id` |
+| `projects` | 优先使用 `org_id`；`organization_id` 仅在确认与组织主表 `source_id` 对齐时可用 |
 | `owners` | `org_id` |
 | `charge_items` | `organization_id`，若为空不直接派发 |
 | `receivables` | `organization_id` |
