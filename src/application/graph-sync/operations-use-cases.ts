@@ -52,6 +52,24 @@ type GraphSyncOrganizationSource = {
   listOrganizationIds(input?: {
     limit?: number | null;
   }): Promise<string[]>;
+  diagnoseOrganizationIds(input: {
+    organizationIds: string[];
+  }): Promise<
+    {
+      requestedOrganizationId: string;
+      matchedOrganization: {
+        organizationId: string;
+        organizationName: string;
+        organizationPath: string | null;
+      } | null;
+      descendantOrganizationCount: number;
+      projectCount: number;
+      serviceOrderCount: number;
+      precinctOrganizationIdMatchCount: number;
+      precinctOrgIdMatchCount: number;
+      diagnostics: string[];
+    }[]
+  >;
 };
 
 function buildGraphSyncJobRun(input: {
@@ -467,6 +485,32 @@ export function createGraphSyncOperationsUseCases({
 
       return {
         job: 'consistency-sweep' as const,
+        organizationIds,
+        summaries,
+      };
+    },
+
+    async runDiagnoseOrgJob(input: {
+      organizationIds: string[];
+      triggerType: GraphSyncTriggerType;
+      triggeredBy: string;
+    }) {
+      const organizationIds = input.organizationIds
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      if (organizationIds.length === 0) {
+        throw new Error('组织诊断必须显式提供 organizationIds。');
+      }
+
+      const summaries = await organizationSource.diagnoseOrganizationIds({
+        organizationIds,
+      });
+
+      return {
+        job: 'diagnose-org' as const,
+        triggerType: input.triggerType,
+        triggeredBy: input.triggeredBy,
         organizationIds,
         summaries,
       };

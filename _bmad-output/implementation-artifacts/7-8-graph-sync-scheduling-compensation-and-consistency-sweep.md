@@ -1,6 +1,6 @@
 # Story 7.8: 图谱同步调度、补偿与一致性巡检
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

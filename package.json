@@ -13,6 +13,7 @@
     "graph:sync:incremental": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/sync-neo4j-incremental.mts",
     "graph:sync:dispatch": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/sync-neo4j-dispatch.mts",
     "graph:sync:consistency-sweep": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/sync-neo4j-consistency-sweep.mts",
+    "graph:sync:diagnose-org": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/sync-neo4j-diagnose-org.mts",
     "graph:sync:status": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/sync-neo4j-status.mts",
     "cube:token": "node scripts/generate-cube-dev-token.mjs",
     "test:smoke:bailian": "NODE_OPTIONS=--conditions=react-server RUN_BAILIAN_SMOKE_TEST=1 npx tsx --test tests/story-4-1-bailian-smoke.test.mts",

@@ -33,6 +33,11 @@ type GraphSyncOperationsUseCases = {
     triggerType: GraphSyncTriggerType;
     triggeredBy: string;
   }): Promise<unknown>;
+  runDiagnoseOrgJob(input: {
+    organizationIds: string[];
+    triggerType: GraphSyncTriggerType;
+    triggeredBy: string;
+  }): Promise<unknown>;
   getStatus(input?: {
     recentRunLimit?: number;
     maxRetryAttempts?: number;
@@ -52,6 +57,7 @@ export function createGraphSyncJobRunner({
         | 'incremental'
         | 'dispatch'
         | 'consistency-sweep'
+        | 'diagnose-org'
         | 'status';
       organizationIds?: string[];
       sourceNames?: GraphSyncSourceName[];
@@ -95,6 +101,12 @@ export function createGraphSyncJobRunner({
             organizationIds: input.organizationIds,
             limit: input.limit,
             triggerType: input.triggerType ?? 'recovery',
+            triggeredBy: input.triggeredBy ?? 'scripts/graph-sync-job',
+          });
+        case 'diagnose-org':
+          return operationsUseCases.runDiagnoseOrgJob({
+            organizationIds: input.organizationIds ?? [],
+            triggerType: input.triggerType ?? 'manual',
             triggeredBy: input.triggeredBy ?? 'scripts/graph-sync-job',
           });
         case 'status':
