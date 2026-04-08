@@ -75,6 +75,28 @@ function toCursorPosition(
   };
 }
 
+function deriveTargetCursorFromScopes(
+  scopes: GraphSyncDirtyScope[],
+  sourceName: GraphSyncSourceName,
+) {
+  let targetCursor: GraphSyncCursorPosition | null = null;
+
+  for (const scope of scopes) {
+    const sourceState = scope.sourceProgress[sourceName];
+
+    if (!sourceState) {
+      continue;
+    }
+
+    targetCursor = maxGraphSyncCursorPosition(targetCursor, {
+      cursorTime: sourceState.cursorTime,
+      cursorPk: sourceState.cursorPk,
+    });
+  }
+
+  return targetCursor;
+}
+
 export function createGraphSyncIncrementalUseCases({
   sourceScanPort,
   cursorStore,
@@ -133,6 +155,9 @@ export function createGraphSyncIncrementalUseCases({
       const dispatchableScopes = await dirtyScopeStore.listDispatchableBySource(
         input.sourceName,
       );
+      const resolvedTargetCursor =
+        input.targetCursor ??
+        deriveTargetCursorFromScopes(dispatchableScopes, input.sourceName);
 
       const rebuiltOrganizations: string[] = [];
       let lastRunId: string | null = null;
@@ -143,6 +168,7 @@ export function createGraphSyncIncrementalUseCases({
         try {
           const rebuildResult = await orgRebuildRunner.runOrganizationRebuild({
             organizationId: processingScope.scopeKey,
+            mode: 'incremental-rebuild',
             sourceName: input.sourceName,
             triggerType: input.triggerType,
             triggeredBy: input.triggeredBy,
@@ -176,11 +202,11 @@ export function createGraphSyncIncrementalUseCases({
 
       let advancedCursor: GraphSyncCursor | null = null;
 
-      if (input.targetCursor) {
+      if (resolvedTargetCursor) {
         advancedCursor = await cursorStore.save({
           sourceName: input.sourceName,
-          cursorTime: input.targetCursor.cursorTime,
-          cursorPk: input.targetCursor.cursorPk,
+          cursorTime: resolvedTargetCursor.cursorTime,
+          cursorPk: resolvedTargetCursor.cursorPk,
           lastRunId,
           updatedAt: new Date().toISOString(),
         });

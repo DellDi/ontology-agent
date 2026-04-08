@@ -1,6 +1,6 @@
 # Story 7.8: 图谱同步调度、补偿与一致性巡检
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,35 +18,35 @@ so that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
 
 ## Tasks / Subtasks
 
-- [ ] 建立 graph sync job 拆分与统一入口（AC: 1, 3）
-  - [ ] 在现有 [graph:sync:neo4j](/Users/delldi/work-code/open-code/ontology-agent/package.json) 基础上，拆出明确的运行入口，至少覆盖：
+- [x] 建立 graph sync job 拆分与统一入口（AC: 1, 3）
+  - [x] 在现有 [graph:sync:neo4j](/Users/delldi/work-code/open-code/ontology-agent/package.json) 基础上，拆出明确的运行入口，至少覆盖：
     - `graph:sync:bootstrap`
     - `graph:sync:org`
     - `graph:sync:incremental`
     - `graph:sync:dispatch`
     - `graph:sync:consistency-sweep`
-  - [ ] 统一各入口的参数、日志格式和退出码语义，避免不同脚本各自定义成功/失败标准。
-  - [ ] 保留手工按组织触发 `org-rebuild` 的运维入口，便于补偿与灾后校正。
-- [ ] 建立失败补偿与重试语义（AC: 2, 3）
-  - [ ] 定义 dirty scope 的失败状态、重试次数与最大重试阈值。
-  - [ ] 对失败 run 与 dirty scope 提供显式的重试路径，不允许“失败后静默消失”。
-  - [ ] 明确单组织失败不回滚全局 run，但必须保留 `failed / partial` 终态和足够的错误上下文。
-- [ ] 建立 consistency sweep 机制（AC: 1, 2）
-  - [ ] 新增一致性巡检 use case，用于周期性抽取关键组织或指定范围执行补偿性 `org-rebuild`。
-  - [ ] sweep 不得绕过 `7.6` 和 `7.7` 的正式运行模型，仍需复用 run metadata 与受控 rebuild 路径。
-  - [ ] 明确 sweep 与增量任务的职责边界：增量负责追新，sweep 负责查漏补缺和定期校正。
-- [ ] 把 graph sync 运行状态接入观测与运维信息面（AC: 3）
-  - [ ] 与 [Story 7.4](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 对齐，至少暴露：
+  - [x] 统一各入口的参数、日志格式和退出码语义，避免不同脚本各自定义成功/失败标准。
+  - [x] 保留手工按组织触发 `org-rebuild` 的运维入口，便于补偿与灾后校正。
+- [x] 建立失败补偿与重试语义（AC: 2, 3）
+  - [x] 定义 dirty scope 的失败状态、重试次数与最大重试阈值。
+  - [x] 对失败 run 与 dirty scope 提供显式的重试路径，不允许“失败后静默消失”。
+  - [x] 明确单组织失败不回滚全局 run，但必须保留 `failed / partial` 终态和足够的错误上下文。
+- [x] 建立 consistency sweep 机制（AC: 1, 2）
+  - [x] 新增一致性巡检 use case，用于周期性抽取关键组织或指定范围执行补偿性 `org-rebuild`。
+  - [x] sweep 不得绕过 `7.6` 和 `7.7` 的正式运行模型，仍需复用 run metadata 与受控 rebuild 路径。
+  - [x] 明确 sweep 与增量任务的职责边界：增量负责追新，sweep 负责查漏补缺和定期校正。
+- [x] 把 graph sync 运行状态接入观测与运维信息面（AC: 3）
+  - [x] 与 [Story 7.4](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 对齐，至少暴露：
     - 最近 run 状态
     - dirty scope pending / failed 数量
     - 最近失败摘要
     - 可触发的手工重试入口或 runbook 指引
-  - [ ] 为 graph sync job 补结构化日志字段和最小 metrics，不要求一次做完整 dashboard，但要有可消费的观测面。
-- [ ] 补齐调度、补偿与 sweep 测试（AC: 1, 2, 3）
-  - [ ] 验证不同 job 入口能路由到正确 use case。
-  - [ ] 验证失败 dirty scope 可被重试且不会提前清空。
-  - [ ] 验证 consistency sweep 调用的是受控 `org-rebuild`。
-  - [ ] 验证运维状态输出能体现 run / backlog / failure 信息。
+  - [x] 为 graph sync job 补结构化日志字段和最小 metrics，不要求一次做完整 dashboard，但要有可消费的观测面。
+- [x] 补齐调度、补偿与 sweep 测试（AC: 1, 2, 3）
+  - [x] 验证不同 job 入口能路由到正确 use case。
+  - [x] 验证失败 dirty scope 可被重试且不会提前清空。
+  - [x] 验证 consistency sweep 调用的是受控 `org-rebuild`。
+  - [x] 验证运维状态输出能体现 run / backlog / failure 信息。
 
 ## Dev Notes
 
@@ -142,11 +142,42 @@ GPT-5 Codex
 - `sed -n '220,360p' docs/data-contracts/graph-sync-operating-model.md`
 - `sed -n '1,280p' _bmad-output/implementation-artifacts/7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch.md`
 - `sed -n '1,260p' _bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md`
+- `node --test tests/story-7-8-graph-sync-operations.test.mjs`
+- `node --test tests/story-4-5-graph-sync-use-cases.test.mjs tests/story-7-6-graph-sync-runtime.test.mjs tests/story-7-7-graph-sync-incremental.test.mjs tests/story-7-8-graph-sync-operations.test.mjs`
+- `pnpm lint`
+- `pnpm build`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增 graph sync 运行 orchestration use case 与 job runner，把 `bootstrap / org / incremental / dispatch / consistency-sweep / status` 收敛到统一入口。
+- 将增量链路拆分为独立 `incremental` 扫描与 `dispatch` 派发 job，并为扫描失败与派发部分失败补 run 记录，保留补偿上下文。
+- 扩展 dirty scope / run store 的查询与状态能力，支持显式 failed scope 重试、最大重试阈值和运维状态聚合。
+- 新增 graph sync runbook 与统一 JSON 日志包络，提供 backlog、失败摘要和人工介入指引。
+- graph sync 相关 story 回归、`pnpm lint` 与 `pnpm build` 已通过；本次未重跑仓库全量串行 suite。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/7-8-graph-sync-scheduling-compensation-and-consistency-sweep.md
+- docs/runbooks/graph-sync-operations.md
+- package.json
+- scripts/lib/run-graph-sync-job.ts
+- scripts/sync-neo4j-baseline.mts
+- scripts/sync-neo4j-bootstrap.mts
+- scripts/sync-neo4j-consistency-sweep.mts
+- scripts/sync-neo4j-dispatch.mts
+- scripts/sync-neo4j-incremental.mts
+- scripts/sync-neo4j-org.mts
+- scripts/sync-neo4j-status.mts
+- src/application/graph-sync/incremental-use-cases.ts
+- src/application/graph-sync/job-runner.ts
+- src/application/graph-sync/operations-use-cases.ts
+- src/application/graph-sync/runtime-ports.ts
+- src/domain/graph-sync/models.ts
+- src/infrastructure/graph-sync/postgres-graph-sync-dirty-scope-store.ts
+- src/infrastructure/graph-sync/postgres-graph-sync-organization-source.ts
+- src/infrastructure/graph-sync/postgres-graph-sync-run-store.ts
+- tests/story-7-8-graph-sync-operations.test.mjs
+
+### Change Log
+
+- 2026-04-08: 实现 graph sync 统一 job 入口、失败补偿、consistency sweep、状态汇总与运维 runbook，并完成 story 级验证。
