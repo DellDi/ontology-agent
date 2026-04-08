@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-25
-last_updated: 2026-04-07
+last_updated: 2026-04-08
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -99,6 +99,9 @@ development_status:
   7-3-self-hosted-container-deployment-baseline: ready-for-dev
   7-4-observability-and-availability-monitoring: ready-for-dev
   7-5-account-or-mobile-login-and-url-passwordless-bridge: ready-for-dev
+  7-6-graph-sync-run-metadata-and-org-rebuild: review
+  7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch: ready-for-dev
+  7-8-graph-sync-scheduling-compensation-and-consistency-sweep: ready-for-dev
   epic-7-retrospective: optional
 
   epic-8: in-progress

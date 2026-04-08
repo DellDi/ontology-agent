@@ -1,6 +1,7 @@
 export { authSessions, platformSchema } from './auth-sessions';
 export { analysisSessions } from './analysis-sessions';
 export { analysisExecutionSnapshots } from './analysis-execution-snapshots';
+export { graphSyncRuns } from './graph-sync-runs';
 export {
   erpChargeItems,
   erpOrganizations,

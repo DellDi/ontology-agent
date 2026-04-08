@@ -4,6 +4,10 @@
 
 本文件定义首批进入图谱层的实体、关系边与同步来源，确保候选因素扩展与关系推理来自受控的 Neo4j baseline，而不是运行时随手写图。
 
+运行时交付与持续同步方案见：
+
+- [graph-sync-operating-model.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md)
+
 ## 首批实体
 
 - Organization

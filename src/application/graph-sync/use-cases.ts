@@ -1,5 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
 import type { AuthSession } from '@/domain/auth/models';
+import type { GraphSyncRun, GraphSyncCursorSnapshot } from '@/domain/graph-sync/models';
 import { buildGraphSyncBatch } from '@/infrastructure/sync/neo4j-graph-sync';
+import { attachGraphSyncRuntimeMetadata } from '@/infrastructure/sync/neo4j-graph-sync';
+import type { GraphSyncRunStore } from './runtime-ports';
 
 type ErpReadUseCases = {
   listOrganizations: (session: AuthSession) => Promise<{ id: string; name: string }[]>;
@@ -73,14 +78,61 @@ type GraphUseCases = {
     nodesWritten: number;
     edgesWritten: number;
   }>;
+  cleanupScopedData?: (input: {
+    scopeOrgId: string;
+    lastSeenRunId: string;
+  }) => Promise<{
+    deletedNodes: number;
+    deletedEdges: number;
+  }>;
 };
+
+function buildGraphSyncRun(input: {
+  id?: string;
+  mode: GraphSyncRun['mode'];
+  status: GraphSyncRun['status'];
+  scopeKey: string;
+  triggerType: GraphSyncRun['triggerType'];
+  triggeredBy: string;
+  cursorSnapshot: GraphSyncCursorSnapshot;
+  nodesWritten?: number;
+  edgesWritten?: number;
+  errorSummary?: string | null;
+  errorDetail?: Record<string, unknown> | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string;
+}) {
+  const now = new Date().toISOString();
+
+  return {
+    id: input.id ?? randomUUID(),
+    mode: input.mode,
+    status: input.status,
+    scopeType: 'organization' as const,
+    scopeKey: input.scopeKey,
+    triggerType: input.triggerType,
+    triggeredBy: input.triggeredBy,
+    cursorSnapshot: input.cursorSnapshot,
+    nodesWritten: input.nodesWritten ?? 0,
+    edgesWritten: input.edgesWritten ?? 0,
+    errorSummary: input.errorSummary ?? null,
+    errorDetail: input.errorDetail ?? null,
+    startedAt: input.startedAt ?? null,
+    finishedAt: input.finishedAt ?? null,
+    createdAt: input.createdAt ?? now,
+    updatedAt: now,
+  } satisfies GraphSyncRun;
+}
 
 export function createGraphSyncUseCases({
   erpReadUseCases,
   graphUseCases,
+  graphSyncRunStore,
 }: {
   erpReadUseCases: ErpReadUseCases;
   graphUseCases: GraphUseCases;
+  graphSyncRunStore?: GraphSyncRunStore;
 }) {
   function mergeProjects(input: {
     projects: Awaited<ReturnType<ErpReadUseCases['listProjects']>>;
@@ -248,6 +300,101 @@ export function createGraphSyncUseCases({
       });
 
       return await graphUseCases.syncBaseline(batch);
+    },
+
+    async runOrganizationRebuild(input: {
+      session: AuthSession;
+      mode: GraphSyncRun['mode'];
+      triggerType: GraphSyncRun['triggerType'];
+      triggeredBy: string;
+      cursorSnapshot: GraphSyncCursorSnapshot;
+    }) {
+      if (!graphSyncRunStore) {
+        throw new Error('Graph sync run store is not configured.');
+      }
+      if (!graphUseCases.cleanupScopedData) {
+        throw new Error('Graph scoped cleanup is not configured.');
+      }
+
+      const scopeOrgId = input.session.scope.organizationId;
+      const scopeKey = `organization:${scopeOrgId}`;
+      const pendingRun = buildGraphSyncRun({
+        mode: input.mode,
+        status: 'pending',
+        scopeKey,
+        triggerType: input.triggerType,
+        triggeredBy: input.triggeredBy,
+        cursorSnapshot: input.cursorSnapshot,
+      });
+
+      await graphSyncRunStore.save(pendingRun);
+
+      const runningStartedAt = new Date().toISOString();
+      const runningRun = buildGraphSyncRun({
+        ...pendingRun,
+        status: 'running',
+        startedAt: runningStartedAt,
+        createdAt: pendingRun.createdAt,
+      });
+
+      await graphSyncRunStore.save(runningRun);
+
+      try {
+        const batch = await this.buildBatch({
+          session: input.session,
+        });
+        const enrichedBatch = attachGraphSyncRuntimeMetadata(batch, {
+          scopeOrgId,
+          lastSeenRunId: runningRun.id,
+          lastSeenAt: runningRun.updatedAt,
+        });
+        const syncResult = await graphUseCases.syncBaseline(enrichedBatch);
+        await graphUseCases.cleanupScopedData({
+          scopeOrgId,
+          lastSeenRunId: runningRun.id,
+        });
+
+        const completedRun = buildGraphSyncRun({
+          ...runningRun,
+          status: 'completed',
+          nodesWritten: syncResult.nodesWritten,
+          edgesWritten: syncResult.edgesWritten,
+          startedAt: runningStartedAt,
+          finishedAt: new Date().toISOString(),
+          createdAt: pendingRun.createdAt,
+        });
+
+        await graphSyncRunStore.save(completedRun);
+
+        return {
+          run: completedRun,
+          nodesWritten: syncResult.nodesWritten,
+          edgesWritten: syncResult.edgesWritten,
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Graph sync org rebuild failed.';
+        const failedRun = buildGraphSyncRun({
+          ...runningRun,
+          status: 'failed',
+          errorSummary: message,
+          errorDetail:
+            error instanceof Error
+              ? {
+                  name: error.name,
+                  message: error.message,
+                }
+              : {
+                  message,
+                },
+          startedAt: runningStartedAt,
+          finishedAt: new Date().toISOString(),
+          createdAt: pendingRun.createdAt,
+        });
+
+        await graphSyncRunStore.save(failedRun);
+        throw error;
+      }
     },
   };
 }

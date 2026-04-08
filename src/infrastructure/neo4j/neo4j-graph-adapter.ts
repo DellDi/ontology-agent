@@ -17,6 +17,8 @@ import {
 import {
   buildNeo4jEdgeSyncCypher,
   buildNeo4jNodeSyncCypher,
+  buildNeo4jScopedEdgeCleanupCypher,
+  buildNeo4jScopedNodeCleanupCypher,
 } from '@/infrastructure/sync/neo4j-graph-sync';
 
 type DriverLike = ReturnType<typeof neo4j.driver>;
@@ -301,6 +303,40 @@ export function createNeo4jGraphAdapter(
       } catch (error) {
         throw new Neo4jGraphResponseError(
           error instanceof Error ? error.message : 'Neo4j sync failed.',
+        );
+      } finally {
+        await driver.close();
+      }
+    },
+
+    async cleanupScopedData(input) {
+      if (!isNeo4jConfigured()) {
+        throw new Neo4jGraphUnavailableError();
+      }
+
+      const driver = driverFactory();
+
+      try {
+        const config = getNeo4jGraphConfig();
+        const edgeResult = await driver.executeQuery(
+          buildNeo4jScopedEdgeCleanupCypher(),
+          input,
+          { database: config.database },
+        );
+        const nodeResult = await driver.executeQuery(
+          buildNeo4jScopedNodeCleanupCypher(),
+          input,
+          { database: config.database },
+        );
+
+        return {
+          deletedEdges:
+            edgeResult.summary.counters.updates().relationshipsDeleted ?? 0,
+          deletedNodes: nodeResult.summary.counters.updates().nodesDeleted ?? 0,
+        };
+      } catch (error) {
+        throw new Neo4jGraphResponseError(
+          error instanceof Error ? error.message : 'Neo4j scoped cleanup failed.',
         );
       } finally {
         await driver.close();

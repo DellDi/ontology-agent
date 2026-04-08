@@ -224,6 +224,38 @@ export function buildGraphSyncBatch(snapshot: SyncEntitySnapshot): GraphSyncBatc
   };
 }
 
+export function attachGraphSyncRuntimeMetadata(
+  batch: GraphSyncBatch,
+  runtime: {
+    scopeOrgId: string;
+    lastSeenRunId: string;
+    lastSeenAt: string;
+  },
+): GraphSyncBatch {
+  const sharedProperties = {
+    scope_org_id: runtime.scopeOrgId,
+    last_seen_run_id: runtime.lastSeenRunId,
+    last_seen_at: runtime.lastSeenAt,
+  };
+
+  return {
+    nodes: batch.nodes.map((node) => ({
+      ...node,
+      properties: {
+        ...(node.properties ?? {}),
+        ...sharedProperties,
+      },
+    })),
+    edges: batch.edges.map((edge) => ({
+      ...edge,
+      properties: {
+        ...(edge.properties ?? {}),
+        ...sharedProperties,
+      },
+    })),
+  };
+}
+
 export function buildNeo4jNodeSyncCypher() {
   return `
 UNWIND $nodes AS node
@@ -240,10 +272,48 @@ MATCH (to:GraphNode {kind: edge.toKind, id: edge.toId})
 MERGE (from)-[r:GRAPH_EDGE {kind: edge.kind, toId: edge.toId, fromId: edge.fromId}]->(to)
 SET r.direction = edge.direction,
     r.source = edge.source,
-    r.explanation = edge.explanation
+    r.explanation = edge.explanation,
+    r += coalesce(edge.properties, {})
 `;
 }
 
 export function buildNeo4jSyncCypher() {
   return `${buildNeo4jNodeSyncCypher()}\n${buildNeo4jEdgeSyncCypher()}`;
 }
+
+export function buildNeo4jScopedEdgeCleanupCypher() {
+  return `
+MATCH ()-[r:GRAPH_EDGE]->()
+WHERE r.scope_org_id = $scopeOrgId
+  AND r.last_seen_run_id <> $lastSeenRunId
+DELETE r
+`;
+}
+
+export function buildNeo4jScopedNodeCleanupCypher() {
+  return `
+MATCH (n:GraphNode)
+WHERE n.scope_org_id = $scopeOrgId
+  AND n.last_seen_run_id <> $lastSeenRunId
+  AND n.kind IN ['organization', 'project', 'house', 'owner', 'receivable', 'payment', 'service-order', 'complaint', 'satisfaction']
+  AND NOT (n)--()
+DELETE n
+`;
+}
+
+export function buildNeo4jScopedCleanupCypher() {
+  return `${buildNeo4jScopedEdgeCleanupCypher()}\n${buildNeo4jScopedNodeCleanupCypher()}`;
+}
+
+const graphSyncModule = {
+  buildGraphSyncBatch,
+  attachGraphSyncRuntimeMetadata,
+  buildNeo4jNodeSyncCypher,
+  buildNeo4jEdgeSyncCypher,
+  buildNeo4jSyncCypher,
+  buildNeo4jScopedEdgeCleanupCypher,
+  buildNeo4jScopedNodeCleanupCypher,
+  buildNeo4jScopedCleanupCypher,
+};
+
+export default graphSyncModule;

@@ -83,6 +83,7 @@ export type GraphSyncEdge = {
   direction: GraphEdgeDirection;
   source: GraphEvidenceSource;
   explanation: string;
+  properties?: Record<string, string | number | boolean | null>;
 };
 
 export type GraphSyncBatch = {
