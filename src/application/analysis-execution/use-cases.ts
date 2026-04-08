@@ -58,6 +58,7 @@ const STEP_TOOL_FALLBACKS: Record<string, AnalysisToolName[]> = {
     'cube.semantic-query',
     'neo4j.graph-query',
     'erp.read-model',
+    'llm.structured-analysis',
     'platform.capability-status',
   ],
 };
@@ -106,6 +107,140 @@ function buildFallbackSelection(
       objective: '基于步骤语义的保守工具回退选择。',
       confidence: 0.5,
     }));
+}
+
+function summarizeToolEventForConclusion(
+  event: AnalysisToolInvocationResult,
+): string | null {
+  if (!event.ok) {
+    return `工具 ${event.toolName} 失败：${event.error.message}`;
+  }
+
+  switch (event.toolName) {
+    case 'cube.semantic-query': {
+      const output = event.output as {
+        metric?: string;
+        rowCount?: number;
+        rows?: { value: number | null; time: string | null }[];
+      };
+      const firstValue = output.rows?.[0]?.value;
+
+      return [
+        output.metric ? `指标 ${output.metric}` : 'Cube 指标',
+        typeof output.rowCount === 'number' ? `返回 ${output.rowCount} 行` : null,
+        firstValue !== null && firstValue !== undefined
+          ? `首条值 ${firstValue}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('，');
+    }
+    case 'neo4j.graph-query': {
+      const output = event.output as {
+        factors?: { factorLabel?: string; explanation?: string }[];
+      };
+      const firstFactor = output.factors?.[0];
+      const factorCount = output.factors?.length ?? 0;
+
+      if (factorCount === 0) {
+        return 'Neo4j 未返回候选因素。';
+      }
+
+      return [
+        `Neo4j 返回 ${factorCount} 个候选因素`,
+        firstFactor?.factorLabel ? `首个因素 ${firstFactor.factorLabel}` : null,
+        firstFactor?.explanation ?? null,
+      ]
+        .filter(Boolean)
+        .join('，');
+    }
+    case 'erp.read-model': {
+      const output = event.output as {
+        resource?: string;
+        count?: number;
+      };
+
+      return [
+        'ERP 读取结果',
+        output.resource ? `资源 ${output.resource}` : null,
+        typeof output.count === 'number' ? `记录数 ${output.count}` : null,
+      ]
+        .filter(Boolean)
+        .join('，');
+    }
+    case 'platform.capability-status': {
+      const output = event.output as {
+        capabilities?: {
+          llm?: { status?: string };
+          erp?: { status?: string };
+          cube?: { status?: string };
+          neo4j?: { status?: string };
+        };
+      };
+
+      return [
+        '平台能力状态',
+        output.capabilities?.llm?.status
+          ? `LLM=${output.capabilities.llm.status}`
+          : null,
+        output.capabilities?.erp?.status
+          ? `ERP=${output.capabilities.erp.status}`
+          : null,
+        output.capabilities?.cube?.status
+          ? `Cube=${output.capabilities.cube.status}`
+          : null,
+        output.capabilities?.neo4j?.status
+          ? `Neo4j=${output.capabilities.neo4j.status}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('，');
+    }
+    default:
+      return null;
+  }
+}
+
+function buildConclusionSummaryToolInput(
+  input: unknown,
+  events: AnalysisToolInvocationResult[],
+) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return input;
+  }
+
+  const candidate = input as {
+    taskType?: string;
+    input?: {
+      questionText?: string;
+      evidenceSummary?: string;
+    };
+  };
+
+  if (
+    candidate.taskType !== 'conclusion-summary' ||
+    !candidate.input ||
+    typeof candidate.input !== 'object'
+  ) {
+    return input;
+  }
+
+  const evidenceSummary = [
+    candidate.input.evidenceSummary?.trim() || null,
+    ...events.map(summarizeToolEventForConclusion),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .slice(0, 6)
+    .join('\n')
+    .slice(0, 2_000);
+
+  return {
+    ...candidate,
+    input: {
+      ...candidate.input,
+      evidenceSummary,
+    },
+  };
 }
 
 export function createAnalysisExecutionUseCases({
@@ -210,7 +345,13 @@ export function createAnalysisExecutionUseCases({
       for (const tool of selection.tools) {
         const event = await toolRegistryUseCases.invokeTool({
           toolName: tool.toolName,
-          input: toolInputsByName[tool.toolName],
+          input:
+            tool.toolName === 'llm.structured-analysis'
+              ? buildConclusionSummaryToolInput(
+                  toolInputsByName[tool.toolName],
+                  events,
+                )
+              : toolInputsByName[tool.toolName],
           context: invocationContext,
         });
 

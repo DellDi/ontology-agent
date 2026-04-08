@@ -280,21 +280,22 @@ function buildToolInputs(input: {
     'platform.capability-status': {},
     'llm.structured-analysis': {
       taskType: 'conclusion-summary' as const,
+      model: 'bailian/qwen3.6-plus',
       input: {
         questionText: input.questionText,
         evidenceSummary: [
-          `执行步骤：${input.step.title}`,
-          `步骤目标：${input.step.objective}`,
-          `计划摘要：${input.planSummary}`,
-          `目标指标：${input.context.targetMetric.value}`,
-          `实体对象：${input.context.entity.value}`,
-          `时间范围：${input.context.timeRange.value}`,
+          `步骤：${input.step.title}`,
+          `目标：${input.step.objective}`,
+          `指标：${input.context.targetMetric.value}`,
+          `实体：${input.context.entity.value}`,
+          `时间：${input.context.timeRange.value}`,
         ].join('\n'),
       },
       context: {
         userId: input.ownerUserId,
         organizationId: input.organizationId,
         purpose: 'analysis-execution',
+        timeoutMs: 60_000,
         sessionId: input.sessionId,
       },
     },
@@ -509,6 +510,123 @@ function buildToolOutputBlocks(event: AnalysisToolInvocationResult) {
   }
 }
 
+function extractStructuredConclusion(
+  result: OrchestrationStepExecutionResult,
+): {
+  summary?: string;
+  conclusion?: string;
+  confidence?: number | null;
+  evidence?: { label: string; summary: string }[];
+} {
+  const llmEvent = result.events.find(
+    (event) => event.ok && event.toolName === 'llm.structured-analysis',
+  );
+
+  if (!llmEvent || !llmEvent.ok) {
+    return {};
+  }
+
+  const output = llmEvent.output as {
+    value?: {
+      summary?: string;
+      conclusion?: string;
+      evidence?: { label?: string; detail?: string }[];
+      confidence?: number;
+    };
+  };
+
+  return {
+    summary: output.value?.summary?.trim(),
+    conclusion: output.value?.conclusion?.trim(),
+    confidence:
+      typeof output.value?.confidence === 'number'
+        ? output.value.confidence
+        : null,
+    evidence: (output.value?.evidence ?? [])
+      .map((item) => ({
+        label: item.label?.trim() || '',
+        summary: item.detail?.trim() || '',
+      }))
+      .filter((item) => item.label && item.summary),
+  };
+}
+
+function buildStepResultMessage(result: OrchestrationStepExecutionResult, stepOrder: number) {
+  if (result.status !== 'completed') {
+    return result.error?.message ?? `步骤 ${stepOrder} 执行失败。`;
+  }
+
+  const structuredConclusion = extractStructuredConclusion(result);
+
+  if (structuredConclusion.summary) {
+    return structuredConclusion.summary;
+  }
+
+  const cubeEvent = result.events.find(
+    (event) => event.ok && event.toolName === 'cube.semantic-query',
+  );
+
+  if (cubeEvent && cubeEvent.ok) {
+    const output = cubeEvent.output as {
+      metric?: string;
+      rowCount?: number;
+      rows?: { value: number | null }[];
+    };
+
+    return [
+      output.metric ? `已返回指标 ${output.metric}` : '已返回指标结果',
+      typeof output.rowCount === 'number' ? `${output.rowCount} 行` : null,
+      output.rows?.[0]?.value !== null && output.rows?.[0]?.value !== undefined
+        ? `首条值 ${output.rows[0].value}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join('，');
+  }
+
+  const neo4jEvent = result.events.find(
+    (event) => event.ok && event.toolName === 'neo4j.graph-query',
+  );
+
+  if (neo4jEvent && neo4jEvent.ok) {
+    const output = neo4jEvent.output as {
+      factors?: { factorLabel?: string }[];
+    };
+    const firstFactor = output.factors?.[0]?.factorLabel;
+    const factorCount = output.factors?.length ?? 0;
+
+    if (factorCount > 0) {
+      return [
+        `已扩展 ${factorCount} 个候选因素`,
+        firstFactor ? `首个因素 ${firstFactor}` : null,
+      ]
+        .filter(Boolean)
+        .join('，');
+    }
+  }
+
+  const erpEvent = result.events.find(
+    (event) => event.ok && event.toolName === 'erp.read-model',
+  );
+
+  if (erpEvent && erpEvent.ok) {
+    const output = erpEvent.output as {
+      resource?: string;
+      count?: number;
+    };
+
+    return [
+      '已读取 ERP 数据',
+      output.resource ? `资源 ${output.resource}` : null,
+      typeof output.count === 'number' ? `记录数 ${output.count}` : null,
+    ]
+      .filter(Boolean)
+      .join('，');
+  }
+
+  return `步骤 ${stepOrder} 已完成，真实工具结果已回传。`;
+}
+
 function buildStepRunningEvent(input: {
   sessionId: string;
   executionId: string;
@@ -567,10 +685,8 @@ function buildStepResultEvent(input: {
   totalStepCount: number;
 }): Parameters<AnalysisExecutionStreamPublisher['publishEvent']>[0] {
   const status = input.result.status === 'completed' ? 'completed' : 'failed';
-  const message =
-    input.result.status === 'completed'
-      ? `步骤 ${input.step.order} 已完成，真实工具结果已回传。`
-      : input.result.error?.message ?? `步骤 ${input.step.order} 执行失败。`;
+  const structuredConclusion = extractStructuredConclusion(input.result);
+  const message = buildStepResultMessage(input.result, input.step.order);
 
   return {
     sessionId: input.sessionId,
@@ -598,6 +714,10 @@ function buildStepResultEvent(input: {
       processedStepCount: input.processedStepCount,
       totalStepCount: input.totalStepCount,
       toolEvents: input.result.events.length,
+      conclusionSummary: structuredConclusion.summary ?? null,
+      conclusionText: structuredConclusion.conclusion ?? null,
+      conclusionConfidence: structuredConclusion.confidence ?? null,
+      conclusionEvidence: structuredConclusion.evidence ?? [],
     },
   };
 }

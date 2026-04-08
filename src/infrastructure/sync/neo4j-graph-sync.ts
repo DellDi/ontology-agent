@@ -224,13 +224,17 @@ export function buildGraphSyncBatch(snapshot: SyncEntitySnapshot): GraphSyncBatc
   };
 }
 
-export function buildNeo4jSyncCypher() {
+export function buildNeo4jNodeSyncCypher() {
   return `
 UNWIND $nodes AS node
 MERGE (n:GraphNode {kind: node.kind, id: node.id})
 SET n.label = node.label, n += coalesce(node.properties, {})
-WITH $edges AS edges
-UNWIND edges AS edge
+`;
+}
+
+export function buildNeo4jEdgeSyncCypher() {
+  return `
+UNWIND $edges AS edge
 MATCH (from:GraphNode {kind: edge.fromKind, id: edge.fromId})
 MATCH (to:GraphNode {kind: edge.toKind, id: edge.toId})
 MERGE (from)-[r:GRAPH_EDGE {kind: edge.kind, toId: edge.toId, fromId: edge.fromId}]->(to)
@@ -238,4 +242,8 @@ SET r.direction = edge.direction,
     r.source = edge.source,
     r.explanation = edge.explanation
 `;
+}
+
+export function buildNeo4jSyncCypher() {
+  return `${buildNeo4jNodeSyncCypher()}\n${buildNeo4jEdgeSyncCypher()}`;
 }

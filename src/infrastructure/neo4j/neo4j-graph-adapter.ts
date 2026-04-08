@@ -14,7 +14,10 @@ import {
   Neo4jGraphResponseError,
   Neo4jGraphUnavailableError,
 } from './errors';
-import { buildNeo4jSyncCypher } from '@/infrastructure/sync/neo4j-graph-sync';
+import {
+  buildNeo4jEdgeSyncCypher,
+  buildNeo4jNodeSyncCypher,
+} from '@/infrastructure/sync/neo4j-graph-sync';
 
 type DriverLike = ReturnType<typeof neo4j.driver>;
 type QueryRecordLike = {
@@ -76,6 +79,31 @@ function mapRecordValue(value: unknown) {
   }
 
   return value;
+}
+
+function chunkArray<T>(items: T[], chunkSize: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
+async function ensureGraphNodeConstraint(
+  driver: DriverLike,
+  database: string,
+) {
+  await driver.executeQuery(
+    `
+CREATE CONSTRAINT graph_node_kind_id_unique IF NOT EXISTS
+FOR (n:GraphNode)
+REQUIRE (n.kind, n.id) IS UNIQUE
+`,
+    {},
+    { database },
+  );
 }
 
 function mapQueryRecords(records: QueryRecordLike[]) {
@@ -242,15 +270,29 @@ export function createNeo4jGraphAdapter(
 
       try {
         const config = getNeo4jGraphConfig();
-        // buildNeo4jSyncCypher() emits the guarded MERGE-based write path for all graph syncs.
-        await driver.executeQuery(
-          buildNeo4jSyncCypher(),
-          {
-            nodes: batch.nodes,
-            edges: batch.edges,
-          },
-          { database: config.database },
-        );
+        await ensureGraphNodeConstraint(driver, config.database);
+        const nodeChunks = chunkArray(batch.nodes, 5_000);
+        const edgeChunks = chunkArray(batch.edges, 10_000);
+
+        for (const nodeChunk of nodeChunks) {
+          await driver.executeQuery(
+            buildNeo4jNodeSyncCypher(),
+            {
+              nodes: nodeChunk,
+            },
+            { database: config.database },
+          );
+        }
+
+        for (const edgeChunk of edgeChunks) {
+          await driver.executeQuery(
+            buildNeo4jEdgeSyncCypher(),
+            {
+              edges: edgeChunk,
+            },
+            { database: config.database },
+          );
+        }
 
         return {
           nodesWritten: batch.nodes.length,

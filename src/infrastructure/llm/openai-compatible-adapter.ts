@@ -140,6 +140,42 @@ function normalizeSdkError(error: unknown): never {
 }
 
 function getResponseText(payload: JsonRecord) {
+  const extractedText = extractResponseText(payload);
+
+  if (extractedText) {
+    return extractedText;
+  }
+
+  const payloadErrorMessage = getPayloadErrorMessage(payload);
+
+  if (payloadErrorMessage) {
+    throw new LlmProviderResponseError(payloadErrorMessage);
+  }
+
+  throw new LlmProviderResponseError('responses 接口未返回可用文本。');
+}
+
+function getPayloadErrorMessage(payload: JsonRecord) {
+  const error = payload.error;
+
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  const candidate = error as JsonRecord;
+
+  if (typeof candidate.message === 'string' && candidate.message.trim()) {
+    return candidate.message.trim();
+  }
+
+  if (typeof candidate.code === 'string' && candidate.code.trim()) {
+    return `模型 provider 返回错误代码：${candidate.code.trim()}`;
+  }
+
+  return '模型 provider 返回错误，但未附带可读消息。';
+}
+
+function extractResponseText(payload: JsonRecord) {
   const outputText = payload.output_text;
 
   if (typeof outputText === 'string' && outputText.trim()) {
@@ -168,10 +204,22 @@ function getResponseText(payload: JsonRecord) {
       if (typeof text === 'string' && text.trim()) {
         return text.trim();
       }
+
+      if (
+        text &&
+        typeof text === 'object' &&
+        typeof (text as JsonRecord).value === 'string'
+      ) {
+        const textValue = (text as JsonRecord).value as string;
+
+        if (textValue.trim()) {
+          return textValue.trim();
+        }
+      }
     }
   }
 
-  throw new LlmProviderResponseError('responses 接口未返回可用文本。');
+  return null;
 }
 
 function getChatCompletionText(payload: JsonRecord) {
@@ -315,11 +363,28 @@ export function createOpenAiCompatibleLlmProvider({
             },
             { timeout: context.timeoutMs ?? config.timeoutMs },
           );
-
-          return {
+          const payload = {
             ...(response as unknown as JsonRecord),
             model,
+            output_text:
+              typeof response.output_text === 'string'
+                ? response.output_text
+                : null,
           };
+
+          if (!extractResponseText(payload)) {
+            lastError = new LlmProviderResponseError(
+              getPayloadErrorMessage(payload) ?? 'responses 接口未返回可用文本。',
+            );
+
+            if (shouldRetry(lastError, attempt, config.maxRetries)) {
+              continue;
+            }
+
+            break;
+          }
+
+          return payload;
         } catch (error) {
           try {
             normalizeSdkError(error);
