@@ -390,3 +390,90 @@ test('分析会话页会回放并渲染最近的阶段结果', async () => {
   assert.match(html, /已完成/);
   assert.match(html, /工具调用/);
 });
+
+test('并发追加事件时 sequence 仍保持唯一且递增', async () => {
+  const result = await runTsSnippet(`
+    import eventStoreModule from './src/infrastructure/analysis-execution/redis-analysis-execution-event-store.ts';
+
+    const { createRedisAnalysisExecutionEventStore } = eventStoreModule;
+
+    const storedEvents = [];
+    let lengthCallCount = 0;
+    let releaseLengthReads = null;
+    const lengthReadsReady = new Promise((resolve) => {
+      releaseLengthReads = resolve;
+    });
+    let nextSequence = 0;
+
+    const redis = {
+      async incr() {
+        nextSequence += 1;
+        return nextSequence;
+      },
+      async lLen() {
+        lengthCallCount += 1;
+
+        if (lengthCallCount === 2) {
+          releaseLengthReads();
+        }
+
+        await lengthReadsReady;
+        return 0;
+      },
+      async rPush(_key, value) {
+        storedEvents.push(JSON.parse(value));
+      },
+      async lTrim() {},
+      async lRange() {
+        return storedEvents.map((event) => JSON.stringify(event));
+      },
+    };
+
+    const eventStore = createRedisAnalysisExecutionEventStore(redis);
+
+    const [first, second] = await Promise.all([
+      eventStore.append({
+        sessionId: 'session-race',
+        executionId: 'execution-a',
+        kind: 'execution-status',
+        status: 'pending',
+        message: '事件一',
+        renderBlocks: [
+          {
+            type: 'status',
+            title: '执行状态',
+            value: '等待中',
+            tone: 'neutral',
+          },
+        ],
+      }),
+      eventStore.append({
+        sessionId: 'session-race',
+        executionId: 'execution-a',
+        kind: 'execution-status',
+        status: 'processing',
+        message: '事件二',
+        renderBlocks: [
+          {
+            type: 'status',
+            title: '执行状态',
+            value: '执行中',
+            tone: 'info',
+          },
+        ],
+      }),
+    ]);
+
+    console.log(JSON.stringify({
+      returnedSequences: [first.sequence, second.sequence],
+      uniqueCount: new Set(storedEvents.map((event) => event.sequence)).size,
+      storedSequences: storedEvents
+        .map((event) => event.sequence)
+        .sort((left, right) => left - right),
+    }));
+  `);
+
+  assert.deepEqual(result.returnedSequences, [1, 2]);
+  assert.equal(result.uniqueCount, 2);
+  assert.deepEqual(result.storedSequences, [1, 2]);
+});

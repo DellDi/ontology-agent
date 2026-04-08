@@ -21,6 +21,10 @@ export const redisKeys = {
     return prefixed('stream', sessionId);
   },
 
+  streamSequence(sessionId: string) {
+    return prefixed('stream-sequence', sessionId);
+  },
+
   cache(scope: string, key: string) {
     return prefixed('cache', scope, key);
   },

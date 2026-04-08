@@ -377,3 +377,205 @@ test('非法计划会被稳定拒绝，不会进入执行队列', async () => {
   assert.equal(result.name, 'InvalidAnalysisExecutionPlanError');
   assert.match(result.message, /至少包含一个步骤/);
 });
+
+test('队列已提交后首条状态事件发布失败不会误报为执行提交失败', async () => {
+  const result = await runTsSnippet(`
+    import submissionModule from './src/application/analysis-execution/submission-use-cases.ts';
+
+    const { createAnalysisExecutionSubmissionUseCases } = submissionModule;
+    const callOrder = [];
+
+    const useCases = createAnalysisExecutionSubmissionUseCases({
+      jobUseCases: {
+        async submitJob() {
+          callOrder.push('submit-job');
+          return {
+            id: 'job-stream-failure',
+            type: 'analysis-execution',
+            status: 'pending',
+            data: {},
+            result: null,
+            error: null,
+            createdAt: '2026-04-08T00:00:00.000Z',
+            updatedAt: '2026-04-08T00:00:00.000Z',
+          };
+        },
+        async getJob() {
+          return null;
+        },
+      },
+      analysisExecutionStreamUseCases: {
+        async publishExecutionStatus() {
+          callOrder.push('publish-status');
+          throw new Error('stream unavailable');
+        },
+      },
+    });
+
+    const execution = await useCases.submitExecution({
+      session: {
+        id: 'session-stream-failure',
+        ownerUserId: 'owner-1',
+        organizationId: 'org-1',
+        projectIds: ['project-1'],
+        areaIds: ['area-1'],
+        questionText: '测试已入队后状态发布失败',
+        savedContext: {},
+        status: 'pending',
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z',
+      },
+      plan: {
+        mode: 'minimal',
+        summary: '可执行计划',
+        steps: [
+          {
+            id: 'step-1',
+            order: 1,
+            title: '步骤一',
+            objective: '验证提交路径',
+            dependencyIds: [],
+          },
+        ],
+      },
+    });
+
+    console.log(JSON.stringify({
+      executionId: execution.executionId,
+      status: execution.status,
+      callOrder,
+    }));
+  `);
+
+  assert.equal(result.executionId, 'job-stream-failure');
+  assert.equal(result.status, 'pending');
+  assert.deepEqual(result.callOrder, ['submit-job', 'publish-status']);
+});
+
+test('执行已完成后的流式副作用失败不会把成功路径重新标成失败', async () => {
+  const result = await runTsSnippet(`
+    import finalizationModule from './src/worker/finalize-analysis-execution.ts';
+
+    const { finalizeSuccessfulAnalysisExecution } = finalizationModule;
+    const callOrder = [];
+
+    const outcome = await finalizeSuccessfulAnalysisExecution({
+      job: {
+        id: 'job-completed',
+        type: 'analysis-execution',
+        status: 'processing',
+        data: {
+          sessionId: 'session-1',
+          ownerUserId: 'owner-1',
+          plan: {
+            mode: 'minimal',
+            summary: '完成态计划',
+            steps: [
+              {
+                id: 'step-1',
+                order: 1,
+                title: '步骤一',
+                objective: '验证完成态后处理',
+                dependencyIds: [],
+              },
+            ],
+          },
+        },
+        result: null,
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z',
+      },
+      result: {
+        processedStepCount: 1,
+      },
+      jobUseCases: {
+        async completeJob(jobId, completionResult) {
+          callOrder.push(['complete-job', jobId, completionResult.processedStepCount]);
+        },
+      },
+      analysisExecutionStreamUseCases: {
+        async publishExecutionStatus() {
+          callOrder.push(['publish-completed']);
+          throw new Error('terminal stream publish failed');
+        },
+        async listExecutionEvents() {
+          callOrder.push(['list-events']);
+          return [];
+        },
+      },
+      analysisExecutionPersistenceUseCases: {
+        async saveExecutionSnapshot() {
+          callOrder.push(['save-snapshot']);
+        },
+      },
+    });
+
+    console.log(JSON.stringify({
+      callOrder,
+      postCompletionError: outcome.postCompletionError,
+    }));
+  `);
+
+  assert.deepEqual(result.callOrder, [
+    ['complete-job', 'job-completed', 1],
+    ['publish-completed'],
+  ]);
+  assert.match(result.postCompletionError, /terminal stream publish failed/);
+});
+
+test('execution 仍在执行时会使用任务里的计划快照作为页面计划来源', async () => {
+  const result = await runTsSnippet(`
+    import displayModule from './src/app/(workspace)/workspace/analysis/[sessionId]/analysis-execution-display.ts';
+
+    const { getSessionScopedExecutionJob } = displayModule;
+
+    const executionJob = getSessionScopedExecutionJob(
+      {
+        id: 'job-in-flight',
+        type: 'analysis-execution',
+        status: 'processing',
+        data: {
+          sessionId: 'session-1',
+          ownerUserId: 'owner-1',
+          organizationId: 'org-1',
+          projectIds: ['project-1'],
+          areaIds: ['area-1'],
+          questionText: '为什么收缴率变化了？',
+          submittedAt: '2026-04-08T00:00:00.000Z',
+          plan: {
+            mode: 'multi-step',
+            summary: '提交时锁定的计划摘要',
+            steps: [
+              {
+                id: 'submitted-step',
+                order: 1,
+                title: '提交时步骤',
+                objective: '必须回放提交时的计划快照',
+                dependencyIds: [],
+              },
+            ],
+          },
+        },
+        result: null,
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z',
+      },
+      {
+        sessionId: 'session-1',
+        ownerUserId: 'owner-1',
+      },
+    );
+
+    console.log(JSON.stringify({
+      executionId: executionJob?.executionId ?? null,
+      summary: executionJob?.planSnapshot.summary ?? null,
+      firstStepTitle: executionJob?.planSnapshot.steps[0]?.title ?? null,
+    }));
+  `);
+
+  assert.equal(result.executionId, 'job-in-flight');
+  assert.equal(result.summary, '提交时锁定的计划摘要');
+  assert.equal(result.firstStepTitle, '提交时步骤');
+});

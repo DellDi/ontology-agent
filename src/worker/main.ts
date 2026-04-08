@@ -7,6 +7,7 @@ import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/model
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
 import { getJobHandler } from './handlers';
+import { finalizeSuccessfulAnalysisExecution } from './finalize-analysis-execution';
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -75,43 +76,24 @@ async function main() {
 
       try {
         const result = await handler(job, { redis });
-        await jobUseCases.completeJob(job.id, result);
-        if (job.type === 'analysis-execution') {
-          const events =
-            await analysisExecutionStreamUseCases.listExecutionEvents({
-              sessionId: String(job.data.sessionId ?? ''),
-              executionId: job.id,
-            });
-          const conclusionReadModel = buildAnalysisConclusionReadModel(events);
 
-          await analysisExecutionPersistenceUseCases.saveExecutionSnapshot({
-            executionId: job.id,
-            sessionId: String(job.data.sessionId ?? ''),
-            ownerUserId: String(job.data.ownerUserId ?? ''),
-            status: 'completed',
-            planSnapshot: job.data.plan as {
-              mode: 'minimal' | 'multi-step';
-              summary: string;
-              steps: {
-                id: string;
-                order: number;
-                title: string;
-                objective: string;
-                dependencyIds: string[];
-              }[];
-            },
-            events,
-            conclusionReadModel,
-          });
-        }
         if (job.type === 'analysis-execution') {
-          await analysisExecutionStreamUseCases.publishExecutionStatus({
-            sessionId: String(job.data.sessionId ?? ''),
-            executionId: job.id,
-            status: 'completed',
-            message: '分析执行已完成，阶段结果已全部回传。',
-            metadata: result,
-          });
+          const completionOutcome =
+            await finalizeSuccessfulAnalysisExecution({
+              job,
+              result,
+              jobUseCases,
+              analysisExecutionStreamUseCases,
+              analysisExecutionPersistenceUseCases,
+            });
+
+          if (completionOutcome.postCompletionError) {
+            console.error(
+              `[worker] 任务 ${job.id} 已完成，但完成态副作用失败: ${completionOutcome.postCompletionError}`,
+            );
+          }
+        } else {
+          await jobUseCases.completeJob(job.id, result);
         }
         console.log(`[worker] 任务 ${job.id} 完成`);
       } catch (err) {
@@ -119,33 +101,6 @@ async function main() {
           err instanceof Error ? err.message : '未知错误';
         await jobUseCases.failJob(job.id, errorMessage);
         if (job.type === 'analysis-execution') {
-          const events =
-            await analysisExecutionStreamUseCases.listExecutionEvents({
-              sessionId: String(job.data.sessionId ?? ''),
-              executionId: job.id,
-            });
-          const conclusionReadModel = buildAnalysisConclusionReadModel(events);
-
-          await analysisExecutionPersistenceUseCases.saveExecutionSnapshot({
-            executionId: job.id,
-            sessionId: String(job.data.sessionId ?? ''),
-            ownerUserId: String(job.data.ownerUserId ?? ''),
-            status: 'failed',
-            planSnapshot: job.data.plan as {
-              mode: 'minimal' | 'multi-step';
-              summary: string;
-              steps: {
-                id: string;
-                order: number;
-                title: string;
-                objective: string;
-                dependencyIds: string[];
-              }[];
-            },
-            events,
-            conclusionReadModel,
-          });
-
           await analysisExecutionStreamUseCases.publishExecutionStatus({
             sessionId: String(job.data.sessionId ?? ''),
             executionId: job.id,
@@ -154,6 +109,33 @@ async function main() {
             metadata: {
               jobType: job.type,
             },
+          });
+
+          const events =
+            await analysisExecutionStreamUseCases.listExecutionEvents({
+              sessionId: String(job.data.sessionId ?? ''),
+              executionId: job.id,
+            });
+          const conclusionReadModel = buildAnalysisConclusionReadModel(events);
+
+          await analysisExecutionPersistenceUseCases.saveExecutionSnapshot({
+            executionId: job.id,
+            sessionId: String(job.data.sessionId ?? ''),
+            ownerUserId: String(job.data.ownerUserId ?? ''),
+            status: 'failed',
+            planSnapshot: job.data.plan as {
+              mode: 'minimal' | 'multi-step';
+              summary: string;
+              steps: {
+                id: string;
+                order: number;
+                title: string;
+                objective: string;
+                dependencyIds: string[];
+              }[];
+            },
+            events,
+            conclusionReadModel,
           });
         }
         console.error(`[worker] 任务 ${job.id} 失败: ${errorMessage}`);

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # 优化版 Node.js 迁移 - 使用批量插入
 
-MYSQL_URL="${MYSQL_URL:-mysql://8f749668-9269-4471-9f8a-d0a78dc96977:J3PTyY5m6wCoJzn7@jms.new-see.com:33061/newsee-datacenter}"
+MYSQL_URL="${MYSQL_URL:-mysql://77196957-6017-4cf7-9f43-a6de003be095:MQ8bVLK6y8IuLBec@jms.new-see.com:33061/newsee-datacenter}"
 DATABASE_URL="${DATABASE_URL:-postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent}"
 
 PROJECTION_DB="${PROJECTION_DB:-newsee_datacenter_pgloader_debug_check}"
