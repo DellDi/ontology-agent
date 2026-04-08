@@ -45,7 +45,9 @@ export function AnalysisConclusionPanel({
                 </h4>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                置信度 {Math.round(cause.confidence * 100)}%
+                {typeof cause.confidence === 'number'
+                  ? `置信度 ${Math.round(cause.confidence * 100)}%`
+                  : '证据评分待补充'}
               </span>
             </div>
 

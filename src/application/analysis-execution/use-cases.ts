@@ -9,7 +9,10 @@ import type {
 } from '@/domain/tooling/models';
 
 type ToolRegistryUseCases = {
-  listToolDefinitions: () => { name: AnalysisToolName }[];
+  listToolDefinitions: () => {
+    name: AnalysisToolName;
+    availability?: 'ready' | 'degraded';
+  }[];
   invokeTool: (input: {
     toolName: AnalysisToolName;
     input: unknown;
@@ -43,11 +46,20 @@ type AnalysisExecutionDependencies = {
 };
 
 const STEP_TOOL_FALLBACKS: Record<string, AnalysisToolName[]> = {
-  'confirm-analysis-scope': ['llm.structured-analysis'],
-  'confirm-query-scope': ['llm.structured-analysis'],
-  'inspect-metric-change': ['cube.semantic-query'],
-  'validate-candidate-factors': ['neo4j.graph-query', 'erp.read-model'],
-  'synthesize-attribution': ['llm.structured-analysis'],
+  'confirm-analysis-scope': ['platform.capability-status'],
+  'confirm-query-scope': ['platform.capability-status'],
+  'inspect-metric-change': ['cube.semantic-query', 'platform.capability-status'],
+  'validate-candidate-factors': [
+    'neo4j.graph-query',
+    'erp.read-model',
+    'platform.capability-status',
+  ],
+  'synthesize-attribution': [
+    'cube.semantic-query',
+    'neo4j.graph-query',
+    'erp.read-model',
+    'platform.capability-status',
+  ],
 };
 
 const TOOL_NAME_ALIASES: Record<string, AnalysisToolName> = {
@@ -116,24 +128,39 @@ export function createAnalysisExecutionUseCases({
       planSummary?: string;
       context: AnalysisAiTaskContext;
     }): Promise<OrchestrationStepSelection> {
-      const availableToolNames = new Set(
-        toolRegistryUseCases.listToolDefinitions().map((tool) => tool.name),
+      const readyToolNames = new Set(
+        toolRegistryUseCases
+          .listToolDefinitions()
+          .filter((tool) => tool.availability === 'ready')
+          .map((tool) => tool.name),
       );
 
-      const toolSelection = await analysisAiUseCases.runTask({
-        taskType: 'tool-selection',
-        input: {
-          questionText,
-          planSummary,
-          stepId,
-          stepTitle,
-          stepObjective,
-        },
-        context,
-      });
+      const toolSelection = await (async () => {
+        try {
+          return await analysisAiUseCases.runTask({
+            taskType: 'tool-selection',
+            input: {
+              questionText,
+              planSummary,
+              stepId,
+              stepTitle,
+              stepObjective,
+            },
+            context,
+          });
+        } catch {
+          return {
+            ok: false,
+            value: {
+              strategy: '',
+              tools: [],
+            },
+          };
+        }
+      })();
 
       const normalizedTools = toolSelection.ok
-        ? normalizeSelection(toolSelection.value.tools, availableToolNames)
+        ? normalizeSelection(toolSelection.value.tools, readyToolNames)
         : [];
 
       if (normalizedTools.length > 0) {
@@ -146,7 +173,7 @@ export function createAnalysisExecutionUseCases({
 
       return {
         strategy: '结构化工具选择未命中，回退到步骤级保守映射。',
-        tools: buildFallbackSelection(stepId, availableToolNames),
+        tools: buildFallbackSelection(stepId, readyToolNames),
       };
     },
 
@@ -190,6 +217,10 @@ export function createAnalysisExecutionUseCases({
         events.push(event);
 
         if (!event.ok) {
+          if (event.error.code === 'tool-empty-result') {
+            continue;
+          }
+
           return {
             status: 'failed',
             strategy: selection.strategy,
