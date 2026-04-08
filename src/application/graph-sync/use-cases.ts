@@ -339,6 +339,10 @@ export function createGraphSyncUseCases({
 
       await graphSyncRunStore.save(runningRun);
 
+      let syncResult:
+        | Awaited<ReturnType<GraphUseCases['syncBaseline']>>
+        | null = null;
+
       try {
         const batch = await this.buildBatch({
           session: input.session,
@@ -348,7 +352,7 @@ export function createGraphSyncUseCases({
           lastSeenRunId: runningRun.id,
           lastSeenAt: runningRun.updatedAt,
         });
-        const syncResult = await graphUseCases.syncBaseline(enrichedBatch);
+        syncResult = await graphUseCases.syncBaseline(enrichedBatch);
         await graphUseCases.cleanupScopedData({
           scopeOrgId,
           lastSeenRunId: runningRun.id,
@@ -376,7 +380,9 @@ export function createGraphSyncUseCases({
           error instanceof Error ? error.message : 'Graph sync org rebuild failed.';
         const failedRun = buildGraphSyncRun({
           ...runningRun,
-          status: 'failed',
+          status: syncResult ? 'partial' : 'failed',
+          nodesWritten: syncResult?.nodesWritten ?? 0,
+          edgesWritten: syncResult?.edgesWritten ?? 0,
           errorSummary: message,
           errorDetail:
             error instanceof Error

@@ -295,7 +295,7 @@ export function buildNeo4jScopedNodeCleanupCypher() {
 MATCH (n:GraphNode)
 WHERE n.scope_org_id = $scopeOrgId
   AND n.last_seen_run_id <> $lastSeenRunId
-  AND n.kind IN ['organization', 'project', 'house', 'owner', 'receivable', 'payment', 'service-order', 'complaint', 'satisfaction']
+  AND n.kind IN ['organization', 'project', 'house', 'owner', 'charge-item', 'receivable', 'payment', 'service-order', 'complaint', 'satisfaction']
   AND NOT (n)--()
 DELETE n
 `;
