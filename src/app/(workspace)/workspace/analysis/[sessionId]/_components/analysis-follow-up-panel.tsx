@@ -1,5 +1,9 @@
 import type { AnalysisContext } from '@/domain/analysis-context/models';
-import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
+import {
+  buildFollowUpContextDiff,
+  type AnalysisSessionFollowUp,
+  type FollowUpContextChangeItem,
+} from '@/domain/analysis-session/follow-up-models';
 
 type AnalysisFollowUpPanelProps = {
   sessionId: string;
@@ -8,6 +12,14 @@ type AnalysisFollowUpPanelProps = {
   latestConclusionSummary: string | null;
   inheritedContext: AnalysisContext;
   followUps: AnalysisSessionFollowUp[];
+  adjustmentDraft?: {
+    targetMetric?: string;
+    entity?: string;
+    timeRange?: string;
+    comparison?: string;
+    factor?: string;
+  };
+  conflictItems?: FollowUpContextChangeItem[];
   feedback?: {
     tone: 'success' | 'error';
     message: string;
@@ -22,6 +34,18 @@ function renderContextSummary(context: AnalysisContext) {
   ];
 }
 
+function buildActiveFollowUp(followUps: AnalysisSessionFollowUp[], activeFollowUpId?: string) {
+  if (!followUps.length) {
+    return null;
+  }
+
+  return (
+    followUps.find((followUp) => followUp.id === activeFollowUpId) ??
+    followUps.at(-1) ??
+    null
+  );
+}
+
 export function AnalysisFollowUpPanel({
   sessionId,
   activeFollowUpId,
@@ -29,8 +53,12 @@ export function AnalysisFollowUpPanel({
   latestConclusionSummary,
   inheritedContext,
   followUps,
+  adjustmentDraft,
+  conflictItems = [],
   feedback,
 }: AnalysisFollowUpPanelProps) {
+  const activeFollowUp = buildActiveFollowUp(followUps, activeFollowUpId);
+
   return (
     <article className="glass-panel p-6" data-testid="analysis-follow-up-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -97,6 +125,115 @@ export function AnalysisFollowUpPanel({
       </form>
 
       <div className="mt-5 space-y-4">
+        {activeFollowUp ? (
+          <section className="rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-5">
+            <div>
+              <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+                补充因素或缩小范围
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+                只补充本轮新增条件。系统会在服务端合并到当前轮次上下文，并明确标识新增项与覆盖项。
+              </p>
+            </div>
+
+            {conflictItems.length > 0 ? (
+              <div className="status-banner mt-4" data-tone="error">
+                发现冲突条件，确认后才会覆盖当前轮次上下文。
+              </div>
+            ) : null}
+
+            {conflictItems.length > 0 ? (
+              <div className="mt-4 space-y-3 rounded-3xl bg-white/76 p-5">
+                {conflictItems.map((conflict) => (
+                  <div key={`${conflict.key}-${conflict.nextValue}`} className="space-y-1">
+                    <p className="text-sm font-medium text-[color:var(--ink-900)]">
+                      {conflict.label}
+                    </p>
+                    <p className="text-sm text-[color:var(--ink-600)]">
+                      当前值：{conflict.previousValue}
+                    </p>
+                    <p className="text-sm text-[color:var(--ink-600)]">
+                      拟更新为：{conflict.nextValue}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <form
+              action={`/api/analysis/sessions/${sessionId}/follow-ups/${activeFollowUp.id}/context`}
+              className="mt-4 grid gap-4 md:grid-cols-2"
+              method="post"
+            >
+              <label className="space-y-2">
+                <span className="field-label">目标指标</span>
+                <input
+                  className="field-input"
+                  defaultValue={adjustmentDraft?.targetMetric ?? ''}
+                  name="targetMetric"
+                  placeholder={activeFollowUp.mergedContext.targetMetric.value}
+                  type="text"
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="field-label">实体对象</span>
+                <input
+                  className="field-input"
+                  defaultValue={adjustmentDraft?.entity ?? ''}
+                  name="entity"
+                  placeholder={activeFollowUp.mergedContext.entity.value}
+                  type="text"
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="field-label">时间范围</span>
+                <input
+                  className="field-input"
+                  defaultValue={adjustmentDraft?.timeRange ?? ''}
+                  name="timeRange"
+                  placeholder={activeFollowUp.mergedContext.timeRange.value}
+                  type="text"
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="field-label">比较方式</span>
+                <input
+                  className="field-input"
+                  defaultValue={adjustmentDraft?.comparison ?? ''}
+                  name="comparison"
+                  placeholder={activeFollowUp.mergedContext.comparison.value}
+                  type="text"
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="field-label">候选因素</span>
+                <input
+                  className="field-input"
+                  defaultValue={adjustmentDraft?.factor ?? ''}
+                  name="factor"
+                  placeholder="例如：物业服务"
+                  type="text"
+                />
+              </label>
+              <div className="flex flex-wrap justify-end gap-3 md:col-span-2">
+                <button className="primary-button" type="submit">
+                  提交增量条件
+                </button>
+                {conflictItems.length > 0 ? (
+                  <button
+                    className="secondary-button"
+                    name="confirmConflicts"
+                    type="submit"
+                    value="true"
+                  >
+                    确认覆盖冲突条件
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          </section>
+        ) : null}
+
         <div>
           <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
             已提交追问
@@ -107,30 +244,11 @@ export function AnalysisFollowUpPanel({
         </div>
         {followUps.length > 0 ? (
           followUps.map((followUp) => (
-            <section
+            <FollowUpCard
+              active={followUp.id === activeFollowUpId}
+              followUp={followUp}
               key={followUp.id}
-              className="rounded-3xl border border-[color:var(--line-200)] bg-white/76 p-5"
-              data-active={followUp.id === activeFollowUpId ? 'true' : 'false'}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-base font-semibold text-[color:var(--ink-900)]">
-                  {followUp.questionText}
-                </p>
-                {followUp.id === activeFollowUpId ? (
-                  <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
-                    最新追问
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-3 text-sm text-[color:var(--ink-600)]">
-                承接结论：{followUp.referencedConclusionTitle ?? '未命名结论'}
-              </p>
-              <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
-                {renderContextSummary(followUp.mergedContext).map((item) => (
-                  <li key={`${followUp.id}-${item}`}>{item}</li>
-                ))}
-              </ul>
-            </section>
+            />
           ))
         ) : (
           <p className="rounded-3xl bg-white/76 p-5 text-sm leading-6 text-[color:var(--ink-600)]">
@@ -139,5 +257,74 @@ export function AnalysisFollowUpPanel({
         )}
       </div>
     </article>
+  );
+}
+
+function FollowUpCard({
+  followUp,
+  active,
+}: {
+  followUp: AnalysisSessionFollowUp;
+  active: boolean;
+}) {
+  const diff = buildFollowUpContextDiff({
+    inheritedContext: followUp.inheritedContext,
+    mergedContext: followUp.mergedContext,
+  });
+
+  return (
+    <section
+      className="rounded-3xl border border-[color:var(--line-200)] bg-white/76 p-5"
+      data-active={active ? 'true' : 'false'}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-base font-semibold text-[color:var(--ink-900)]">
+          {followUp.questionText}
+        </p>
+        {active ? (
+          <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+            最新追问
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-3 text-sm text-[color:var(--ink-600)]">
+        承接结论：{followUp.referencedConclusionTitle ?? '未命名结论'}
+      </p>
+      <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
+        {renderContextSummary(followUp.mergedContext).map((item) => (
+          <li key={`${followUp.id}-${item}`}>{item}</li>
+        ))}
+      </ul>
+
+      {diff.added.length > 0 ? (
+        <div className="mt-4 rounded-3xl bg-[color:var(--sky-50)]/80 p-4">
+          <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+            新增条件
+          </p>
+          <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+            {diff.added.map((item) => (
+              <li key={`${followUp.id}-added-${item.key}-${item.nextValue}`}>
+                {item.label}：{item.nextValue}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {diff.overridden.length > 0 ? (
+        <div className="mt-4 rounded-3xl bg-amber-50 p-4">
+          <p className="text-xs font-medium tracking-[0.18em] text-amber-700 uppercase">
+            已覆盖条件
+          </p>
+          <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+            {diff.overridden.map((item) => (
+              <li key={`${followUp.id}-override-${item.key}-${item.nextValue}`}>
+                {item.label}：{item.previousValue} -&gt; {item.nextValue}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   );
 }

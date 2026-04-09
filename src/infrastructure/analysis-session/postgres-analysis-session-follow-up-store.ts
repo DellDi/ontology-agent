@@ -48,6 +48,48 @@ export function createPostgresAnalysisSessionFollowUpStore(
       return followUp;
     },
 
+    async getById({ followUpId, ownerUserId }) {
+      const rows = await resolvedDb
+        .select()
+        .from(analysisSessionFollowUps)
+        .where(
+          and(
+            eq(analysisSessionFollowUps.id, followUpId),
+            eq(analysisSessionFollowUps.ownerUserId, ownerUserId),
+          ),
+        )
+        .limit(1);
+
+      const row = rows[0];
+
+      return row ? rowToAnalysisSessionFollowUp(row) : null;
+    },
+
+    async updateMergedContext({
+      followUpId,
+      ownerUserId,
+      mergedContext,
+      updatedAt,
+    }) {
+      const rows = await resolvedDb
+        .update(analysisSessionFollowUps)
+        .set({
+          mergedContext,
+          updatedAt: new Date(updatedAt),
+        })
+        .where(
+          and(
+            eq(analysisSessionFollowUps.id, followUpId),
+            eq(analysisSessionFollowUps.ownerUserId, ownerUserId),
+          ),
+        )
+        .returning();
+
+      const row = rows[0];
+
+      return row ? rowToAnalysisSessionFollowUp(row) : null;
+    },
+
     async listBySessionId({ sessionId, ownerUserId }) {
       const rows = await resolvedDb
         .select()

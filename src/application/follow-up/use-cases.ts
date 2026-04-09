@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
 import type { AnalysisContextReadModel } from '@/application/analysis-context/use-cases';
+import { validateContextCorrection } from '@/domain/analysis-context/models';
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
 import {
+  analyzeFollowUpContextAdjustment,
+  applyFollowUpContextAdjustment,
+  buildFollowUpContextDiff,
+  type FollowUpContextAdjustment,
   mergeFollowUpContext,
   type AnalysisSessionFollowUp,
 } from '@/domain/analysis-session/follow-up-models';
@@ -25,6 +30,25 @@ export class MissingAnalysisConclusionForFollowUpError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'MissingAnalysisConclusionForFollowUpError';
+  }
+}
+
+export class InvalidAnalysisFollowUpAdjustmentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidAnalysisFollowUpAdjustmentError';
+  }
+}
+
+export class AnalysisFollowUpConflictError extends Error {
+  constructor(
+    message: string,
+    public readonly conflicts: ReturnType<
+      typeof analyzeFollowUpContextAdjustment
+    >['conflicts'],
+  ) {
+    super(message);
+    this.name = 'AnalysisFollowUpConflictError';
   }
 }
 
@@ -92,6 +116,107 @@ export function createAnalysisFollowUpUseCases({
         sessionId,
         ownerUserId,
       });
+    },
+
+    async getOwnedFollowUp({
+      followUpId,
+      ownerUserId,
+    }: {
+      followUpId: string;
+      ownerUserId: string;
+    }) {
+      return await followUpStore.getById({
+        followUpId,
+        ownerUserId,
+      });
+    },
+
+    validateAdjustmentInput(input: {
+      targetMetric?: string | null;
+      entity?: string | null;
+      timeRange?: string | null;
+      comparison?: string | null;
+      factor?: string | null;
+    }): FollowUpContextAdjustment {
+      const correctionPayload: Record<string, { value: string }> = {};
+
+      (['targetMetric', 'entity', 'timeRange', 'comparison'] as const).forEach(
+        (field) => {
+          const value = input[field]?.trim();
+
+          if (!value) {
+            return;
+          }
+
+          correctionPayload[field] = {
+            value,
+          };
+        },
+      );
+
+      const factor = input.factor?.trim() || null;
+
+      if (Object.keys(correctionPayload).length === 0 && !factor) {
+        throw new InvalidAnalysisFollowUpAdjustmentError(
+          '至少需要补充一个因素或范围条件。',
+        );
+      }
+
+      return {
+        correction:
+          Object.keys(correctionPayload).length > 0
+            ? validateContextCorrection(correctionPayload)
+            : {},
+        factor,
+      };
+    },
+
+    async adjustFollowUpContext({
+      followUp,
+      adjustment,
+      confirmConflicts,
+    }: {
+      followUp: AnalysisSessionFollowUp;
+      adjustment: FollowUpContextAdjustment;
+      confirmConflicts: boolean;
+    }) {
+      const analysis = analyzeFollowUpContextAdjustment({
+        currentContext: followUp.mergedContext,
+        adjustment,
+      });
+
+      if (analysis.conflicts.length > 0 && !confirmConflicts) {
+        throw new AnalysisFollowUpConflictError(
+          '发现冲突条件，确认后才会覆盖当前轮次上下文。',
+          analysis.conflicts,
+        );
+      }
+
+      const mergedContext = applyFollowUpContextAdjustment({
+        currentContext: followUp.mergedContext,
+        adjustment,
+      });
+      const updatedAt = new Date().toISOString();
+      const updatedFollowUp = await followUpStore.updateMergedContext({
+        followUpId: followUp.id,
+        ownerUserId: followUp.ownerUserId,
+        mergedContext,
+        updatedAt,
+      });
+
+      if (!updatedFollowUp) {
+        throw new InvalidAnalysisFollowUpAdjustmentError(
+          '追问上下文更新失败，请稍后重试。',
+        );
+      }
+
+      return {
+        followUp: updatedFollowUp,
+        diff: buildFollowUpContextDiff({
+          inheritedContext: updatedFollowUp.inheritedContext,
+          mergedContext: updatedFollowUp.mergedContext,
+        }),
+      };
     },
   };
 }
