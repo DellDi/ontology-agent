@@ -144,7 +144,12 @@ async function createSession(cookie, questionText) {
   return response.headers.get('location')?.split('/').pop();
 }
 
-async function seedCompletedConclusion({ sessionId, ownerUserId }) {
+async function seedCompletedConclusion({
+  sessionId,
+  ownerUserId,
+  conclusionTitle = '物业服务',
+  conclusionSummary = '物业服务是当前主因。',
+}) {
   return await runTsSnippet(`
     import snapshotStoreModule from './src/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store.ts';
     import persistenceUseCasesModule from './src/application/analysis-execution/persistence-use-cases.ts';
@@ -199,8 +204,8 @@ async function seedCompletedConclusion({ sessionId, ownerUserId }) {
           },
           renderBlocks: [],
           metadata: {
-            conclusionText: '物业服务',
-            conclusionSummary: '物业服务是当前主因。',
+            conclusionText: ${JSON.stringify(conclusionTitle)},
+            conclusionSummary: ${JSON.stringify(conclusionSummary)},
             conclusionConfidence: 0.82,
             conclusionEvidence: [
               {
@@ -216,8 +221,8 @@ async function seedCompletedConclusion({ sessionId, ownerUserId }) {
           {
             id: 'cause-1',
             rank: 1,
-            title: '物业服务',
-            summary: '物业服务是当前主因。',
+            title: ${JSON.stringify(conclusionTitle)},
+            summary: ${JSON.stringify(conclusionSummary)},
             confidence: 0.82,
             evidence: [
               {
@@ -526,6 +531,94 @@ test('冲突条件未确认前不会静默覆盖，确认后才会生效', async
 
   const stateAfterConfirm = await readFollowUpState(followUpId);
   assert.equal(stateAfterConfirm.followUp.merged_context.timeRange.value, '本月');
+});
+
+test('重新打开会话时，follow-up 面板使用 active follow-up 自身的承接结论和合并上下文', async () => {
+  const cookie = await login({
+    employeeId: 'follow-up-display-owner',
+    displayName: '追问展示拥有者',
+  });
+  const sessionId = await createSession(
+    cookie,
+    '为什么近三个月访客模式的投诉量上升了？',
+  );
+
+  await fetch(`${baseUrl}/api/analysis/sessions/${sessionId}/context`, {
+    method: 'PUT',
+    headers: {
+      Cookie: cookie,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      timeRange: {
+        value: '近六个月',
+      },
+    }),
+  });
+
+  await seedCompletedConclusion({
+    sessionId,
+    ownerUserId: 'follow-up-display-owner',
+    conclusionTitle: '物业服务',
+    conclusionSummary: '物业服务是当前主因。',
+  });
+
+  const { followUpId } = await createFollowUp({
+    cookie,
+    sessionId,
+    question: '继续看一下收费项结构',
+  });
+
+  const confirmForm = new FormData();
+  confirmForm.set('timeRange', '本月');
+  confirmForm.set('confirmConflicts', 'true');
+
+  const confirmResponse = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}/context`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      body: confirmForm,
+      redirect: 'manual',
+    },
+  );
+  assert.equal(confirmResponse.status, 303);
+
+  await seedCompletedConclusion({
+    sessionId,
+    ownerUserId: 'follow-up-display-owner',
+    conclusionTitle: '满意度评价',
+    conclusionSummary: '满意度评价是最新一次执行的主因。',
+  });
+
+  const pageResponse = await fetch(
+    `${baseUrl}/workspace/analysis/${sessionId}?followUpId=${followUpId}`,
+    {
+      headers: {
+        Cookie: cookie,
+      },
+    },
+  );
+  assert.equal(pageResponse.status, 200);
+  const pageHtml = await pageResponse.text();
+  assert.match(
+    pageHtml,
+    /满意度评价/,
+  );
+  assert.match(
+    pageHtml,
+    new RegExp(`name="parentFollowUpId"[^>]*value="${followUpId}"`),
+  );
+  assert.match(
+    pageHtml,
+    /当前承接结论[\s\S]*?物业服务[\s\S]*?name="parentFollowUpId"/,
+  );
+  assert.match(
+    pageHtml,
+    /默认沿用上下文[\s\S]*?本月[\s\S]*?name="parentFollowUpId"/,
+  );
 });
 
 test('非 owner 不能修改他人 follow-up 的范围条件', async () => {

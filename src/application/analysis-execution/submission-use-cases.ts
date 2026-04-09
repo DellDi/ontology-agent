@@ -35,9 +35,11 @@ export function createAnalysisExecutionSubmissionUseCases({
     async submitExecution({
       session,
       plan,
+      questionText,
     }: {
       session: AnalysisSession;
       plan: AnalysisExecutionPlanSnapshot;
+      questionText?: string;
     }): Promise<SubmittedAnalysisExecution> {
       const executablePlan = validateAnalysisExecutionPlanSnapshot(plan);
       const submittedAt = new Date().toISOString();
@@ -49,7 +51,7 @@ export function createAnalysisExecutionSubmissionUseCases({
           organizationId: session.organizationId,
           projectIds: session.projectIds,
           areaIds: session.areaIds,
-          questionText: session.questionText,
+          questionText: questionText ?? session.questionText,
           submittedAt,
           plan: executablePlan,
         },

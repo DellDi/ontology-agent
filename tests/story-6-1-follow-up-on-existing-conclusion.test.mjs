@@ -257,6 +257,34 @@ async function seedCompletedConclusion({
   `);
 }
 
+async function createFollowUp({ cookie, sessionId, question, parentFollowUpId }) {
+  const formData = new FormData();
+  formData.set('question', question);
+
+  if (parentFollowUpId) {
+    formData.set('parentFollowUpId', parentFollowUpId);
+  }
+
+  const response = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      body: formData,
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(response.status, 303);
+  const location = response.headers.get('location') ?? '';
+  const followUpId = new URL(location).searchParams.get('followUpId');
+  assert.ok(followUpId);
+
+  return { location, followUpId };
+}
+
 async function readFollowUpState(sessionId, ownerUserId) {
   return await runTsSnippet(`
     import pg from 'pg';
@@ -474,6 +502,97 @@ test('已有结论时，追问附着在原 session 上并默认复用上下文',
   );
 });
 
+test('继续追问时会承接当前 active follow-up 的合并上下文，而不是回退到 session 基线', async () => {
+  const cookie = await login({
+    employeeId: 'follow-up-chain-owner',
+    displayName: '多轮追问拥有者',
+  });
+  const sessionId = await createSession(
+    cookie,
+    '为什么近三个月丰和园小区项目的收费回款率下降了？',
+  );
+
+  await fetch(`${baseUrl}/api/analysis/sessions/${sessionId}/context`, {
+    method: 'PUT',
+    headers: {
+      Cookie: cookie,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      timeRange: {
+        value: '近六个月',
+      },
+    }),
+  });
+
+  await seedCompletedConclusion({
+    sessionId,
+    ownerUserId: 'follow-up-chain-owner',
+    organizationId: 'org-follow-up',
+    projectIds: ['project-follow-up'],
+    areaIds: ['area-follow-up'],
+  });
+
+  const initialFollowUp = await createFollowUp({
+    cookie,
+    sessionId,
+    question: '那物业服务为什么波动？',
+  });
+
+  const adjustForm = new FormData();
+  adjustForm.set('timeRange', '本月');
+  adjustForm.set('factor', '物业服务');
+  adjustForm.set('confirmConflicts', 'true');
+
+  const adjustResponse = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups/${initialFollowUp.followUpId}/context`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      body: adjustForm,
+      redirect: 'manual',
+    },
+  );
+  assert.equal(adjustResponse.status, 303);
+
+  const chainedFollowUpForm = new FormData();
+  chainedFollowUpForm.set('question', '继续看一下收费项结构');
+  chainedFollowUpForm.set('parentFollowUpId', initialFollowUp.followUpId);
+
+  const chainedResponse = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      body: chainedFollowUpForm,
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(chainedResponse.status, 303);
+
+  const followUpState = await readFollowUpState(sessionId, 'follow-up-chain-owner');
+  assert.equal(followUpState.followUps.length, 2);
+  assert.equal(
+    followUpState.followUps[1].inherited_context.timeRange.value,
+    '本月',
+  );
+  assert.ok(
+    followUpState.followUps[1].inherited_context.constraints.some(
+      (constraint) =>
+        constraint.label === '候选因素' && constraint.value === '物业服务',
+    ),
+  );
+  assert.equal(
+    followUpState.followUps[1].referenced_execution_id,
+    followUpState.followUps[0].referenced_execution_id,
+  );
+});
+
 test('非 owner 不能向他人会话提交追问', async () => {
   const ownerCookie = await login({
     employeeId: 'follow-up-owner-2',
@@ -517,4 +636,88 @@ test('非 owner 不能向他人会话提交追问', async () => {
 
   const state = await readFollowUpState(sessionId, 'follow-up-owner-2');
   assert.equal(state.followUps.length, 0);
+});
+
+test('同一毫秒内创建的 follow-up 也会按稳定顺序返回，避免默认 active 分支漂移', async () => {
+  const state = await runTsSnippet(`
+    import followUpStoreModule from './src/infrastructure/analysis-session/postgres-analysis-session-follow-up-store.ts';
+
+    const { createPostgresAnalysisSessionFollowUpStore } = followUpStoreModule;
+
+    const store = createPostgresAnalysisSessionFollowUpStore();
+    const sessionId = 'follow-up-order-session-' + crypto.randomUUID();
+    const ownerUserId = 'follow-up-order-owner';
+    const timestamp = '2026-04-09T00:00:00.000Z';
+    const sharedContext = {
+      targetMetric: { label: '目标指标', value: '收费回款率', state: 'confirmed' },
+      entity: { label: '实体对象', value: '丰和园小区项目', state: 'confirmed' },
+      timeRange: { label: '时间范围', value: '近三个月', state: 'confirmed' },
+      comparison: { label: '比较方式', value: '待补充比较方式', state: 'missing' },
+      constraints: [],
+    };
+    const firstId = 'follow-up-order-a-' + crypto.randomUUID();
+    const secondId = 'follow-up-order-b-' + crypto.randomUUID();
+
+    await store.create({
+      id: firstId,
+      sessionId,
+      ownerUserId,
+      questionText: '继续看物业服务',
+      referencedExecutionId: 'execution-a',
+      referencedConclusionTitle: '物业服务',
+      referencedConclusionSummary: '物业服务是主因',
+      inheritedContext: sharedContext,
+      mergedContext: sharedContext,
+      planVersion: null,
+      currentPlanSnapshot: null,
+      previousPlanSnapshot: null,
+      currentPlanDiff: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    await store.create({
+      id: secondId,
+      sessionId,
+      ownerUserId,
+      questionText: '继续看收费项结构',
+      referencedExecutionId: 'execution-b',
+      referencedConclusionTitle: '收费项结构',
+      referencedConclusionSummary: '收费项结构需要继续分析',
+      inheritedContext: sharedContext,
+      mergedContext: sharedContext,
+      planVersion: null,
+      currentPlanSnapshot: null,
+      previousPlanSnapshot: null,
+      currentPlanDiff: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    const listed = await store.listBySessionId({ sessionId, ownerUserId });
+    const pgModule = await import('pg');
+    const pool = new pgModule.Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+    const rows = await pool.query(
+      \`
+        select id, created_order
+        from platform.analysis_session_follow_ups
+        where session_id = $1
+        order by created_order asc
+      \`,
+      [sessionId],
+    );
+    await pool.end();
+
+    console.log(JSON.stringify({
+      listedIds: listed.map((followUp) => followUp.id),
+      createdOrders: rows.rows.map((row) => Number(row.created_order)),
+      insertedIds: [firstId, secondId],
+    }));
+  `);
+
+  assert.deepEqual(state.listedIds, state.insertedIds);
+  assert.equal(state.createdOrders.length, 2);
+  assert.ok(state.createdOrders[0] < state.createdOrders[1]);
 });

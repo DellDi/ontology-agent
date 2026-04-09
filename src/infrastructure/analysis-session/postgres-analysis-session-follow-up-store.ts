@@ -81,13 +81,37 @@ export function createPostgresAnalysisSessionFollowUpStore(
       ownerUserId,
       mergedContext,
       updatedAt,
+      planVersion,
+      currentPlanSnapshot,
+      previousPlanSnapshot,
+      currentPlanDiff,
     }) {
+      const updateValues: Partial<
+        typeof analysisSessionFollowUps.$inferInsert
+      > = {
+        mergedContext,
+        updatedAt: new Date(updatedAt),
+      };
+
+      if (planVersion !== undefined) {
+        updateValues.planVersion = planVersion;
+      }
+
+      if (currentPlanSnapshot !== undefined) {
+        updateValues.currentPlanSnapshot = currentPlanSnapshot;
+      }
+
+      if (previousPlanSnapshot !== undefined) {
+        updateValues.previousPlanSnapshot = previousPlanSnapshot;
+      }
+
+      if (currentPlanDiff !== undefined) {
+        updateValues.currentPlanDiff = currentPlanDiff;
+      }
+
       const rows = await resolvedDb
         .update(analysisSessionFollowUps)
-        .set({
-          mergedContext,
-          updatedAt: new Date(updatedAt),
-        })
+        .set(updateValues)
         .where(
           and(
             eq(analysisSessionFollowUps.id, followUpId),
@@ -142,7 +166,10 @@ export function createPostgresAnalysisSessionFollowUpStore(
             eq(analysisSessionFollowUps.ownerUserId, ownerUserId),
           ),
         )
-        .orderBy(asc(analysisSessionFollowUps.createdAt));
+        .orderBy(
+          asc(analysisSessionFollowUps.createdOrder),
+          asc(analysisSessionFollowUps.createdAt),
+        );
 
       return rows.map(rowToAnalysisSessionFollowUp);
     },

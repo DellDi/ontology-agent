@@ -28,6 +28,11 @@ so that 系统可以围绕我最新关心的方向继续分析。
   - [x] 验证冲突条件不会被静默覆盖。
   - [x] 验证确认后才进入后续分析。
 
+### Review Findings
+
+- [x] [Review][Patch] 6.2 写入的 merged context 不会成为下一次 follow-up 的继承基线，新追问仍然从 session 基础上下文起步，导致“补充因素/缩小范围”无法跨轮延续 [src/app/api/analysis/sessions/[sessionId]/follow-ups/route.ts:64]
+- [x] [Review][Patch] 界面上的“默认沿用上下文 / 当前承接结论”读取的是 session 当前状态而不是 active follow-up 已持久化状态，用户重新打开会话后会看到与本轮真实继承条件不一致的展示 [src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx:235]
+
 ## Dev Notes
 
 - 这是 follow-up 轮次内的增量上下文更新，不应回到“重写整份上下文 blob”的粗粒度实现。

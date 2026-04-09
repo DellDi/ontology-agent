@@ -336,6 +336,31 @@ async function readFollowUpPlanState(followUpId) {
   `);
 }
 
+async function readExecutionJob(executionId) {
+  return await runTsSnippet(`
+    import redisClientModule from './src/infrastructure/redis/client.ts';
+    import redisJobQueueModule from './src/infrastructure/job/redis-job-queue.ts';
+    import jobUseCasesModule from './src/application/job/use-cases.ts';
+
+    const { createRedisClient } = redisClientModule;
+    const { createRedisJobQueue } = redisJobQueueModule;
+    const { createJobUseCases } = jobUseCasesModule;
+
+    const { redis } = createRedisClient();
+    await redis.connect();
+
+    try {
+      const jobUseCases = createJobUseCases({
+        jobQueue: createRedisJobQueue(redis),
+      });
+      const job = await jobUseCases.getJob(${JSON.stringify(executionId)});
+      console.log(JSON.stringify(job));
+    } finally {
+      await redis.quit();
+    }
+  `);
+}
+
 test.before(async () => {
   port = await getAvailablePort();
   baseUrl = `http://127.0.0.1:${port}`;
@@ -461,6 +486,250 @@ test('纠正 follow-up 上下文后可重生成新版本计划，并展示计划
     state.followUp.current_plan_diff.invalidatedSteps.some(
       (step) => step.stepId === 'validate-candidate-factors',
     ),
+  );
+});
+
+test('重规划后的执行入口会提交当前 follow-up 计划和 follow-up 问题', async () => {
+  const cookie = await login({
+    employeeId: 'follow-up-replan-exec-owner',
+    displayName: '重规划执行拥有者',
+  });
+  const sessionId = await createSession(
+    cookie,
+    '为什么近三个月丰和园小区项目的收费回款率下降了？',
+  );
+
+  await seedCompletedConclusion({
+    sessionId,
+    ownerUserId: 'follow-up-replan-exec-owner',
+  });
+
+  const { followUpId } = await createFollowUp({
+    cookie,
+    sessionId,
+    question: '继续看一下物业服务因素',
+  });
+
+  await updateFollowUpContext({
+    cookie,
+    sessionId,
+    followUpId,
+    factor: '物业服务',
+  });
+
+  const replanResponse = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}/replan`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+  assert.equal(replanResponse.status, 303);
+
+  const executeForm = new FormData();
+  executeForm.set('followUpId', followUpId);
+
+  const executeResponse = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/execute`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      body: executeForm,
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(executeResponse.status, 303);
+  const location = executeResponse.headers.get('location') ?? '';
+  const redirectUrl = new URL(location);
+  const executionId = redirectUrl.searchParams.get('executionId');
+  assert.ok(executionId);
+  assert.equal(redirectUrl.searchParams.get('followUpId'), followUpId);
+
+  const executionJob = await readExecutionJob(executionId);
+  assert.equal(executionJob.data.questionText, '继续看一下物业服务因素');
+  assert.match(
+    executionJob.data.plan.steps[2].objective,
+    /物业服务/,
+  );
+
+  const page = await fetch(location, {
+    headers: {
+      Cookie: cookie,
+    },
+  });
+  const html = await page.text();
+  assert.match(html, /已提交执行/);
+  assert.match(html, /物业服务/);
+});
+
+test('同一 follow-up 第二次重规划仍保留原 execution 的可复用完成步骤', async () => {
+  const cookie = await login({
+    employeeId: 'follow-up-replan-repeat-owner',
+    displayName: '重规划复用拥有者',
+  });
+  const sessionId = await createSession(
+    cookie,
+    '为什么近三个月丰和园小区项目的收费回款率下降了？',
+  );
+
+  await seedCompletedConclusion({
+    sessionId,
+    ownerUserId: 'follow-up-replan-repeat-owner',
+  });
+
+  const { followUpId } = await createFollowUp({
+    cookie,
+    sessionId,
+    question: '继续看一下物业服务因素',
+  });
+
+  await updateFollowUpContext({
+    cookie,
+    sessionId,
+    followUpId,
+    factor: '物业服务',
+  });
+
+  const firstReplan = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}/replan`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+  assert.equal(firstReplan.status, 303);
+
+  await updateFollowUpContext({
+    cookie,
+    sessionId,
+    followUpId,
+    factor: '满意度评价',
+  });
+
+  const secondReplan = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}/replan`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+  assert.equal(secondReplan.status, 303);
+
+  const state = await readFollowUpPlanState(followUpId);
+  assert.equal(state.followUp.plan_version, 3);
+  assert.ok(
+    state.followUp.current_plan_diff.reusedSteps.some(
+      (step) => step.stepId === 'confirm-analysis-scope',
+    ),
+  );
+  assert.ok(
+    state.followUp.current_plan_diff.reusedSteps.some(
+      (step) => step.stepId === 'inspect-metric-change',
+    ),
+  );
+});
+
+test('follow-up 上下文再次变化后会立即作废旧计划，并在下一次展示与执行时改用新条件', async () => {
+  const cookie = await login({
+    employeeId: 'follow-up-replan-stale-owner',
+    displayName: '计划作废拥有者',
+  });
+  const sessionId = await createSession(
+    cookie,
+    '为什么近三个月丰和园小区项目的收费回款率下降了？',
+  );
+
+  await seedCompletedConclusion({
+    sessionId,
+    ownerUserId: 'follow-up-replan-stale-owner',
+  });
+
+  const { followUpId } = await createFollowUp({
+    cookie,
+    sessionId,
+    question: '继续看一下物业服务因素',
+  });
+
+  await updateFollowUpContext({
+    cookie,
+    sessionId,
+    followUpId,
+    factor: '物业服务',
+  });
+
+  const firstReplan = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}/replan`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+  assert.equal(firstReplan.status, 303);
+
+  await updateFollowUpContext({
+    cookie,
+    sessionId,
+    followUpId,
+    factor: '满意度评价',
+  });
+
+  const invalidatedState = await readFollowUpPlanState(followUpId);
+  assert.equal(invalidatedState.followUp.plan_version, 2);
+  assert.equal(invalidatedState.followUp.current_plan_snapshot, null);
+  assert.equal(invalidatedState.followUp.current_plan_diff, null);
+  assert.ok(invalidatedState.followUp.previous_plan_snapshot);
+
+  const page = await fetch(
+    `${baseUrl}/workspace/analysis/${sessionId}?followUpId=${followUpId}`,
+    {
+      headers: {
+        Cookie: cookie,
+      },
+    },
+  );
+  const html = await page.text();
+  assert.match(html, /满意度评价/);
+  assert.doesNotMatch(html, /计划版本 v2/);
+
+  const executeForm = new FormData();
+  executeForm.set('followUpId', followUpId);
+
+  const executeResponse = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/execute`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      body: executeForm,
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(executeResponse.status, 303);
+  const redirectUrl = new URL(executeResponse.headers.get('location') ?? '');
+  const executionId = redirectUrl.searchParams.get('executionId');
+  assert.ok(executionId);
+
+  const executionJob = await readExecutionJob(executionId);
+  assert.match(
+    executionJob.data.plan.steps[2].objective,
+    /满意度评价/,
   );
 });
 

@@ -28,6 +28,12 @@ so that 我可以逐层下钻到更具体的原因。
   - [x] 验证追问不生成新 session。
   - [x] 验证上一轮上下文被默认复用。
 
+### Review Findings
+
+- [x] [Review][Patch] 后续追问创建始终回退到 session 级上下文与最新 execution，无法承接当前激活 follow-up 的纠正结果 [src/app/api/analysis/sessions/[sessionId]/follow-ups/route.ts:64]
+- [x] [Review][Patch] follow-up 面板展示的是 session 最新结论和当前 session context，而不是 active follow-up 自身承接的结论与 inherited context，历史 reopen 后会出现事实源错位 [src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx:147]
+- [x] [Review][Patch] follow-up 持久化列表只按 `created_at` 排序，但创建时间来自应用层毫秒精度时间戳；同一毫秒内连续创建追问时，`active follow-up` 的默认回退与继承链会出现不稳定顺序，可能承接到错误分支 [src/infrastructure/analysis-session/postgres-analysis-session-follow-up-store.ts:133]
+
 ## Dev Notes
 
 - 这是“在同一会话内继续一轮”，不是新建独立分析。

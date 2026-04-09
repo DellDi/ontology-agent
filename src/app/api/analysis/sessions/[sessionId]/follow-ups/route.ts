@@ -60,6 +60,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     typeof formData.get('question') === 'string'
       ? String(formData.get('question'))
       : '';
+  const parentFollowUpId =
+    typeof formData.get('parentFollowUpId') === 'string'
+      ? String(formData.get('parentFollowUpId'))
+      : '';
 
   await analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
@@ -68,7 +72,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     initialContext: analysisSession.savedContext,
   });
 
-  const [currentContextReadModel, latestSnapshot] = await Promise.all([
+  const [currentContextReadModel, latestSnapshot, parentFollowUp] = await Promise.all([
     analysisContextUseCases.getCurrentContext({
       sessionId: analysisSession.id,
       questionText: analysisSession.questionText,
@@ -78,7 +82,25 @@ export async function POST(request: Request, { params }: RouteContext) {
       sessionId: analysisSession.id,
       ownerUserId: authSession.userId,
     }),
+    parentFollowUpId
+      ? analysisFollowUpUseCases.getOwnedFollowUp({
+          followUpId: parentFollowUpId,
+          ownerUserId: authSession.userId,
+        })
+      : Promise.resolve(null),
   ]);
+
+  if (parentFollowUpId && (!parentFollowUp || parentFollowUp.sessionId !== sessionId)) {
+    const url = buildSessionUrl(request, sessionId);
+    url.searchParams.set(
+      'followUpError',
+      '当前选中的追问不存在、已失效或无权继续承接。',
+    );
+
+    return NextResponse.redirect(url, {
+      status: 303,
+    });
+  }
 
   try {
     const followUp = await analysisFollowUpUseCases.createFollowUp({
@@ -86,6 +108,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       questionText,
       currentContextReadModel,
       latestSnapshot,
+      baseFollowUp: parentFollowUp,
     });
     const url = buildSessionUrl(request, sessionId);
     url.searchParams.set('followUpId', followUp.id);
