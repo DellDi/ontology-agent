@@ -19,6 +19,13 @@ function rowToAnalysisSessionFollowUp(
     inheritedContext:
       row.inheritedContext as AnalysisSessionFollowUp['inheritedContext'],
     mergedContext: row.mergedContext as AnalysisSessionFollowUp['mergedContext'],
+    planVersion: row.planVersion,
+    currentPlanSnapshot:
+      row.currentPlanSnapshot as AnalysisSessionFollowUp['currentPlanSnapshot'],
+    previousPlanSnapshot:
+      row.previousPlanSnapshot as AnalysisSessionFollowUp['previousPlanSnapshot'],
+    currentPlanDiff:
+      row.currentPlanDiff as AnalysisSessionFollowUp['currentPlanDiff'],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -41,6 +48,10 @@ export function createPostgresAnalysisSessionFollowUpStore(
         referencedConclusionSummary: followUp.referencedConclusionSummary,
         inheritedContext: followUp.inheritedContext,
         mergedContext: followUp.mergedContext,
+        planVersion: followUp.planVersion,
+        currentPlanSnapshot: followUp.currentPlanSnapshot,
+        previousPlanSnapshot: followUp.previousPlanSnapshot,
+        currentPlanDiff: followUp.currentPlanDiff,
         createdAt: new Date(followUp.createdAt),
         updatedAt: new Date(followUp.updatedAt),
       });
@@ -75,6 +86,37 @@ export function createPostgresAnalysisSessionFollowUpStore(
         .update(analysisSessionFollowUps)
         .set({
           mergedContext,
+          updatedAt: new Date(updatedAt),
+        })
+        .where(
+          and(
+            eq(analysisSessionFollowUps.id, followUpId),
+            eq(analysisSessionFollowUps.ownerUserId, ownerUserId),
+          ),
+        )
+        .returning();
+
+      const row = rows[0];
+
+      return row ? rowToAnalysisSessionFollowUp(row) : null;
+    },
+
+    async updatePlanState({
+      followUpId,
+      ownerUserId,
+      planVersion,
+      currentPlanSnapshot,
+      previousPlanSnapshot,
+      currentPlanDiff,
+      updatedAt,
+    }) {
+      const rows = await resolvedDb
+        .update(analysisSessionFollowUps)
+        .set({
+          planVersion,
+          currentPlanSnapshot,
+          previousPlanSnapshot,
+          currentPlanDiff,
           updatedAt: new Date(updatedAt),
         })
         .where(

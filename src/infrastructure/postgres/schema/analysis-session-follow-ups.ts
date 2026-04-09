@@ -1,4 +1,4 @@
-import { index, jsonb, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { platformSchema } from './auth-sessions';
 
@@ -14,6 +14,10 @@ export const analysisSessionFollowUps = platformSchema.table(
     referencedConclusionSummary: text('referenced_conclusion_summary'),
     inheritedContext: jsonb('inherited_context').notNull(),
     mergedContext: jsonb('merged_context').notNull(),
+    planVersion: integer('plan_version'),
+    currentPlanSnapshot: jsonb('current_plan_snapshot'),
+    previousPlanSnapshot: jsonb('previous_plan_snapshot'),
+    currentPlanDiff: jsonb('current_plan_diff'),
     createdAt: timestamp('created_at', {
       withTimezone: true,
     }).notNull(),

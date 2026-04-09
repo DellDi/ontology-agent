@@ -20,6 +20,125 @@ export type AnalysisPlan = {
   steps: AnalysisPlanStep[];
 };
 
+export type AnalysisPlanDiffStep = {
+  stepId: string;
+  title: string;
+  reason: string;
+};
+
+export type AnalysisPlanDiff = {
+  reason: string;
+  reusedSteps: AnalysisPlanDiffStep[];
+  invalidatedSteps: AnalysisPlanDiffStep[];
+  addedSteps: AnalysisPlanDiffStep[];
+};
+
+function buildStepSignature(step: AnalysisPlanStep) {
+  return JSON.stringify({
+    id: step.id,
+    title: step.title,
+    objective: step.objective,
+    dependencyIds: step.dependencyIds,
+  });
+}
+
+export function buildAnalysisPlanDiff(input: {
+  previousPlan: AnalysisPlan;
+  nextPlan: AnalysisPlan;
+  reusableCompletedStepIds: string[];
+  reason: string;
+}): AnalysisPlanDiff {
+  const previousById = new Map(
+    input.previousPlan.steps.map((step) => [step.id, step]),
+  );
+  const previousSignatureById = new Map(
+    input.previousPlan.steps.map((step) => [step.id, buildStepSignature(step)]),
+  );
+  const reusableCompletedStepIds = new Set(input.reusableCompletedStepIds);
+  const invalidatedStepIds = new Set<string>();
+  const reusedSteps: AnalysisPlanDiffStep[] = [];
+  const invalidatedSteps: AnalysisPlanDiffStep[] = [];
+  const addedSteps: AnalysisPlanDiffStep[] = [];
+
+  input.previousPlan.steps.forEach((previousStep) => {
+    const nextStep = input.nextPlan.steps.find((step) => step.id === previousStep.id);
+
+    if (!nextStep) {
+      invalidatedStepIds.add(previousStep.id);
+      invalidatedSteps.push({
+        stepId: previousStep.id,
+        title: previousStep.title,
+        reason: '该步骤不再出现在新计划中。',
+      });
+      return;
+    }
+
+    if (buildStepSignature(nextStep) !== buildStepSignature(previousStep)) {
+      invalidatedStepIds.add(previousStep.id);
+      invalidatedSteps.push({
+        stepId: previousStep.id,
+        title: previousStep.title,
+        reason: '步骤定义发生变化，上一轮结果不可直接复用。',
+      });
+      addedSteps.push({
+        stepId: nextStep.id,
+        title: nextStep.title,
+        reason: '该步骤已按新的上下文重新生成。',
+      });
+    }
+  });
+
+  input.nextPlan.steps.forEach((nextStep) => {
+    const previousStep = previousById.get(nextStep.id);
+    const hasSameDefinition =
+      previousStep &&
+      previousSignatureById.get(nextStep.id) === buildStepSignature(nextStep);
+
+    if (!previousStep) {
+      addedSteps.push({
+        stepId: nextStep.id,
+        title: nextStep.title,
+        reason: '该步骤是新计划新增的后续动作。',
+      });
+      return;
+    }
+
+    if (!hasSameDefinition) {
+      return;
+    }
+
+    const hasReusableResult = reusableCompletedStepIds.has(nextStep.id);
+    const hasInvalidDependency = nextStep.dependencyIds.some((dependencyId) =>
+      invalidatedStepIds.has(dependencyId),
+    );
+
+    if (hasReusableResult && !hasInvalidDependency) {
+      reusedSteps.push({
+        stepId: nextStep.id,
+        title: nextStep.title,
+        reason: '步骤定义未变，且上一轮已有完成结果可复用。',
+      });
+      return;
+    }
+
+    if (hasInvalidDependency) {
+      invalidatedStepIds.add(nextStep.id);
+      invalidatedSteps.push({
+        stepId: nextStep.id,
+        title: nextStep.title,
+        reason: '依赖步骤已失效，需要重新执行。',
+      });
+    }
+  });
+
+  return {
+    reason: input.reason,
+    reusedSteps,
+    invalidatedSteps,
+    addedSteps,
+  };
+}
+
 function getDisplayValue(value: string, fallback: string, placeholders: string[]) {
   if (placeholders.includes(value)) {
     return fallback;

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { AnalysisContextReadModel } from '@/application/analysis-context/use-cases';
 import { validateContextCorrection } from '@/domain/analysis-context/models';
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
+import type { AnalysisPlan, AnalysisPlanDiff } from '@/domain/analysis-plan/models';
 import {
   analyzeFollowUpContextAdjustment,
   applyFollowUpContextAdjustment,
@@ -52,6 +53,13 @@ export class AnalysisFollowUpConflictError extends Error {
   }
 }
 
+export class InvalidAnalysisFollowUpReplanError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidAnalysisFollowUpReplanError';
+  }
+}
+
 export function createAnalysisFollowUpUseCases({
   followUpStore,
 }: {
@@ -98,6 +106,10 @@ export function createAnalysisFollowUpUseCases({
           inheritedContext: currentContextReadModel.context,
           followUpQuestionText: normalizedQuestionText,
         }),
+        planVersion: null,
+        currentPlanSnapshot: null,
+        previousPlanSnapshot: null,
+        currentPlanDiff: null,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -217,6 +229,39 @@ export function createAnalysisFollowUpUseCases({
           mergedContext: updatedFollowUp.mergedContext,
         }),
       };
+    },
+
+    async updateFollowUpPlan({
+      followUp,
+      previousPlanSnapshot,
+      nextPlanSnapshot,
+      planDiff,
+    }: {
+      followUp: AnalysisSessionFollowUp;
+      previousPlanSnapshot: AnalysisPlan;
+      nextPlanSnapshot: AnalysisPlan;
+      planDiff: AnalysisPlanDiff;
+    }) {
+      const updatedAt = new Date().toISOString();
+      const planVersion =
+        followUp.planVersion === null ? 2 : followUp.planVersion + 1;
+      const updatedFollowUp = await followUpStore.updatePlanState({
+        followUpId: followUp.id,
+        ownerUserId: followUp.ownerUserId,
+        planVersion,
+        currentPlanSnapshot: nextPlanSnapshot,
+        previousPlanSnapshot,
+        currentPlanDiff: planDiff,
+        updatedAt,
+      });
+
+      if (!updatedFollowUp) {
+        throw new InvalidAnalysisFollowUpReplanError(
+          '重规划结果保存失败，请稍后重试。',
+        );
+      }
+
+      return updatedFollowUp;
     },
   };
 }

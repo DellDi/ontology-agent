@@ -64,6 +64,13 @@
       "when": 1775851200000,
       "tag": "0008_analysis_session_follow_ups",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775854800000,
+      "tag": "0009_follow_up_plan_versions",
+      "breakpoints": true
     }
   ]
 }
