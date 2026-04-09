@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 
 import { ensureAnalysisExecutionSnapshotsTable } from './helpers/ensure-analysis-execution-snapshots-table.mjs';
 import { ensureFollowUpHistoryColumns } from './helpers/ensure-follow-up-history-columns.mjs';
+import { ensureNextBuildReady } from './helpers/ensure-next-build-ready.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -305,7 +306,7 @@ test.before(async () => {
   await ensureAnalysisExecutionSnapshotsTable(TEST_DATABASE_URL);
   await ensureFollowUpHistoryColumns(TEST_DATABASE_URL);
 
-  await execFileAsync('pnpm', ['build'], {
+  await ensureNextBuildReady({
     cwd: process.cwd(),
     env: {
       ...process.env,
