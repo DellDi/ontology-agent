@@ -1,6 +1,6 @@
 # Story 5.2: 流式反馈执行进度、稳定事件协议与阶段结果
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
