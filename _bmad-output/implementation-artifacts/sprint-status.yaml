@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-25
-last_updated: 2026-04-08
+last_updated: 2026-04-09
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -79,11 +79,11 @@ development_status:
   4-7-local-compose-services-for-cube-and-neo4j: done
   epic-4-retrospective: optional
 
-  epic-5: in-progress
-  5-1-submit-analysis-plan-for-execution: review
-  5-2-stream-execution-progress-and-stage-results: review
-  5-3-ranked-causal-conclusions-with-evidence: review
-  5-4-persist-step-results-and-final-conclusion: review
+  epic-5: done
+  5-1-submit-analysis-plan-for-execution: done
+  5-2-stream-execution-progress-and-stage-results: done
+  5-3-ranked-causal-conclusions-with-evidence: done
+  5-4-persist-step-results-and-final-conclusion: done
   epic-5-retrospective: optional
 
   epic-6: in-progress

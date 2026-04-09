@@ -1,6 +1,6 @@
 # Story 5.1: 提交分析计划到后台执行
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

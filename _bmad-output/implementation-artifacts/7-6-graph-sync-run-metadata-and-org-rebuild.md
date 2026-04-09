@@ -146,8 +146,6 @@ GPT-5 Codex
 
 - drizzle/0006_graph_sync_runs.sql
 - scripts/sync-neo4j-baseline.mts
-- scripts/pgloader/original-mysql-migration.mjs
-- scripts/pgloader/original-mysql-specs.mjs
 - src/application/factor-expansion/use-cases.ts
 - src/application/graph-sync/runtime-ports.ts
 - src/application/graph-sync/use-cases.ts

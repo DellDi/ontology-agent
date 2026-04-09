@@ -1,6 +1,6 @@
 # Story 5.4: 保存步骤结果与最终结论
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
