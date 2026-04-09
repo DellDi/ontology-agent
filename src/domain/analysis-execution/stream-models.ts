@@ -107,6 +107,17 @@ function assertNonEmptyString(value: unknown, fieldName: string) {
   return value.trim();
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isStringMatrix(value: unknown): value is string[][] {
+  return (
+    Array.isArray(value) &&
+    value.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === 'string'))
+  );
+}
+
 function validateRenderBlock(
   block: unknown,
 ): ExecutionRenderBlock {
@@ -210,23 +221,13 @@ function validateRenderBlock(
         ),
       };
     case 'table':
-      if (
-        !Array.isArray(candidate.columns) ||
-        candidate.columns.some((column) => typeof column !== 'string')
-      ) {
+      if (!isStringArray(candidate.columns)) {
         throw new InvalidAnalysisExecutionStreamEventError(
           'table.columns 必须是字符串数组。',
         );
       }
 
-      if (
-        !Array.isArray(candidate.rows) ||
-        candidate.rows.some(
-          (row) =>
-            !Array.isArray(row) ||
-            row.some((cell) => typeof cell !== 'string'),
-        )
-      ) {
+      if (!isStringMatrix(candidate.rows)) {
         throw new InvalidAnalysisExecutionStreamEventError(
           'table.rows 必须是二维字符串数组。',
         );
@@ -235,8 +236,8 @@ function validateRenderBlock(
       return {
         type: 'table',
         title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
-        columns: candidate.columns as string[],
-        rows: candidate.rows as string[][],
+        columns: candidate.columns,
+        rows: candidate.rows,
       };
     default:
       throw new InvalidAnalysisExecutionStreamEventError(

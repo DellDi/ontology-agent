@@ -1,6 +1,6 @@
 # Story 6.1: 基于既有结论发起追问
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,15 +18,15 @@ so that 我可以逐层下钻到更具体的原因。
 
 ## Tasks / Subtasks
 
-- [ ] 建立 follow-up / iteration 模型（AC: 1, 2, 3）
-  - [ ] 为会话内轮次或追问记录建立显式结构。
-  - [ ] 保证追问与原 session、上一轮结论、上下文之间的关联稳定。
-- [ ] 接入追问提交入口（AC: 1, 2, 3）
-  - [ ] 新增 follow-up route 或 application service。
-  - [ ] 默认复用上一轮上下文并允许增量输入。
-- [ ] 覆盖追问附着与复用测试（AC: 1, 2, 3）
-  - [ ] 验证追问不生成新 session。
-  - [ ] 验证上一轮上下文被默认复用。
+- [x] 建立 follow-up / iteration 模型（AC: 1, 2, 3）
+  - [x] 为会话内轮次或追问记录建立显式结构。
+  - [x] 保证追问与原 session、上一轮结论、上下文之间的关联稳定。
+- [x] 接入追问提交入口（AC: 1, 2, 3）
+  - [x] 新增 follow-up route 或 application service。
+  - [x] 默认复用上一轮上下文并允许增量输入。
+- [x] 覆盖追问附着与复用测试（AC: 1, 2, 3）
+  - [x] 验证追问不生成新 session。
+  - [x] 验证上一轮上下文被默认复用。
 
 ## Dev Notes
 
@@ -75,12 +75,30 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-6-1-follow-up-on-existing-conclusion.test.mjs`
+- `npm run lint`
+- `npm run build`
+- `node --test --test-concurrency=1 tests/story-3-3-context-correction.test.mjs tests/story-5-1-analysis-execution.test.mjs tests/story-6-1-follow-up-on-existing-conclusion.test.mjs`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增显式 follow-up 持久化模型，追问记录与原 session、最新 execution 和继承上下文稳定关联。
+- 新增服务端 follow-up route，默认复用当前确认上下文并写入 merged context，不会创建新的 analysis session。
+- 会话页新增追问入口和历史列表，用户可在已有归因结论上继续下钻并看到追问附着结果。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/6-1-follow-up-on-existing-conclusion.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- drizzle/0008_analysis_session_follow_ups.sql
+- drizzle/meta/_journal.json
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-follow-up-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/app/api/analysis/sessions/[sessionId]/follow-ups/route.ts
+- src/application/follow-up/ports.ts
+- src/application/follow-up/use-cases.ts
+- src/domain/analysis-session/follow-up-models.ts
+- src/infrastructure/analysis-session/postgres-analysis-session-follow-up-store.ts
+- src/infrastructure/postgres/schema/analysis-session-follow-ups.ts
+- src/infrastructure/postgres/schema/index.ts
+- tests/story-6-1-follow-up-on-existing-conclusion.test.mjs

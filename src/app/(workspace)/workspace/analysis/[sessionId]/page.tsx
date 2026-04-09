@@ -2,7 +2,9 @@ import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
+import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
+import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
@@ -13,6 +15,7 @@ import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
 import { AnalysisConclusionPanel } from './_components/analysis-conclusion-panel';
 import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
+import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
@@ -48,6 +51,9 @@ const analysisExecutionPersistenceUseCases =
   createAnalysisExecutionPersistenceUseCases({
     snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
   });
+const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
+  followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+});
 
 export default async function AnalysisSessionPage({
   params,
@@ -96,11 +102,17 @@ export default async function AnalysisSessionPage({
   const executionError = readSearchParam(
     resolvedSearchParams.executionError,
   );
+  const followUpId = readSearchParam(resolvedSearchParams.followUpId);
+  const followUpError = readSearchParam(resolvedSearchParams.followUpError);
   const latestExecutionSnapshot =
     await analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
       sessionId: analysisSession.id,
       ownerUserId: currentUser.userId,
     });
+  const followUps = await analysisFollowUpUseCases.listOwnedFollowUps({
+    sessionId: analysisSession.id,
+    ownerUserId: currentUser.userId,
+  });
   const requestedExecutionSnapshot = executionId
     ? await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
         executionId,
@@ -179,7 +191,20 @@ export default async function AnalysisSessionPage({
     ? conclusionReadModel
     : executionStreamReadModel
       ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
-    : null;
+      : null;
+  const latestFollowUpConclusion =
+    latestExecutionSnapshot?.conclusionState?.causes?.[0] ?? null;
+  const followUpFeedback = followUpError
+    ? {
+        tone: 'error' as const,
+        message: followUpError,
+      }
+    : followUpId && followUps.some((followUp) => followUp.id === followUpId)
+      ? {
+          tone: 'success' as const,
+          message: '追问已附着到当前会话，可继续基于既有结论向下钻取。',
+        }
+      : null;
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px]">
@@ -296,6 +321,18 @@ export default async function AnalysisSessionPage({
           />
         ) : liveConclusionReadModel ? (
           <AnalysisConclusionPanel readModel={liveConclusionReadModel} />
+        ) : null}
+
+        {latestFollowUpConclusion ? (
+          <AnalysisFollowUpPanel
+            sessionId={analysisSession.id}
+            activeFollowUpId={followUpId}
+            latestConclusionTitle={latestFollowUpConclusion.title}
+            latestConclusionSummary={latestFollowUpConclusion.summary}
+            inheritedContext={contextReadModel.context}
+            followUps={followUps}
+            feedback={followUpFeedback}
+          />
         ) : null}
       </div>
 
