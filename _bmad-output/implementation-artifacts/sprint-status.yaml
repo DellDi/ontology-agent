@@ -109,3 +109,12 @@ development_status:
   8-2-mobile-key-evidence-view: ready-for-dev
   8-3-mobile-lightweight-follow-up: ready-for-dev
   epic-8-retrospective: optional
+
+  epic-9: in-progress
+  9-1-minimal-ontology-registry-and-version-model: ready-for-dev
+  9-2-govern-metric-variant-factor-and-time-semantics: ready-for-dev
+  9-3-ontology-grounding-for-context-planning-and-tool-selection: ready-for-dev
+  9-4-ontology-change-request-approval-and-publish-audit: backlog
+  9-5-ontology-governance-admin-console: backlog
+  9-6-bind-execution-follow-up-and-history-to-ontology-version: backlog
+  epic-9-retrospective: optional

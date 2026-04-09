@@ -449,3 +449,9 @@ pnpm create next-app@latest ontology-agent --ts --app
 - `Vercel AI SDK` 的最合适引入点是 `Epic 5` 开始需要强流式交互时
 - `LangGraph` 的最合适引入点是 `5.4 / 6.2 / 6.3 / 6.4` 暴露出明确执行图复杂度之后
 - 在此之前，优先把我们自己的服务端边界和可治理编排模型做稳
+
+## 架构专题补充
+
+- 统一本体层与知识治理专题设计见：
+  - [ontology-governance-architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ontology-governance-architecture.md)
+- 该文档用于回答“当前语义化分析平台如何继续演进为本体驱动系统”，不替代本总架构文档。
