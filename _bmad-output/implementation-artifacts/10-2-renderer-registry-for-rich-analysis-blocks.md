@@ -62,6 +62,10 @@ so that 我可以更高效地理解结论、证据、执行过程，以及审批
 - `10.1` 负责 AI application runtime layer 与消息生命周期，本 story 不接管 transport、SSE、EventSource、resume 或持久化编排；它只定义和消费 interaction part 的渲染与投影边界。
 - `10.3` 才会处理 UI message projection 的持久化与恢复，所以本 story 只需把 projection contract 设计正确，不要提前把续流状态写死成页面私有实现。
 - `10.5` 会复用同一套 schema 做移动端结果查看与轻量追问，因此本 story 必须先把 PC / mobile 的同源关系定死，避免后面再造第二套 mobile DTO。
+- 从 UX 约束上，renderer registry 不只是技术注册表，还必须服从 `AI-native analysis canvas` 的阅读顺序：`status -> timeline -> evidence -> reasoning -> conclusion -> action`。不要把 rich blocks 渲染成随机卡片墙。
+- 本 story 新增 part 时，必须遵守 Epic 10 UX 增补定义的 `part taxonomy` 和 `surface projection` 规则：相同 part 只允许投影不同，不允许在 `PC / mobile` 上语义不同。
+- `Context Rail` 只能作为当前焦点 message 的放大镜，不能变成第二条主叙事线；`renderer` 必须围绕主 narrative lane 组织，而不是让右侧栏重新组装结论。
+- 未知 part、暂不支持的 part、或当前 surface 不允许显示的 part，都必须走显式 `fallback-block`，以符合 Epic 10 的 fail-loud UX 规则。
 
 ### Current Code Reality
 
@@ -139,6 +143,7 @@ so that 我可以更高效地理解结论、证据、执行过程，以及审批
 - 这份 story 的目标是建立统一语义层，所以命名应围绕 `analysis interaction`、`renderer registry`、`projection`、`surface`，不要只围绕某一个具体页面组件命名。
 - 若后续需要为 mobile 做专门 surface，应该复用这里定义的 schema 和 registry，而不是重新发明一套 `mobile analysis DTO`。
 - 本 story 只负责“看见什么、如何渲染、如何投影”，不负责“内容从哪里来、如何运行、如何恢复”，这些分属 10.1 / 10.3 / 10.4。
+- 推荐实现顺序应优先落 `foundation parts + evidence-card + conclusion-card + table`，再逐步放开 `chart / graph / approval-state / skills-state`，与主画布 wireframe 的分层节奏保持一致。
 
 ## References
 
@@ -147,6 +152,8 @@ so that 我可以更高效地理解结论、证据、执行过程，以及审批
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#AI-Interaction-Rendering-Layer]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-17-统一渲染块输出]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#流式分析画布]
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md]
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#5.4-Epic--Story-变更提案]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#5.5-Sprint-Status-变更提案]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#关键实现规则]

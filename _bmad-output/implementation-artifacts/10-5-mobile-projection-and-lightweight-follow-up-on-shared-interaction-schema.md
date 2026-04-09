@@ -49,12 +49,15 @@ so that 移动端结果查看、续流和轻量追问都能沿用同源交互层
 - 对于需要编辑计划、调整多步分析路径、处理复杂工具确认、查看密集历史轮次或做深度复盘的请求，mobile 端应保持边界清晰，给出明确的 PC 引导，而不是在手机上偷渡一个缩水版编辑器。
 - 摘要投影要和 Story 8.1 / 8.2 保持信息一致：`current conclusion`、`key evidence`、`status`、`last updated`、最小历史上下文应从同一套 render schema 投影出来，避免移动端摘要和 PC 结果页出现口径漂移。
 - Resume 与 history 的结合点来自 Story 6.4 的多轮历史保留能力：mobile 重新进入会话时，应能识别当前轮次、历史轮次和最新可继续轮次，不能把历史压扁成单一 blob，也不能覆盖旧轮次事实。
+- 本 story 还必须服从 Epic 10 主画布投影白名单：mobile 默认只消费 `summary-card`、`status-banner`、紧凑 `evidence-card`、紧凑 `conclusion-card`、`resume-anchor` 及必要的 `approval/tool` 摘要，而不是默认透出所有 desktop rich blocks。
+- mobile 页面应被视为 desktop `narrative lane` 的受限衍生 surface，而不是“另一套为手机重新设计的分析工作台”。
 
 ### Interaction Schema Boundary
 
 - `interaction schema` 应作为跨端共享的语义契约，至少覆盖 message / part / block / status / history slice / follow-up entry / resume token 的关系。
 - mobile 只消费 schema 的受限投影，不直接消费原始执行事件流，也不持有和 PC 不一致的字段语义。
 - 如果 schema 以后扩展新块类型，mobile 只能在明确的投影白名单内逐步开放，而不是默认全部透出。
+- mobile 投影必须优先保住“当前结论、关键证据、状态、恢复入口、下一步动作”这条最短阅读路径，而不是追求对 desktop rich layout 的全量复刻。
 
 ### Resume Semantics
 
@@ -103,6 +106,7 @@ so that 移动端结果查看、续流和轻量追问都能沿用同源交互层
   - 轻量追问会写回原 session
   - 复杂输入会被明确引导到 PC
   - scope / permission 过滤在 mobile projection 中仍然生效
+  - mobile 只消费白名单 projection，不会因为新 rich block 上线而意外透出 desktop-only 语义
 - 测试应优先采用项目既有 story-based 集成测试风格，围绕真实路由、真实 session 与真实后端链路验证，而不是只测纯前端 mock。
 - 若新增 route 或 projection 逻辑，至少补一条 story 级回归，确保 mobile projection 不会悄悄退化成 PC 缩小版。
 
@@ -123,6 +127,8 @@ so that 移动端结果查看、续流和轻量追问都能沿用同源交互层
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-17 统一渲染块输出]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Platform Strategy]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Experience Principles]
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md]
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#AI Interaction Rendering Layer]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#API 与通信模式]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#4.4 Story 拆解与交付顺序]
