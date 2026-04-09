@@ -24,6 +24,10 @@ type AnalysisFollowUpPanelProps = {
     tone: 'success' | 'error';
     message: string;
   } | null;
+  replanFeedback?: {
+    tone: 'success' | 'error';
+    message: string;
+  } | null;
 };
 
 function renderContextSummary(context: AnalysisContext) {
@@ -56,6 +60,7 @@ export function AnalysisFollowUpPanel({
   adjustmentDraft,
   conflictItems = [],
   feedback,
+  replanFeedback,
 }: AnalysisFollowUpPanelProps) {
   const activeFollowUp = buildActiveFollowUp(followUps, activeFollowUpId);
 
@@ -81,6 +86,15 @@ export function AnalysisFollowUpPanel({
           data-tone={feedback.tone === 'error' ? 'error' : 'success'}
         >
           {feedback.message}
+        </div>
+      ) : null}
+
+      {replanFeedback ? (
+        <div
+          className="status-banner mt-4"
+          data-tone={replanFeedback.tone === 'error' ? 'error' : 'success'}
+        >
+          {replanFeedback.message}
         </div>
       ) : null}
 
@@ -231,6 +245,16 @@ export function AnalysisFollowUpPanel({
                 ) : null}
               </div>
             </form>
+
+            <form
+              action={`/api/analysis/sessions/${sessionId}/follow-ups/${activeFollowUp.id}/replan`}
+              className="mt-4 flex justify-end"
+              method="post"
+            >
+              <button className="secondary-button" type="submit">
+                重生成后续计划
+              </button>
+            </form>
           </section>
         ) : null}
 
@@ -323,6 +347,60 @@ function FollowUpCard({
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {followUp.planVersion && followUp.currentPlanDiff ? (
+        <div className="mt-4 space-y-4 rounded-3xl border border-[color:var(--line-200)] bg-white/82 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-[color:var(--ink-900)]">
+              计划版本 v{followUp.planVersion}
+            </p>
+            <p className="text-sm text-[color:var(--ink-600)]">
+              {followUp.currentPlanDiff.reason}
+            </p>
+          </div>
+
+          {followUp.currentPlanDiff.reusedSteps.length > 0 ? (
+            <div>
+              <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+                可复用步骤
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+                {followUp.currentPlanDiff.reusedSteps.map((step) => (
+                  <li key={`${followUp.id}-reused-${step.stepId}`}>{step.title}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {followUp.currentPlanDiff.invalidatedSteps.length > 0 ? (
+            <div>
+              <p className="text-xs font-medium tracking-[0.18em] text-amber-700 uppercase">
+                失效步骤
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+                {followUp.currentPlanDiff.invalidatedSteps.map((step) => (
+                  <li key={`${followUp.id}-invalid-${step.stepId}`}>{step.title}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {followUp.currentPlanDiff.addedSteps.length > 0 ? (
+            <div>
+              <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+                新增步骤
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+                {followUp.currentPlanDiff.addedSteps.map((step) => (
+                  <li key={`${followUp.id}-added-step-${step.stepId}-${step.reason}`}>
+                    {step.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>

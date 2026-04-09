@@ -128,6 +128,12 @@ export default async function AnalysisSessionPage({
   const followUpContextUpdated = readSearchParam(
     resolvedSearchParams.followUpContextUpdated,
   );
+  const followUpReplanned = readSearchParam(
+    resolvedSearchParams.followUpReplanned,
+  );
+  const followUpReplanError = readSearchParam(
+    resolvedSearchParams.followUpReplanError,
+  );
   const followUpConflictItems = parseFollowUpConflict(
     resolvedSearchParams.followUpConflict,
   );
@@ -256,6 +262,17 @@ export default async function AnalysisSessionPage({
       ? {
           tone: 'success' as const,
           message: '追问已附着到当前会话，可继续基于既有结论向下钻取。',
+        }
+      : null;
+  const followUpReplanFeedback = followUpReplanError
+    ? {
+        tone: 'error' as const,
+        message: followUpReplanError,
+      }
+    : followUpReplanned
+      ? {
+          tone: 'success' as const,
+          message: '已根据纠正后的上下文重生成后续计划。',
         }
       : null;
 
@@ -387,6 +404,7 @@ export default async function AnalysisSessionPage({
             adjustmentDraft={followUpAdjustmentDraft}
             conflictItems={followUpConflictItems}
             feedback={followUpFeedback ?? followUpCreationFeedback}
+            replanFeedback={followUpReplanFeedback}
           />
         ) : null}
       </div>

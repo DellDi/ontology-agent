@@ -14,6 +14,15 @@ export interface AnalysisSessionFollowUpStore {
     mergedContext: AnalysisSessionFollowUp['mergedContext'];
     updatedAt: string;
   }): Promise<AnalysisSessionFollowUp | null>;
+  updatePlanState(input: {
+    followUpId: string;
+    ownerUserId: string;
+    planVersion: number;
+    currentPlanSnapshot: NonNullable<AnalysisSessionFollowUp['currentPlanSnapshot']>;
+    previousPlanSnapshot: NonNullable<AnalysisSessionFollowUp['previousPlanSnapshot']>;
+    currentPlanDiff: NonNullable<AnalysisSessionFollowUp['currentPlanDiff']>;
+    updatedAt: string;
+  }): Promise<AnalysisSessionFollowUp | null>;
   listBySessionId(input: {
     sessionId: string;
     ownerUserId: string;

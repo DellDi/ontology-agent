@@ -2,6 +2,9 @@ import type { AnalysisContextReadModel } from '@/application/analysis-context/us
 import type { CandidateFactorReadModel } from '@/application/factor-expansion/use-cases';
 import {
   buildAnalysisPlan,
+  buildAnalysisPlanDiff,
+  type AnalysisPlan,
+  type AnalysisPlanDiff,
   type AnalysisPlanMode,
 } from '@/domain/analysis-plan/models';
 import type { AnalysisExecutionPlanSnapshot } from '@/domain/analysis-execution/models';
@@ -20,6 +23,12 @@ export type AnalysisPlanReadModel = {
   headline: string;
   summary: string;
   steps: AnalysisPlanStepReadModel[];
+};
+
+export type VersionedAnalysisPlanReadModel = {
+  version: number;
+  plan: AnalysisPlanReadModel;
+  diff: AnalysisPlanDiff;
 };
 
 export function createAnalysisPlanningUseCases() {
@@ -104,6 +113,20 @@ export function createAnalysisPlanningUseCases() {
       });
 
       return buildPlanReadModelFromSnapshot(plan);
+    },
+
+    buildPlanVersionDiff(input: {
+      previousPlanSnapshot: AnalysisPlan;
+      nextPlanSnapshot: AnalysisPlan;
+      reusableCompletedStepIds: string[];
+      reason: string;
+    }) {
+      return buildAnalysisPlanDiff({
+        previousPlan: input.previousPlanSnapshot,
+        nextPlan: input.nextPlanSnapshot,
+        reusableCompletedStepIds: input.reusableCompletedStepIds,
+        reason: input.reason,
+      });
     },
   };
 }

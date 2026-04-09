@@ -1,6 +1,6 @@
 # Story 6.3: 根据纠正结果重生成分析计划
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,15 +18,15 @@ so that 系统的下一轮执行能真正反映我纠正后的分析思路。
 
 ## Tasks / Subtasks
 
-- [ ] 建立计划版本与差异模型（AC: 1, 2, 3）
-  - [ ] 为计划 identity、version、diff 建立稳定结构。
-  - [ ] 区分复用步骤、失效步骤和新增步骤。
-- [ ] 接入重规划流程（AC: 1, 2, 3）
-  - [ ] 基于当前确认上下文生成新计划。
-  - [ ] 在界面上展示与上一轮的变化。
-- [ ] 覆盖重规划与复用测试（AC: 1, 2, 3）
-  - [ ] 验证上下文变化触发新版本计划。
-  - [ ] 验证有效结果被保守复用。
+- [x] 建立计划版本与差异模型（AC: 1, 2, 3）
+  - [x] 为计划 identity、version、diff 建立稳定结构。
+  - [x] 区分复用步骤、失效步骤和新增步骤。
+- [x] 接入重规划流程（AC: 1, 2, 3）
+  - [x] 基于当前确认上下文生成新计划。
+  - [x] 在界面上展示与上一轮的变化。
+- [x] 覆盖重规划与复用测试（AC: 1, 2, 3）
+  - [x] 验证上下文变化触发新版本计划。
+  - [x] 验证有效结果被保守复用。
 
 ## Dev Notes
 
@@ -75,12 +75,32 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-6-3-replan-after-user-correction.test.mjs`
+- `node --test --test-concurrency=1 tests/story-6-1-follow-up-on-existing-conclusion.test.mjs tests/story-6-2-add-factors-or-narrow-scope.test.mjs tests/story-6-3-replan-after-user-correction.test.mjs`
+- `npm run lint`
+- `npm run build`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 为 follow-up 引入正式的计划版本与差异结构，服务端持久化 `current/previous plan snapshot` 与 `plan diff`，避免页面临时推导成为唯一事实源。
+- 新增 follow-up 重规划接口，基于纠正后的 merged context、候选因素扩展结果和上一轮 execution snapshot 生成新计划，并保守复用仍有效的已完成步骤。
+- 会话页新增 follow-up 计划重生成功反馈、重规划入口，以及 `可复用步骤 / 失效步骤 / 新增步骤` 的差异展示。
+- 增加 owner-only 与计划重算回归测试，验证上下文纠正会触发新版本计划，并且旧结果只在依赖链仍有效时复用。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/6-3-replan-after-user-correction.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- drizzle/0009_follow_up_plan_versions.sql
+- drizzle/meta/_journal.json
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-follow-up-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/replan/route.ts
+- src/application/analysis-planning/use-cases.ts
+- src/application/follow-up/ports.ts
+- src/application/follow-up/use-cases.ts
+- src/domain/analysis-plan/models.ts
+- src/domain/analysis-session/follow-up-models.ts
+- src/infrastructure/analysis-session/postgres-analysis-session-follow-up-store.ts
+- src/infrastructure/postgres/schema/analysis-session-follow-ups.ts
+- tests/story-6-3-replan-after-user-correction.test.mjs

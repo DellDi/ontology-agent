@@ -6,6 +6,7 @@ import {
   type AnalysisContextConstraint,
   type AnalysisContextField,
 } from '@/domain/analysis-context/models';
+import type { AnalysisPlan, AnalysisPlanDiff } from '@/domain/analysis-plan/models';
 
 import { normalizeQuestionText } from './models';
 
@@ -19,6 +20,10 @@ export type AnalysisSessionFollowUp = {
   referencedConclusionSummary: string | null;
   inheritedContext: AnalysisContext;
   mergedContext: AnalysisContext;
+  planVersion: number | null;
+  currentPlanSnapshot: AnalysisPlan | null;
+  previousPlanSnapshot: AnalysisPlan | null;
+  currentPlanDiff: AnalysisPlanDiff | null;
   createdAt: string;
   updatedAt: string;
 };
