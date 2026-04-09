@@ -10,9 +10,11 @@ export const analysisSessionFollowUps = platformSchema.table(
     sessionId: text('session_id').notNull(),
     ownerUserId: text('owner_user_id').notNull(),
     questionText: text('question_text').notNull(),
+    parentFollowUpId: text('parent_follow_up_id'),
     referencedExecutionId: text('referenced_execution_id').notNull(),
     referencedConclusionTitle: text('referenced_conclusion_title'),
     referencedConclusionSummary: text('referenced_conclusion_summary'),
+    resultExecutionId: text('result_execution_id'),
     inheritedContext: jsonb('inherited_context').notNull(),
     mergedContext: jsonb('merged_context').notNull(),
     createdOrder: bigint('created_order', { mode: 'number' })
@@ -43,6 +45,9 @@ export const analysisSessionFollowUps = platformSchema.table(
     ),
     index('analysis_session_follow_ups_execution_idx').on(
       table.referencedExecutionId,
+    ),
+    index('analysis_session_follow_ups_result_execution_idx').on(
+      table.resultExecutionId,
     ),
     index('analysis_session_follow_ups_created_at_idx').on(table.createdAt),
   ],

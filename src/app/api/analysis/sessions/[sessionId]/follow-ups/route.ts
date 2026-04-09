@@ -103,12 +103,20 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   try {
+    const baseExecutionSnapshot =
+      parentFollowUp?.resultExecutionId
+        ? await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+            executionId: parentFollowUp.resultExecutionId,
+            ownerUserId: authSession.userId,
+          })
+        : null;
     const followUp = await analysisFollowUpUseCases.createFollowUp({
       session: analysisSession,
       questionText,
       currentContextReadModel,
       latestSnapshot,
       baseFollowUp: parentFollowUp,
+      baseExecutionSnapshot,
     });
     const url = buildSessionUrl(request, sessionId);
     url.searchParams.set('followUpId', followUp.id);

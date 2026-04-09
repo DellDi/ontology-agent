@@ -15,7 +15,7 @@ export function createRedisJobQueue(redis: RedisClientType): JobQueue {
   return {
     async submit(submission: JobSubmission): Promise<Job> {
       const job: Job = {
-        id: randomUUID(),
+        id: submission.id ?? randomUUID(),
         type: submission.type,
         status: 'pending',
         data: submission.data ?? {},

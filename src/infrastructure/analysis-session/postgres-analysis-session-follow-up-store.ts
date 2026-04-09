@@ -13,9 +13,11 @@ function rowToAnalysisSessionFollowUp(
     sessionId: row.sessionId,
     ownerUserId: row.ownerUserId,
     questionText: row.questionText,
+    parentFollowUpId: row.parentFollowUpId,
     referencedExecutionId: row.referencedExecutionId,
     referencedConclusionTitle: row.referencedConclusionTitle,
     referencedConclusionSummary: row.referencedConclusionSummary,
+    resultExecutionId: row.resultExecutionId,
     inheritedContext:
       row.inheritedContext as AnalysisSessionFollowUp['inheritedContext'],
     mergedContext: row.mergedContext as AnalysisSessionFollowUp['mergedContext'],
@@ -43,9 +45,11 @@ export function createPostgresAnalysisSessionFollowUpStore(
         sessionId: followUp.sessionId,
         ownerUserId: followUp.ownerUserId,
         questionText: followUp.questionText,
+        parentFollowUpId: followUp.parentFollowUpId,
         referencedExecutionId: followUp.referencedExecutionId,
         referencedConclusionTitle: followUp.referencedConclusionTitle,
         referencedConclusionSummary: followUp.referencedConclusionSummary,
+        resultExecutionId: followUp.resultExecutionId,
         inheritedContext: followUp.inheritedContext,
         mergedContext: followUp.mergedContext,
         planVersion: followUp.planVersion,
@@ -70,6 +74,31 @@ export function createPostgresAnalysisSessionFollowUpStore(
           ),
         )
         .limit(1);
+
+      const row = rows[0];
+
+      return row ? rowToAnalysisSessionFollowUp(row) : null;
+    },
+
+    async attachResultExecution({
+      followUpId,
+      ownerUserId,
+      resultExecutionId,
+      updatedAt,
+    }) {
+      const rows = await resolvedDb
+        .update(analysisSessionFollowUps)
+        .set({
+          resultExecutionId,
+          updatedAt: new Date(updatedAt),
+        })
+        .where(
+          and(
+            eq(analysisSessionFollowUps.id, followUpId),
+            eq(analysisSessionFollowUps.ownerUserId, ownerUserId),
+          ),
+        )
+        .returning();
 
       const row = rows[0];
 

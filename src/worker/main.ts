@@ -3,8 +3,10 @@ import { createRedisJobQueue } from '@/infrastructure/job/redis-job-queue';
 import { createJobUseCases } from '@/application/job/use-cases';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
+import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
 import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
+import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
 import { getJobHandler } from './handlers';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
@@ -29,6 +31,9 @@ async function main() {
     createAnalysisExecutionPersistenceUseCases({
       snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
     });
+  const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
+    followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+  });
 
   let running = true;
 
@@ -86,6 +91,7 @@ async function main() {
               jobUseCases,
               analysisExecutionStreamUseCases,
               analysisExecutionPersistenceUseCases,
+              analysisFollowUpUseCases,
             });
 
           if (completionOutcome.postCompletionError) {
@@ -125,11 +131,20 @@ async function main() {
             executionId: job.id,
             sessionId: jobData.sessionId,
             ownerUserId: jobData.ownerUserId,
+            followUpId: jobData.followUpId,
             status: 'failed',
             planSnapshot: jobData.plan,
             events,
             conclusionReadModel,
           });
+
+          if (jobData.followUpId) {
+            await analysisFollowUpUseCases.attachFollowUpExecution({
+              followUpId: jobData.followUpId,
+              ownerUserId: jobData.ownerUserId,
+              executionId: job.id,
+            });
+          }
         }
         console.error(`[worker] 任务 ${job.id} 失败: ${errorMessage}`);
       }

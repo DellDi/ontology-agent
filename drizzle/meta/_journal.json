@@ -78,6 +78,13 @@
       "when": 1775858400000,
       "tag": "0010_follow_up_plan_invalidation_and_ordering",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775862000000,
+      "tag": "0011_follow_up_history_links",
+      "breakpoints": true
     }
   ]
 }

@@ -15,9 +15,11 @@ export type AnalysisSessionFollowUp = {
   sessionId: string;
   ownerUserId: string;
   questionText: string;
+  parentFollowUpId: string | null;
   referencedExecutionId: string;
   referencedConclusionTitle: string | null;
   referencedConclusionSummary: string | null;
+  resultExecutionId: string | null;
   inheritedContext: AnalysisContext;
   mergedContext: AnalysisContext;
   planVersion: number | null;

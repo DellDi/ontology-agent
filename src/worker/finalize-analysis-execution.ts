@@ -30,6 +30,7 @@ type CompletionPersistenceUseCases = {
     executionId: string;
     sessionId: string;
     ownerUserId: string;
+    followUpId?: string | null;
     status: 'completed';
     planSnapshot: {
       mode: 'minimal' | 'multi-step';
@@ -47,18 +48,28 @@ type CompletionPersistenceUseCases = {
   }) => Promise<unknown>;
 };
 
+type CompletionFollowUpUseCases = {
+  attachFollowUpExecution: (input: {
+    followUpId: string;
+    ownerUserId: string;
+    executionId: string;
+  }) => Promise<unknown>;
+};
+
 export async function finalizeSuccessfulAnalysisExecution({
   job,
   result,
   jobUseCases,
   analysisExecutionStreamUseCases,
   analysisExecutionPersistenceUseCases,
+  analysisFollowUpUseCases,
 }: {
   job: Job;
   result: Record<string, unknown>;
   jobUseCases: CompletionJobUseCases;
   analysisExecutionStreamUseCases: CompletionStreamUseCases;
   analysisExecutionPersistenceUseCases: CompletionPersistenceUseCases;
+  analysisFollowUpUseCases: CompletionFollowUpUseCases;
 }) {
   const jobData = getValidatedAnalysisExecutionJobData(job);
 
@@ -83,11 +94,20 @@ export async function finalizeSuccessfulAnalysisExecution({
       executionId: job.id,
       sessionId: jobData.sessionId,
       ownerUserId: jobData.ownerUserId,
+      followUpId: jobData.followUpId,
       status: 'completed',
       planSnapshot: jobData.plan,
       events,
       conclusionReadModel,
     });
+
+    if (jobData.followUpId) {
+      await analysisFollowUpUseCases.attachFollowUpExecution({
+        followUpId: jobData.followUpId,
+        ownerUserId: jobData.ownerUserId,
+        executionId: job.id,
+      });
+    }
 
     return {
       postCompletionError: null,

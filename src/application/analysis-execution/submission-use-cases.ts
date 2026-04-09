@@ -8,6 +8,7 @@ import type { createAnalysisExecutionStreamUseCases } from '@/application/analys
 
 type JobUseCases = {
   submitJob: (submission: {
+    id?: string;
     type: 'analysis-execution';
     data: Record<string, unknown>;
   }) => Promise<Job>;
@@ -35,15 +36,20 @@ export function createAnalysisExecutionSubmissionUseCases({
     async submitExecution({
       session,
       plan,
+      executionId,
+      followUpId,
       questionText,
     }: {
       session: AnalysisSession;
       plan: AnalysisExecutionPlanSnapshot;
+      executionId?: string;
+      followUpId?: string | null;
       questionText?: string;
     }): Promise<SubmittedAnalysisExecution> {
       const executablePlan = validateAnalysisExecutionPlanSnapshot(plan);
       const submittedAt = new Date().toISOString();
       const job = await jobUseCases.submitJob({
+        id: executionId,
         type: 'analysis-execution',
         data: {
           sessionId: session.id,
@@ -51,6 +57,7 @@ export function createAnalysisExecutionSubmissionUseCases({
           organizationId: session.organizationId,
           projectIds: session.projectIds,
           areaIds: session.areaIds,
+          followUpId: followUpId ?? null,
           questionText: questionText ?? session.questionText,
           submittedAt,
           plan: executablePlan,
