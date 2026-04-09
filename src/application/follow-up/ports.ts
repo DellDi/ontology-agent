@@ -13,6 +13,10 @@ export interface AnalysisSessionFollowUpStore {
     ownerUserId: string;
     mergedContext: AnalysisSessionFollowUp['mergedContext'];
     updatedAt: string;
+    planVersion?: AnalysisSessionFollowUp['planVersion'];
+    currentPlanSnapshot?: AnalysisSessionFollowUp['currentPlanSnapshot'];
+    previousPlanSnapshot?: AnalysisSessionFollowUp['previousPlanSnapshot'];
+    currentPlanDiff?: AnalysisSessionFollowUp['currentPlanDiff'];
   }): Promise<AnalysisSessionFollowUp | null>;
   updatePlanState(input: {
     followUpId: string;

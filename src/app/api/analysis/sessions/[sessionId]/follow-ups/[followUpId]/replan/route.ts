@@ -69,12 +69,10 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const intent = await analysisIntentUseCases.getIntentBySessionId(sessionId);
   const baseSnapshot =
-    followUp.currentPlanSnapshot && followUp.previousPlanSnapshot
-      ? null
-      : await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
-          executionId: followUp.referencedExecutionId,
-          ownerUserId: authSession.userId,
-        });
+    await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+      executionId: followUp.referencedExecutionId,
+      ownerUserId: authSession.userId,
+    });
 
   const previousPlanSnapshot =
     followUp.currentPlanSnapshot ??

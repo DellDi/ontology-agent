@@ -122,6 +122,9 @@ export function AnalysisFollowUpPanel({
         className="mt-5 rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-5"
         method="post"
       >
+        {activeFollowUp ? (
+          <input name="parentFollowUpId" type="hidden" value={activeFollowUp.id} />
+        ) : null}
         <label className="space-y-2">
           <span className="field-label">追问问题</span>
           <textarea

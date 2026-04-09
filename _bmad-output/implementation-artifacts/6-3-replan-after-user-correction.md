@@ -28,6 +28,12 @@ so that 系统的下一轮执行能真正反映我纠正后的分析思路。
   - [x] 验证上下文变化触发新版本计划。
   - [x] 验证有效结果被保守复用。
 
+### Review Findings
+
+- [x] [Review][Patch] 重规划结果没有接入真实执行入口，页面执行按钮和 `/execute` route 仍然只基于 session 级 context 重新生成计划，6.3 的新计划不会成为下一轮执行输入 [src/app/api/analysis/sessions/[sessionId]/execute/route.ts:49]
+- [x] [Review][Patch] 同一个 follow-up 第二次重规划时会丢失原 execution 的可复用完成步骤，因为 route 在已有 `currentPlanSnapshot` 后不再读取 base snapshot，`reusableCompletedStepIds` 退化为空 [src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/replan/route.ts:71]
+- [x] [Review][Patch] follow-up 已经重规划后，如果用户继续修改范围或候选因素，持久化层不会清空旧的 `currentPlanSnapshot/currentPlanDiff`，页面和 `/execute` 仍会把过期计划当成当前计划继续展示和执行 [src/application/follow-up/use-cases.ts:225]
+
 ## Dev Notes
 
 - 重规划不是简单“覆盖旧计划”，而是生成可追溯的新计划版本。

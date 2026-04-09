@@ -3,11 +3,13 @@ import type { AnalysisPlanReadModel } from '@/application/analysis-planning/use-
 type AnalysisPlanPanelProps = {
   sessionId: string;
   readModel: AnalysisPlanReadModel;
+  followUpId?: string;
 };
 
 export function AnalysisPlanPanel({
   sessionId,
   readModel,
+  followUpId,
 }: AnalysisPlanPanelProps) {
   return (
     <article className="glass-panel p-6" data-testid="analysis-plan-panel">
@@ -85,6 +87,9 @@ export function AnalysisPlanPanel({
           className="mt-4"
           method="post"
         >
+          {followUpId ? (
+            <input name="followUpId" type="hidden" value={followUpId} />
+          ) : null}
           <button className="primary-button" type="submit">
             开始执行分析
           </button>

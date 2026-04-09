@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
 import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
+import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
@@ -62,6 +63,21 @@ function parseFollowUpConflict(
   }
 }
 
+function resolveActiveFollowUpId(
+  followUpId: string,
+  followUps: AnalysisSessionFollowUp[],
+) {
+  if (!followUps.length) {
+    return null;
+  }
+
+  return (
+    followUps.find((followUp) => followUp.id === followUpId) ??
+    followUps.at(-1) ??
+    null
+  );
+}
+
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
@@ -111,11 +127,6 @@ export default async function AnalysisSessionPage({
     questionText: analysisSession.questionText,
     savedContext: analysisSession.savedContext,
   });
-  const candidateFactorReadModel = await factorExpansionUseCases.buildCandidateFactorReadModel({
-    intentType: intent?.type ?? 'general-analysis',
-    questionText: analysisSession.questionText,
-    contextReadModel,
-  });
   const executionId = readSearchParam(resolvedSearchParams.executionId);
   const executionError = readSearchParam(
     resolvedSearchParams.executionError,
@@ -153,6 +164,46 @@ export default async function AnalysisSessionPage({
     sessionId: analysisSession.id,
     ownerUserId: currentUser.userId,
   });
+  const activeFollowUp = resolveActiveFollowUpId(followUpId, followUps);
+  const planContextReadModel = activeFollowUp
+    ? {
+        sessionId: analysisSession.id,
+        version: 0,
+        context: activeFollowUp.mergedContext,
+        canUndo: false,
+        originalQuestionText: activeFollowUp.questionText,
+      }
+    : contextReadModel;
+  const planQuestionText =
+    activeFollowUp?.questionText ?? analysisSession.questionText;
+  const candidateFactorReadModel =
+    await factorExpansionUseCases.buildCandidateFactorReadModel({
+      intentType: intent?.type ?? 'general-analysis',
+      questionText: planQuestionText,
+      contextReadModel: planContextReadModel,
+    });
+  const mergedCandidateFactorReadModel = activeFollowUp
+    ? {
+        ...candidateFactorReadModel,
+        factors: [
+          ...(activeFollowUp.mergedContext.constraints
+            .filter((constraint) => constraint.label === '候选因素')
+            .map((constraint, index) => ({
+              key: `manual-factor-${index + 1}`,
+              label: constraint.value,
+              rationale: '用户在 follow-up 中显式补充的候选因素。',
+            }))),
+          ...candidateFactorReadModel.factors.filter(
+            (factor) =>
+              !activeFollowUp.mergedContext.constraints.some(
+                (constraint) =>
+                  constraint.label === '候选因素' &&
+                  constraint.value === factor.label,
+              ),
+          ),
+        ],
+      }
+    : candidateFactorReadModel;
   const requestedExecutionSnapshot = executionId
     ? await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
         executionId,
@@ -202,7 +253,9 @@ export default async function AnalysisSessionPage({
   const planSnapshotForDisplay =
     sessionScopedRequestedExecutionSnapshot?.planSnapshot ??
     requestedExecutionRuntime.requestedExecutionJob?.planSnapshot ??
-    snapshotForDisplay?.planSnapshot ??
+    (activeFollowUp
+      ? activeFollowUp.currentPlanSnapshot
+      : snapshotForDisplay?.planSnapshot) ??
     null;
   const analysisPlanReadModel = planSnapshotForDisplay
     ? analysisPlanningUseCases.buildPlanReadModelFromSnapshot({
@@ -210,8 +263,8 @@ export default async function AnalysisSessionPage({
       })
     : analysisPlanningUseCases.buildPlanReadModel({
         intentType: intent?.type ?? 'general-analysis',
-        contextReadModel,
-        candidateFactorReadModel,
+        contextReadModel: planContextReadModel,
+        candidateFactorReadModel: mergedCandidateFactorReadModel,
       });
   const resolvedExecutionId =
     requestedExecutionIdForDisplay || snapshotForDisplay?.executionId || '';
@@ -232,8 +285,13 @@ export default async function AnalysisSessionPage({
     : executionStreamReadModel
       ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
       : null;
-  const latestFollowUpConclusion =
-    latestExecutionSnapshot?.conclusionState?.causes?.[0] ?? null;
+  const latestFollowUpConclusion = activeFollowUp
+    ? {
+        title: activeFollowUp.referencedConclusionTitle,
+        summary: activeFollowUp.referencedConclusionSummary,
+      }
+    : (latestExecutionSnapshot?.conclusionState?.causes?.[0] ?? null);
+  const followUpInheritedContext = activeFollowUp?.mergedContext ?? contextReadModel.context;
   const followUpFeedback = followUpError
     ? {
         tone: 'error' as const,
@@ -380,6 +438,7 @@ export default async function AnalysisSessionPage({
         <AnalysisPlanPanel
           sessionId={analysisSession.id}
           readModel={analysisPlanReadModel}
+          followUpId={activeFollowUp?.id}
         />
 
         {resolvedExecutionId && executionStreamReadModel ? (
@@ -396,10 +455,10 @@ export default async function AnalysisSessionPage({
         {latestFollowUpConclusion ? (
           <AnalysisFollowUpPanel
             sessionId={analysisSession.id}
-            activeFollowUpId={followUpId}
+            activeFollowUpId={activeFollowUp?.id}
             latestConclusionTitle={latestFollowUpConclusion.title}
             latestConclusionSummary={latestFollowUpConclusion.summary}
-            inheritedContext={contextReadModel.context}
+            inheritedContext={followUpInheritedContext}
             followUps={followUps}
             adjustmentDraft={followUpAdjustmentDraft}
             conflictItems={followUpConflictItems}

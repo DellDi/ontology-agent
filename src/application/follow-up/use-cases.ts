@@ -71,11 +71,13 @@ export function createAnalysisFollowUpUseCases({
       questionText,
       currentContextReadModel,
       latestSnapshot,
+      baseFollowUp,
     }: {
       session: AnalysisSession;
       questionText: string;
       currentContextReadModel: AnalysisContextReadModel;
       latestSnapshot: AnalysisExecutionSnapshot | null;
+      baseFollowUp?: AnalysisSessionFollowUp | null;
     }) {
       const validationMessage = validateQuestionText(questionText);
 
@@ -84,8 +86,19 @@ export function createAnalysisFollowUpUseCases({
       }
 
       const latestConclusion = latestSnapshot?.conclusionState?.causes?.[0] ?? null;
+      const inheritedContext =
+        baseFollowUp?.mergedContext ?? currentContextReadModel.context;
+      const referencedExecutionId =
+        baseFollowUp?.referencedExecutionId ?? latestSnapshot?.executionId ?? null;
+      const referencedConclusionTitle =
+        baseFollowUp?.referencedConclusionTitle ?? latestConclusion?.title ?? null;
+      const referencedConclusionSummary =
+        baseFollowUp?.referencedConclusionSummary ?? latestConclusion?.summary ?? null;
 
-      if (!latestSnapshot || !latestConclusion) {
+      if (
+        !referencedExecutionId ||
+        (!referencedConclusionTitle && !referencedConclusionSummary)
+      ) {
         throw new MissingAnalysisConclusionForFollowUpError(
           '当前会话还没有可承接的既有结论，无法发起追问。',
         );
@@ -98,12 +111,12 @@ export function createAnalysisFollowUpUseCases({
         sessionId: session.id,
         ownerUserId: session.ownerUserId,
         questionText: normalizedQuestionText,
-        referencedExecutionId: latestSnapshot.executionId,
-        referencedConclusionTitle: latestConclusion.title,
-        referencedConclusionSummary: latestConclusion.summary,
-        inheritedContext: currentContextReadModel.context,
+        referencedExecutionId,
+        referencedConclusionTitle,
+        referencedConclusionSummary,
+        inheritedContext,
         mergedContext: mergeFollowUpContext({
-          inheritedContext: currentContextReadModel.context,
+          inheritedContext,
           followUpQuestionText: normalizedQuestionText,
         }),
         planVersion: null,
@@ -208,12 +221,21 @@ export function createAnalysisFollowUpUseCases({
         currentContext: followUp.mergedContext,
         adjustment,
       });
+      const contextChanged =
+        JSON.stringify(mergedContext) !== JSON.stringify(followUp.mergedContext);
       const updatedAt = new Date().toISOString();
       const updatedFollowUp = await followUpStore.updateMergedContext({
         followUpId: followUp.id,
         ownerUserId: followUp.ownerUserId,
         mergedContext,
         updatedAt,
+        planVersion: followUp.planVersion,
+        currentPlanSnapshot: contextChanged ? null : undefined,
+        previousPlanSnapshot:
+          contextChanged && followUp.currentPlanSnapshot
+            ? followUp.currentPlanSnapshot
+            : undefined,
+        currentPlanDiff: contextChanged ? null : undefined,
       });
 
       if (!updatedFollowUp) {
