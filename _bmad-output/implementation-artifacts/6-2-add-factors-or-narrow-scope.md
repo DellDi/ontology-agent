@@ -1,6 +1,6 @@
 # Story 6.2: 补充因素或缩小分析范围
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

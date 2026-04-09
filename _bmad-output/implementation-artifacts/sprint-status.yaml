@@ -87,9 +87,9 @@ development_status:
   epic-5-retrospective: optional
 
   epic-6: in-progress
-  6-1-follow-up-on-existing-conclusion: review
-  6-2-add-factors-or-narrow-scope: review
-  6-3-replan-after-user-correction: review
+  6-1-follow-up-on-existing-conclusion: done
+  6-2-add-factors-or-narrow-scope: done
+  6-3-replan-after-user-correction: done
   6-4-preserve-multi-round-history: ready-for-dev
   epic-6-retrospective: optional
 
