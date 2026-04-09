@@ -44,6 +44,24 @@ function readSearchParam(
   return fallback;
 }
 
+function parseFollowUpConflict(
+  value: string | string[] | undefined,
+) {
+  const raw = readSearchParam(value);
+
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
@@ -104,6 +122,22 @@ export default async function AnalysisSessionPage({
   );
   const followUpId = readSearchParam(resolvedSearchParams.followUpId);
   const followUpError = readSearchParam(resolvedSearchParams.followUpError);
+  const followUpAdjustmentError = readSearchParam(
+    resolvedSearchParams.followUpAdjustmentError,
+  );
+  const followUpContextUpdated = readSearchParam(
+    resolvedSearchParams.followUpContextUpdated,
+  );
+  const followUpConflictItems = parseFollowUpConflict(
+    resolvedSearchParams.followUpConflict,
+  );
+  const followUpAdjustmentDraft = {
+    targetMetric: readSearchParam(resolvedSearchParams.targetMetric),
+    entity: readSearchParam(resolvedSearchParams.entity),
+    timeRange: readSearchParam(resolvedSearchParams.timeRange),
+    comparison: readSearchParam(resolvedSearchParams.comparison),
+    factor: readSearchParam(resolvedSearchParams.factor),
+  };
   const latestExecutionSnapshot =
     await analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
       sessionId: analysisSession.id,
@@ -199,7 +233,26 @@ export default async function AnalysisSessionPage({
         tone: 'error' as const,
         message: followUpError,
       }
-    : followUpId && followUps.some((followUp) => followUp.id === followUpId)
+    : followUpAdjustmentError
+      ? {
+          tone: 'error' as const,
+          message: followUpAdjustmentError,
+        }
+      : followUpContextUpdated === 'conflict-confirmed'
+        ? {
+            tone: 'success' as const,
+            message: '冲突条件已确认并更新到当前轮次上下文。',
+          }
+        : followUpContextUpdated
+          ? {
+              tone: 'success' as const,
+              message: '当前轮次上下文已合并新增条件。',
+            }
+          : null;
+  const followUpCreationFeedback =
+    !followUpFeedback &&
+    followUpId &&
+    followUps.some((followUp) => followUp.id === followUpId)
       ? {
           tone: 'success' as const,
           message: '追问已附着到当前会话，可继续基于既有结论向下钻取。',
@@ -331,7 +384,9 @@ export default async function AnalysisSessionPage({
             latestConclusionSummary={latestFollowUpConclusion.summary}
             inheritedContext={contextReadModel.context}
             followUps={followUps}
-            feedback={followUpFeedback}
+            adjustmentDraft={followUpAdjustmentDraft}
+            conflictItems={followUpConflictItems}
+            feedback={followUpFeedback ?? followUpCreationFeedback}
           />
         ) : null}
       </div>

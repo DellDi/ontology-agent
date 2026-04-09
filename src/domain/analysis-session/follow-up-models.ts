@@ -1,4 +1,6 @@
 import {
+  applyContextCorrection,
+  type ContextCorrection,
   extractAnalysisContext,
   type AnalysisContext,
   type AnalysisContextConstraint,
@@ -19,6 +21,30 @@ export type AnalysisSessionFollowUp = {
   mergedContext: AnalysisContext;
   createdAt: string;
   updatedAt: string;
+};
+
+export type FollowUpContextFieldKey =
+  | 'targetMetric'
+  | 'entity'
+  | 'timeRange'
+  | 'comparison';
+
+export type FollowUpContextChangeItem = {
+  type: 'field' | 'constraint';
+  key: string;
+  label: string;
+  previousValue?: string;
+  nextValue: string;
+};
+
+export type FollowUpContextDiff = {
+  added: FollowUpContextChangeItem[];
+  overridden: FollowUpContextChangeItem[];
+};
+
+export type FollowUpContextAdjustment = {
+  correction: ContextCorrection;
+  factor: string | null;
 };
 
 function mergeField(
@@ -90,5 +116,145 @@ export function mergeFollowUpContext({
       inheritedContext.constraints,
       extractedFollowUpContext.constraints,
     ),
+  };
+}
+
+const FIELD_LABELS: Record<FollowUpContextFieldKey, string> = {
+  targetMetric: '目标指标',
+  entity: '实体对象',
+  timeRange: '时间范围',
+  comparison: '比较方式',
+};
+
+function pushDiffItem(
+  items: FollowUpContextChangeItem[],
+  item: FollowUpContextChangeItem,
+) {
+  items.push(item);
+}
+
+export function buildFollowUpContextDiff({
+  inheritedContext,
+  mergedContext,
+}: {
+  inheritedContext: AnalysisContext;
+  mergedContext: AnalysisContext;
+}): FollowUpContextDiff {
+  const added: FollowUpContextChangeItem[] = [];
+  const overridden: FollowUpContextChangeItem[] = [];
+
+  (Object.keys(FIELD_LABELS) as FollowUpContextFieldKey[]).forEach((fieldKey) => {
+    const inheritedField = inheritedContext[fieldKey];
+    const mergedField = mergedContext[fieldKey];
+
+    if (inheritedField.value === mergedField.value) {
+      return;
+    }
+
+    const targetCollection =
+      inheritedField.state === 'confirmed' ? overridden : added;
+
+    pushDiffItem(targetCollection, {
+      type: 'field',
+      key: fieldKey,
+      label: FIELD_LABELS[fieldKey],
+      previousValue: inheritedField.value,
+      nextValue: mergedField.value,
+    });
+  });
+
+  const inheritedConstraintKeys = new Set(
+    inheritedContext.constraints.map(
+      (constraint) => `${constraint.label}:${constraint.value}`,
+    ),
+  );
+
+  mergedContext.constraints.forEach((constraint) => {
+    const key = `${constraint.label}:${constraint.value}`;
+
+    if (inheritedConstraintKeys.has(key)) {
+      return;
+    }
+
+    pushDiffItem(added, {
+      type: 'constraint',
+      key,
+      label: constraint.label,
+      nextValue: constraint.value,
+    });
+  });
+
+  return {
+    added,
+    overridden,
+  };
+}
+
+export function analyzeFollowUpContextAdjustment({
+  currentContext,
+  adjustment,
+}: {
+  currentContext: AnalysisContext;
+  adjustment: FollowUpContextAdjustment;
+}) {
+  const conflicts: FollowUpContextChangeItem[] = [];
+
+  (Object.keys(FIELD_LABELS) as FollowUpContextFieldKey[]).forEach((fieldKey) => {
+    const candidate = adjustment.correction[fieldKey];
+
+    if (!candidate) {
+      return;
+    }
+
+    const currentField = currentContext[fieldKey];
+
+    if (
+      currentField.state === 'confirmed' &&
+      currentField.value !== candidate.value
+    ) {
+      conflicts.push({
+        type: 'field',
+        key: fieldKey,
+        label: FIELD_LABELS[fieldKey],
+        previousValue: currentField.value,
+        nextValue: candidate.value,
+      });
+    }
+  });
+
+  return {
+    conflicts,
+  };
+}
+
+export function applyFollowUpContextAdjustment({
+  currentContext,
+  adjustment,
+}: {
+  currentContext: AnalysisContext;
+  adjustment: FollowUpContextAdjustment;
+}) {
+  const correctedContext = Object.keys(adjustment.correction).length
+    ? applyContextCorrection(currentContext, adjustment.correction)
+    : currentContext;
+  const nextConstraints = [...correctedContext.constraints];
+
+  if (adjustment.factor) {
+    const factorKey = `候选因素:${adjustment.factor}`;
+    const hasFactor = nextConstraints.some(
+      (constraint) => `${constraint.label}:${constraint.value}` === factorKey,
+    );
+
+    if (!hasFactor) {
+      nextConstraints.push({
+        label: '候选因素',
+        value: adjustment.factor,
+      });
+    }
+  }
+
+  return {
+    ...correctedContext,
+    constraints: nextConstraints,
   };
 }

@@ -1,6 +1,6 @@
 # Story 6.2: 补充因素或缩小分析范围
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,15 +18,15 @@ so that 系统可以围绕我最新关心的方向继续分析。
 
 ## Tasks / Subtasks
 
-- [ ] 建立上下文增量合并与冲突检测（AC: 1, 2, 3）
-  - [ ] 明确“新增条件”“继承条件”“冲突条件”的结构。
-  - [ ] 复用已有 context normalization / validation，而不是新建平行规则。
-- [ ] 接入会话内增量修改体验（AC: 1, 2, 3）
-  - [ ] 服务端保存增量输入并生成新的当前轮次上下文。
-  - [ ] 界面展示哪些条件是新增项。
-- [ ] 覆盖冲突与确认测试（AC: 1, 2, 3）
-  - [ ] 验证冲突条件不会被静默覆盖。
-  - [ ] 验证确认后才进入后续分析。
+- [x] 建立上下文增量合并与冲突检测（AC: 1, 2, 3）
+  - [x] 明确“新增条件”“继承条件”“冲突条件”的结构。
+  - [x] 复用已有 context normalization / validation，而不是新建平行规则。
+- [x] 接入会话内增量修改体验（AC: 1, 2, 3）
+  - [x] 服务端保存增量输入并生成新的当前轮次上下文。
+  - [x] 界面展示哪些条件是新增项。
+- [x] 覆盖冲突与确认测试（AC: 1, 2, 3）
+  - [x] 验证冲突条件不会被静默覆盖。
+  - [x] 验证确认后才进入后续分析。
 
 ## Dev Notes
 
@@ -75,12 +75,26 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-6-2-add-factors-or-narrow-scope.test.mjs`
+- `npm run lint`
+- `npm run build`
+- `node --test --test-concurrency=1 tests/story-3-3-context-correction.test.mjs tests/story-6-1-follow-up-on-existing-conclusion.test.mjs tests/story-6-2-add-factors-or-narrow-scope.test.mjs`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 追问轮次现在支持结构化增量条件输入，服务端会把新增因素、比较条件和范围限制并入当前 follow-up 上下文。
+- 新增条件与覆盖条件通过 follow-up read model 明确展示，界面可辨识后续新增项。
+- 冲突条件在服务端先被拦截并回显，只有用户显式确认后才会更新当前轮次上下文。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/6-2-add-factors-or-narrow-scope.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-follow-up-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/context/route.ts
+- src/application/follow-up/ports.ts
+- src/application/follow-up/use-cases.ts
+- src/domain/analysis-session/follow-up-models.ts
+- src/infrastructure/analysis-session/postgres-analysis-session-follow-up-store.ts
+- tests/story-6-2-add-factors-or-narrow-scope.test.mjs
