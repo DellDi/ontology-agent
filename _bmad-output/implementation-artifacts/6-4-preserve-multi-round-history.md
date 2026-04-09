@@ -1,6 +1,6 @@
 # Story 6.4: 保留多轮循环历史与结论演化
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

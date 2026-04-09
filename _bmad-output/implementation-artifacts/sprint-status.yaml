@@ -86,12 +86,12 @@ development_status:
   5-4-persist-step-results-and-final-conclusion: done
   epic-5-retrospective: optional
 
-  epic-6: in-progress
+  epic-6: done
   6-1-follow-up-on-existing-conclusion: done
   6-2-add-factors-or-narrow-scope: done
   6-3-replan-after-user-correction: done
-  6-4-preserve-multi-round-history: review
-  epic-6-retrospective: optional
+  6-4-preserve-multi-round-history: done
+  epic-6-retrospective: done
 
   epic-7: in-progress
   7-1-server-side-authorization-enforcement: ready-for-dev
