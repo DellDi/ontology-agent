@@ -57,6 +57,13 @@
       "when": 1775796600000,
       "tag": "0007_graph_sync_incremental_runtime",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775851200000,
+      "tag": "0008_analysis_session_follow_ups",
+      "breakpoints": true
     }
   ]
 }
