@@ -72,12 +72,14 @@ export function createAnalysisFollowUpUseCases({
       currentContextReadModel,
       latestSnapshot,
       baseFollowUp,
+      baseExecutionSnapshot,
     }: {
       session: AnalysisSession;
       questionText: string;
       currentContextReadModel: AnalysisContextReadModel;
       latestSnapshot: AnalysisExecutionSnapshot | null;
       baseFollowUp?: AnalysisSessionFollowUp | null;
+      baseExecutionSnapshot?: AnalysisExecutionSnapshot | null;
     }) {
       const validationMessage = validateQuestionText(questionText);
 
@@ -86,14 +88,25 @@ export function createAnalysisFollowUpUseCases({
       }
 
       const latestConclusion = latestSnapshot?.conclusionState?.causes?.[0] ?? null;
+      const baseConclusion =
+        baseExecutionSnapshot?.conclusionState?.causes?.[0] ?? null;
       const inheritedContext =
         baseFollowUp?.mergedContext ?? currentContextReadModel.context;
       const referencedExecutionId =
-        baseFollowUp?.referencedExecutionId ?? latestSnapshot?.executionId ?? null;
+        baseExecutionSnapshot?.executionId ??
+        baseFollowUp?.referencedExecutionId ??
+        latestSnapshot?.executionId ??
+        null;
       const referencedConclusionTitle =
-        baseFollowUp?.referencedConclusionTitle ?? latestConclusion?.title ?? null;
+        baseConclusion?.title ??
+        baseFollowUp?.referencedConclusionTitle ??
+        latestConclusion?.title ??
+        null;
       const referencedConclusionSummary =
-        baseFollowUp?.referencedConclusionSummary ?? latestConclusion?.summary ?? null;
+        baseConclusion?.summary ??
+        baseFollowUp?.referencedConclusionSummary ??
+        latestConclusion?.summary ??
+        null;
 
       if (
         !referencedExecutionId ||
@@ -111,9 +124,11 @@ export function createAnalysisFollowUpUseCases({
         sessionId: session.id,
         ownerUserId: session.ownerUserId,
         questionText: normalizedQuestionText,
+        parentFollowUpId: baseFollowUp?.id ?? null,
         referencedExecutionId,
         referencedConclusionTitle,
         referencedConclusionSummary,
+        resultExecutionId: null,
         inheritedContext,
         mergedContext: mergeFollowUpContext({
           inheritedContext,
@@ -284,6 +299,23 @@ export function createAnalysisFollowUpUseCases({
       }
 
       return updatedFollowUp;
+    },
+
+    async attachFollowUpExecution({
+      followUpId,
+      ownerUserId,
+      executionId,
+    }: {
+      followUpId: string;
+      ownerUserId: string;
+      executionId: string;
+    }) {
+      return await followUpStore.attachResultExecution({
+        followUpId,
+        ownerUserId,
+        resultExecutionId: executionId,
+        updatedAt: new Date().toISOString(),
+      });
     },
   };
 }

@@ -12,6 +12,7 @@ function rowToSnapshot(
     executionId: row.executionId,
     sessionId: row.sessionId,
     ownerUserId: row.ownerUserId,
+    followUpId: row.followUpId,
     status: row.status as AnalysisExecutionSnapshot['status'],
     planSnapshot: row.planSnapshot as AnalysisExecutionSnapshot['planSnapshot'],
     stepResults: row.stepResults as AnalysisExecutionSnapshot['stepResults'],
@@ -39,6 +40,7 @@ export function createPostgresAnalysisExecutionSnapshotStore(
           executionId: snapshot.executionId,
           sessionId: snapshot.sessionId,
           ownerUserId: snapshot.ownerUserId,
+          followUpId: snapshot.followUpId,
           status: snapshot.status,
           planSnapshot: snapshot.planSnapshot,
           stepResults: snapshot.stepResults,
@@ -54,6 +56,7 @@ export function createPostgresAnalysisExecutionSnapshotStore(
           set: {
             status: snapshot.status,
             planSnapshot: snapshot.planSnapshot,
+            followUpId: snapshot.followUpId,
             stepResults: snapshot.stepResults,
             conclusionState: snapshot.conclusionState,
             resultBlocks: snapshot.resultBlocks,
@@ -77,6 +80,16 @@ export function createPostgresAnalysisExecutionSnapshotStore(
       const row = rows[0];
 
       return row ? rowToSnapshot(row) : null;
+    },
+
+    async listBySessionId(sessionId) {
+      const rows = await resolvedDb
+        .select()
+        .from(analysisExecutionSnapshots)
+        .where(eq(analysisExecutionSnapshots.sessionId, sessionId))
+        .orderBy(analysisExecutionSnapshots.createdAt);
+
+      return rows.map(rowToSnapshot);
     },
 
     async getByExecutionId(executionId) {

@@ -27,6 +27,12 @@ export interface AnalysisSessionFollowUpStore {
     currentPlanDiff: NonNullable<AnalysisSessionFollowUp['currentPlanDiff']>;
     updatedAt: string;
   }): Promise<AnalysisSessionFollowUp | null>;
+  attachResultExecution(input: {
+    followUpId: string;
+    ownerUserId: string;
+    resultExecutionId: string;
+    updatedAt: string;
+  }): Promise<AnalysisSessionFollowUp | null>;
   listBySessionId(input: {
     sessionId: string;
     ownerUserId: string;

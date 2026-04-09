@@ -30,6 +30,7 @@ export type Job = {
 };
 
 export type JobSubmission = {
+  id?: string;
   type: JobType;
   data?: Record<string, unknown>;
 };

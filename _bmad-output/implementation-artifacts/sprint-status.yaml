@@ -90,7 +90,7 @@ development_status:
   6-1-follow-up-on-existing-conclusion: done
   6-2-add-factors-or-narrow-scope: done
   6-3-replan-after-user-correction: done
-  6-4-preserve-multi-round-history: ready-for-dev
+  6-4-preserve-multi-round-history: review
   epic-6-retrospective: optional
 
   epic-7: in-progress

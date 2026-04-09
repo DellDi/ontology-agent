@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionSubmissionUseCases } from '@/application/analysis-execution/submission-use-cases';
@@ -155,6 +156,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     });
 
   try {
+    const executionId = randomUUID();
     const execution = await withJobUseCases(async ({
       jobUseCases,
       analysisExecutionStreamUseCases,
@@ -166,10 +168,20 @@ export async function POST(request: Request, { params }: RouteContext) {
 
       return await submissionUseCases.submitExecution({
         session: analysisSession,
+        executionId,
         plan,
+        followUpId: followUp?.id ?? null,
         questionText: executionQuestionText,
       });
     });
+
+    if (followUp) {
+      await analysisFollowUpUseCases.attachFollowUpExecution({
+        followUpId: followUp.id,
+        ownerUserId: authSession.userId,
+        executionId: execution.executionId,
+      });
+    }
 
     const url = buildSessionUrl(request, sessionId);
     url.searchParams.set('executionId', execution.executionId);

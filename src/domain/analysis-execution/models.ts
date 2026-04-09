@@ -8,6 +8,7 @@ export type AnalysisExecutionJobData = {
   organizationId: string;
   projectIds: string[];
   areaIds: string[];
+  followUpId: string | null;
   questionText: string;
   submittedAt: string;
   plan: AnalysisExecutionPlanSnapshot;
@@ -105,6 +106,10 @@ export function validateAnalysisExecutionJobData(
   }
 
   const candidate = data as Record<string, unknown>;
+  const followUpId =
+    candidate.followUpId === null || candidate.followUpId === undefined
+      ? null
+      : assertNonEmptyString(candidate.followUpId, 'followUpId');
 
   return {
     sessionId: assertNonEmptyString(candidate.sessionId, 'sessionId'),
@@ -115,6 +120,7 @@ export function validateAnalysisExecutionJobData(
     ),
     projectIds: assertStringArray(candidate.projectIds, 'projectIds'),
     areaIds: assertStringArray(candidate.areaIds, 'areaIds'),
+    followUpId,
     questionText: assertNonEmptyString(candidate.questionText, 'questionText'),
     submittedAt: assertNonEmptyString(candidate.submittedAt, 'submittedAt'),
     plan: validateAnalysisExecutionPlanSnapshot(

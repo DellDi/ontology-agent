@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
+import { analysisHistoryUseCases } from '@/application/analysis-history/use-cases';
 import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
@@ -17,6 +18,7 @@ import { AnalysisContextPanel } from './_components/analysis-context-panel';
 import { AnalysisConclusionPanel } from './_components/analysis-conclusion-panel';
 import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
 import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
+import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
@@ -136,6 +138,7 @@ export default async function AnalysisSessionPage({
   const followUpAdjustmentError = readSearchParam(
     resolvedSearchParams.followUpAdjustmentError,
   );
+  const historyRoundId = readSearchParam(resolvedSearchParams.historyRoundId);
   const followUpContextUpdated = readSearchParam(
     resolvedSearchParams.followUpContextUpdated,
   );
@@ -157,6 +160,11 @@ export default async function AnalysisSessionPage({
   };
   const latestExecutionSnapshot =
     await analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
+      sessionId: analysisSession.id,
+      ownerUserId: currentUser.userId,
+    });
+  const sessionSnapshots =
+    await analysisExecutionPersistenceUseCases.listSnapshotsForSession({
       sessionId: analysisSession.id,
       ownerUserId: currentUser.userId,
     });
@@ -333,6 +341,13 @@ export default async function AnalysisSessionPage({
           message: '已根据纠正后的上下文重生成后续计划。',
         }
       : null;
+  const historyReadModel = analysisHistoryUseCases.buildHistoryReadModel({
+    session: analysisSession,
+    sessionContext: contextReadModel.context,
+    followUps,
+    snapshots: sessionSnapshots,
+    selectedRoundId: historyRoundId || null,
+  });
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px]">
@@ -466,6 +481,12 @@ export default async function AnalysisSessionPage({
             replanFeedback={followUpReplanFeedback}
           />
         ) : null}
+
+        <AnalysisHistoryPanel
+          sessionId={analysisSession.id}
+          activeFollowUpId={activeFollowUp?.id}
+          readModel={historyReadModel}
+        />
       </div>
 
       <aside className="space-y-6">

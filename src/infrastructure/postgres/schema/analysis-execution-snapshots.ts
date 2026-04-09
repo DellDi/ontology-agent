@@ -9,6 +9,7 @@ export const analysisExecutionSnapshots = platformSchema.table(
     executionId: text('execution_id').primaryKey(),
     sessionId: text('session_id').notNull(),
     ownerUserId: text('owner_user_id').notNull(),
+    followUpId: text('follow_up_id'),
     status: text('status').notNull(),
     planSnapshot: jsonb('plan_snapshot').notNull(),
     stepResults: jsonb('step_results')
@@ -37,5 +38,6 @@ export const analysisExecutionSnapshots = platformSchema.table(
       table.ownerUserId,
       table.updatedAt,
     ),
+    index('analysis_execution_snapshots_follow_up_id_idx').on(table.followUpId),
   ],
 );

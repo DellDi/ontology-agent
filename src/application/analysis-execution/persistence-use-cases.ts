@@ -67,6 +67,7 @@ export function createAnalysisExecutionPersistenceUseCases({
       executionId: string;
       sessionId: string;
       ownerUserId: string;
+      followUpId?: string | null;
       status: JobStatus;
       planSnapshot: AnalysisExecutionPlanSnapshot;
       events: AnalysisExecutionStreamEvent[];
@@ -77,6 +78,7 @@ export function createAnalysisExecutionPersistenceUseCases({
         executionId: input.executionId,
         sessionId: input.sessionId,
         ownerUserId: input.ownerUserId,
+        followUpId: input.followUpId ?? null,
         status: input.status,
         planSnapshot: input.planSnapshot,
         stepResults: input.events,
@@ -113,6 +115,18 @@ export function createAnalysisExecutionPersistenceUseCases({
       }
 
       return snapshot;
+    },
+
+    async listSnapshotsForSession({
+      sessionId,
+      ownerUserId,
+    }: {
+      sessionId: string;
+      ownerUserId: string;
+    }) {
+      const snapshots = await snapshotStore.listBySessionId(sessionId);
+
+      return snapshots.filter((snapshot) => snapshot.ownerUserId === ownerUserId);
     },
 
     async getSnapshotByExecutionId({

@@ -19,6 +19,7 @@ export type AnalysisExecutionSnapshot = {
   executionId: string;
   sessionId: string;
   ownerUserId: string;
+  followUpId: string | null;
   status: JobStatus;
   planSnapshot: AnalysisExecutionPlanSnapshot;
   stepResults: AnalysisExecutionStreamEvent[];
