@@ -1,6 +1,6 @@
 # Story 6.1: 基于既有结论发起追问
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

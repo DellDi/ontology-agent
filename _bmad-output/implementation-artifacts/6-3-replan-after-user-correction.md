@@ -1,6 +1,6 @@
 # Story 6.3: 根据纠正结果重生成分析计划
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
