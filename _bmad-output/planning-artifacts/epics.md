@@ -94,17 +94,17 @@ FR3: Epic 3 - 抽取分析上下文
 FR4: Epic 3, Epic 9 - 扩展候选影响因素并治理因果关系  
 FR5: Epic 3, Epic 9 - 生成可展示的分析计划并定义计划语义  
 FR6: Epic 4, Epic 5, Epic 9 - 执行分析步骤并编排工具调用  
-FR7: Epic 5 - 返回中间结果与进度  
-FR8: Epic 5, Epic 6, Epic 8, Epic 9 - 输出归因结论并治理证据语义  
+FR7: Epic 5, Epic 10 - 返回中间结果与进度  
+FR8: Epic 5, Epic 6, Epic 8, Epic 9, Epic 10 - 输出归因结论并治理证据语义  
 FR9: Epic 6 - 支持多轮追问与循环分析  
 FR10: Epic 6, Epic 9 - 支持纠偏、重规划与本体约束  
-FR11: Epic 1, Epic 2, Epic 5, Epic 6, Epic 8 - 结果留存与回看  
+FR11: Epic 1, Epic 2, Epic 5, Epic 6, Epic 8, Epic 10 - 结果留存与回看  
 FR12: Epic 1, Epic 2, Epic 4, Epic 7 - 权限内数据访问与治理  
 FR13: Epic 3, Epic 4, Epic 5, Epic 6, Epic 9 - 保证分析过程可解释与可治理  
 FR14: Epic 1 - 保持领域边界聚焦物业分析  
-FR15: Epic 8 - 移动端结果查看  
-FR16: Epic 8 - 移动端轻量追问  
-FR17: Epic 5, Epic 8 - 统一渲染块与多端结果投影  
+FR15: Epic 8, Epic 10 - 移动端结果查看  
+FR16: Epic 8, Epic 10 - 移动端轻量追问  
+FR17: Epic 5, Epic 8, Epic 10 - 统一渲染块与多端结果投影  
 
 ## Epic 列表
 
@@ -143,6 +143,10 @@ FR17: Epic 5, Epic 8 - 统一渲染块与多端结果投影
 ### Epic 9: 统一本体层与知识治理
 平台团队可以用统一、可治理、可审计的业务本体层驱动分析计划、工具选择、执行和结论生成，而不是继续在多个模块中分散维护业务概念、指标口径、候选因素和证据语义。  
 **FRs covered:** FR2, FR4, FR5, FR6, FR8, FR10, FR13
+
+### Epic 10: AI 应用运行时与多端渲染层
+平台团队可以在不改变既有执行内核、历史事实模型与知识治理边界的前提下，引入正式的 AI application runtime layer，统一流式消息、工具态、富渲染块、多端投影，以及记忆/知识资源/技能系统/工具系统的工程接入，从而支撑 PC 工作台、历史回放、移动端摘要和未来更高级的 AI 原生界面。  
+**FRs covered:** FR7, FR8, FR11, FR15, FR16, FR17
 
 ## Epic 1: 安全分析工作台与会话入口
 
@@ -1199,3 +1203,97 @@ So that 结论来源、历史回放和问题诊断可以追溯到明确的知识
 **When** 系统保存 execution snapshot、follow-up 和历史轮次
 **Then** 应记录所使用的 ontology version
 **And** 历史回放时能够识别结论对应的知识版本
+
+## Epic 10: AI 应用运行时与多端渲染层
+
+平台团队可以在不改变既有执行内核、历史事实模型与知识治理边界的前提下，引入正式的 AI application runtime layer，统一流式消息、工具态、富渲染块、多端投影，以及记忆/知识资源/技能系统/工具系统的工程接入，从而支撑 PC 工作台、历史回放、移动端摘要和未来更高级的 AI 原生界面。
+
+### Story 10.1: 建立 AI Application Runtime Layer 与 Vercel AI SDK Adapter
+
+As a 平台前端团队,
+I want 在 Next.js / application 边界建立 AI Application Runtime Layer，并用 `Vercel AI SDK` 承接 stream transport、UI message lifecycle 与基础 tool runtime,
+So that 现有 execution events、result blocks 和 follow-up 历史可以稳定映射为统一交互消息，而不是继续由页面手工拼接。
+
+**关联需求：** FR7, FR11, FR17
+
+**Acceptance Criteria:**
+
+**Given** 平台已经具备 execution event envelope 与 render blocks
+**When** 分析会话进入流式执行阶段
+**Then** 系统应通过正式的 runtime adapter 暴露统一消息与 parts
+**And** 不再要求页面直接手工维护底层 SSE 事件合并逻辑
+
+**Given** 当前平台已经存在 Worker、Redis 与 Postgres 持久化
+**When** 引入 `Vercel AI SDK`
+**Then** 该 SDK 只应承接 UI/runtime 生命周期
+**And** 不应替代 execution planning、Worker orchestration 或结果持久化真相层
+
+### Story 10.2: 建立 Renderer Registry 支持富分析块
+
+As a 物业分析用户,
+I want 在分析工作台中看到统一风格的富渲染分析块,
+So that 我可以更高效地理解结论、证据与执行过程。
+
+**关联需求：** FR8, FR17
+
+**Acceptance Criteria:**
+
+**Given** 分析结果包含表格、图表、图谱、证据卡、时间线等结构化内容
+**When** 会话界面渲染这些结果
+**Then** 系统应通过统一 renderer registry 渲染对应 UI parts
+**And** 新增富渲染块类型时不需要在页面层重复拼装临时逻辑
+
+### Story 10.3: 会话、追问与历史的 UI Message Projection 持久化与续流
+
+As a 平台团队,
+I want 将 AI SDK UI messages 作为 projection 持久化或可恢复对象，而不是作为唯一事实源,
+So that 交互层可以恢复和续流，同时不冲击 execution snapshots 与 follow-up history 的 canonical truth。
+
+**关联需求：** FR11, FR17
+
+**Acceptance Criteria:**
+
+**Given** 用户刷新页面、重新进入历史会话或从中断状态恢复
+**When** 系统重建当前交互视图
+**Then** 系统应能够从 projection 或 resume 数据恢复 UI message 状态
+**And** canonical source of truth 仍然是 execution snapshots、result blocks 与 follow-up history
+
+### Story 10.4: Memory / Knowledge / Skills / Tools 的运行时接入面
+
+As a 平台架构团队,
+I want 为 memory、knowledge resources、skills prompts 和工具系统建立统一 runtime 接入面,
+So that 后续新增长期记忆、知识库、技能系统和工具市场时，不需要继续在页面层和 route 层重复接线。
+
+**关联需求：** FR8, FR17
+
+**Acceptance Criteria:**
+
+**Given** 平台后续需要接入记忆系统、知识资源、skills 与外部工具
+**When** 团队扩展 AI 能力面
+**Then** 系统应优先通过 runtime bridge 接入这些能力
+**And** 不应把每种能力都实现成新的页面级私有协议
+
+**Given** 这些能力需要进入模型上下文或工具调用路径
+**When** 系统完成 runtime 集成
+**Then** 应支持 tool / dynamicTool / MCP 等统一接入方式
+**And** 不应替代 ontology registry、知识治理、权限审计和发布流程
+
+### Story 10.5: 移动端摘要、续流与轻量追问统一接入同源交互层
+
+As a 移动端业务负责人,
+I want PC 与 mobile 消费同一套 AI interaction schema,
+So that 移动端结果查看、轻量追问和后续更高级交互都不需要重建第二套协议。
+
+**关联需求：** FR15, FR16, FR17
+
+**Acceptance Criteria:**
+
+**Given** 用户在 PC 端和移动端查看同一分析会话
+**When** 系统组装对应结果
+**Then** PC 与 mobile 应来自同源 interaction schema 的不同投影
+**And** 移动端不应维护与 PC 不兼容的独立消息协议
+
+**Given** 移动端需要发起轻量追问并恢复上一轮分析状态
+**When** 用户提交简短指令或重进会话
+**Then** 系统应沿用共享的 interaction runtime 恢复和续流
+**And** 保持移动端轻量边界而不是复制 PC 完整工作流

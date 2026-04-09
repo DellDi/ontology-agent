@@ -285,7 +285,7 @@ pnpm create next-app@latest ontology-agent --ts --app
 
 - 当前阶段不引入“大而全”的智能体开发框架作为系统核心。
 - 当前阶段保留“自有 `LLM Provider Adapter` + `Prompt Registry / Structured Output Guardrails` + `Tool Registry + Worker`”作为主编排边界。
-- 若近期需要显著增强前端流式交互与工具调用体验，优先补充 `Vercel AI SDK`，但只作为交互层能力，不取代平台内部编排。
+- 当前阶段正式批准引入 `Vercel AI SDK` 作为 AI application runtime layer，用于承接 UI message lifecycle、tool runtime、MCP 接线和 memory bridge，但不取代平台内部编排。
 - 当系统进入“长流程、多阶段、可恢复、需要人工确认和重规划”的执行阶段后，再评估是否将内部编排升级为 `LangGraph`。
 - 当前不选 `AutoGen`、`LangChain` 全家桶或 Google ADK 作为主框架底座。
 
@@ -304,11 +304,15 @@ pnpm create next-app@latest ontology-agent --ts --app
   - Next.js / TypeScript 项目中的流式文本输出
   - tool calling 结果的前端交互呈现
   - chat / streaming UI、SSE、消息渲染与中间状态回传
+  - ToolLoopAgent、tool / dynamicTool、tool approval 等通用运行时能力
+  - MCP tools / resources / prompts / elicitation 的统一接入
+  - memory provider、provider-defined memory tool 或 custom memory tool 的接入面
 - 不适合作为：
   - 平台内部的长期编排内核
   - 任务恢复、长流程状态机、人工确认流的唯一实现方式
+  - ontology registry、知识治理、权限审计和发布治理系统
 - 决策：
-  - 可引入，但定位为“交互层增强”，不是“系统编排底座”。
+  - 可引入，定位为“AI application runtime layer”，不是“系统编排底座”或“业务真相层”。
 
 **2. LangGraph**
 
@@ -344,17 +348,22 @@ pnpm create next-app@latest ontology-agent --ts --app
   - 更顺滑的 token streaming
   - 更稳定的 tool call 结果渲染
   - 更低成本的前端消息与流式交互接线
+  - 更轻量地接入 memory、knowledge resources、skills 与工具系统
 
 **引入方式：**
 
-- 仅把它放在 Next.js 交互层：
+- 把它放在 Next.js / application 之间的 AI application runtime layer：
   - 消息流
   - SSE / streaming UI
   - tool call 结果渲染
+  - tool approval / resume
+  - MCP 接入
+  - memory bridge
 - 不让它接管：
   - 平台内部的业务编排
   - Redis / Worker 队列
   - ERP / Cube / Neo4j 的工具治理边界
+  - ontology registry、知识治理与审计发布流程
 
 ### AI Interaction Rendering Layer
 
@@ -369,10 +378,12 @@ pnpm create next-app@latest ontology-agent --ts --app
   - 文本说明
   - 表格
   - 图表
+  - 图谱
   - 证据卡
   - 结论卡
   - 执行节点 / 时间线
 - 为 `PC` 与 `mobile` 提供同源 schema 的不同投影
+- 为 memory recall、knowledge resources、skills 激活态与工具审批态预留统一视觉语义
 
 **边界约束：**
 
@@ -380,6 +391,7 @@ pnpm create next-app@latest ontology-agent --ts --app
 - canonical source of truth 仍然是服务端 execution events 与结果模型
 - `Worker + Redis + Tool Registry + Orchestration Bridge` 继续作为内部执行主线
 - 浏览器端不应直接消费原始 worker 协调状态；应消费服务端整形后的 interaction events 与 render blocks
+- memory、knowledge、skills 与 tools 的工程接入可经由该层承接，但业务知识的治理、版本和权限仍属于独立平台能力
 
 **不应在这些阶段提前引入：**
 
