@@ -58,6 +58,8 @@ so that 用户刷新页面、重新进入历史会话或中断后恢复时，交
   - 生成时间与最近更新时间
 - 历史轮次切换必须走服务端读模型，不能让客户端本地 state 继续沿用上一轮的 message tree。
 - 当前页面中的 live stream 只能在 server 侧 session / owner 范围内恢复，不能把 Redis 事件流或原始 SSE payload 直接暴露给浏览器作为恢复依据。
+- 恢复后的空间结构必须与主画布 wireframe 一致：恢复的是同一条 `narrative lane`、同一组 `persistent anchors` 和同一类 `action layer`，而不是为 resume 单独长出另一套页面结构。
+- history replay 必须被理解为只读 surface。切历史轮次时，只能替换对应 projection 与上下文，不能把当前 live narrative 和历史 narrative 混在一条时间线上。
 
 ### Current Implementation Touchpoints
 
@@ -75,6 +77,7 @@ so that 用户刷新页面、重新进入历史会话或中断后恢复时，交
 - 不让浏览器直接读取 Redis、Postgres 或任何内部流式事实存储。
 - 不重写 execution planning、follow-up 生成或 result block 的业务语义。
 - 不在页面组件里拼接 projection 语义，所有恢复与校验都应走服务端应用层。
+- 不为 `resume mode`、`history mode` 或 `recovery mode` 设计与主工作台不同的语义骨架；差异只应该体现在状态和内容，不应该体现在协议分叉。
 
 ### Architecture Compliance
 
@@ -107,6 +110,7 @@ so that 用户刷新页面、重新进入历史会话或中断后恢复时，交
   - 历史轮次切换不会污染其他轮次的 UI message 状态
   - 流式恢复后不会重复应用同一批 message / part
   - owner-only 读取与跨会话隔离
+  - 恢复后的主画布仍然保持 `status / timeline / evidence / conclusion / action` 的阅读秩序，不会因为 hydrate/resume 而出现布局语义漂移
 - 推荐使用真实 `next build + next start` 的 story 级集成测试，并保持串行执行。
 - 若新增 projection 读写路径，测试里必须验证它不依赖浏览器端临时 state 作为事实来源。
 
@@ -128,6 +132,8 @@ so that 用户刷新页面、重新进入历史会话或中断后恢复时，交
 - [prd.md - 用户旅程 2 / 3，强调重规划与多轮历史](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#L133)
 - [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md - runtime gap 与 resume projection](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L18)
 - [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md - canonical truth 与后续风险](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L128)
+- [ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
 - [project-context.md - current facts and canonical source boundary](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L111)
 - [project-context.md - projection / canonical truth rule](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L117)
 - [Story 5.4: 保存步骤结果与最终结论](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/5-4-persist-step-results-and-final-conclusion.md#L15)

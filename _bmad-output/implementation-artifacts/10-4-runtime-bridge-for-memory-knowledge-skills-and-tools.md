@@ -72,6 +72,7 @@ so that 后续新增长期记忆、知识库、技能系统和工具市场时，
 - `Vercel AI SDK` 只应继续作为 10.1 引入的 AI application runtime layer 的交互层能力之一，本 story 不能把它提升成系统编排底座，也不能让它覆盖业务真相层。
 - `tool approval` 是治理门禁，不是授权体系本身；`knowledge resources` 是检索接入面，不是知识治理本身；`skills prompts` 是 prompt 接入面，不是 ontology 定义本身。
 - 若未来引入 `dynamicTool`、agent loops 或 resume checkpoint，本 story 产物应当已经具备稳定事件/端口语义，避免后续在页面层或 route 层重建第二套协议。
+- 与 Epic 10 的 UX 语法保持一致：`approval-state`、`tool-state`、`skills-state`、`memory-state` 这些 runtime 状态必须能被上层稳定投影到同一 analysis canvas，而不是每接一个新 surface 就重新发明显示协议。
 
 ### Current Implementation Intelligence
 
@@ -139,6 +140,17 @@ tool approval 必须保留可审计、可回放、可拒绝的治理语义。建
 - 该 decision 对后续 tool / resource 调用是否生效
 
 这里要特别注意：approval 不是权限系统的替代品。权限判断仍属于受控的服务端安全边界，approval 只是在该边界上加一层治理门禁。
+
+#### UX Surface Expectations
+
+虽然本 story 主要是服务端 runtime bridge，但它产出的状态语义必须能被上层 UI 直接消费为统一状态块：
+
+- `approval-state` 需要支持 `pending-review / approved / denied / requires-confirmation / expired`
+- `tool-state` 需要支持 `available / selected / running / completed / blocked / unavailable`
+- `skills-state` 需要支持激活原因、范围和版本提示
+- `memory-state` / knowledge 结果需要保留 provenance、可信边界和“仅为上下文补充”的提示
+
+如果某个 surface 状态在 bridge 层没有被明确定义，上层 UI 最终就会退回到页面私有协议，这正是本 story 要避免的。
 
 #### Agent Loops
 
@@ -229,6 +241,8 @@ tool approval 必须保留可审计、可回放、可拒绝的治理语义。建
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L286-L394]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#L303-L307]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L347-L420]
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md]
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L21-L37]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L111-L125]
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L135-L140]

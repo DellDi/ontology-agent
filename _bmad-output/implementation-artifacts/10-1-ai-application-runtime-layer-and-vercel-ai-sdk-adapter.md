@@ -55,6 +55,8 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
 - Story 10.1 的正确位置是 `Next.js application` 与现有执行核心之间的运行时适配层。它应该帮助页面更轻地消费消息与 parts，但不应该把 Worker、Redis、Postgres snapshot 或 ontology governance 重新包装成 UI 逻辑。
 - `Vercel AI SDK` 在本项目中的定位只能是“交互层运行时”，不是系统编排底座，也不是业务真相层。
 - 未来的 memory / knowledge / skills / tools runtime 只应通过这个 story 建立的统一接入面扩展。当前 story 只负责把边界画出来，不负责完成这些能力本身。
+- runtime adapter 输出的 `message / part / projection` 必须与 Epic 10 UX 增补定义的交互语法一致，尤其要支撑 `Primary Narrative Lane`、`Context Rail`、`Action Layer` 这种固定空间语义，而不是只输出一组无顺序的块。
+- runtime layer 需要为 `status-banner`、`step-timeline`、`evidence-card`、`conclusion-card`、`resume-anchor` 等 foundation parts 提供稳定映射顺序，这会直接决定后续 10.2/10.3/10.5 能否复用同一套语法。
 - 不允许出现以下实现倾向：
   - 用 runtime layer 替代 Worker orchestration
   - 用 SDK 适配层替代 execution truth
@@ -100,6 +102,7 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
   - infrastructure 层 AI SDK adapter
   - `live shell` 改为消费 runtime projection
 - 这些做完，就已经能证明 Epic 10 的路线成立，同时不会过早卷入 renderer registry、projection persistence、memory bridge 或 mobile surface 的复杂度。
+- 这第一刀的输出必须已经足够支撑主画布的基本叙事顺序：`status -> timeline -> evidence -> conclusion -> action`。如果 runtime 输出还不能稳定支持这条顺序，就说明 contract 还没站稳。
 
 ### Sequencing Risks To Avoid
 
@@ -206,6 +209,8 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
 - [Source: AI Interaction Rendering Layer in architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
 - [Source: FR-17 in prd.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md)
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md)
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md)
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md)
 - [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/api/analysis/sessions/[sessionId]/stream/route.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/api/analysis/sessions/[sessionId]/stream/route.ts)
