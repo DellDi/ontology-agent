@@ -302,7 +302,9 @@ MVP 应至少支持以下数据主题进入分析上下文：
 
 ### FR-17 统一渲染块输出
 
-系统应将分析执行过程、阶段结果、关键证据和最终结论组织为统一的可渲染内容块，以支持表格、图表、证据卡、执行节点、摘要卡等多种界面呈现方式，而不是仅返回纯文本结果。  
+系统应将分析执行过程、阶段结果、关键证据和最终结论组织为统一的可渲染内容块，并通过正式的 AI application runtime layer 管理消息、parts、工具态、resume、跨端投影以及与记忆/知识资源/技能系统的工程接线，以支持表格、图表、图谱、证据卡、执行节点、摘要卡等多种界面呈现方式，而不是仅返回纯文本结果。  
+
+该 runtime layer 可以采用 `Vercel AI SDK` 或同等级能力实现，但 canonical source of truth 必须仍然是服务端 execution events、持久化 result blocks、follow-up/history facts 以及独立的 ontology / knowledge governance 模型。  
 **适用平台：** PC 后台 / 移动端结果查看
 
 ## 非功能需求
