@@ -15,7 +15,7 @@
 
 - 本文件是项目级主规范，优先于一般协作习惯。
 - 本文件面向 AI coding agent 优先，同时适用于人类工程师。
-- 如与 [`CLAUDE.md`](/Users/delldi/work-code/open-code/ontology-agent/CLAUDE.md) 存在冲突，以本文件为准；`CLAUDE.md` 视为补充背景与兼容说明。
+- 如与 [`CLAUDE.md`](./CLAUDE.md) 存在冲突，以本文件为准；`CLAUDE.md` 视为补充背景与兼容说明。
 - 语言策略为中文为主，保留必要的英文关键词，避免 agent 误读执行意图。
 
 ## Product Standard

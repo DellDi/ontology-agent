@@ -56,9 +56,18 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
 - 如果做成只是多加一层 mapping helper，但 planner / tooling 仍然主要看自由文本，那这张 story就算没完成。
 - 反过来，也不要一次把 execution、renderer、history 全部重写；本 story 只要求把主输入边界切换到 grounded context，并给后续 `9.6` 留出引用位。
 
+### Review Adjustments
+
+- 需要把 `grounding ambiguity` 的产品交互写成正式规则，而不是只停留在服务端错误语义：
+  - `grounding success`：进入 planner
+  - `grounding ambiguous`：阻断 planner，回到 workspace 让用户选择候选定义
+  - `grounding failed`：阻断 planner，并显示明确的缺失原因
+- 不允许在歧义场景下静默回退到自由文本主路径。若保留 transitional path，必须显式标记为 `temporary mitigation`，且默认关闭。
+- `follow-up / replan` 接入 grounded context 时，建议把“自由文本 mergedContext”和“grounded context”明确并存，而不是互相覆盖。前者服务用户可读性，后者服务 planner/tooling 的正式输入。
+
 ### Architecture Compliance
 
-- 必须遵循 [ontology-governance-architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ontology-governance-architecture.md#7.1 新的运行时主链)：
+- 必须遵循 [ontology-governance-architecture.md]({project-root}/_bmad-output/planning-artifacts/ontology-governance-architecture.md#7.1 新的运行时主链)：
   - context extraction 后先 grounding
   - planner 只消费 grounded definitions
   - tool selection 只消费正式 binding

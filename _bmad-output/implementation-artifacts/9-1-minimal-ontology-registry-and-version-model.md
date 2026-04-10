@@ -68,9 +68,18 @@ so that 业务概念、指标语义、候选因素和计划模板有正式的 ca
   - `execution snapshot / follow-up history = runtime fact`
 - 这一点如果做错，后面 `9.2 / 9.3` 会非常难收敛。
 
+### Review Adjustments
+
+- `9.1` 完成前，不应在 `Epic 10` 中固化新的运行时语义中心。换句话说，`runtime message / part / projection` 可以定义交互协议，但不能抢占 canonical business semantics 的角色。
+- 建议把“当前生效版本”设计成正式指针或等价唯一入口，不要让后续 story 继续依赖“最新 approved 版本”这样的隐式规则。
+- 最小 seed / bootstrap 应明确区分：
+  - “从现有代码抽取的初始装载”
+  - “后续正式治理发布”
+  这两者不能混成同一条长期维护路径。
+
 ### Architecture Compliance
 
-- 必须遵循 [ontology-governance-architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 的核心原则：
+- 必须遵循 [ontology-governance-architecture.md]({project-root}/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 的核心原则：
   - `Canonical Ontology, Multiple Projections`
   - `Governance Before Autonomy`
   - `Stable Contracts, Evolvable Runtime`

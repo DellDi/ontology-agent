@@ -9,20 +9,20 @@
 Epic 10 当前已经具备完整的开发前置工件：
 
 - 规划层：
-  - [epics.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md)
-  - [architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
-  - [prd.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md)
-  - [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md)
+  - [epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md)
+  - [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+  - [prd.md]({project-root}/_bmad-output/planning-artifacts/prd.md)
+  - [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md)
 - UX 层：
-  - [ux-design-specification.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md)
-  - [ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
-  - [ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+  - [ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md)
+  - [ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+  - [ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
 - Story 层：
-  - [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
-  - [10-2-renderer-registry-for-rich-analysis-blocks.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
-  - [10-3-ui-message-projection-persistence-and-resume.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
-  - [10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md)
-  - [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)
+  - [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md]({project-root}/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
+  - [10-2-renderer-registry-for-rich-analysis-blocks.md]({project-root}/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
+  - [10-3-ui-message-projection-persistence-and-resume.md]({project-root}/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
+  - [10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md]({project-root}/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md)
+  - [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md]({project-root}/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)
 
 ## Development Order
 
@@ -114,19 +114,19 @@ Epic 10 当前已经具备完整的开发前置工件：
 
 1. 拉到包含这些文档改动的最新代码
 2. 如本地数据库落后，先跑 `pnpm db:migrate`
-3. 打开 [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
+3. 打开 [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md]({project-root}/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
 4. 同时参考：
-   - [ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
-   - [ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+   - [ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+   - [ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
 5. 从 `10.1 First Cut` 开始实现
 
 ## References
 
-- [sprint-status.yaml](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml)
-- [ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
-- [ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
-- [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
-- [10-2-renderer-registry-for-rich-analysis-blocks.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
-- [10-3-ui-message-projection-persistence-and-resume.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
-- [10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md)
-- [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)
+- [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml)
+- [ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+- [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md]({project-root}/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
+- [10-2-renderer-registry-for-rich-analysis-blocks.md]({project-root}/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
+- [10-3-ui-message-projection-persistence-and-resume.md]({project-root}/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
+- [10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md]({project-root}/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md)
+- [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md]({project-root}/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)

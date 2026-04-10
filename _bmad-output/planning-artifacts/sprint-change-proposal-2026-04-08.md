@@ -36,7 +36,7 @@ approved_date: '2026-04-08'
 
 ### 核心问题陈述
 
-当前 [graph-sync-baseline.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-baseline.md) 已经定义了“同步什么”，而 [graph-sync-operating-model.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md) 已经定义了“怎么运行与持续同步”。
+当前 [graph-sync-baseline.md]({project-root}/docs/data-contracts/graph-sync-baseline.md) 已经定义了“同步什么”，而 [graph-sync-operating-model.md]({project-root}/docs/data-contracts/graph-sync-operating-model.md) 已经定义了“怎么运行与持续同步”。
 
 真正的缺口在于：
 
@@ -52,21 +52,21 @@ approved_date: '2026-04-08'
 
 ### 支撑证据
 
-- [4-5-neo4j-graph-adapter-and-sync-baseline.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md) 明确交付的是“最小同步基线”，不是长期运行模型
-- [graph-sync-operating-model.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md) 已经新增了运行层设计，包括：
+- [4-5-neo4j-graph-adapter-and-sync-baseline.md]({project-root}/_bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md) 明确交付的是“最小同步基线”，不是长期运行模型
+- [graph-sync-operating-model.md]({project-root}/docs/data-contracts/graph-sync-operating-model.md) 已经新增了运行层设计，包括：
   - `graph_sync_runs`
   - `graph_sync_cursors`
   - `graph_sync_dirty_scopes`
   - `full-bootstrap / org-rebuild / incremental-rebuild`
   - scheduler / dispatcher / consistency sweep
-- [epics.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md) 中当前 `Epic 7` 只覆盖：
+- [epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md) 中当前 `Epic 7` 只覆盖：
   - 权限
   - 审计
   - 自托管部署
   - 监控
   - 登录桥接
   尚未覆盖 graph sync 运行化
-- [sprint-status.yaml](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml) 当前没有对应 story 条目
+- [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml) 当前没有对应 story 条目
 
 ## 2. Checklist 结果
 
@@ -396,5 +396,5 @@ So that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
 后续执行动作：
 
 1. 回写 `epics.md` 的变更提案内容
-2. 更新 [sprint-status.yaml](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml)
+2. 更新 [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml)
 3. 准备 `7.6` 的 story 创建入口

@@ -63,15 +63,15 @@ so that 我可以从一个明确的分析上下文开始后续分析流程。
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 1.4: 创建新的分析会话]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-01 自然语言问题输入]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-11 结果留存]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#数据架构]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#API 与通信模式]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Defining Core Interaction]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#User Journey Flows]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Component Strategy]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-3-scoped-analysis-workspace-home.md]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 1.4: 创建新的分析会话]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#FR-01 自然语言问题输入]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#FR-11 结果留存]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#数据架构]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#API 与通信模式]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Defining Core Interaction]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#User Journey Flows]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Component Strategy]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/1-3-scoped-analysis-workspace-home.md]
 - [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware)
 
 ## Dev Agent Record

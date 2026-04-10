@@ -60,15 +60,15 @@ so that 我能从正确的数据范围开始分析，而不会误入不支持或
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 1.3: 权限范围内的分析工作台首页]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#平台范围]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#明确不做]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#前端架构]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#认证与安全]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Executive Summary]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Design Direction Decision]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Visual Design Foundation]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-2-erp-auth-protected-session.md]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 1.3: 权限范围内的分析工作台首页]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#平台范围]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#明确不做]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#前端架构]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#认证与安全]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Executive Summary]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Design Direction Decision]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Visual Design Foundation]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/1-2-erp-auth-protected-session.md]
 - [Next.js Route Groups](https://nextjs.org/docs/app/api-reference/file-conventions/route-groups)
 - [Next.js Project Structure](https://nextjs.org/docs/app/getting-started/project-structure)
 

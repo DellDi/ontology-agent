@@ -62,13 +62,13 @@ so that 我可以回看之前的问题、结果和后续追问上下文。
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 1.5: 历史分析会话列表与回看]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-11 结果留存]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#认证与安全]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#前端架构]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Component Strategy]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#UX Consistency Patterns]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-4-create-analysis-session.md]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 1.5: 历史分析会话列表与回看]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#FR-11 结果留存]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#认证与安全]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#前端架构]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Component Strategy]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#UX Consistency Patterns]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/1-4-create-analysis-session.md]
 - [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware)
 
 ## Dev Agent Record
@@ -106,16 +106,16 @@ GPT-5 Codex
 
 ### File List
 
-- /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-5-analysis-session-history-and-replay.md
-- /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml
-- /Users/delldi/work-code/open-code/ontology-agent/src/app/(workspace)/_components/workspace-home-shell.tsx
-- /Users/delldi/work-code/open-code/ontology-agent/src/app/(workspace)/workspace/page.tsx
-- /Users/delldi/work-code/open-code/ontology-agent/src/application/analysis-session/ports.ts
-- /Users/delldi/work-code/open-code/ontology-agent/src/application/analysis-session/use-cases.ts
-- /Users/delldi/work-code/open-code/ontology-agent/src/application/workspace/home.ts
-- /Users/delldi/work-code/open-code/ontology-agent/src/domain/analysis-session/models.ts
-- /Users/delldi/work-code/open-code/ontology-agent/src/infrastructure/analysis-session/memory-analysis-session-store.ts
-- /Users/delldi/work-code/open-code/ontology-agent/tests/story-1-5-history.test.mjs
+- {project-root}/_bmad-output/implementation-artifacts/1-5-analysis-session-history-and-replay.md
+- {project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml
+- {project-root}/src/app/(workspace)/_components/workspace-home-shell.tsx
+- {project-root}/src/app/(workspace)/workspace/page.tsx
+- {project-root}/src/application/analysis-session/ports.ts
+- {project-root}/src/application/analysis-session/use-cases.ts
+- {project-root}/src/application/workspace/home.ts
+- {project-root}/src/domain/analysis-session/models.ts
+- {project-root}/src/infrastructure/analysis-session/memory-analysis-session-store.ts
+- {project-root}/tests/story-1-5-history.test.mjs
 
 ## Change Log
 

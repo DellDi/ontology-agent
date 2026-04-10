@@ -35,20 +35,20 @@ approved_date: '2026-03-26'
 
 ### 支撑证据
 
-- [`prd.md`](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md) 已明确要求：
+- [`prd.md`]({project-root}/_bmad-output/planning-artifacts/prd.md) 已明确要求：
   - “系统必须支持调用外部工具和内部能力，而不是只依赖单次模型输出”
   - “浏览器端不得直连核心数据源、核心分析服务或模型密钥”
-- [`architecture.md`](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md) 已明确选择：
+- [`architecture.md`]({project-root}/_bmad-output/planning-artifacts/architecture.md) 已明确选择：
   - `Cube Core 1.6.x`
   - `Neo4j 5.26 LTS`
   - ERP Postgres 为事实来源
   - 浏览器端不得直连 `Cube / Neo4j / Redis / LLM Provider`
   - 实施顺序中第 8、9 步才接 `Neo4j / Cube`
-- [`epics.md`](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md) 当前只有：
+- [`epics.md`]({project-root}/_bmad-output/planning-artifacts/epics.md) 当前只有：
   - `3.x` 问题理解与计划生成
   - `4.x` 执行分析与输出结果
   - 没有显式 `LLM / ERP / Cube / Neo4j` 接入 stories
-- 当前 [`sprint-status.yaml`](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml) 显示：
+- 当前 [`sprint-status.yaml`]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml) 显示：
   - `3.1`、`3.2` 已到 `review`
   - `3.3-3.5`、`4.1-4.4` 均未真正开发
   - 现在调整顺序仍然成本可控

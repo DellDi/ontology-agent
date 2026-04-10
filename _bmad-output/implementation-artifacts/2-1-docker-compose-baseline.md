@@ -88,7 +88,7 @@ so that 后续平台持久化和后台执行能力可以在统一且可重复的
   - `docs/local-infrastructure.md`
   - `tests/story-2-1-compose-baseline.test.mjs`
 - 如选择 `docker/web/Dockerfile.dev`，需保持目录职责清晰，不要把数据库初始化脚本与 web 容器文件混放。
-- 如果新增 `.env.example`，记得同步调整当前 [.gitignore](/Users/delldi/work-code/open-code/ontology-agent/.gitignore)，因为仓库现在默认忽略 `.env*`。
+- 如果新增 `.env.example`，记得同步调整当前 [.gitignore]({project-root}/.gitignore)，因为仓库现在默认忽略 `.env*`。
 
 ### Testing Requirements
 
@@ -131,15 +131,15 @@ so that 后续平台持久化和后台执行能力可以在统一且可重复的
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 2.1: 建立 Docker Compose 本地基础设施基线]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#基础设施与部署]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#决策影响分析]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/project-context.md#技术栈与版本]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/project-context.md#关键实现规则]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-1-manual-nextjs-foundation.md]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-6-unsupported-domain-boundary-prompt.md]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/package.json]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/.gitignore]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 2.1: 建立 Docker Compose 本地基础设施基线]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#基础设施与部署]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#决策影响分析]
+- [Source: {project-root}/_bmad-output/project-context.md#技术栈与版本]
+- [Source: {project-root}/_bmad-output/project-context.md#关键实现规则]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/1-1-manual-nextjs-foundation.md]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/1-6-unsupported-domain-boundary-prompt.md]
+- [Source: {project-root}/package.json]
+- [Source: {project-root}/.gitignore]
 - [Compose file reference](https://docs.docker.com/compose/compose-file/)
 - [docker compose CLI reference](https://docs.docker.com/compose/reference/)
 - [Control startup order](https://docs.docker.com/compose/how-tos/startup-order/)

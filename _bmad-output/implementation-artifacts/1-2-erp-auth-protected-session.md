@@ -61,13 +61,13 @@ so that 我不需要重新注册，并且系统能继承我的组织与权限范
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 1.2: ERP 身份接入与受保护会话]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#认证与安全]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#API 与通信模式]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#权限与组织约束]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Desired Emotional Response]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Visual Design Foundation]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-1-manual-nextjs-foundation.md]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 1.2: ERP 身份接入与受保护会话]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#认证与安全]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#API 与通信模式]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#权限与组织约束]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Desired Emotional Response]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Visual Design Foundation]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/1-1-manual-nextjs-foundation.md]
 - [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware)
 - [Next.js cookies](https://nextjs.org/docs-wip/app/api-reference/functions/cookies)
 

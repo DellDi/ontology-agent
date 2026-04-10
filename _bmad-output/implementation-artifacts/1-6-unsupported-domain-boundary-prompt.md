@@ -60,13 +60,13 @@ so that 我知道当前版本只支持物业分析，不会误以为平台支持
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 1.6: 非支持领域问题的边界提示]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#明确不做]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-14 领域聚焦]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#项目上下文分析]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Desired Emotional Response]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#UX Consistency Patterns]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-4-create-analysis-session.md]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 1.6: 非支持领域问题的边界提示]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#明确不做]
+- [Source: {project-root}/_bmad-output/planning-artifacts/prd.md#FR-14 领域聚焦]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#项目上下文分析]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Desired Emotional Response]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#UX Consistency Patterns]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/1-4-create-analysis-session.md]
 
 ## Dev Agent Record
 
@@ -103,14 +103,14 @@ GPT-5 Codex
 
 ### File List
 
-- /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/1-6-unsupported-domain-boundary-prompt.md
-- /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml
-- /Users/delldi/work-code/open-code/ontology-agent/src/app/(workspace)/_components/workspace-home-shell.tsx
-- /Users/delldi/work-code/open-code/ontology-agent/src/application/workspace/home.ts
-- /Users/delldi/work-code/open-code/ontology-agent/src/domain/analysis-session/models.ts
-- /Users/delldi/work-code/open-code/ontology-agent/src/domain/scope-boundary/policy.ts
-- /Users/delldi/work-code/open-code/ontology-agent/tests/story-1-3-workspace-home.test.mjs
-- /Users/delldi/work-code/open-code/ontology-agent/tests/story-1-6-scope-boundary.test.mjs
+- {project-root}/_bmad-output/implementation-artifacts/1-6-unsupported-domain-boundary-prompt.md
+- {project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml
+- {project-root}/src/app/(workspace)/_components/workspace-home-shell.tsx
+- {project-root}/src/application/workspace/home.ts
+- {project-root}/src/domain/analysis-session/models.ts
+- {project-root}/src/domain/scope-boundary/policy.ts
+- {project-root}/tests/story-1-3-workspace-home.test.mjs
+- {project-root}/tests/story-1-6-scope-boundary.test.mjs
 
 ## Change Log
 
