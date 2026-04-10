@@ -23,12 +23,12 @@ so that 图谱基线同步不再只是一次性脚本，而是可追踪、可恢
   - [x] 明确 `mode` 至少支持 `full-bootstrap / org-rebuild / incremental-rebuild`，`status` 至少支持 `pending / running / completed / failed / partial`。
   - [x] 在应用层补 graph sync run repository / use cases，避免脚本或 Neo4j adapter 直接散写平台表。
 - [x] 把现有 baseline sync 入口升级为受控的 `org-rebuild` 执行单元（AC: 1, 2）
-  - [x] 复用现有 [graph sync use cases](/Users/delldi/work-code/open-code/ontology-agent/src/application/graph-sync/use-cases.ts) 与 [sync-neo4j-baseline.mts](/Users/delldi/work-code/open-code/ontology-agent/scripts/sync-neo4j-baseline.mts) 的组织级建图路径，不重造第二套 builder。
+  - [x] 复用现有 [graph sync use cases]({project-root}/src/application/graph-sync/use-cases.ts) 与 [sync-neo4j-baseline.mts]({project-root}/scripts/sync-neo4j-baseline.mts) 的组织级建图路径，不重造第二套 builder。
   - [x] 在 run 开始、成功、失败时写入 run 状态与统计信息，确保组织级执行具备最小审计与恢复上下文。
   - [x] 为 `org-rebuild` 明确 `trigger_type` 与 `triggered_by`，至少覆盖 `manual` 和系统触发两类来源。
 - [x] 为节点与边补运行元数据并接入 scoped cleanup（AC: 2, 3）
-  - [x] 扩展 [neo4j-graph-sync.ts](/Users/delldi/work-code/open-code/ontology-agent/src/infrastructure/sync/neo4j-graph-sync.ts) 的节点/边构造或 Cypher 生成，使写入包含 `scope_org_id`、`last_seen_run_id`、`last_seen_at`。
-  - [x] 扩展 [neo4j-graph-adapter.ts](/Users/delldi/work-code/open-code/ontology-agent/src/infrastructure/neo4j/neo4j-graph-adapter.ts) 或等价 graph use case，新增 scoped cleanup 入口。
+  - [x] 扩展 [neo4j-graph-sync.ts]({project-root}/src/infrastructure/sync/neo4j-graph-sync.ts) 的节点/边构造或 Cypher 生成，使写入包含 `scope_org_id`、`last_seen_run_id`、`last_seen_at`。
+  - [x] 扩展 [neo4j-graph-adapter.ts]({project-root}/src/infrastructure/neo4j/neo4j-graph-adapter.ts) 或等价 graph use case，新增 scoped cleanup 入口。
   - [x] cleanup 必须仅针对 `scope_org_id = 当前组织` 且 `last_seen_run_id != 当前 run` 的对象，不得做全局 delete。
 - [x] 补齐组织级重建与 cleanup 的测试（AC: 1, 2, 3）
   - [x] 验证 run 记录从 `pending/running` 到终态的完整落库与统计更新。
@@ -80,10 +80,10 @@ so that 图谱基线同步不再只是一次性脚本，而是可追踪、可恢
 
 ### Previous Story Intelligence
 
-- [Story 4.5](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md) 已建立 graph adapter、受控 sync/import 入口和真实图查询路径；当前已有 [sync-neo4j-baseline.mts](/Users/delldi/work-code/open-code/ontology-agent/scripts/sync-neo4j-baseline.mts) 可按组织执行 baseline。
-- [Story 7.3](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-3-self-hosted-container-deployment-baseline.md) 后续会把 `graph sync job runner / scheduler` 纳入部署边界，所以 `7.6` 里不要把运行逻辑绑死在开发脚本假设上。
-- [Story 7.4](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 后续需要看到 `graph sync run 状态` 和错误，因此 `7.6` 产生的 run metadata 要尽量稳定、结构化，便于观测和补偿。
-- 最近提交 [06bf22f](/Users/delldi/work-code/open-code/ontology-agent/.git) “Stabilize graph sync and real analysis conclusion execution” 已经把 graph sync 的真实建图链路站稳；`7.6` 要承接这条真实链路，而不是回退成玩具级脚本包装。
+- [Story 4.5]({project-root}/_bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md) 已建立 graph adapter、受控 sync/import 入口和真实图查询路径；当前已有 [sync-neo4j-baseline.mts]({project-root}/scripts/sync-neo4j-baseline.mts) 可按组织执行 baseline。
+- [Story 7.3]({project-root}/_bmad-output/implementation-artifacts/7-3-self-hosted-container-deployment-baseline.md) 后续会把 `graph sync job runner / scheduler` 纳入部署边界，所以 `7.6` 里不要把运行逻辑绑死在开发脚本假设上。
+- [Story 7.4]({project-root}/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 后续需要看到 `graph sync run 状态` 和错误，因此 `7.6` 产生的 run metadata 要尽量稳定、结构化，便于观测和补偿。
+- 最近提交 [06bf22f]({project-root}/.git) “Stabilize graph sync and real analysis conclusion execution” 已经把 graph sync 的真实建图链路站稳；`7.6` 要承接这条真实链路，而不是回退成玩具级脚本包装。
 
 ### Git Intelligence Summary
 
@@ -101,7 +101,7 @@ so that 图谱基线同步不再只是一次性脚本，而是可追踪、可恢
 
 ### Project Context Reference
 
-- [project-context.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/project-context.md) 的关键约束仍然适用：
+- [project-context.md]({project-root}/_bmad-output/project-context.md) 的关键约束仍然适用：
   - 业务概念优先放在 `domain / application / infrastructure` 分层，不把权限、运行控制或校验逻辑散写在页面组件中。
   - 测试以故事级集成为主，多文件回归要串行执行。
   - 当前实现事实优先于早期规划文档，graph sync 现在已经是真实能力，不应再按 stub 思路实现。
@@ -109,13 +109,13 @@ so that 图谱基线同步不再只是一次性脚本，而是可追踪、可恢
 ## References
 
 - [Source: _bmad-output/planning-artifacts/epics.md#Story 7.6: 图谱同步运行元数据与组织级重建]
-- [Source: docs/data-contracts/graph-sync-baseline.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-baseline.md)
-- [Source: docs/data-contracts/graph-sync-operating-model.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md)
-- [Source: _bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md)
-- [Source: _bmad-output/implementation-artifacts/7-3-self-hosted-container-deployment-baseline.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-3-self-hosted-container-deployment-baseline.md)
-- [Source: _bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md)
-- [Source: _bmad-output/planning-artifacts/architecture.md#数据架构](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
-- [Source: _bmad-output/planning-artifacts/prd.md#非功能需求](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md)
+- [Source: docs/data-contracts/graph-sync-baseline.md]({project-root}/docs/data-contracts/graph-sync-baseline.md)
+- [Source: docs/data-contracts/graph-sync-operating-model.md]({project-root}/docs/data-contracts/graph-sync-operating-model.md)
+- [Source: _bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md]({project-root}/_bmad-output/implementation-artifacts/4-5-neo4j-graph-adapter-and-sync-baseline.md)
+- [Source: _bmad-output/implementation-artifacts/7-3-self-hosted-container-deployment-baseline.md]({project-root}/_bmad-output/implementation-artifacts/7-3-self-hosted-container-deployment-baseline.md)
+- [Source: _bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md]({project-root}/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md)
+- [Source: _bmad-output/planning-artifacts/architecture.md#数据架构]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: _bmad-output/planning-artifacts/prd.md#非功能需求]({project-root}/_bmad-output/planning-artifacts/prd.md)
 
 ## Dev Agent Record
 

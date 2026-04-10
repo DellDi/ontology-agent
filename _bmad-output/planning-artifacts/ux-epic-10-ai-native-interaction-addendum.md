@@ -3,7 +3,7 @@
 **Author:** Codex
 **Date:** 2026-04-09
 **Status:** Draft for Epic 10 implementation alignment
-**Base UX Reference:** [ux-design-specification.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md)
+**Base UX Reference:** [ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md)
 
 ## Purpose
 
@@ -18,7 +18,7 @@
 
 ## Relationship To Existing UX
 
-现有 [ux-design-specification.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#L79) 已经定义：
+现有 [ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#L79) 已经定义：
 
 - 产品气质与品牌语言
 - `PC` 为深度分析主战场、`mobile` 为轻量延展
@@ -337,13 +337,13 @@ Epic 10 的 UX 必须坚持 `fail loud`，尤其在 AI-native 交互层：
 
 ## References
 
-- [ux-design-specification.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md)
-- [ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
-- [architecture.md - AI Interaction Rendering Layer](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L367)
-- [prd.md - FR-17](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#L305)
-- [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L325)
-- [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
-- [10-2-renderer-registry-for-rich-analysis-blocks.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
-- [10-3-ui-message-projection-persistence-and-resume.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
-- [10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md)
-- [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)
+- [ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md)
+- [ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+- [architecture.md - AI Interaction Rendering Layer]({project-root}/_bmad-output/planning-artifacts/architecture.md#L367)
+- [prd.md - FR-17]({project-root}/_bmad-output/planning-artifacts/prd.md#L305)
+- [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L325)
+- [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md]({project-root}/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
+- [10-2-renderer-registry-for-rich-analysis-blocks.md]({project-root}/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
+- [10-3-ui-message-projection-persistence-and-resume.md]({project-root}/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
+- [10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md]({project-root}/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md)
+- [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md]({project-root}/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)

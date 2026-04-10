@@ -19,7 +19,7 @@ so that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
 ## Tasks / Subtasks
 
 - [x] 建立 graph sync job 拆分与统一入口（AC: 1, 3）
-  - [x] 在现有 [graph:sync:neo4j](/Users/delldi/work-code/open-code/ontology-agent/package.json) 基础上，拆出明确的运行入口，至少覆盖：
+  - [x] 在现有 [graph:sync:neo4j]({project-root}/package.json) 基础上，拆出明确的运行入口，至少覆盖：
     - `graph:sync:bootstrap`
     - `graph:sync:org`
     - `graph:sync:incremental`
@@ -36,7 +36,7 @@ so that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
   - [x] sweep 不得绕过 `7.6` 和 `7.7` 的正式运行模型，仍需复用 run metadata 与受控 rebuild 路径。
   - [x] 明确 sweep 与增量任务的职责边界：增量负责追新，sweep 负责查漏补缺和定期校正。
 - [x] 把 graph sync 运行状态接入观测与运维信息面（AC: 3）
-  - [x] 与 [Story 7.4](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 对齐，至少暴露：
+  - [x] 与 [Story 7.4]({project-root}/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 对齐，至少暴露：
     - 最近 run 状态
     - dirty scope pending / failed 数量
     - 最近失败摘要
@@ -67,7 +67,7 @@ so that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
 
 ### Architecture Compliance
 
-- 必须遵循 [graph-sync-operating-model.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md) 中对 job 分类、失败恢复和 CI/CD 边界的定义。
+- 必须遵循 [graph-sync-operating-model.md]({project-root}/docs/data-contracts/graph-sync-operating-model.md) 中对 job 分类、失败恢复和 CI/CD 边界的定义。
 - 调度、补偿和巡检仍属于平台运行管理层，不得重新回退成“人工手敲脚本 + 无状态补丁”。
 - 所有 job 最终都应复用 `7.6 / 7.7` 的正式路径，不得再出现一条旁路同步链。
 - 观测接入应与 `7.4` 对齐，graph sync 不能成为监控盲区。
@@ -98,10 +98,10 @@ so that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
 
 ### Previous Story Intelligence
 
-- [Story 7.6](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-6-graph-sync-run-metadata-and-org-rebuild.md) 定义了运行元数据和 `org-rebuild`；`7.8` 不得绕过它。
-- [Story 7.7](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch.md) 定义了 cursor、dirty scope 和派发语义；`7.8` 负责把这些能力接入长期调度与补偿。
-- [Story 7.4](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 后续要看到 graph sync run 状态、积压和失败摘要，因此 `7.8` 需要留出稳定的状态输出与观测接口。
-- 最近提交 [06bf22f](/Users/delldi/work-code/open-code/ontology-agent/.git) 已经证明 graph sync 不再是文档级概念，而是真实运行链路；`7.8` 要把这种“能跑”升级成“可长期运营”。
+- [Story 7.6]({project-root}/_bmad-output/implementation-artifacts/7-6-graph-sync-run-metadata-and-org-rebuild.md) 定义了运行元数据和 `org-rebuild`；`7.8` 不得绕过它。
+- [Story 7.7]({project-root}/_bmad-output/implementation-artifacts/7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch.md) 定义了 cursor、dirty scope 和派发语义；`7.8` 负责把这些能力接入长期调度与补偿。
+- [Story 7.4]({project-root}/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md) 后续要看到 graph sync run 状态、积压和失败摘要，因此 `7.8` 需要留出稳定的状态输出与观测接口。
+- 最近提交 [06bf22f]({project-root}/.git) 已经证明 graph sync 不再是文档级概念，而是真实运行链路；`7.8` 要把这种“能跑”升级成“可长期运营”。
 
 ### Git Intelligence Summary
 
@@ -115,7 +115,7 @@ so that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
 
 ### Project Context Reference
 
-- [project-context.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/project-context.md) 依然要求：
+- [project-context.md]({project-root}/_bmad-output/project-context.md) 依然要求：
   - 以服务端边界和分层实现为优先
   - 多文件测试串行执行
   - 当前真实实现事实优先于旧规划
@@ -123,12 +123,12 @@ so that 图谱同步可以长期运行并在异常后恢复，而不是依赖人
 ## References
 
 - [Source: _bmad-output/planning-artifacts/epics.md#Story 7.8: 图谱同步调度、补偿与一致性巡检]
-- [Source: docs/data-contracts/graph-sync-operating-model.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md)
-- [Source: _bmad-output/implementation-artifacts/7-6-graph-sync-run-metadata-and-org-rebuild.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-6-graph-sync-run-metadata-and-org-rebuild.md)
-- [Source: _bmad-output/implementation-artifacts/7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch.md)
-- [Source: _bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md)
-- [Source: _bmad-output/planning-artifacts/architecture.md#基础设施与部署](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
-- [Source: _bmad-output/planning-artifacts/prd.md#非功能需求](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md)
+- [Source: docs/data-contracts/graph-sync-operating-model.md]({project-root}/docs/data-contracts/graph-sync-operating-model.md)
+- [Source: _bmad-output/implementation-artifacts/7-6-graph-sync-run-metadata-and-org-rebuild.md]({project-root}/_bmad-output/implementation-artifacts/7-6-graph-sync-run-metadata-and-org-rebuild.md)
+- [Source: _bmad-output/implementation-artifacts/7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch.md]({project-root}/_bmad-output/implementation-artifacts/7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch.md)
+- [Source: _bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md]({project-root}/_bmad-output/implementation-artifacts/7-4-observability-and-availability-monitoring.md)
+- [Source: _bmad-output/planning-artifacts/architecture.md#基础设施与部署]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: _bmad-output/planning-artifacts/prd.md#非功能需求]({project-root}/_bmad-output/planning-artifacts/prd.md)
 
 ## Dev Agent Record
 

@@ -68,12 +68,12 @@ so that 后续分析工作台、会话和执行能力可以在一致且可演进
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 1.1: 手工初始化 Next.js 分析平台骨架]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#选定方案：手工初始化 Next.js App Router]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#前端架构]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#基础设施与部署]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Design System Foundation]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Visual Design Foundation]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 1.1: 手工初始化 Next.js 分析平台骨架]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#选定方案：手工初始化 Next.js App Router]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#前端架构]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#基础设施与部署]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Design System Foundation]
+- [Source: {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#Visual Design Foundation]
 - [Next.js Installation](https://nextjs.org/docs/app/getting-started/installation)
 - [Next.js Route Groups](https://nextjs.org/docs/app/api-reference/file-conventions/route-groups)
 - [Next.js Project Structure](https://nextjs.org/docs/app/getting-started/project-structure)

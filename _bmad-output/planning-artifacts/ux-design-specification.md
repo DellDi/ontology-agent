@@ -16,9 +16,9 @@ stepsCompleted:
   - 14
 lastStep: 14
 inputDocuments:
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md
+  - {project-root}/_bmad-output/planning-artifacts/prd.md
+  - {project-root}/_bmad-output/planning-artifacts/architecture.md
+  - {project-root}/_bmad-output/planning-artifacts/epics.md
 ---
 
 # UX Design Specification ontology-agent
@@ -415,8 +415,8 @@ inputDocuments:
 
 **Supporting Visual Assets**
 
-- 颜色主题可视化：[ux-color-themes.html](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-color-themes.html)
-- 设计方向展示：[ux-design-directions.html](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-directions.html)
+- 颜色主题可视化：[ux-color-themes.html]({project-root}/_bmad-output/planning-artifacts/ux-color-themes.html)
+- 设计方向展示：[ux-design-directions.html]({project-root}/_bmad-output/planning-artifacts/ux-design-directions.html)
 
 ## User Journey Flows
 
@@ -670,6 +670,6 @@ flowchart TD
 
 - 本 UX 规格已覆盖品牌设计语言、核心体验、视觉基础、流程、组件和响应式规则。
 - 支撑文件已生成：
-  - [ux-color-themes.html](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-color-themes.html)
-  - [ux-design-directions.html](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-directions.html)
+  - [ux-color-themes.html]({project-root}/_bmad-output/planning-artifacts/ux-color-themes.html)
+  - [ux-design-directions.html]({project-root}/_bmad-output/planning-artifacts/ux-design-directions.html)
 - 当前 UX 规格已可作为后续实现对齐输入，但在正式开发前仍建议做一次实施一致性检查。

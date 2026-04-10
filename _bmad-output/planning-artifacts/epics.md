@@ -5,9 +5,9 @@ stepsCompleted:
   - 'step-03-create-stories'
   - 'step-04-final-validation'
 inputDocuments:
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md
+  - {project-root}/_bmad-output/planning-artifacts/prd.md
+  - {project-root}/_bmad-output/planning-artifacts/architecture.md
+  - {project-root}/_bmad-output/planning-artifacts/ux-design-specification.md
 ---
 
 # ontology-agent - Epic Breakdown
@@ -75,7 +75,7 @@ NFR11: MVP 阶段的 PRD、架构和实施故事必须明确区分 PC 后台能�
 
 ### UX 设计需求
 
-已存在独立 UX 文档输入：[ux-design-specification.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md)
+已存在独立 UX 文档输入：[ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md)
 
 当前需要继承的关键 UX 约束包括：
 

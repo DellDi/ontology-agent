@@ -52,6 +52,14 @@ so that 移动端结果查看、续流和轻量追问都能沿用同源交互层
 - 本 story 还必须服从 Epic 10 主画布投影白名单：mobile 默认只消费 `summary-card`、`status-banner`、紧凑 `evidence-card`、紧凑 `conclusion-card`、`resume-anchor` 及必要的 `approval/tool` 摘要，而不是默认透出所有 desktop rich blocks。
 - mobile 页面应被视为 desktop `narrative lane` 的受限衍生 surface，而不是“另一套为手机重新设计的分析工作台”。
 
+### Review Adjustments
+
+- 需要在文档中明确与 `Epic 8` 的关系：
+  - `Epic 8` 定义移动端产品能力目标
+  - `10.5` 定义这些能力所依赖的同源 interaction schema 与 runtime projection
+- 建议把 `10.5` 实施顺序放在 `10.3` 之后，避免在 projection persistence / resume 机制未站稳前，移动端先长出独立恢复逻辑。
+- 对 mobile 白名单再收紧一层：第一版默认只开放 `summary-card / status-banner / compact evidence-card / compact conclusion-card / resume-anchor / lightweight follow-up`，其他 rich block 必须显式加入白名单后才能透出。
+
 ### Interaction Schema Boundary
 
 - `interaction schema` 应作为跨端共享的语义契约，至少覆盖 message / part / block / status / history slice / follow-up entry / resume token 的关系。
@@ -120,22 +128,16 @@ so that 移动端结果查看、续流和轻量追问都能沿用同源交互层
 
 ## References
 
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Epic 10: AI 应用运行时与多端渲染层]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 10.5: 移动端摘要、续流与轻量追问统一接入同源交互层]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-15 移动端结果查看]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-16 移动端轻量追问]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-17 统一渲染块输出]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Platform Strategy]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#Experience Principles]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#AI Interaction Rendering Layer]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#API 与通信模式]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#4.4 Story 拆解与交付顺序]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#5.4 受影响的 Epic / Story 回写]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/8-1-mobile-latest-analysis-summary.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/6-4-preserve-multi-round-history.md]
+- [Source: epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md)
+- [Source: prd.md]({project-root}/_bmad-output/planning-artifacts/prd.md)
+- [Source: ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md)
+- [Source: ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [Source: ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+- [Source: architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: sprint-change-proposal-2026-04-09-vercel-ai-sdk.md]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md)
+- [Source: project-context.md]({project-root}/_bmad-output/project-context.md)
+- [Source: Story 8.1]({project-root}/_bmad-output/implementation-artifacts/8-1-mobile-latest-analysis-summary.md)
+- [Source: Story 6.4]({project-root}/_bmad-output/implementation-artifacts/6-4-preserve-multi-round-history.md)
 
 ## Dev Agent Record
 
@@ -155,4 +157,4 @@ GPT-5 Codex
 
 ### File List
 
-- /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md
+- {project-root}/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md

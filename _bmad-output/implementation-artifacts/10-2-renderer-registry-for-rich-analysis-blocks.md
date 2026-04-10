@@ -57,6 +57,15 @@ so that 我可以更高效地理解结论、证据、执行过程，以及审批
 
 ## Dev Notes
 
+### Review Adjustments
+
+- 建议在本 story 中增加“part 白名单与 maturity level”说明，避免第一版 renderer registry 一口气吃下所有 rich block：
+  - Phase A：`status-banner / step-timeline / markdown / kv-list / table / evidence-card / conclusion-card`
+  - Phase B：`chart / graph / ranked-causes / scope-change`
+  - Phase C：`approval-state / skills-state`
+- `renderer registry` 应只决定“如何渲染”，不决定“这个 part 是否应该出现”。后者应由上游 runtime / projection 层负责，避免 registry 反向侵入业务逻辑。
+- 建议要求 10.2 依赖 10.1 先给出统一 ownership matrix，否则 part schema、projection schema、resume schema 很容易分别扩展，最后又回到多协议状态。
+
 - 本 story 的核心不是“再做一组 UI 卡片”，而是把分析结果的结构语义、渲染选择与跨端投影正式化。它要解决的是“后续新增富块时，页面不再膨胀成临时 switch 大杂烩”。
 - 这里的 `part schema` 是对当前 `renderBlocks` 的正规化升级。短期内可以继续兼容现有 SSE / result model 数据形态，但 UI 消费层必须走统一 registry，而不是继续直接消费原始 payload 结构。
 - `10.1` 负责 AI application runtime layer 与消息生命周期，本 story 不接管 transport、SSE、EventSource、resume 或持久化编排；它只定义和消费 interaction part 的渲染与投影边界。
@@ -147,29 +156,25 @@ so that 我可以更高效地理解结论、证据、执行过程，以及审批
 
 ## References
 
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Epic-10-AI-应用运行时与多端渲染层]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story-10.2-建立-Renderer-Registry-支持富分析块]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#AI-Interaction-Rendering-Layer]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#FR-17-统一渲染块输出]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#流式分析画布]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#5.4-Epic--Story-变更提案]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#5.5-Sprint-Status-变更提案]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#关键实现规则]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#智能体与框架规则]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/domain/analysis-execution/stream-models.ts]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/domain/analysis-result/models.ts]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/application/analysis-execution/persistence-use-cases.ts]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/application/analysis-execution/stream-use-cases.ts]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/analysis-execution-display.ts]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-stream-panel.tsx]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/api/analysis/sessions/[sessionId]/stream/route.ts]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/infrastructure/postgres/schema/analysis-execution-snapshots.ts]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/application/tooling/use-cases.ts]
+- [Source: epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md)
+- [Source: architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: prd.md]({project-root}/_bmad-output/planning-artifacts/prd.md)
+- [Source: ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md)
+- [Source: ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [Source: ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+- [Source: project-context.md]({project-root}/_bmad-output/project-context.md)
+- [Source: Story 9.1]({project-root}/_bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md)
+- [Source: stream-models.ts]({project-root}/src/domain/analysis-execution/stream-models.ts)
+- [Source: analysis-result models]({project-root}/src/domain/analysis-result/models.ts)
+- [Source: persistence use-cases]({project-root}/src/application/analysis-execution/persistence-use-cases.ts)
+- [Source: stream use-cases]({project-root}/src/application/analysis-execution/stream-use-cases.ts)
+- [Source: analysis-execution-display.ts]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/analysis-execution-display.ts)
+- [Source: analysis-execution-stream-panel.tsx]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-stream-panel.tsx)
+- [Source: analysis-conclusion-panel.tsx]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx)
+- [Source: analysis-execution-live-shell.tsx]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx)
+- [Source: stream route]({project-root}/src/app/api/analysis/sessions/[sessionId]/stream/route.ts)
+- [Source: analysis-execution-snapshots.ts]({project-root}/src/infrastructure/postgres/schema/analysis-execution-snapshots.ts)
+- [Source: tooling use-cases]({project-root}/src/application/tooling/use-cases.ts)
 
 ## Dev Agent Record
 
@@ -187,4 +192,4 @@ GPT-5 Codex
 
 ### File List
 
-- /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md
+- {project-root}/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md

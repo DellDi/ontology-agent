@@ -6,7 +6,7 @@
 
 运行时交付与持续同步方案见：
 
-- [graph-sync-operating-model.md](/Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md)
+- [graph-sync-operating-model.md]({project-root}/docs/data-contracts/graph-sync-operating-model.md)
 
 ## 首批实体
 

@@ -65,6 +65,14 @@ so that 后续新增长期记忆、知识库、技能系统和工具市场时，
 
 如果后续要接入向量检索、长时记忆、外部知识库或技能市场，本 story 产物应该是“可扩展的接线层”，不是“把所有能力都一次性实现完”的玩具式方案。
 
+### Review Adjustments
+
+- 这张 story 当前范围过宽，建议在实现上明确拆成两段：
+  - Phase A：`tools + tool approval + skills prompt bridge`
+  - Phase B：`memory + knowledge resources`
+- 第一阶段不建议同时承诺 `memory provider`、`knowledge retrieval`、`dynamicTool`、`agent loops` 全部落地；这些应仅保留为 contract 预留位。
+- 文档里应明确“bridge 负责统一 capability contract，不负责 capability productization”。否则实现很容易变成一个巨型 adapter 层。
+
 ### Architecture Compliance
 
 - 必须继续遵循 `domain -> application -> infrastructure -> app` 分层，bridge 的能力描述放在 domain / application，具体 provider 绑定放在 infrastructure。
@@ -237,26 +245,24 @@ tool approval 必须保留可审计、可回放、可拒绝的治理语义。建
 
 ## References
 
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#L1207-L1279]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L286-L394]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#L303-L307]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L347-L420]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L21-L37]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L111-L125]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L135-L140]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/infrastructure/tooling/index.ts#L223-L280]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/application/tooling/use-cases.ts#L105-L200]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/domain/tooling/models.ts#L1-L95]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/infrastructure/llm/prompt-registry.ts#L62-L173]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/infrastructure/llm/schema-guardrails.ts#L26-L130]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/infrastructure/llm/openai-compatible-adapter.ts#L1-L140]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/worker/main.ts#L17-L159]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/worker/finalize-analysis-execution.ts#L59-L120]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/application/follow-up/use-cases.ts#L63-L170]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/application/analysis-history/use-cases.ts#L84-L160]
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/domain/analysis-session/follow-up-models.ts#L13-L198]
+- [Source: epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md)
+- [Source: architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: prd.md]({project-root}/_bmad-output/planning-artifacts/prd.md)
+- [Source: sprint-change-proposal-2026-04-09-vercel-ai-sdk.md]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md)
+- [Source: ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [Source: ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+- [Source: project-context.md]({project-root}/_bmad-output/project-context.md)
+- [Source: tooling index]({project-root}/src/infrastructure/tooling/index.ts)
+- [Source: tooling use-cases]({project-root}/src/application/tooling/use-cases.ts)
+- [Source: tooling models]({project-root}/src/domain/tooling/models.ts)
+- [Source: prompt-registry.ts]({project-root}/src/infrastructure/llm/prompt-registry.ts)
+- [Source: schema-guardrails.ts]({project-root}/src/infrastructure/llm/schema-guardrails.ts)
+- [Source: openai-compatible-adapter.ts]({project-root}/src/infrastructure/llm/openai-compatible-adapter.ts)
+- [Source: worker main]({project-root}/src/worker/main.ts)
+- [Source: finalize-analysis-execution.ts]({project-root}/src/worker/finalize-analysis-execution.ts)
+- [Source: follow-up use-cases]({project-root}/src/application/follow-up/use-cases.ts)
+- [Source: analysis-history use-cases]({project-root}/src/application/analysis-history/use-cases.ts)
+- [Source: follow-up models]({project-root}/src/domain/analysis-session/follow-up-models.ts)
 
 ## Dev Agent Record
 
@@ -272,4 +278,4 @@ GPT-5 Codex
 - Scope intentionally limited to runtime bridge contracts, adapters, governance hooks, and tests; canonical ontology / knowledge governance / worker orchestration remain separate systems of record.
 
 ### File List
-- /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md
+- {project-root}/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md

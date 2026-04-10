@@ -63,12 +63,12 @@ approved_date: '2026-04-09'
 ### 支撑证据
 
 - 当前仓库已存在明确的引入判断：
-  - [sprint-change-proposal-2026-04-07.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-07.md#L181)
-  - [architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L334)
+  - [sprint-change-proposal-2026-04-07.md]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-07.md#L181)
+  - [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md#L334)
 - 当前实现已经形成自定义交互协议：
-  - [stream route](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/api/analysis/sessions/[sessionId]/stream/route.ts#L28)
-  - [live shell](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx#L22)
-  - [stream-models.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/domain/analysis-execution/stream-models.ts#L3)
+  - [stream route]({project-root}/src/app/api/analysis/sessions/[sessionId]/stream/route.ts#L28)
+  - [live shell]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx#L22)
+  - [stream-models.ts]({project-root}/src/domain/analysis-execution/stream-models.ts#L3)
 - 当前仓库尚未引入 `@ai-sdk/*` 或 `ai` 依赖，说明该路线仍未正式落地
 - 官方能力已经明确覆盖：
   - `useChat / UIMessage / persistence / resume streams`
@@ -249,7 +249,7 @@ approved_date: '2026-04-09'
 
 #### 建议更新 `FR-17 统一渲染块输出`
 
-**Section:** [prd.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#L303)
+**Section:** [prd.md]({project-root}/_bmad-output/planning-artifacts/prd.md#L303)
 
 OLD:
 
@@ -274,7 +274,7 @@ Rationale:
 
 #### 建议将 `Vercel AI SDK` 从“建议可引入”升级为“批准纳入行动计划”
 
-**Section:** [architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L334)
+**Section:** [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md#L334)
 
 OLD:
 
@@ -311,7 +311,7 @@ Rationale:
 
 #### 建议补充“流式分析画布”的交互运行时定义
 
-**Section:** [ux-design-specification.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md#L289)
+**Section:** [ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md#L289)
 
 OLD:
 
@@ -408,7 +408,7 @@ So that 移动端结果查看、轻量追问和后续更高级交互都不需要
 
 ### 5.5 Sprint Status 变更提案
 
-批准后建议在 [sprint-status.yaml](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml) 中新增：
+批准后建议在 [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml) 中新增：
 
 ```yaml
   epic-10: backlog

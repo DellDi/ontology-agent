@@ -4,7 +4,7 @@
 **Date:** 2026-04-09
 **Status:** Draft for implementation alignment
 **Primary UX Mode:** `Streaming-first narrative canvas`
-**Base References:** [ux-design-specification.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md), [ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+**Base References:** [ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md), [ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
 
 ## Purpose
 
@@ -388,10 +388,10 @@ mobile 不是 desktop 缩小版，而是同源 projection 的受限消费面。
 
 ## References
 
-- [ux-design-specification.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-design-specification.md)
-- [ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
-- [architecture.md - AI Interaction Rendering Layer](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L367)
-- [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
-- [10-2-renderer-registry-for-rich-analysis-blocks.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
-- [10-3-ui-message-projection-persistence-and-resume.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
-- [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)
+- [ux-design-specification.md]({project-root}/_bmad-output/planning-artifacts/ux-design-specification.md)
+- [ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [architecture.md - AI Interaction Rendering Layer]({project-root}/_bmad-output/planning-artifacts/architecture.md#L367)
+- [10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md]({project-root}/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md)
+- [10-2-renderer-registry-for-rich-analysis-blocks.md]({project-root}/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md)
+- [10-3-ui-message-projection-persistence-and-resume.md]({project-root}/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md)
+- [10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md]({project-root}/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md)

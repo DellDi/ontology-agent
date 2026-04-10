@@ -52,16 +52,16 @@ approved_date: '2026-04-07'
 
 ### 支撑证据
 
-- [project-context.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md) 已明确：
+- [project-context.md]({project-root}/_bmad-output/project-context.md) 已明确：
   - `Epic 5` 开始若需要更强流式 UI / token streaming / tool call 结果渲染，可以考虑引入 `Vercel AI SDK`
   - 但仅作为 **Next.js 交互层增强**，不接管服务端业务编排
-- [architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md) 已明确：
+- [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md) 已明确：
   - 主应用契约采用 `REST + SSE`
   - 长耗时分析采用“提交 -> 入队 -> 流式返回状态和结果”
   - 若前端需要显著增强流式交互，优先补 `Vercel AI SDK`，但不取代内部编排
-- [5-2-stream-execution-progress-and-stage-results.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/5-2-stream-execution-progress-and-stage-results.md) 当前只覆盖“状态流 + 阶段结果”，尚未把 render schema / rich block protocol 作为显式交付物
-- [5-3-ranked-causal-conclusions-with-evidence.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/5-3-ranked-causal-conclusions-with-evidence.md) 当前只要求“排序原因 + 证据摘要”，尚未要求统一富渲染结果模型
-- [8-1-mobile-latest-analysis-summary.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/8-1-mobile-latest-analysis-summary.md) 当前更像单独 read model，没有明确复用 PC 结果 render schema
+- [5-2-stream-execution-progress-and-stage-results.md]({project-root}/_bmad-output/implementation-artifacts/5-2-stream-execution-progress-and-stage-results.md) 当前只覆盖“状态流 + 阶段结果”，尚未把 render schema / rich block protocol 作为显式交付物
+- [5-3-ranked-causal-conclusions-with-evidence.md]({project-root}/_bmad-output/implementation-artifacts/5-3-ranked-causal-conclusions-with-evidence.md) 当前只要求“排序原因 + 证据摘要”，尚未要求统一富渲染结果模型
+- [8-1-mobile-latest-analysis-summary.md]({project-root}/_bmad-output/implementation-artifacts/8-1-mobile-latest-analysis-summary.md) 当前更像单独 read model，没有明确复用 PC 结果 render schema
 
 ## 2. Checklist 结果
 

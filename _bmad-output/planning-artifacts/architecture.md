@@ -1,7 +1,7 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
 inputDocuments:
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md
+  - {project-root}/_bmad-output/planning-artifacts/prd.md
   - /Users/delldi/ai-data-research/04-core-tech-deepdive.md
   - /Users/delldi/ai-data-research/07-nextjs-fullstack-architecture.md
 workflowType: 'architecture'
@@ -465,5 +465,5 @@ pnpm create next-app@latest ontology-agent --ts --app
 ## 架构专题补充
 
 - 统一本体层与知识治理专题设计见：
-  - [ontology-governance-architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ontology-governance-architecture.md)
+  - [ontology-governance-architecture.md]({project-root}/_bmad-output/planning-artifacts/ontology-governance-architecture.md)
 - 该文档用于回答“当前语义化分析平台如何继续演进为本体驱动系统”，不替代本总架构文档。

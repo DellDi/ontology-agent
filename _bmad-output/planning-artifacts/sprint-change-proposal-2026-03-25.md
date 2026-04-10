@@ -31,10 +31,10 @@ approved_date: '2026-03-25'
 
 ### 支撑证据
 
-- 登录相关实现仍依赖 [memory-session-store.ts](/Users/delldi/work-code/open-code/ontology-agent/src/infrastructure/session/memory-session-store.ts)
-- 分析会话仍依赖 [memory-analysis-session-store.ts](/Users/delldi/work-code/open-code/ontology-agent/src/infrastructure/analysis-session/memory-analysis-session-store.ts)
+- 登录相关实现仍依赖 [memory-session-store.ts]({project-root}/src/infrastructure/session/memory-session-store.ts)
+- 分析会话仍依赖 [memory-analysis-session-store.ts]({project-root}/src/infrastructure/analysis-session/memory-analysis-session-store.ts)
 - 架构文档已将 `Postgres`、`Redis`、`Worker`、容器化部署列为目标能力，但仓库尚未落地
-- 当前 [sprint-status.yaml](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml) 中 Epic 2 以后全部仍是 backlog，因此现在调整顺序的成本仍然可控
+- 当前 [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml) 中 Epic 2 以后全部仍是 backlog，因此现在调整顺序的成本仍然可控
 
 ## 2. Checklist 结果
 
@@ -143,9 +143,9 @@ approved_date: '2026-03-25'
 
 #### 其他实施工件
 
-- [sprint-status.yaml](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml) 需要在提案批准后重排 epic/story 键
+- [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml) 需要在提案批准后重排 epic/story 键
 - Story 创建顺序需要从“继续 Epic 2”改为“先创建基础设施故事”
-- [project-context.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/project-context.md) 已经记录当前风险，可继续复用
+- [project-context.md]({project-root}/_bmad-output/project-context.md) 已经记录当前风险，可继续复用
 
 ## 4. 推荐路径
 
@@ -375,7 +375,7 @@ approved_date: '2026-03-25'
 批准后建议直接按这个顺序执行：
 
 1. `bmad-bmm-code-review`
-2. 更新 [epics.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md)
-3. 更新 [architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
-4. 更新 [sprint-status.yaml](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml)
+2. 更新 [epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md)
+3. 更新 [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+4. 更新 [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml)
 5. 为新 Epic 2 创建 Story 文件

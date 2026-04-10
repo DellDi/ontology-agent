@@ -56,13 +56,13 @@ approved_date: '2026-04-09'
 
 ### 支撑证据
 
-- [ontology-governance-architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 已明确给出缺口分析与架构建议
-- [architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md) 当前主文档尚未把统一本体层纳入正式 epic 路线
-- [epics.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md) 当前只有：
+- [ontology-governance-architecture.md]({project-root}/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 已明确给出缺口分析与架构建议
+- [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md) 当前主文档尚未把统一本体层纳入正式 epic 路线
+- [epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md) 当前只有：
   - `Epic 7`：企业治理、审计、自托管运营
   - `Epic 8`：移动端 Growth
   尚无“统一本体层与知识治理”承载位
-- [sprint-status.yaml](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/sprint-status.yaml) 当前没有这条路线对应的 story 条目
+- [sprint-status.yaml]({project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml) 当前没有这条路线对应的 story 条目
 
 ## 2. Checklist 结果
 
@@ -319,12 +319,12 @@ So that 结论来源、历史回放和问题诊断可以追溯到明确的知识
 
 ### 5.3 Architecture 变更提案
 
-**Artifact:** [architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
+**Artifact:** [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
 
 **补充方式：**
 
 - 保持总架构文档不做大规模重写
-- 以专题文档 [ontology-governance-architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 作为正式架构补充
+- 以专题文档 [ontology-governance-architecture.md]({project-root}/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 作为正式架构补充
 
 **Rationale：**
 
@@ -362,7 +362,7 @@ So that 结论来源、历史回放和问题诊断可以追溯到明确的知识
   - 更新 `sprint-status.yaml`
   - 决定和 Epic 7 的排期关系
 - **Architect**
-  - 以 [ontology-governance-architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 为正式架构基线
+  - 以 [ontology-governance-architecture.md]({project-root}/_bmad-output/planning-artifacts/ontology-governance-architecture.md) 为正式架构基线
 - **Dev Team**
   - 先不要直接散点开发
   - 等 story 拆分完成后按 registry -> semantics governance -> grounding -> governance admin -> version binding 顺序推进

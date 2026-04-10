@@ -71,12 +71,12 @@ so that 开发体验、环境变量、文档说明和真实依赖保持一致，
 
 ### References
 
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 4.4: Cube 语义层只读查询接入]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#Story 4.5: Neo4j 图谱接入与关系/因果边同步基线]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#基础设施与部署]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/implementation-artifacts/2-1-docker-compose-baseline.md]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/docs/local-infrastructure.md]
-- [Source: /Users/delldi/work-code/open-code/ontology-agent/compose.yaml]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 4.4: Cube 语义层只读查询接入]
+- [Source: {project-root}/_bmad-output/planning-artifacts/epics.md#Story 4.5: Neo4j 图谱接入与关系/因果边同步基线]
+- [Source: {project-root}/_bmad-output/planning-artifacts/architecture.md#基础设施与部署]
+- [Source: {project-root}/_bmad-output/implementation-artifacts/2-1-docker-compose-baseline.md]
+- [Source: {project-root}/docs/local-infrastructure.md]
+- [Source: {project-root}/compose.yaml]
 
 ## Dev Agent Record
 

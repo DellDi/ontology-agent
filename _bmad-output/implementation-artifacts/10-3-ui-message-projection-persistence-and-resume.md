@@ -40,6 +40,12 @@ so that 用户刷新页面、重新进入历史会话或中断后恢复时，交
 
 ## Dev Notes
 
+### Review Adjustments
+
+- 本 story 需要显式依赖 10.1 的 ownership matrix，否则“谁生成 projection、谁维护 part schema 版本、谁负责 history round 切换”会再次分散。
+- 建议在 projection model 中显式包含 `partSchemaVersion` 或等价字段，避免 10.2 以后 rich block 扩展时，旧 projection 无法判断兼容性。
+- resume / replay / history 切换都必须受同一个 server-side contract 控制，不允许 page 组件自己维护一套本地 round switching 语义。
+
 ### Canonical Truth Boundary
 
 - 这项 story 的核心原则是：**projection 不是事实源**。
@@ -124,26 +130,26 @@ so that 用户刷新页面、重新进入历史会话或中断后恢复时，交
 
 ### References
 
-- [Epic 10: AI 应用运行时与多端渲染层](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md#L1246)
-- [architecture.md - 数据架构与 API / 前端边界](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L197)
-- [architecture.md - REST + SSE 与 App Router 边界](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L222)
-- [architecture.md - 前端服务端优先与投影边界](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md#L232)
-- [prd.md - MVP 范围与 PC / 移动端边界](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#L68)
-- [prd.md - 用户旅程 2 / 3，强调重规划与多轮历史](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md#L133)
-- [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md - runtime gap 与 resume projection](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L18)
-- [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md - canonical truth 与后续风险](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L128)
-- [ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
-- [ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
-- [project-context.md - current facts and canonical source boundary](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L111)
-- [project-context.md - projection / canonical truth rule](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md#L117)
-- [Story 5.4: 保存步骤结果与最终结论](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/5-4-persist-step-results-and-final-conclusion.md#L15)
-- [Story 6.4: 保留多轮循环历史与结论演化](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/6-4-preserve-multi-round-history.md#L15)
-- [analysis-execution-snapshots.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/infrastructure/postgres/schema/analysis-execution-snapshots.ts#L6)
-- [analysis-session-follow-ups.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/infrastructure/postgres/schema/analysis-session-follow-ups.ts#L6)
-- [analysis-history-panel.tsx](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-history-panel.tsx#L29)
-- [analysis-execution-live-shell.tsx](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx#L22)
-- [stream/route.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/api/analysis/sessions/[sessionId]/stream/route.ts#L28)
-- [analysis-execution-display.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/analysis-execution-display.ts#L21)
+- [Epic 10: AI 应用运行时与多端渲染层]({project-root}/_bmad-output/planning-artifacts/epics.md#L1246)
+- [architecture.md - 数据架构与 API / 前端边界]({project-root}/_bmad-output/planning-artifacts/architecture.md#L197)
+- [architecture.md - REST + SSE 与 App Router 边界]({project-root}/_bmad-output/planning-artifacts/architecture.md#L222)
+- [architecture.md - 前端服务端优先与投影边界]({project-root}/_bmad-output/planning-artifacts/architecture.md#L232)
+- [prd.md - MVP 范围与 PC / 移动端边界]({project-root}/_bmad-output/planning-artifacts/prd.md#L68)
+- [prd.md - 用户旅程 2 / 3，强调重规划与多轮历史]({project-root}/_bmad-output/planning-artifacts/prd.md#L133)
+- [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md - runtime gap 与 resume projection]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L18)
+- [sprint-change-proposal-2026-04-09-vercel-ai-sdk.md - canonical truth 与后续风险]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md#L128)
+- [ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+- [project-context.md - current facts and canonical source boundary]({project-root}/_bmad-output/project-context.md#L111)
+- [project-context.md - projection / canonical truth rule]({project-root}/_bmad-output/project-context.md#L117)
+- [Story 5.4: 保存步骤结果与最终结论]({project-root}/_bmad-output/implementation-artifacts/5-4-persist-step-results-and-final-conclusion.md#L15)
+- [Story 6.4: 保留多轮循环历史与结论演化]({project-root}/_bmad-output/implementation-artifacts/6-4-preserve-multi-round-history.md#L15)
+- [analysis-execution-snapshots.ts]({project-root}/src/infrastructure/postgres/schema/analysis-execution-snapshots.ts#L6)
+- [analysis-session-follow-ups.ts]({project-root}/src/infrastructure/postgres/schema/analysis-session-follow-ups.ts#L6)
+- [analysis-history-panel.tsx]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-history-panel.tsx#L29)
+- [analysis-execution-live-shell.tsx]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx#L22)
+- [stream/route.ts]({project-root}/src/app/api/analysis/sessions/[sessionId]/stream/route.ts#L28)
+- [analysis-execution-display.ts]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/analysis-execution-display.ts#L21)
 
 ## Dev Agent Record
 
@@ -163,4 +169,4 @@ GPT-5 Codex
 
 ### File List
 
-- /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md
+- {project-root}/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md

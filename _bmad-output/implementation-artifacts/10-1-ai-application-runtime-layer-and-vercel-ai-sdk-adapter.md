@@ -68,6 +68,16 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
   - 历史轮次和最新轮次可并存
   - 刷新或回看时不会串页
 
+### Review Adjustments
+
+- 建议在 story 开头增加实施前置：`9.1 ~ 9.3` 至少应完成到“canonical ontology + grounding 主路径可用”，否则 Epic 10 容易先长出一套 runtime semantic center。
+- 需要补一张 ownership matrix，最少回答 4 个问题：
+  - 谁生成 message / part
+  - 谁持久化 projection
+  - 谁负责 history round 切换
+  - 谁负责 part schema 版本兼容
+- `runtime message / part / projection` 必须被定义为交互协议，而不是业务语义协议；业务语义仍以上游 ontology / grounded context 为准。
+
 ### Recommended Implementation Order
 
 1. 先冻结边界与命名，再写代码骨架。
@@ -202,23 +212,23 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
 
 ## References
 
-- [Source: Epic 10 in epics.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md)
-- [Source: Story 10.1 in epics.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md)
-- [Source: current AI SDK decision in architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
-- [Source: Vercel AI SDK introduction boundary in architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
-- [Source: AI Interaction Rendering Layer in architecture.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md)
-- [Source: FR-17 in prd.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/project-context.md)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md](/Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/api/analysis/sessions/[sessionId]/stream/route.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/api/analysis/sessions/[sessionId]/stream/route.ts)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx](/Users/zhouxia/Documents/open-code/ontology-agent/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/src/domain/analysis-execution/stream-models.ts](/Users/zhouxia/Documents/open-code/ontology-agent/src/domain/analysis-execution/stream-models.ts)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/tests/story-5-2-execution-stream.test.mjs](/Users/zhouxia/Documents/open-code/ontology-agent/tests/story-5-2-execution-stream.test.mjs)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/tests/story-5-4-persist-results.test.mjs](/Users/zhouxia/Documents/open-code/ontology-agent/tests/story-5-4-persist-results.test.mjs)
-- [Source: /Users/zhouxia/Documents/open-code/ontology-agent/tests/story-6-4-preserve-multi-round-history.test.mjs](/Users/zhouxia/Documents/open-code/ontology-agent/tests/story-6-4-preserve-multi-round-history.test.mjs)
+- [Source: Epic 10 in epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md)
+- [Source: Story 10.1 in epics.md]({project-root}/_bmad-output/planning-artifacts/epics.md)
+- [Source: current AI SDK decision in architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: Vercel AI SDK introduction boundary in architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: AI Interaction Rendering Layer in architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md)
+- [Source: FR-17 in prd.md]({project-root}/_bmad-output/planning-artifacts/prd.md)
+- [Source: sprint-change-proposal-2026-04-09-vercel-ai-sdk.md]({project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-04-09-vercel-ai-sdk.md)
+- [Source: ux-epic-10-ai-native-interaction-addendum.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-ai-native-interaction-addendum.md)
+- [Source: ux-epic-10-main-canvas-wireframes.md]({project-root}/_bmad-output/planning-artifacts/ux-epic-10-main-canvas-wireframes.md)
+- [Source: project-context.md]({project-root}/_bmad-output/project-context.md)
+- [Source: Story 9.1]({project-root}/_bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md)
+- [Source: stream route]({project-root}/src/app/api/analysis/sessions/[sessionId]/stream/route.ts)
+- [Source: live shell]({project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx)
+- [Source: stream models]({project-root}/src/domain/analysis-execution/stream-models.ts)
+- [Source: story-5-2]({project-root}/tests/story-5-2-execution-stream.test.mjs)
+- [Source: story-5-4]({project-root}/tests/story-5-4-persist-results.test.mjs)
+- [Source: story-6-4]({project-root}/tests/story-6-4-preserve-multi-round-history.test.mjs)
 
 ## Dev Agent Record
 
@@ -240,4 +250,4 @@ GPT-5 Codex
 
 ### File List
 
-- /Users/zhouxia/Documents/open-code/ontology-agent/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md
+- {project-root}/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md

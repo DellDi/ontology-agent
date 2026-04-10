@@ -5,20 +5,20 @@ project_name: 'ontology-agent'
 user_name: 'Delldi'
 date: '2026-04-09'
 inputDocuments:
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/prd.md
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/epics.md
-  - /Users/delldi/work-code/open-code/ontology-agent/_bmad-output/project-context.md
-  - /Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/cube-semantic-baseline.md
-  - /Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-baseline.md
-  - /Users/delldi/work-code/open-code/ontology-agent/docs/data-contracts/graph-sync-operating-model.md
+  - {project-root}/_bmad-output/planning-artifacts/prd.md
+  - {project-root}/_bmad-output/planning-artifacts/architecture.md
+  - {project-root}/_bmad-output/planning-artifacts/epics.md
+  - {project-root}/_bmad-output/project-context.md
+  - {project-root}/docs/data-contracts/cube-semantic-baseline.md
+  - {project-root}/docs/data-contracts/graph-sync-baseline.md
+  - {project-root}/docs/data-contracts/graph-sync-operating-model.md
 ---
 
 # 统一本体层与知识治理架构
 
 ## 文档定位
 
-本文档是现有总架构文档 [architecture.md](/Users/delldi/work-code/open-code/ontology-agent/_bmad-output/planning-artifacts/architecture.md) 的专题补充，目标不是重写当前系统，而是回答当前项目进入下一阶段时最关键的问题：
+本文档是现有总架构文档 [architecture.md]({project-root}/_bmad-output/planning-artifacts/architecture.md) 的专题补充，目标不是重写当前系统，而是回答当前项目进入下一阶段时最关键的问题：
 
 - 现有“语义化分析平台”如何升级为“本体驱动系统”
 - 业务概念、指标口径、候选因素、图谱关系和执行计划如何收束到统一中心
