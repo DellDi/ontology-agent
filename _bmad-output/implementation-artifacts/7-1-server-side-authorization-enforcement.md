@@ -1,6 +1,6 @@
 # Story 7.1: 服务端权限校验与越权拦截
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,14 +18,14 @@ so that 系统不会返回超出用户项目、区域或组织边界的数据。
 
 ## Tasks / Subtasks
 
-- [ ] 建立统一服务端权限策略入口（AC: 1, 2, 3）
-  - [ ] 复用当前会话中的 scope 与角色信息，不信任浏览器提交的 `userId` 或范围参数。
-  - [ ] 将策略集中到 domain / application 层，不散落在页面组件中。
-- [ ] 接入分析写入与读取边界（AC: 1, 2, 3）
-  - [ ] 覆盖创建分析、读取会话详情、后续执行入口和移动端只读入口。
-  - [ ] 确保越权数据不会进入查询或分析流程。
-- [ ] 覆盖越权回归测试（AC: 1, 2, 3）
-  - [ ] 测越权读、越权写、跨用户访问和失败信息去敏。
+- [x] 建立统一服务端权限策略入口（AC: 1, 2, 3）
+  - [x] 复用当前会话中的 scope 与角色信息，不信任浏览器提交的 `userId` 或范围参数。
+  - [x] 将策略集中到 domain / application 层，不散落在页面组件中。
+- [x] 接入分析写入与读取边界（AC: 1, 2, 3）
+  - [x] 覆盖创建分析、读取会话详情、后续执行入口和移动端只读入口。
+  - [x] 确保越权数据不会进入查询或分析流程。
+- [x] 覆盖越权回归测试（AC: 1, 2, 3）
+  - [x] 测越权读、越权写、跨用户访问和失败信息去敏。
 
 ## Dev Notes
 
@@ -46,7 +46,7 @@ so that 系统不会返回超出用户项目、区域或组织边界的数据。
   - `src/domain/scope-boundary/policy.ts`
   - `src/infrastructure/session/server-auth.ts`
   - `src/app/api/analysis/sessions/route.ts`
-  - 新增 `tests/story-6-1-*.test.mjs`
+  - 新增 `tests/story-7-1-server-side-authorization.test.mjs`
 
 ### Testing Requirements
 
@@ -76,12 +76,23 @@ GPT-5 Codex
 
 ### Debug Log References
 
-- _Pending during implementation._
+- `node --test --test-concurrency=1 tests/story-7-1-server-side-authorization.test.mjs`
+- `node --test --test-concurrency=1 tests/story-5-1-analysis-execution.test.mjs`
+- `node --test --test-concurrency=1 tests/story-6-1-follow-up-on-existing-conclusion.test.mjs`
+- `npm run lint`
+- `npm run build`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- 新增统一的分析作用域授权策略，显式约束 owner + organization + projectIds + areaIds。
+- 现有 analysis session 可访问性判断改为复用统一策略，消除重复且分散的 scope 判定逻辑。
+- 补充 Story 7.1 真实集成回归，覆盖伪造范围写入、跨组织回看/执行/追问拒绝、跨项目越权拒绝、跨用户去敏失败语义。
+- 相关主链回归与质量门槛已通过，未发现对 Epic 5/6 的执行与 follow-up 链路回归。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/7-1-server-side-authorization-enforcement.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/domain/analysis-session/models.ts
+- src/domain/scope-boundary/policy.ts
+- tests/story-7-1-server-side-authorization.test.mjs

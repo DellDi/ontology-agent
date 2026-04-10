@@ -94,7 +94,7 @@ development_status:
   epic-6-retrospective: done
 
   epic-7: in-progress
-  7-1-server-side-authorization-enforcement: ready-for-dev
+  7-1-server-side-authorization-enforcement: review
   7-2-audit-analysis-and-tool-events: ready-for-dev
   7-3-self-hosted-container-deployment-baseline: ready-for-dev
   7-4-observability-and-availability-monitoring: ready-for-dev
