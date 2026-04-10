@@ -1,3 +1,5 @@
+import type { PermissionScope } from '@/domain/auth/models';
+
 export const SUPPORTED_ANALYSIS_TOPICS = [
   '收费',
   '工单',
@@ -57,4 +59,68 @@ export function isUnsupportedAnalysisQuestion(questionText: string) {
 
 export function getUnsupportedScopeMessage() {
   return '当前版本仅支持物业分析场景，暂不支持客服系统、CRM、营销、呼叫中心等业务。请聚焦收费、工单、投诉、满意度等物业数据问题。';
+}
+
+export class AnalysisAuthorizationError extends Error {
+  constructor(message = '会话不存在或无权访问。') {
+    super(message);
+    this.name = 'AnalysisAuthorizationError';
+  }
+}
+
+export type AnalysisScopeBoundResource = {
+  ownerUserId: string;
+  organizationId: string;
+  projectIds: string[];
+  areaIds: string[];
+};
+
+export function getAnalysisAccessDeniedMessage() {
+  return '会话不存在或无权访问。';
+}
+
+export function canAccessAnalysisScope(
+  resource: AnalysisScopeBoundResource,
+  viewer: {
+    userId: string;
+    scope: Pick<PermissionScope, 'organizationId' | 'projectIds' | 'areaIds'>;
+  },
+) {
+  if (resource.ownerUserId !== viewer.userId) {
+    return false;
+  }
+
+  const isLegacyMigratedSession =
+    !resource.organizationId &&
+    resource.projectIds.length === 0 &&
+    resource.areaIds.length === 0;
+
+  if (isLegacyMigratedSession) {
+    return true;
+  }
+
+  if (resource.organizationId !== viewer.scope.organizationId) {
+    return false;
+  }
+
+  const hasProjectAccess = resource.projectIds.every((projectId) =>
+    viewer.scope.projectIds.includes(projectId),
+  );
+  const hasAreaAccess = resource.areaIds.every((areaId) =>
+    viewer.scope.areaIds.includes(areaId),
+  );
+
+  return hasProjectAccess && hasAreaAccess;
+}
+
+export function assertCanAccessAnalysisScope(
+  resource: AnalysisScopeBoundResource,
+  viewer: {
+    userId: string;
+    scope: Pick<PermissionScope, 'organizationId' | 'projectIds' | 'areaIds'>;
+  },
+) {
+  if (!canAccessAnalysisScope(resource, viewer)) {
+    throw new AnalysisAuthorizationError(getAnalysisAccessDeniedMessage());
+  }
 }

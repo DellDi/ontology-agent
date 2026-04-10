@@ -1,4 +1,5 @@
 import {
+  canAccessAnalysisScope,
   getUnsupportedScopeMessage,
   isUnsupportedAnalysisQuestion,
 } from '@/domain/scope-boundary/policy';
@@ -66,31 +67,7 @@ export function isSessionAccessibleInScope(
     scope: AnalysisSessionScopeSnapshot;
   },
 ) {
-  if (session.ownerUserId !== viewer.userId) {
-    return false;
-  }
-
-  const isLegacyMigratedSession =
-    !session.organizationId &&
-    session.projectIds.length === 0 &&
-    session.areaIds.length === 0;
-
-  if (isLegacyMigratedSession) {
-    return true;
-  }
-
-  if (session.organizationId !== viewer.scope.organizationId) {
-    return false;
-  }
-
-  const hasProjectAccess = session.projectIds.every((projectId) =>
-    viewer.scope.projectIds.includes(projectId),
-  );
-  const hasAreaAccess = session.areaIds.every((areaId) =>
-    viewer.scope.areaIds.includes(areaId),
-  );
-
-  return hasProjectAccess && hasAreaAccess;
+  return canAccessAnalysisScope(session, viewer);
 }
 
 export function getAnalysisSessionStatusLabel(
