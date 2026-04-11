@@ -1,0 +1,22 @@
+FROM node:24.14.0-bookworm-slim
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+
+# worker 和 migrate 均依赖 devDependencies（tsx、drizzle-kit）在容器内运行，
+# 因此安装全量依赖。worker 不对外暴露端口，安全风险可接受。
+RUN pnpm install --frozen-lockfile
+
+COPY tsconfig.json drizzle.config.ts ./
+COPY drizzle ./drizzle
+COPY src ./src
+
+# 容器内用 tsx register 模式启动；tsx/esm 会在当前依赖图下触发
+# ERR_REQUIRE_CYCLE_MODULE，导致 worker 持续重启。
+CMD ["node", "--conditions=react-server", "--import", "tsx", "src/worker/main.ts"]
