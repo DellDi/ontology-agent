@@ -23,3 +23,7 @@ export { ontologyEntityDefinitions } from './ontology-entity-definitions';
 export { ontologyMetricDefinitions } from './ontology-metric-definitions';
 export { ontologyFactorDefinitions } from './ontology-factor-definitions';
 export { ontologyPlanStepTemplates } from './ontology-plan-step-templates';
+export { ontologyMetricVariants } from './ontology-metric-variants';
+export { ontologyTimeSemantics } from './ontology-time-semantics';
+export { ontologyCausalityEdges } from './ontology-causality-edges';
+export { ontologyEvidenceTypeDefinitions } from './ontology-evidence-type-definitions';

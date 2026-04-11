@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import { bigint, index, integer, jsonb, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { platformSchema } from './auth-sessions';
@@ -18,9 +17,7 @@ export const analysisSessionFollowUps = platformSchema.table(
     inheritedContext: jsonb('inherited_context').notNull(),
     mergedContext: jsonb('merged_context').notNull(),
     createdOrder: bigint('created_order', { mode: 'number' })
-      .default(
-        sql`nextval('"platform"."analysis_session_follow_ups_created_order_seq"')`,
-      )
+      .generatedByDefaultAsIdentity()
       .notNull(),
     planVersion: integer('plan_version'),
     currentPlanSnapshot: jsonb('current_plan_snapshot'),

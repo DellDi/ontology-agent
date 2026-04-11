@@ -1,8 +1,12 @@
 import type {
+  OntologyCausalityEdge,
   OntologyEntityDefinition,
+  OntologyEvidenceTypeDefinition,
   OntologyFactorDefinition,
   OntologyMetricDefinition,
+  OntologyMetricVariant,
   OntologyPlanStepTemplate,
+  OntologyTimeSemantic,
   OntologyVersion,
   OntologyVersionStatus,
 } from '@/domain/ontology/models';
@@ -103,4 +107,83 @@ export type OntologyPlanStepTemplateStore = {
     ontologyVersionId: string,
     businessKey: string,
   ): Promise<OntologyPlanStepTemplate | null>;
+};
+
+export type CreateOntologyMetricVariantInput = Omit<
+  OntologyMetricVariant,
+  'createdAt' | 'updatedAt'
+> & { createdAt: string; updatedAt: string };
+
+export type OntologyMetricVariantStore = {
+  bulkCreate(
+    items: CreateOntologyMetricVariantInput[],
+  ): Promise<OntologyMetricVariant[]>;
+  findByVersionId(
+    ontologyVersionId: string,
+  ): Promise<OntologyMetricVariant[]>;
+  findByVersionAndKey(
+    ontologyVersionId: string,
+    businessKey: string,
+  ): Promise<OntologyMetricVariant | null>;
+  findByParentMetric(
+    ontologyVersionId: string,
+    parentMetricDefinitionId: string,
+  ): Promise<OntologyMetricVariant[]>;
+};
+
+export type CreateOntologyTimeSemanticInput = Omit<
+  OntologyTimeSemantic,
+  'createdAt' | 'updatedAt'
+> & { createdAt: string; updatedAt: string };
+
+export type OntologyTimeSemanticStore = {
+  bulkCreate(
+    items: CreateOntologyTimeSemanticInput[],
+  ): Promise<OntologyTimeSemantic[]>;
+  findByVersionId(
+    ontologyVersionId: string,
+  ): Promise<OntologyTimeSemantic[]>;
+  findByVersionAndKey(
+    ontologyVersionId: string,
+    businessKey: string,
+  ): Promise<OntologyTimeSemantic | null>;
+};
+
+export type CreateOntologyCausalityEdgeInput = Omit<
+  OntologyCausalityEdge,
+  'createdAt' | 'updatedAt'
+> & { createdAt: string; updatedAt: string };
+
+export type OntologyCausalityEdgeStore = {
+  bulkCreate(
+    items: CreateOntologyCausalityEdgeInput[],
+  ): Promise<OntologyCausalityEdge[]>;
+  findByVersionId(
+    ontologyVersionId: string,
+  ): Promise<OntologyCausalityEdge[]>;
+  findByVersionAndKey(
+    ontologyVersionId: string,
+    businessKey: string,
+  ): Promise<OntologyCausalityEdge | null>;
+  findAttributionPaths(
+    ontologyVersionId: string,
+  ): Promise<OntologyCausalityEdge[]>;
+};
+
+export type CreateOntologyEvidenceTypeDefinitionInput = Omit<
+  OntologyEvidenceTypeDefinition,
+  'createdAt' | 'updatedAt'
+> & { createdAt: string; updatedAt: string };
+
+export type OntologyEvidenceTypeDefinitionStore = {
+  bulkCreate(
+    items: CreateOntologyEvidenceTypeDefinitionInput[],
+  ): Promise<OntologyEvidenceTypeDefinition[]>;
+  findByVersionId(
+    ontologyVersionId: string,
+  ): Promise<OntologyEvidenceTypeDefinition[]>;
+  findByVersionAndKey(
+    ontologyVersionId: string,
+    businessKey: string,
+  ): Promise<OntologyEvidenceTypeDefinition | null>;
 };

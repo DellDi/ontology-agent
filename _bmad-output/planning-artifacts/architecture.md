@@ -467,3 +467,4 @@ pnpm create next-app@latest ontology-agent --ts --app
 - 统一本体层与知识治理专题设计见：
   - [ontology-governance-architecture.md]({project-root}/_bmad-output/planning-artifacts/ontology-governance-architecture.md)
 - 该文档用于回答“当前语义化分析平台如何继续演进为本体驱动系统”，不替代本总架构文档。
+- 架构债备注：当前接受 `web + worker + migrate` 的现状实现；镜像复用、共享依赖安装层与运行时体积控制属于后续工程优化项，待 CI/CD、部署效率、运行稳定性或协作复杂度成为真实瓶颈时再处理。
