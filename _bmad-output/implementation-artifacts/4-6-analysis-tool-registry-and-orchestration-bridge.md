@@ -1,6 +1,6 @@
 # Story 4.6: 分析工具注册表与编排桥接
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -104,9 +104,13 @@ GPT-5 Codex
 - src/application/tooling/models.ts
 - src/application/tooling/use-cases.ts
 - src/application/analysis-execution/use-cases.ts
+- src/application/analysis-execution/tool-input-builder.ts
 - src/infrastructure/tooling/index.ts
+- src/worker/handlers.ts
+- src/worker/analysis-execution-renderer.ts
 - tests/story-4-6-tool-registry.test.mjs
 
 ## Change Log
 
 - 2026-04-03：完成 Story 4.6，建立统一分析工具注册表、编排桥接、稳定错误 envelope 与故事级测试，并将故事状态推进到 `review`。
+- 2026-04-11：Code Review 修复——拆分 `src/worker/handlers.ts`（1014→364 行），将 metric/date/erp 语义解析迁入 `src/application/analysis-execution/tool-input-builder.ts`，将渲染块构建逻辑迁出为 `src/worker/analysis-execution-renderer.ts`；14/14 测试 pass，lint/build 均通过，推进到 `done`。
