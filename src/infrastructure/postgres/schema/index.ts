@@ -18,3 +18,8 @@ export {
   erpSystemUsers,
   erpStagingSchema,
 } from './erp-staging';
+export { ontologyVersions } from './ontology-versions';
+export { ontologyEntityDefinitions } from './ontology-entity-definitions';
+export { ontologyMetricDefinitions } from './ontology-metric-definitions';
+export { ontologyFactorDefinitions } from './ontology-factor-definitions';
+export { ontologyPlanStepTemplates } from './ontology-plan-step-templates';

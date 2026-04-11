@@ -1,6 +1,6 @@
 # Story 9.1: 最小本体注册表与版本模型
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -19,43 +19,43 @@ so that 业务概念、指标语义、候选因素和计划模板有正式的 ca
 
 ## Tasks / Subtasks
 
-- [ ] 建立 ontology version 与最小 registry 表结构（AC: 1, 2, 3, 4）
-  - [ ] 在 `src/infrastructure/postgres/schema/` 下新增 ontology 相关 schema 文件，并补 `drizzle/` 迁移。
-  - [ ] 至少定义这些平台表的最小可用版本：
-    - [ ] `platform.ontology_versions`
-    - [ ] `platform.ontology_entity_definitions`
-    - [ ] `platform.ontology_metric_definitions`
-    - [ ] `platform.ontology_factor_definitions`
-    - [ ] `platform.ontology_plan_step_templates`
-  - [ ] 为 definitions 统一提供稳定业务键、显示名、版本引用、生命周期状态、结构化元数据字段；避免先把字段做死成只适配单一场景。
-  - [ ] 生命周期状态至少覆盖 `draft / review / approved / deprecated / retired`，并通过约束或领域枚举统一管理。
+- [x] 建立 ontology version 与最小 registry 表结构（AC: 1, 2, 3, 4）
+  - [x] 在 `src/infrastructure/postgres/schema/` 下新增 ontology 相关 schema 文件，并补 `drizzle/` 迁移。
+  - [x] 至少定义这些平台表的最小可用版本：
+    - [x] `platform.ontology_versions`
+    - [x] `platform.ontology_entity_definitions`
+    - [x] `platform.ontology_metric_definitions`
+    - [x] `platform.ontology_factor_definitions`
+    - [x] `platform.ontology_plan_step_templates`
+  - [x] 为 definitions 统一提供稳定业务键、显示名、版本引用、生命周期状态、结构化元数据字段；避免先把字段做死成只适配单一场景。
+  - [x] 生命周期状态至少覆盖 `draft / review / approved / deprecated / retired`，并通过约束或领域枚举统一管理。
 
-- [ ] 建立 ontology registry 的领域模型、端口与读写 use cases（AC: 1, 2, 4）
-  - [ ] 在 `src/domain` 下新增 ontology / governance 相关模型，明确 `OntologyVersion`、`DefinitionLifecycleState` 及核心 definition 类型。
-  - [ ] 在 `src/application` 下建立 registry ports 与最小 use cases，至少覆盖：
-    - [ ] 创建版本
-    - [ ] 查询当前生效版本
-    - [ ] 按版本读取核心 definitions
-  - [ ] 通过应用层访问平台表，不允许 route、脚本或 adapter 直接散写 registry 逻辑。
+- [x] 建立 ontology registry 的领域模型、端口与读写 use cases（AC: 1, 2, 4）
+  - [x] 在 `src/domain` 下新增 ontology / governance 相关模型，明确 `OntologyVersion`、`DefinitionLifecycleState` 及核心 definition 类型。
+  - [x] 在 `src/application` 下建立 registry ports 与最小 use cases，至少覆盖：
+    - [x] 创建版本
+    - [x] 查询当前生效版本
+    - [x] 按版本读取核心 definitions
+  - [x] 通过应用层访问平台表，不允许 route、脚本或 adapter 直接散写 registry 逻辑。
 
-- [ ] 建立最小 baseline seed / bootstrap 路径（AC: 1, 3）
-  - [ ] 从当前仓库已经存在的真实定义中抽取最小初始数据来源，至少覆盖：
-    - [ ] 关键实体对象骨架
-    - [ ] 当前已知的核心指标定义骨架
-    - [ ] 候选因素定义骨架
-    - [ ] 分析计划步骤模板骨架
-  - [ ] 允许采用受控 seed / bootstrap 入口初始化第一版 ontology version，但必须明确这是 canonical registry 的正式装载路径，不是测试假数据脚本。
-  - [ ] 不在本 story 中完成完整的 metric variant / time semantics 治理化；那部分留给 `9.2`。
+- [x] 建立最小 baseline seed / bootstrap 路径（AC: 1, 3）
+  - [x] 从当前仓库已经存在的真实定义中抽取最小初始数据来源，至少覆盖：
+    - [x] 关键实体对象骨架
+    - [x] 当前已知的核心指标定义骨架
+    - [x] 候选因素定义骨架
+    - [x] 分析计划步骤模板骨架
+  - [x] 允许采用受控 seed / bootstrap 入口初始化第一版 ontology version，但必须明确这是 canonical registry 的正式装载路径，不是测试假数据脚本。
+  - [x] 不在本 story 中完成完整的 metric variant / time semantics 治理化；那部分留给 `9.2`。
 
-- [ ] 为后续 stories 预留清晰边界，避免超做（AC: 3, 4）
-  - [ ] 明确 `9.1` 只站稳 canonical registry 和 version model，不提前把 `9.3` 的 grounding、`9.4` 的审批流、`9.5` 的后台管理面混进来。
-  - [ ] 在代码与注释中明确 `Neo4j` 是关系投影、`Cube` 是指标语义投影，二者都不是 ontology 唯一事实源。
+- [x] 为后续 stories 预留清晰边界，避免超做（AC: 3, 4）
+  - [x] 明确 `9.1` 只站稳 canonical registry 和 version model，不提前把 `9.3` 的 grounding、`9.4` 的审批流、`9.5` 的后台管理面混进来。
+  - [x] 在代码与注释中明确 `Neo4j` 是关系投影、`Cube` 是指标语义投影，二者都不是 ontology 唯一事实源。
 
-- [ ] 补齐 story 级验证（AC: 1, 2, 3, 4）
-  - [ ] 验证 ontology version 与最小 definitions 表可成功迁移、读写与按版本读取。
-  - [ ] 验证生命周期状态与当前生效版本读取语义。
-  - [ ] 验证 registry 读取经过应用层 use case，而不是直接依赖硬编码 catalog。
-  - [ ] 验证最小 seed / bootstrap 后，能够读到一组可用于后续 stories 的 canonical definitions。
+- [x] 补齐 story 级验证（AC: 1, 2, 3, 4）
+  - [x] 验证 ontology version 与最小 definitions 表可成功迁移、读写与按版本读取。
+  - [x] 验证生命周期状态与当前生效版本读取语义。
+  - [x] 验证 registry 读取经过应用层 use case，而不是直接依赖硬编码 catalog。
+  - [x] 验证最小 seed / bootstrap 后，能够读到一组可用于后续 stories 的 canonical definitions。
 
 ## Dev Notes
 
@@ -176,7 +176,30 @@ GPT-5 Codex
 
 - Story created from newly approved Epic 9 change proposal and ontology governance architecture supplement.
 - Scope intentionally limited to canonical registry and version model; governance workflow, admin console, grounding, and runtime version binding are deferred to later stories.
+- 5 platform tables created in `platform` schema via DDL (ontology_versions, ontology_entity_definitions, ontology_metric_definitions, ontology_factor_definitions, ontology_plan_step_templates).
+- Migration SQL file `drizzle/0013_ontology_registry_v1.sql` generated and committed.
+- Domain models, application ports, use cases, and 5 Postgres infrastructure adapters implemented following existing project patterns.
+- Baseline seed script `scripts/seed-ontology-baseline.mts` loads real business definitions from existing code as first approved ontology version (`ontv-baseline-v1-0-0`).
+- 11 integration tests in `tests/story-9-1-ontology-registry.test.mjs` — all pass (11/11).
+- `pnpm lint` 0 errors; `pnpm build` succeeds.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/9-1-minimal-ontology-registry-and-version-model.md
+- src/infrastructure/postgres/schema/ontology-versions.ts
+- src/infrastructure/postgres/schema/ontology-entity-definitions.ts
+- src/infrastructure/postgres/schema/ontology-metric-definitions.ts
+- src/infrastructure/postgres/schema/ontology-factor-definitions.ts
+- src/infrastructure/postgres/schema/ontology-plan-step-templates.ts
+- src/infrastructure/postgres/schema/index.ts (updated)
+- drizzle/0013_ontology_registry_v1.sql
+- src/domain/ontology/models.ts
+- src/application/ontology/ports.ts
+- src/application/ontology/use-cases.ts
+- src/infrastructure/ontology/postgres-ontology-version-store.ts
+- src/infrastructure/ontology/postgres-ontology-entity-definition-store.ts
+- src/infrastructure/ontology/postgres-ontology-metric-definition-store.ts
+- src/infrastructure/ontology/postgres-ontology-factor-definition-store.ts
+- src/infrastructure/ontology/postgres-ontology-plan-step-template-store.ts
+- scripts/seed-ontology-baseline.mts
+- tests/story-9-1-ontology-registry.test.mjs
