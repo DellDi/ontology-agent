@@ -85,6 +85,13 @@
       "when": 1775862000000,
       "tag": "0011_follow_up_history_links",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1775890779000,
+      "tag": "0012_audit_events",
+      "breakpoints": true
     }
   ]
 }

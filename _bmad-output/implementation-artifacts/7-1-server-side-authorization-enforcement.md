@@ -1,6 +1,6 @@
 # Story 7.1: 服务端权限校验与越权拦截
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -95,4 +95,9 @@ GPT-5 Codex
 - _bmad-output/implementation-artifacts/sprint-status.yaml
 - src/domain/analysis-session/models.ts
 - src/domain/scope-boundary/policy.ts
+- src/domain/audit/models.ts
 - tests/story-7-1-server-side-authorization.test.mjs
+
+## Change Log
+
+- 2026-04-11：Code Review 通过 — 5/5 测试 pass，覆盖 owner+scope 双重约束、伪造范围拒绝、跨组织/跨项目/跨用户去敏拒绝；6 条 API 路由均通过 `getOwnedSession` 统一接入权限策略；顺手修复 `src/domain/audit/models.ts` lint warning（const 加 export）；推进到 `done`。

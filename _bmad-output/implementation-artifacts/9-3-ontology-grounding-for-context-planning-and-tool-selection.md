@@ -43,6 +43,11 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
   - [ ] replan 时优先基于 grounded definitions 计算后续计划输入。
   - [ ] 为 execution / history 留出 grounding 结果或 ontology version 引用位；不要求在本 story 完成最终 version binding，那属于 `9.6`。
 
+- [ ] 细化 LLM 工具输出契约（来自 Story 4.6 Code Review [B3]）
+  - [ ] 将 `src/application/tooling/models.ts` 中 `llmStructuredAnalysisOutputSchema` 的 `value: z.unknown()` 替换为 `taskType` 区分的 discriminated union schema，至少覆盖 `conclusion-summary`（需包含 `summary / conclusion / confidence / evidence`）和 `tool-selection` 两种 taskType。
+  - [ ] 确保下游 `buildToolOutputBlocks` 和 `extractStructuredConclusion` 不再需要手动 `as` 类型断言。
+  - [ ] 补充对应的 schema 校验测试。
+
 - [ ] 补齐 story 级验证（AC: 1, 2, 3, 4）
   - [ ] 验证 context extraction 结果能被 grounding 到 canonical definitions。
   - [ ] 验证 planner 读取 grounded context，而不是旧自由文本主路径。
