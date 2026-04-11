@@ -25,7 +25,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN pnpm build
+# DATABASE_URL 仅用于 next build 静态分析阶段，运行时由 compose env 注入真实值
+RUN DATABASE_URL=postgresql://build:build@localhost:5432/build pnpm build
 
 # Stage 3: runner
 FROM node:24.14.0-bookworm-slim AS runner
@@ -42,7 +43,6 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 

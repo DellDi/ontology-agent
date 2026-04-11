@@ -155,7 +155,7 @@ async function main() {
   }
 
   console.log('[worker] 断开 Redis 连接...');
-  await redis.disconnect();
+  await redis.destroy();
   console.log('[worker] 已退出');
 }
 
