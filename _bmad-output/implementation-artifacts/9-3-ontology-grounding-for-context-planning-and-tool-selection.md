@@ -26,11 +26,22 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
     - [ ] grounded factor
     - [ ] grounded time semantic
   - [ ] 在 `src/application/ontology/` 建立 grounding use cases，把现有 context extraction 输出映射到 canonical definitions。
+  - [ ] 建立 ontology governance 的正式 bootstrap / initialize 流程，确保运行时所依赖的首批 canonical definitions 会被实际装载到 `platform` schema，而不是只存在于测试 seed。
+  - [ ] bootstrap / initialize 流程必须满足：
+    - [ ] 幂等
+    - [ ] 不重复写入同版本 canonical definitions
+    - [ ] 不覆盖已发布或已治理版本
+    - [ ] 失败时给出明确诊断，不得静默跳过
   - [ ] 明确 grounding 失败、歧义、多候选命中的错误/状态语义，避免静默回退成假成功。
 
 - [ ] 接入 context -> planner 的 grounding 边界（AC: 1, 2）
   - [ ] 调整 plan generation 主链，使 planner 优先消费 grounded context 或其受控 read model。
   - [ ] 明确哪些旧字段仍作为兼容输入保留，哪些必须由 grounding 后对象替代。
+  - [ ] 对 `9.2` 已治理化的对象（至少收费类 metric variant / time semantic），逐步移除 `metric-catalog.ts`、局部 context mapping 或 prompt 约定作为默认事实源。
+  - [ ] 若仍保留 legacy catalog / mapping，必须把它限制为 transitional path，并明确：
+    - [ ] 哪些 metric / time semantic 已切到 governance definitions 主路径
+    - [ ] 哪些对象仍暂时停留在 legacy path
+    - [ ] 退出 legacy path 的条件是什么
   - [ ] 不在本 story 中大改 planner 业务策略，只把其输入源从“自由文本 + 局部映射”升级为“grounded definitions”。
 
 - [ ] 接入 tool selection 的 ontology-bound binding（AC: 3）
@@ -60,6 +71,7 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
 - 这张 story 的核心价值是把现有系统从“语义增强”推向“本体约束驱动”。
 - 如果做成只是多加一层 mapping helper，但 planner / tooling 仍然主要看自由文本，那这张 story就算没完成。
 - 反过来，也不要一次把 execution、renderer、history 全部重写；本 story 只要求把主输入边界切换到 grounded context，并给后续 `9.6` 留出引用位。
+- `9.2` 已经建立 governance definitions 与 transitional runtime projection，但当前首批 definitions 仍主要通过测试 seed 验证；`9.3` 必须把“运行库中如何正式装载 canonical definitions”补成受控 bootstrap，而不是继续依赖手工灌库或测试私有初始化。
 
 ### Review Adjustments
 
@@ -69,6 +81,7 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
   - `grounding failed`：阻断 planner，并显示明确的缺失原因
 - 不允许在歧义场景下静默回退到自由文本主路径。若保留 transitional path，必须显式标记为 `temporary mitigation`，且默认关闭。
 - `follow-up / replan` 接入 grounded context 时，建议把“自由文本 mergedContext”和“grounded context”明确并存，而不是互相覆盖。前者服务用户可读性，后者服务 planner/tooling 的正式输入。
+- `metric-catalog.ts` 等 legacy runtime mapping 不应在 `9.3` 之后继续作为已治理对象的默认事实源；若某些未治理对象仍需共存，必须在 story 验证中明确列出范围，而不是长期模糊共存。
 
 ### Architecture Compliance
 
@@ -79,12 +92,14 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
   - follow-up / replan 继承 grounded context
 - 不要把 grounding 逻辑塞进页面、route handler 或 prompt registry；它属于正式 application / domain 边界。
 - grounding 失败必须可诊断，不允许静默吞掉歧义后继续生成看似合理但其实无根的计划。
+- 对 `9.2` 已治理完成的收费类口径与时间语义，`9.3` 应把 legacy catalog 降为兼容投影或逐步移除，而不是继续让 registry 与硬编码双主路径并存。
 
 ### Library / Framework Requirements
 
 - 继续沿用现有 `Tool Registry + Orchestration Bridge`、`Worker + Redis` 主编排边界。
 - 不引入 `LangGraph / LangChain / AutoGen / Google ADK` 作为解决 grounding 的方式。
 - 继续沿用现有 structured output 与 Zod 风格约束，但 grounding 成功与否必须由 canonical definitions 判断，而不是由 prompt 文本自我宣称。
+- bootstrap / initialize 流程可以复用当前 governance seed 定义，但必须通过正式 application / infrastructure 边界落库，不得把测试脚本直接当生产初始化方案。
 
 ### File Structure Requirements
 
@@ -107,12 +122,15 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
   - planner 改为消费 grounded context
   - tool selection 改为消费 binding
   - follow-up / replan 基于 grounded context
+  - canonical definitions bootstrap / initialize 的幂等与失败诊断
 - 关键验证应偏 application / integration 级别，而不是只做纯函数测试。
+- 对已治理对象，测试必须能证明默认运行时主路径不再优先依赖 legacy catalog；若仍存在 transitional path，测试中必须明确其启用边界。
 
 ### Previous Story Intelligence
 
 - `9.1` 提供 canonical registry 与 version model；`9.3` 必须基于它，不得再引入第二套知识源。
 - `9.2` 提供 metric / factor / time semantics / evidence type 的治理定义；`9.3` 的 grounding 与 binding 应消费这些定义，而不是重新推导一套。
+- `9.2` 尚未把首批 canonical definitions 的正式装载流程做成运行时前提，因此 `9.3` 必须补齐 bootstrap / initialize，确保 grounding 依赖的 definitions 在真实开发/部署环境中存在。
 - Epic 6 的 follow-up / replan 已经是真实可运行路径；这张 story 要把它们的“上下文事实源”升级为 grounded context，而不是重写多轮机制。
 
 ### Git Intelligence Summary

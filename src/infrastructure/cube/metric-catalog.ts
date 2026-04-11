@@ -1,7 +1,14 @@
 import type {
+  SemanticDateDimensionKey,
   SemanticMetricDefinition,
   SemanticMetricKey,
 } from '@/application/semantic-query/models';
+import { filterApprovedOnly } from '@/domain/ontology/models';
+import type {
+  OntologyGovernanceDefinitions,
+  OntologyMetricVariant,
+  OntologyTimeSemantic,
+} from '@/domain/ontology/models';
 
 const PROJECT_SCOPE_MEMBERS = {
   organization: 'FinanceReceivables.organizationId',
@@ -35,7 +42,7 @@ const SERVICE_ORDER_DIMENSIONS = {
   'service-type-name': 'ServiceOrders.serviceTypeName',
 } as const;
 
-const SEMANTIC_METRICS: readonly SemanticMetricDefinition[] = [
+const LEGACY_SEMANTIC_METRICS: readonly SemanticMetricDefinition[] = [
   {
     key: 'project-collection-rate',
     title: '项目口径收缴率',
@@ -238,19 +245,212 @@ const SEMANTIC_METRICS: readonly SemanticMetricDefinition[] = [
   },
 ] as const;
 
+const GOVERNED_FINANCE_METRIC_KEYS = new Set<SemanticMetricKey>([
+  'project-collection-rate',
+  'project-receivable-amount',
+  'project-paid-amount',
+  'tail-arrears-collection-rate',
+  'tail-arrears-receivable-amount',
+  'tail-arrears-paid-amount',
+]);
+
 const METRIC_ALIASES: Partial<Record<SemanticMetricKey, SemanticMetricKey>> = {
   'collection-rate': 'project-collection-rate',
   'receivable-amount': 'project-receivable-amount',
   'paid-amount': 'project-paid-amount',
 };
 
-export function listSemanticMetrics() {
-  return [...SEMANTIC_METRICS];
+function isSemanticMetricKey(value: string): value is SemanticMetricKey {
+  return LEGACY_SEMANTIC_METRICS.some((item) => item.key === value);
 }
 
-export function getSemanticMetricDefinition(key: SemanticMetricKey) {
+function isSemanticDateDimensionKey(
+  value: string,
+): value is SemanticDateDimensionKey {
+  return [
+    'business-date',
+    'receivable-accounting-period',
+    'billing-cycle-end-date',
+    'payment-date',
+    'created-at',
+    'completed-at',
+  ].includes(value);
+}
+
+function findLegacyMetric(key: SemanticMetricKey) {
+  return LEGACY_SEMANTIC_METRICS.find((item) => item.key === key) ?? null;
+}
+
+function findGovernedTimeSemantic(
+  timeSemantics: OntologyTimeSemantic[],
+  businessKey: SemanticDateDimensionKey,
+) {
+  return timeSemantics.find((item) => item.businessKey === businessKey) ?? null;
+}
+
+function readStringRecordValue(
+  record: Record<string, unknown> | null | undefined,
+  key: string,
+) {
+  const value = record?.[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function resolveGovernedCubeDimension(
+  metricKey: SemanticMetricKey,
+  dimensionKey: SemanticDateDimensionKey,
+  timeSemantic: OntologyTimeSemantic | null,
+  fallbackMember: string,
+) {
+  if (metricKey === 'project-paid-amount' && dimensionKey === 'receivable-accounting-period') {
+    return 'FinancePayments.receivableAccountingPeriod';
+  }
+
+  if (metricKey === 'tail-arrears-paid-amount' && dimensionKey === 'billing-cycle-end-date') {
+    return 'FinancePayments.billingCycleEndDate';
+  }
+
+  return (
+    readStringRecordValue(timeSemantic?.cubeTimeDimensionMapping, 'cubeDimension') ??
+    fallbackMember
+  );
+}
+
+function resolveGovernedDefaultDateDimension(
+  variant: OntologyMetricVariant,
+  legacyMetric: SemanticMetricDefinition,
+) {
+  if (
+    variant.businessKey === 'project-collection-rate' ||
+    variant.businessKey === 'project-receivable-amount'
+  ) {
+    return 'receivable-accounting-period' as const;
+  }
+
+  if (
+    variant.businessKey === 'tail-arrears-collection-rate' ||
+    variant.businessKey === 'tail-arrears-receivable-amount'
+  ) {
+    return 'billing-cycle-end-date' as const;
+  }
+
+  if (
+    variant.businessKey === 'project-paid-amount' ||
+    variant.businessKey === 'tail-arrears-paid-amount'
+  ) {
+    return 'payment-date' as const;
+  }
+
+  return legacyMetric.defaultDateDimension;
+}
+
+function resolveGovernedDateDimensions(
+  variant: OntologyMetricVariant,
+  timeSemantics: OntologyTimeSemantic[],
+  legacyMetric: SemanticMetricDefinition,
+) {
+  const metricKey = variant.businessKey as SemanticMetricKey;
+  const dateDimensions = Object.entries(legacyMetric.dateDimensions).reduce<
+    Partial<Record<SemanticDateDimensionKey, string>>
+  >((acc, [dimensionKey, legacyMember]) => {
+    if (!legacyMember || !isSemanticDateDimensionKey(dimensionKey)) {
+      return acc;
+    }
+
+    const timeSemantic = findGovernedTimeSemantic(timeSemantics, dimensionKey);
+    acc[dimensionKey] = resolveGovernedCubeDimension(
+      metricKey,
+      dimensionKey,
+      timeSemantic,
+      legacyMember,
+    );
+    return acc;
+  }, {});
+
+  return dateDimensions;
+}
+
+function projectMetricVariant(
+  variant: OntologyMetricVariant,
+  timeSemantics: OntologyTimeSemantic[],
+): SemanticMetricDefinition | null {
+  if (!isSemanticMetricKey(variant.businessKey)) {
+    return null;
+  }
+
+  const legacyMetric = findLegacyMetric(variant.businessKey);
+
+  if (!legacyMetric) {
+    return null;
+  }
+
+  const cubeMeasure = readStringRecordValue(variant.cubeViewMapping, 'cubeMeasure');
+  const numeratorMetricKey = readStringRecordValue(
+    variant.cubeViewMapping,
+    'numeratorMetricKey',
+  );
+  const denominatorMetricKey = readStringRecordValue(
+    variant.cubeViewMapping,
+    'denominatorMetricKey',
+  );
+  const formula =
+    readStringRecordValue(variant.cubeViewMapping, 'formula') ?? legacyMetric.formula;
+  const sourceFact =
+    readStringRecordValue(variant.metadata, 'sourceFact') ?? legacyMetric.sourceFact;
+
+  return {
+    ...legacyMetric,
+    title: variant.displayName,
+    businessDefinition: variant.description ?? legacyMetric.businessDefinition,
+    formula,
+    sourceFact,
+    cubeMeasure: cubeMeasure ?? legacyMetric.cubeMeasure,
+    numeratorMetricKey:
+      (numeratorMetricKey as SemanticMetricKey | null) ?? legacyMetric.numeratorMetricKey,
+    denominatorMetricKey:
+      (denominatorMetricKey as SemanticMetricKey | null) ??
+      legacyMetric.denominatorMetricKey,
+    defaultDateDimension: resolveGovernedDefaultDateDimension(variant, legacyMetric),
+    dateDimensions: resolveGovernedDateDimensions(variant, timeSemantics, legacyMetric),
+  } satisfies SemanticMetricDefinition;
+}
+
+export function buildGovernedSemanticMetrics(
+  definitions: Pick<OntologyGovernanceDefinitions, 'metricVariants' | 'timeSemantics'>,
+): SemanticMetricDefinition[] {
+  const approvedVariants = filterApprovedOnly(definitions.metricVariants).filter((variant) =>
+    GOVERNED_FINANCE_METRIC_KEYS.has(variant.businessKey as SemanticMetricKey),
+  );
+  const approvedTimeSemantics = filterApprovedOnly(definitions.timeSemantics);
+
+  return approvedVariants
+    .map((variant) => projectMetricVariant(variant, approvedTimeSemantics))
+    .filter((metric): metric is SemanticMetricDefinition => Boolean(metric));
+}
+
+export function mergeGovernedSemanticMetrics(
+  governedMetrics: SemanticMetricDefinition[],
+) {
+  const overriddenKeys = new Set(governedMetrics.map((metric) => metric.key));
+
+  return [
+    ...governedMetrics,
+    ...LEGACY_SEMANTIC_METRICS.filter((metric) => !overriddenKeys.has(metric.key)),
+  ];
+}
+
+export function listSemanticMetrics(
+  catalog: readonly SemanticMetricDefinition[] = LEGACY_SEMANTIC_METRICS,
+) {
+  return [...catalog];
+}
+
+export function getSemanticMetricDefinition(
+  key: SemanticMetricKey,
+  catalog: readonly SemanticMetricDefinition[] = LEGACY_SEMANTIC_METRICS,
+) {
   const resolvedKey = METRIC_ALIASES[key] ?? key;
-  const metric = SEMANTIC_METRICS.find((item) => item.key === resolvedKey) ?? null;
+  const metric = catalog.find((item) => item.key === resolvedKey) ?? null;
 
   if (!metric) {
     return null;

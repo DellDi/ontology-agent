@@ -66,9 +66,10 @@ function mapFilter(
   };
 }
 
-export function buildCubeLoadQuery(request: MetricQueryRequest): CubeLoadQuery {
-  const definition = getSemanticMetricDefinition(request.metric);
-
+export function buildCubeLoadQuery(
+  request: MetricQueryRequest,
+  definition = getSemanticMetricDefinition(request.metric),
+): CubeLoadQuery {
   if (!definition) {
     throw new CubeMetricQueryValidationError(
       `Unsupported semantic metric "${request.metric}".`,

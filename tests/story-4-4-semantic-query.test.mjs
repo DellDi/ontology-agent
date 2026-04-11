@@ -202,7 +202,7 @@ test('Cube semantic baseline 文档明确记录首批指标口径与待确认项
     '平均满意度',
     '平均关闭时长',
     '平均响应时长',
-    '已确认业务口径',
+    '首批正式指标',
   ]) {
     assert.match(contractDoc, new RegExp(keyword));
   }

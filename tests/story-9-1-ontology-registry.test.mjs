@@ -358,6 +358,14 @@ test('AC1+AC4 getCurrentApprovedDefinitions 通过 application use case 获取�
       planStepStore: createPostgresOntologyPlanStepTemplateStore(db),
     };
 
+    const latestPublishedAt = '2099-12-31T23:59:59.000Z';
+    await deps.versionStore.updateStatus(
+      ${JSON.stringify(TEST_VERSION_ID)},
+      'approved',
+      latestPublishedAt,
+      { publishedAt: latestPublishedAt },
+    );
+
     const result = await getCurrentApprovedDefinitions(deps);
 
     await pool.end();
