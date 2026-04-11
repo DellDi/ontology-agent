@@ -96,9 +96,9 @@ development_status:
   epic-7: in-progress
   7-1-server-side-authorization-enforcement: done
   7-2-audit-analysis-and-tool-events: done
-  7-3-self-hosted-container-deployment-baseline: ready-for-dev
+  7-3-self-hosted-container-deployment-baseline: in-progress
   7-4-observability-and-availability-monitoring: ready-for-dev
-  7-5-account-or-mobile-login-and-url-passwordless-bridge: ready-for-dev
+  7-5-account-or-mobile-login-and-url-passwordless-bridge: done
   7-6-graph-sync-run-metadata-and-org-rebuild: done
   7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch: done
   7-8-graph-sync-scheduling-compensation-and-consistency-sweep: done

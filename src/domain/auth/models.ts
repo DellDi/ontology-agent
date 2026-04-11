@@ -25,6 +25,11 @@ export type ErpLoginInput = {
   roleCodes: string[];
 };
 
+export type DirectoryLoginInput = {
+  account: string;
+  password: string;
+};
+
 function uniqueValues(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
