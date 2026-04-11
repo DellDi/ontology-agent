@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import type { OntologyVersionStore } from '@/application/ontology/ports';
 import type { OntologyVersion, OntologyVersionStatus } from '@/domain/ontology/models';
@@ -62,7 +62,7 @@ export function createPostgresOntologyVersionStore(
         .select()
         .from(ontologyVersions)
         .where(eq(ontologyVersions.status, 'approved'))
-        .orderBy(ontologyVersions.publishedAt)
+        .orderBy(desc(ontologyVersions.publishedAt))
         .limit(1);
 
       return rows[0] ? rowToOntologyVersion(rows[0]) : null;

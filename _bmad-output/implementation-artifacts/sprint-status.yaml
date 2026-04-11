@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-25
-last_updated: 2026-04-12
+last_updated: 2026-04-11
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -112,7 +112,7 @@ development_status:
 
   epic-9: in-progress
   9-1-minimal-ontology-registry-and-version-model: done
-  9-2-govern-metric-variant-factor-and-time-semantics: in-progress
+  9-2-govern-metric-variant-factor-and-time-semantics: review
   9-3-ontology-grounding-for-context-planning-and-tool-selection: ready-for-dev
   9-4-ontology-change-request-approval-and-publish-audit: ready-for-dev
   9-5-ontology-governance-admin-console: ready-for-dev

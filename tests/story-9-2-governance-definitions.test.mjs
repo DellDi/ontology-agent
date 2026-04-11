@@ -270,8 +270,6 @@ test('AC1 getGovernanceDefinitionsByVersion 读取全量治理定义', async () 
 // ---------------------------------------------------------------------------
 
 test('AC4 draft 定义不会进入 getApprovedGovernanceDefinitions', async () => {
-  const draftVersionId = `test-gov-draft-${randomUUID()}`;
-
   const result = await runTsSnippet(`
     import postgresClientModule from './src/infrastructure/postgres/client.ts';
     import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
@@ -427,35 +425,154 @@ test('AC3 time semantic 的 cubeTimeDimensionMapping 包含正确的 Cube 映射
 });
 
 // ---------------------------------------------------------------------------
+// AC4: 运行时映射层优先消费 approved governance definitions
+// ---------------------------------------------------------------------------
+
+test('AC4 旧运行时映射层优先消费最新 approved governance definitions', async () => {
+  const result = await runTsSnippet(`
+    import postgresClientModule from './src/infrastructure/postgres/client.ts';
+    import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
+    import metricVariantStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-variant-store.ts';
+    import timeSemanticStoreModule from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
+    import entityStoreModule from './src/infrastructure/ontology/postgres-ontology-entity-definition-store.ts';
+    import metricStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-definition-store.ts';
+    import factorStoreModule from './src/infrastructure/ontology/postgres-ontology-factor-definition-store.ts';
+    import planStepStoreModule from './src/infrastructure/ontology/postgres-ontology-plan-step-template-store.ts';
+    import causalityEdgeStoreModule from './src/infrastructure/ontology/postgres-ontology-causality-edge-store.ts';
+    import evidenceTypeStoreModule from './src/infrastructure/ontology/postgres-ontology-evidence-type-definition-store.ts';
+    import useCasesModule from './src/application/ontology/use-cases.ts';
+    import seedModule from './src/domain/ontology/governance-seed.ts';
+    import metricCatalogModule from './src/infrastructure/cube/metric-catalog.ts';
+    const { createPostgresDb } = postgresClientModule;
+    const { createPostgresOntologyVersionStore } = versionStoreModule;
+    const { createPostgresOntologyMetricVariantStore } = metricVariantStoreModule;
+    const { createPostgresOntologyTimeSemanticStore } = timeSemanticStoreModule;
+    const { createPostgresOntologyEntityDefinitionStore } = entityStoreModule;
+    const { createPostgresOntologyMetricDefinitionStore } = metricStoreModule;
+    const { createPostgresOntologyFactorDefinitionStore } = factorStoreModule;
+    const { createPostgresOntologyPlanStepTemplateStore } = planStepStoreModule;
+    const { createPostgresOntologyCausalityEdgeStore } = causalityEdgeStoreModule;
+    const { createPostgresOntologyEvidenceTypeDefinitionStore } = evidenceTypeStoreModule;
+    const { createOntologyVersion, loadGovernanceDefinitions, getApprovedGovernanceDefinitions } = useCasesModule;
+    const { buildMetricVariantSeeds, buildTimeSemanticSeeds } = seedModule;
+    const { buildGovernedSemanticMetrics, mergeGovernedSemanticMetrics, getSemanticMetricDefinition } = metricCatalogModule;
+
+    const { db, pool } = createPostgresDb();
+    const versionStore = createPostgresOntologyVersionStore(db);
+    const metricVariantStore = createPostgresOntologyMetricVariantStore(db);
+    const timeSemanticStore = createPostgresOntologyTimeSemanticStore(db);
+
+    const newerVersionId = 'test-gov-runtime-' + Date.now();
+    const createdAt = '2099-01-01T00:00:00.000Z';
+    const publishedAt = '2099-01-01T00:05:00.000Z';
+
+    await createOntologyVersion({ versionStore }, {
+      id: newerVersionId,
+      semver: '99.2.1-runtime',
+      displayName: 'Story 9.2 运行时 catalog 测试版本',
+      description: '验证最新 approved 版本会覆盖 legacy catalog',
+      createdBy: 'story-9-2-test',
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await versionStore.updateStatus(
+      newerVersionId,
+      'approved',
+      publishedAt,
+      { publishedAt },
+    );
+
+    const metricVariants = buildMetricVariantSeeds(newerVersionId, createdAt).map((item) =>
+      item.businessKey === 'project-collection-rate'
+        ? {
+            ...item,
+            displayName: '治理版项目口径收缴率',
+            description: '以治理版本覆盖 legacy metric catalog 的显示名与定义。',
+            metadata: {
+              ...item.metadata,
+              sourceFact: '治理版应收主题 + 缴款主题（项目口径）',
+            },
+          }
+        : item,
+    );
+
+    await loadGovernanceDefinitions(
+      { metricVariantStore, timeSemanticStore, causalityEdgeStore: { bulkCreate: async () => [] }, evidenceTypeStore: { bulkCreate: async () => [] } },
+      {
+        ontologyVersionId: newerVersionId,
+        metricVariants,
+        timeSemantics: buildTimeSemanticSeeds(newerVersionId, createdAt),
+        causalityEdges: [],
+        evidenceTypes: [],
+      },
+    );
+
+    const approved = await getApprovedGovernanceDefinitions({
+      versionStore,
+      entityStore: createPostgresOntologyEntityDefinitionStore(db),
+      metricStore: createPostgresOntologyMetricDefinitionStore(db),
+      factorStore: createPostgresOntologyFactorDefinitionStore(db),
+      planStepStore: createPostgresOntologyPlanStepTemplateStore(db),
+      metricVariantStore,
+      timeSemanticStore,
+      causalityEdgeStore: createPostgresOntologyCausalityEdgeStore(db),
+      evidenceTypeStore: createPostgresOntologyEvidenceTypeDefinitionStore(db),
+    });
+
+    const catalog = approved
+      ? mergeGovernedSemanticMetrics(buildGovernedSemanticMetrics(approved.definitions))
+      : [];
+    const governed = getSemanticMetricDefinition('project-collection-rate', catalog);
+    const serviceOrder = getSemanticMetricDefinition('service-order-count', catalog);
+
+    await pool.end();
+    console.log(JSON.stringify({
+      projectTitle: governed?.title ?? null,
+      projectDefinition: governed?.businessDefinition ?? null,
+      projectSourceFact: governed?.sourceFact ?? null,
+      serviceOrderTitle: serviceOrder?.title ?? null,
+      catalogSize: catalog.length,
+    }));
+  `);
+
+  assert.equal(result.projectTitle, '治理版项目口径收缴率', '运行时 catalog 应优先消费 approved governance 定义');
+  assert.match(result.projectDefinition, /覆盖 legacy metric catalog/);
+  assert.equal(result.projectSourceFact, '治理版应收主题 + 缴款主题（项目口径）');
+  assert.equal(result.serviceOrderTitle, '工单总量', '未治理化的工单指标仍应保留 transitional path');
+  assert.ok(result.catalogSize >= 11, '运行时 catalog 应保留完整可用指标集合');
+});
+
+// ---------------------------------------------------------------------------
 // AC4: 架构约束——新 store 不直接依赖 Neo4j / Cube
 // ---------------------------------------------------------------------------
 
-test('AC4 治理 store 不直接依赖 Neo4j 或 Cube', async () => {
+test('AC4 治理 store 源码不直接 import Neo4j 或 Cube adapter', async () => {
   const result = await runTsSnippet(`
-    import mvStore from './src/infrastructure/ontology/postgres-ontology-metric-variant-store.ts';
-    import tsStore from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
-    import ceStore from './src/infrastructure/ontology/postgres-ontology-causality-edge-store.ts';
-    import etStore from './src/infrastructure/ontology/postgres-ontology-evidence-type-definition-store.ts';
-    const { createPostgresOntologyMetricVariantStore } = mvStore;
-    const { createPostgresOntologyTimeSemanticStore } = tsStore;
-    const { createPostgresOntologyCausalityEdgeStore } = ceStore;
-    const { createPostgresOntologyEvidenceTypeDefinitionStore } = etStore;
+    import { readFile } from 'node:fs/promises';
 
-    const allSources = [
-      createPostgresOntologyMetricVariantStore.toString(),
-      createPostgresOntologyTimeSemanticStore.toString(),
-      createPostgresOntologyCausalityEdgeStore.toString(),
-      createPostgresOntologyEvidenceTypeDefinitionStore.toString(),
-    ].join('\\n');
+    const files = [
+      './src/infrastructure/ontology/postgres-ontology-metric-variant-store.ts',
+      './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts',
+      './src/infrastructure/ontology/postgres-ontology-causality-edge-store.ts',
+      './src/infrastructure/ontology/postgres-ontology-evidence-type-definition-store.ts',
+    ];
 
-    const usesNeo4j = allSources.includes('neo4j') || allSources.includes('Neo4j');
-    const usesCube = allSources.includes('Cube') || allSources.includes('cubejs');
+    const sources = await Promise.all(files.map((file) => readFile(file, 'utf8')));
+    const allSources = sources.join('\\n');
 
-    console.log(JSON.stringify({ usesNeo4j, usesCube }));
+    const usesNeo4jImport =
+      /from ['"][^'"]*neo4j[^'"]*['"]/.test(allSources) ||
+      /neo4j-driver/.test(allSources);
+    const usesCubeImport =
+      /from ['"][^'"]*cube[^'"]*['"]/.test(allSources) ||
+      /cubejs/.test(allSources);
+
+    console.log(JSON.stringify({ usesNeo4jImport, usesCubeImport }));
   `);
 
-  assert.equal(result.usesNeo4j, false, 'Governance store 不得直接依赖 Neo4j');
-  assert.equal(result.usesCube, false, 'Governance store 不得直接依赖 Cube');
+  assert.equal(result.usesNeo4jImport, false, 'Governance store 不得直接 import Neo4j');
+  assert.equal(result.usesCubeImport, false, 'Governance store 不得直接 import Cube');
 });
 
 // ---------------------------------------------------------------------------

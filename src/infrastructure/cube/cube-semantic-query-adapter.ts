@@ -19,6 +19,7 @@ import {
   CubeProviderUnavailableError,
 } from './errors';
 import { getSemanticMetricDefinition, listSemanticMetrics } from './metric-catalog';
+import { loadApprovedSemanticMetricCatalog } from './governed-metric-catalog';
 import {
   buildCubeLoadQuery,
   type CubeTimeDimension,
@@ -347,7 +348,8 @@ export function createCubeSemanticQueryAdapter(
 
   return {
     async runMetricQuery(request) {
-      const definition = getSemanticMetricDefinition(request.metric);
+      const runtimeCatalog = await loadApprovedSemanticMetricCatalog();
+      const definition = getSemanticMetricDefinition(request.metric, runtimeCatalog);
 
       if (!definition) {
         throw new CubeMetricQueryValidationError(
@@ -366,9 +368,11 @@ export function createCubeSemanticQueryAdapter(
         });
         const numeratorDefinition = getSemanticMetricDefinition(
           numeratorRequest.metric,
+          runtimeCatalog,
         );
         const denominatorDefinition = getSemanticMetricDefinition(
           denominatorRequest.metric,
+          runtimeCatalog,
         );
 
         if (!numeratorDefinition?.cubeMeasure || !denominatorDefinition?.cubeMeasure) {
@@ -378,8 +382,8 @@ export function createCubeSemanticQueryAdapter(
         }
 
         const [numeratorPayload, denominatorPayload] = await Promise.all([
-          executeLoadQuery(buildCubeLoadQuery(numeratorRequest)),
-          executeLoadQuery(buildCubeLoadQuery(denominatorRequest)),
+          executeLoadQuery(buildCubeLoadQuery(numeratorRequest, numeratorDefinition)),
+          executeLoadQuery(buildCubeLoadQuery(denominatorRequest, denominatorDefinition)),
         ]);
 
         return combineRatioResults({
@@ -399,12 +403,14 @@ export function createCubeSemanticQueryAdapter(
 
       const normalizedRequest = normalizeFinanceMeasureRequest(request);
       const normalizedDefinition =
-        getSemanticMetricDefinition(normalizedRequest.metric) ?? definition;
+        getSemanticMetricDefinition(normalizedRequest.metric, runtimeCatalog) ?? definition;
 
       return mapRows(
         normalizedRequest,
         normalizedDefinition,
-        await executeLoadQuery(buildCubeLoadQuery(normalizedRequest)),
+        await executeLoadQuery(
+          buildCubeLoadQuery(normalizedRequest, normalizedDefinition),
+        ),
       );
     },
 
