@@ -112,6 +112,20 @@
 - 测试组织：`tests/story-*.test.*` 为主的 story-based 验证
 - 交互与错误语义：中文优先，面向真实业务用户理解
 
+## Local Development Recommendation
+
+本地开发默认推荐采用 `基础设施容器化 + 应用代码宿主机运行` 的混合模式，而不是把所有服务都做成开发期全容器运行。
+
+推荐组合：
+
+- `postgres / redis / neo4j / cube` 使用容器运行
+- `web` 在宿主机使用 `pnpm dev`
+- `worker` 在宿主机使用 `pnpm worker:dev`
+
+这样更适合作为日常开发默认形态
+
+只有在需要验证更贴近生产的容器边界、镜像行为、compose 依赖顺序或部署问题时，才应显式启用开发期全容器运行。
+
 ## Definition Of Done
 
 一项工作只有在以下条件基本成立时，才算真正完成：
