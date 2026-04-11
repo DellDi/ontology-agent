@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-25
-last_updated: 2026-04-10
+last_updated: 2026-04-11
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -69,13 +69,13 @@ development_status:
   3-5-generate-and-display-analysis-plan: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
+  epic-4: done
   4-1-server-side-llm-provider-adapter-and-openai-compatible-integration: done
   4-2-structured-output-contracts-and-prompt-schema-guardrails: done
   4-3-erp-read-anti-corruption-layer-and-scope-filtering-baseline: done
   4-4-cube-semantic-read-path-integration: done
   4-5-neo4j-graph-adapter-and-sync-baseline: done
-  4-6-analysis-tool-registry-and-orchestration-bridge: review
+  4-6-analysis-tool-registry-and-orchestration-bridge: done
   4-7-local-compose-services-for-cube-and-neo4j: done
   epic-4-retrospective: optional
 
@@ -95,7 +95,7 @@ development_status:
 
   epic-7: in-progress
   7-1-server-side-authorization-enforcement: review
-  7-2-audit-analysis-and-tool-events: ready-for-dev
+  7-2-audit-analysis-and-tool-events: in-progress
   7-3-self-hosted-container-deployment-baseline: ready-for-dev
   7-4-observability-and-availability-monitoring: ready-for-dev
   7-5-account-or-mobile-login-and-url-passwordless-bridge: ready-for-dev
