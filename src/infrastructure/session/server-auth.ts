@@ -14,6 +14,11 @@ import {
 import { createAuthUseCases } from '@/application/auth/use-cases';
 import { createDevErpAuthAdapter } from '@/infrastructure/erp-auth/dev-erp-auth-adapter';
 import { isDevErpAuthEnabled } from '@/infrastructure/erp-auth/dev-auth-config';
+import {
+  createErpDirectoryAuthAdapter,
+  getErpApiBaseUrl,
+  isUrlBridgeEnabled,
+} from '@/infrastructure/erp-auth/erp-directory-auth-adapter';
 
 import { createPostgresSessionStore } from './postgres-session-store';
 import {
@@ -24,9 +29,22 @@ import {
   readSessionIdFromCookie,
 } from './session-cookie';
 
+function createDirectoryAdapter() {
+  try {
+    const baseUrl = getErpApiBaseUrl();
+    return createErpDirectoryAuthAdapter({ erpApiBaseUrl: baseUrl });
+  } catch {
+    return undefined;
+  }
+}
+
+const directoryAdapter = createDirectoryAdapter();
+
 const authUseCases = createAuthUseCases({
   erpAuthAdapter: createDevErpAuthAdapter(),
   sessionStore: createPostgresSessionStore(),
+  directoryAuthAdapter: directoryAdapter,
+  urlBridgeAuthAdapter: directoryAdapter,
 });
 
 function readStringValue(formData: FormData, key: string) {
@@ -36,6 +54,12 @@ function readStringValue(formData: FormData, key: string) {
 }
 
 export async function createSessionFromLoginForm(formData: FormData) {
+  if (!isDevErpAuthEnabled()) {
+    throw new DevErpAuthDisabledError(
+      '手填 scope 登录入口已关闭，请使用目录账号密码登录。',
+    );
+  }
+
   const session = await authUseCases.loginWithCredentials({
     employeeId: readStringValue(formData, 'employeeId'),
     displayName: readStringValue(formData, 'displayName') || undefined,
@@ -166,4 +190,59 @@ export function getDevAuthPageState() {
     disabledMessage:
       '当前环境未开放开发联调登录入口，请改用真实 ERP 登录流程或显式开启开发认证开关。',
   };
+}
+
+export function isDirectoryAuthAvailable(): boolean {
+  return directoryAdapter !== undefined;
+}
+
+export function isUrlBridgeAvailable(): boolean {
+  return isUrlBridgeEnabled() && directoryAdapter !== undefined;
+}
+
+export async function createSessionFromDirectoryLogin(formData: FormData) {
+  const account = readStringValue(formData, 'account');
+  const password = readStringValue(formData, 'password');
+
+  const session = await authUseCases.loginWithDirectory({ account, password });
+
+  const cookieStore = await cookies();
+  cookieStore.set(
+    getSessionCookieName(),
+    createSessionCookieValue(session.sessionId),
+    getSessionCookieOptions(),
+  );
+
+  return {
+    nextPath: sanitizeNextPath(readStringValue(formData, 'next')),
+    session,
+  };
+}
+
+export async function createSessionFromUrlBridge(account: string, next?: string | null) {
+  if (!isUrlBridgeAvailable()) {
+    throw new Error('URL 桥接入口当前未启用。');
+  }
+
+  const session = await authUseCases.loginWithUrlBridge(account);
+
+  const cookieStore = await cookies();
+  cookieStore.set(
+    getSessionCookieName(),
+    createSessionCookieValue(session.sessionId),
+    getSessionCookieOptions(),
+  );
+
+  return {
+    nextPath: sanitizeNextPath(next),
+    session,
+  };
+}
+
+export function mapDirectoryAuthErrorToMessage(error: unknown) {
+  if (error instanceof InvalidErpCredentialsError) {
+    return error.message;
+  }
+
+  return '登录失败，请稍后重试或联系管理员。';
 }

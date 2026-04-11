@@ -107,15 +107,19 @@ test.after(async () => {
   await once(serverProcess, 'exit');
 });
 
-test('禁用开发 stub 时登录页不再暴露联调登录入口', async () => {
+test('禁用开发 stub 时登录页不再暴露手填 scope 表单', async () => {
   const response = await fetch(`${baseUrl}/login`);
 
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.doesNotMatch(html, />开发联调登录入口</);
+
+  // 无论目录登录是否可用，手填 scope 的老表单都不应出现
   assert.doesNotMatch(html, /action="\/api\/auth\/login"/);
   assert.doesNotMatch(html, /模拟 ERP 回调/);
-  assert.match(html, /当前环境未开放开发联调登录入口/);
+  assert.doesNotMatch(html, /name="organizationId"/);
+  assert.doesNotMatch(html, /name="projectIds"/);
+  assert.doesNotMatch(html, /name="areaIds"/);
+  assert.doesNotMatch(html, /name="roleCodes"/);
 });
 
 test('禁用开发 stub 时不能通过登录接口伪造任意身份', async () => {

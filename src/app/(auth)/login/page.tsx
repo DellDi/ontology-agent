@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import {
   getDevAuthPageState,
   getRequestSession,
+  isDirectoryAuthAvailable,
 } from '@/infrastructure/session/server-auth';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
 
@@ -26,8 +27,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const nextPath = sanitizeNextPath(readSearchParam(params.next));
   const errorMessage = readSearchParam(params.error);
   const loggedOut = readSearchParam(params.loggedOut);
+  const prefillAccount = readSearchParam(params.account);
   const session = await getRequestSession();
   const devAuthState = getDevAuthPageState();
+  const directoryAvailable = isDirectoryAuthAvailable();
 
   if (session && hasWorkspaceAccess(session)) {
     redirect(nextPath);
@@ -46,8 +49,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 先确认身份，再进入受保护的分析工作台
               </h1>
               <p className="max-w-2xl text-base leading-7 text-[color:var(--ink-600)]">
-                这里不是新的账号系统，而是承接 ERP 身份的服务端会话入口。登录后，
-                平台只在服务端持有会话，并把组织、项目与区域权限带入后续分析工作台。
+                使用已同步 ERP 的账号登录。平台只在服务端持有会话，组织与项目权限由目录自动推导，无需手动填写。
               </p>
             </div>
           </div>
@@ -56,7 +58,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <div className="glass-panel p-5">
               <p className="text-xs text-[color:var(--ink-600)]">Authority</p>
               <p className="mt-2 font-display text-2xl text-[color:var(--ink-900)]">
-                ERP
+                ERP 目录
               </p>
             </div>
             <div className="glass-panel p-5">
@@ -68,7 +70,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <div className="glass-panel p-5">
               <p className="text-xs text-[color:var(--ink-600)]">Scope</p>
               <p className="mt-2 font-display text-2xl text-[color:var(--ink-900)]">
-                Org / Project / Area
+                Org / Project
               </p>
             </div>
           </div>
@@ -80,14 +82,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               ERP Session Bridge
             </p>
             <h2 className="text-2xl font-semibold text-[color:var(--ink-900)]">
-              {devAuthState.devErpAuthEnabled
-                ? '开发联调登录入口'
-                : 'ERP 登录接入状态'}
+              登录
             </h2>
             <p className="text-sm leading-6 text-[color:var(--ink-600)]">
-              {devAuthState.devErpAuthEnabled
-                ? '在真实 ERP 协议落地前，当前入口使用可替换的服务端适配器模拟身份交换，保持页面层不依赖具体 ERP 协议细节。'
-                : '当前环境下已关闭开发期身份伪造入口，避免在非联调场景暴露可绕过真实认证的入口。'}
+              使用 ERP 同步账号与密码登录。权限范围由组织目录自动推导，无需手填。
             </p>
           </div>
 
@@ -102,108 +100,55 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 已安全退出当前会话。
               </div>
             ) : null}
-            <div className="status-banner" data-tone="info">
-              登录成功后会进入权限范围内的 `/workspace`，未登录访问会自动跳回这里。
-            </div>
-            {!devAuthState.devErpAuthEnabled ? (
-              <div className="status-banner" data-tone="warning">
-                {devAuthState.disabledMessage}
-              </div>
-            ) : null}
           </div>
 
-          {devAuthState.devErpAuthEnabled ? (
+          {directoryAvailable ? (
             <form
-              action="/api/auth/login"
+              action="/api/auth/directory-login"
               method="post"
               className="mt-6 space-y-4"
             >
               <input type="hidden" name="next" value={nextPath} />
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <label>
-                  <span className="field-label">ERP 账号</span>
-                  <input
-                    className="field-input"
-                    type="text"
-                    name="employeeId"
-                    placeholder="例如 u-1001"
-                    defaultValue="u-1001"
-                    required
-                  />
-                </label>
-
-                <label>
-                  <span className="field-label">显示名称</span>
-                  <input
-                    className="field-input"
-                    type="text"
-                    name="displayName"
-                    placeholder="例如 王分析"
-                    defaultValue="王分析"
-                  />
-                </label>
-              </div>
-
               <label>
-                <span className="field-label">组织编号</span>
+                <span className="field-label">账号</span>
                 <input
                   className="field-input"
                   type="text"
-                  name="organizationId"
-                  placeholder="例如 org-hz-001"
-                  defaultValue="org-hz-001"
+                  name="account"
+                  placeholder="ERP 登录账号"
+                  defaultValue={prefillAccount}
+                  autoComplete="username"
                   required
                 />
               </label>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <label>
-                  <span className="field-label">项目范围</span>
-                  <input
-                    className="field-input"
-                    type="text"
-                    name="projectIds"
-                    placeholder="project-a,project-b"
-                    defaultValue="project-a,project-b"
-                  />
-                </label>
-
-                <label>
-                  <span className="field-label">区域范围</span>
-                  <input
-                    className="field-input"
-                    type="text"
-                    name="areaIds"
-                    placeholder="area-east,area-west"
-                    defaultValue="area-east"
-                  />
-                </label>
-              </div>
-
               <label>
-                <span className="field-label">角色编码</span>
+                <span className="field-label">密码</span>
                 <input
                   className="field-input"
-                  type="text"
-                  name="roleCodes"
-                  placeholder="PROPERTY_ANALYST"
-                  defaultValue="PROPERTY_ANALYST"
+                  type="password"
+                  name="password"
+                  placeholder="ERP 登录密码"
+                  autoComplete="current-password"
+                  required
                 />
               </label>
 
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button className="primary-button" type="submit">
+              <div className="pt-2">
+                <button className="primary-button w-full" type="submit">
                   进入分析工作台
                 </button>
-                <a
-                  className="secondary-button"
-                  href={`/api/auth/callback?ticket=u-1001|王分析|org-hz-001|project-a,project-b|area-east|PROPERTY_ANALYST&next=${encodeURIComponent(nextPath)}`}
-                >
-                  模拟 ERP 回调
-                </a>
               </div>
             </form>
+          ) : null}
+
+          {!directoryAvailable ? (
+            <div className="mt-6">
+              <div className="status-banner" data-tone="warning">
+                {devAuthState.disabledMessage}
+              </div>
+            </div>
           ) : null}
         </section>
       </section>
