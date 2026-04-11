@@ -1,4 +1,5 @@
 import { createAnalysisExecutionUseCases } from '@/application/analysis-execution/use-cases';
+import { createAuditUseCases } from '@/application/audit/use-cases';
 import {
   createAnalysisToolRegistryUseCases,
 } from '@/application/tooling/use-cases';
@@ -20,6 +21,7 @@ import type { AnalysisToolDefinition } from '@/domain/tooling/models';
 import { getCubeProviderConfig } from '@/infrastructure/cube/config';
 import { isNeo4jConfigured } from '@/infrastructure/neo4j/config';
 import { getLlmProviderConfig } from '@/infrastructure/llm/config';
+import { createPostgresAuditEventStore } from '@/infrastructure/audit/postgres-audit-event-store';
 
 type AnalysisToolingDependencies = {
   analysisAiUseCases: {
@@ -226,7 +228,48 @@ export function createAnalysisToolingServices({
   semanticQueryUseCases,
   graphUseCases,
 }: AnalysisToolingDependencies) {
+  const auditRecorder = process.env.DATABASE_URL
+    ? {
+        async recordToolInvocation(input: {
+          userId: string;
+          organizationId: string;
+          sessionId?: string;
+          toolName: AnalysisToolDefinition['name'];
+          correlationId: string;
+          startedAt: string;
+          finishedAt: string;
+          result: 'succeeded' | 'failed';
+          errorCode?: string;
+          errorMessage?: string;
+          source: 'application' | 'worker';
+        }) {
+          const auditUseCases = createAuditUseCases({
+            auditEventStore: createPostgresAuditEventStore(),
+          });
+
+          await auditUseCases.recordEvent({
+            userId: input.userId,
+            organizationId: input.organizationId,
+            sessionId: input.sessionId,
+            eventType: 'tool.invoked',
+            eventResult: input.result,
+            eventSource:
+              input.source === 'worker' ? 'worker' : 'application',
+            correlationId: input.correlationId,
+            payload: {
+              toolName: input.toolName,
+              startedAt: input.startedAt,
+              finishedAt: input.finishedAt,
+              errorCode: input.errorCode,
+              errorMessage: input.errorMessage,
+              source: input.source,
+            },
+          });
+        },
+      }
+    : undefined;
   const toolRegistryUseCases = createAnalysisToolRegistryUseCases({
+    auditRecorder,
     tools: [
       {
         definition: {

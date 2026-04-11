@@ -6,6 +6,7 @@ import {
 } from '@/application/analysis-session/use-cases';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
+import { auditUseCases } from '@/infrastructure/audit';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 const analysisSessionUseCases = createAnalysisSessionUseCases({
@@ -52,6 +53,20 @@ export async function POST(request: Request) {
       questionText: createdSession.questionText,
     });
 
+    await auditUseCases.recordEvent({
+      userId: session.userId,
+      organizationId: session.scope.organizationId,
+      sessionId: createdSession.id,
+      eventType: 'analysis.requested',
+      eventResult: 'succeeded',
+      eventSource: 'route-handler',
+      payload: {
+        route: '/api/analysis/sessions',
+        method: 'POST',
+        questionLength: createdSession.questionText.length,
+      },
+    });
+
     return NextResponse.redirect(
       new URL(`/workspace/analysis/${createdSession.id}`, request.url),
       {
@@ -59,6 +74,26 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
+    if (session) {
+      await auditUseCases.recordEvent({
+        userId: session.userId,
+        organizationId: session.scope.organizationId,
+        sessionId: createdSession?.id ?? null,
+        eventType: 'analysis.requested',
+        eventResult: 'failed',
+        eventSource: 'route-handler',
+        payload: {
+          route: '/api/analysis/sessions',
+          method: 'POST',
+          reason:
+            error instanceof InvalidAnalysisQuestionError
+              ? 'invalid-question'
+              : 'request-failed',
+          questionLength: questionText.trim().length,
+        },
+      });
+    }
+
     if (!(error instanceof InvalidAnalysisQuestionError) && createdSession) {
       await analysisSessionUseCases.deleteOwnedSession({
         sessionId: createdSession.id,

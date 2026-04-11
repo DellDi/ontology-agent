@@ -3,6 +3,7 @@ import type { ZodType } from 'zod';
 import type {
   AnalysisToolDefinition,
   AnalysisToolErrorCode,
+  AnalysisToolInvocationFailure,
   AnalysisToolInvocationContext,
   AnalysisToolInvocationError,
   AnalysisToolInvocationResult,
@@ -26,6 +27,21 @@ type ToolExecutor = {
 
 type ToolRegistryDependencies = {
   tools: ToolExecutor[];
+  auditRecorder?: {
+    recordToolInvocation: (input: {
+      userId: string;
+      organizationId: string;
+      sessionId?: string;
+      toolName: AnalysisToolName;
+      correlationId: string;
+      startedAt: string;
+      finishedAt: string;
+      result: 'succeeded' | 'failed';
+      errorCode?: AnalysisToolErrorCode;
+      errorMessage?: string;
+      source: 'application' | 'worker';
+    }) => Promise<void>;
+  };
   now?: () => string;
 };
 
@@ -37,7 +53,7 @@ function buildFailure(params: {
   retryable: boolean;
   startedAt: string;
   finishedAt: string;
-}): AnalysisToolInvocationResult {
+}): AnalysisToolInvocationFailure {
   return {
     ok: false,
     toolName: params.toolName,
@@ -104,6 +120,7 @@ function normalizeToolError(
 
 export function createAnalysisToolRegistryUseCases({
   tools,
+  auditRecorder,
   now = () => new Date().toISOString(),
 }: ToolRegistryDependencies) {
   const registry = new Map(tools.map((tool) => [tool.definition.name, tool]));
@@ -145,7 +162,7 @@ export function createAnalysisToolRegistryUseCases({
       const tool = registry.get(toolName);
 
       if (!tool) {
-        return buildFailure({
+        const failure = buildFailure({
           code: 'tool-unavailable',
           message: `工具 ${toolName} 当前未注册。`,
           toolName,
@@ -154,6 +171,24 @@ export function createAnalysisToolRegistryUseCases({
           startedAt,
           finishedAt: now(),
         });
+
+        if (auditRecorder && context.userId && context.organizationId) {
+          await auditRecorder.recordToolInvocation({
+            userId: context.userId,
+            organizationId: context.organizationId,
+            sessionId: context.sessionId,
+            toolName,
+            correlationId: context.correlationId,
+            startedAt: failure.startedAt,
+            finishedAt: failure.finishedAt,
+            result: 'failed',
+            errorCode: failure.error.code,
+            errorMessage: failure.error.message,
+            source: context.source,
+          });
+        }
+
+        return failure;
       }
 
       try {
@@ -163,7 +198,7 @@ export function createAnalysisToolRegistryUseCases({
         const emptyReason = tool.classifyEmptyOutput?.(parsedOutput) ?? null;
 
         if (emptyReason) {
-          return buildFailure({
+          const failure = buildFailure({
             code: 'tool-empty-result',
             message: emptyReason,
             toolName,
@@ -172,16 +207,50 @@ export function createAnalysisToolRegistryUseCases({
             startedAt,
             finishedAt: now(),
           });
+
+          if (auditRecorder && context.userId && context.organizationId) {
+            await auditRecorder.recordToolInvocation({
+              userId: context.userId,
+              organizationId: context.organizationId,
+              sessionId: context.sessionId,
+              toolName,
+              correlationId: context.correlationId,
+              startedAt: failure.startedAt,
+              finishedAt: failure.finishedAt,
+              result: 'failed',
+              errorCode: failure.error.code,
+              errorMessage: failure.error.message,
+              source: context.source,
+            });
+          }
+
+          return failure;
         }
 
-        return {
-          ok: true,
+        const success = {
+          ok: true as const,
           toolName,
           correlationId: context.correlationId,
           startedAt,
           finishedAt: now(),
           output: parsedOutput,
         };
+
+        if (auditRecorder && context.userId && context.organizationId) {
+          await auditRecorder.recordToolInvocation({
+            userId: context.userId,
+            organizationId: context.organizationId,
+            sessionId: context.sessionId,
+            toolName,
+            correlationId: context.correlationId,
+            startedAt: success.startedAt,
+            finishedAt: success.finishedAt,
+            result: 'succeeded',
+            source: context.source,
+          });
+        }
+
+        return success;
       } catch (error) {
         const normalized = normalizeToolError(
           error,
@@ -189,11 +258,29 @@ export function createAnalysisToolRegistryUseCases({
           context.correlationId,
         );
 
-        return buildFailure({
+        const failure = buildFailure({
           ...normalized,
           startedAt,
           finishedAt: now(),
         });
+
+        if (auditRecorder && context.userId && context.organizationId) {
+          await auditRecorder.recordToolInvocation({
+            userId: context.userId,
+            organizationId: context.organizationId,
+            sessionId: context.sessionId,
+            toolName,
+            correlationId: context.correlationId,
+            startedAt: failure.startedAt,
+            finishedAt: failure.finishedAt,
+            result: 'failed',
+            errorCode: failure.error.code,
+            errorMessage: failure.error.message,
+            source: context.source,
+          });
+        }
+
+        return failure;
       }
     },
   };

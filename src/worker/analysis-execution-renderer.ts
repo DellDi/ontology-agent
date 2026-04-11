@@ -3,6 +3,10 @@ import type {
   AnalysisToolInvocationResult,
   OrchestrationStepExecutionResult,
 } from '@/domain/tooling/models';
+import {
+  buildToolRenderBlocks,
+  summarizeToolEvent,
+} from '@/shared/tooling/tool-event-presentation';
 
 export function buildToolStatus(
   result: OrchestrationStepExecutionResult,
@@ -20,131 +24,7 @@ export function buildToolStatus(
 export function buildToolOutputBlocks(
   event: AnalysisToolInvocationResult,
 ): AnalysisExecutionStreamEvent['renderBlocks'] {
-  if (!event.ok) {
-    return [
-      {
-        type: 'markdown',
-        title: `工具失败：${event.toolName}`,
-        content: event.error.message,
-      },
-    ];
-  }
-
-  switch (event.toolName) {
-    case 'cube.semantic-query': {
-      const output = event.output as {
-        metric: string;
-        rowCount: number;
-        rows: {
-          value: number | null;
-          time: string | null;
-          dimensions: Record<string, string | null>;
-        }[];
-      };
-
-      return [
-        {
-          type: 'table',
-          title: '指标结果',
-          columns: ['时间', '维度', '值'],
-          rows: output.rows.slice(0, 5).map((row) => [
-            row.time ?? '-',
-            Object.entries(row.dimensions)
-              .map(([key, value]) => `${key}=${value ?? '-'}`)
-              .join(', ') || '-',
-            row.value === null ? '-' : String(row.value),
-          ]),
-        },
-      ];
-    }
-    case 'neo4j.graph-query': {
-      const output = event.output as {
-        factors: {
-          factorLabel: string;
-          relationType: string;
-          explanation: string;
-        }[];
-      };
-
-      return [
-        {
-          type: 'table',
-          title: '候选因素',
-          columns: ['因素', '关系', '说明'],
-          rows: output.factors.slice(0, 5).map((factor) => [
-            factor.factorLabel,
-            factor.relationType,
-            factor.explanation,
-          ]),
-        },
-      ];
-    }
-    case 'erp.read-model': {
-      const output = event.output as {
-        resource: string;
-        count: number;
-      };
-
-      return [
-        {
-          type: 'kv-list',
-          title: 'ERP 读取结果',
-          items: [
-            { label: '资源', value: output.resource },
-            { label: '记录数', value: String(output.count) },
-          ],
-        },
-      ];
-    }
-    case 'llm.structured-analysis': {
-      const output = event.output as {
-        ok?: boolean;
-        value?: {
-          summary?: string;
-          conclusion?: string;
-        };
-      };
-
-      const summary = output.value?.summary?.trim();
-      const conclusion = output.value?.conclusion?.trim();
-
-      return [
-        {
-          type: 'markdown',
-          title: '结构化分析摘要',
-          content:
-            [summary, conclusion ? `结论：${conclusion}` : null]
-              .filter(Boolean)
-              .join('\n\n') || '结构化分析未返回可展示摘要。',
-        },
-      ];
-    }
-    case 'platform.capability-status': {
-      const output = event.output as {
-        capabilities: {
-          llm: { status: string };
-          erp: { status: string };
-          cube: { status: string };
-          neo4j: { status: string };
-        };
-      };
-
-      return [
-        {
-          type: 'kv-list',
-          title: '平台能力状态',
-          items: [
-            { label: 'LLM', value: output.capabilities.llm.status },
-            { label: 'ERP', value: output.capabilities.erp.status },
-            { label: 'Cube', value: output.capabilities.cube.status },
-            { label: 'Neo4j', value: output.capabilities.neo4j.status },
-          ],
-        },
-      ];
-    }
-    default:
-      return [];
-  }
+  return buildToolRenderBlocks(event);
 }
 
 export function buildResultBlocks(input: {
@@ -249,66 +129,24 @@ export function buildStepResultMessage(
     return structuredConclusion.summary;
   }
 
-  const cubeEvent = result.events.find(
-    (event) => event.ok && event.toolName === 'cube.semantic-query',
+  const emptyResultEvents = result.events.filter(
+    (event) => !event.ok && event.error.code === 'tool-empty-result',
   );
 
-  if (cubeEvent && cubeEvent.ok) {
-    const output = cubeEvent.output as {
-      metric?: string;
-      rowCount?: number;
-      rows?: { value: number | null }[];
-    };
-
-    return [
-      output.metric ? `已返回指标 ${output.metric}` : '已返回指标结果',
-      typeof output.rowCount === 'number' ? `${output.rowCount} 行` : null,
-      output.rows?.[0]?.value !== null && output.rows?.[0]?.value !== undefined
-        ? `首条值 ${output.rows[0].value}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join('，');
+  if (
+    result.events.length > 0 &&
+    emptyResultEvents.length === result.events.length
+  ) {
+    return `步骤 ${stepOrder} 已完成，但所有已选工具都未返回可用结果，请调整分析范围或检查数据口径。`;
   }
 
-  const neo4jEvent = result.events.find(
-    (event) => event.ok && event.toolName === 'neo4j.graph-query',
-  );
+  const firstEventSummary = result.events
+    .filter((event) => event.ok)
+    .map(summarizeToolEvent)
+    .find((value): value is string => Boolean(value));
 
-  if (neo4jEvent && neo4jEvent.ok) {
-    const output = neo4jEvent.output as {
-      factors?: { factorLabel?: string }[];
-    };
-    const firstFactor = output.factors?.[0]?.factorLabel;
-    const factorCount = output.factors?.length ?? 0;
-
-    if (factorCount > 0) {
-      return [
-        `已扩展 ${factorCount} 个候选因素`,
-        firstFactor ? `首个因素 ${firstFactor}` : null,
-      ]
-        .filter(Boolean)
-        .join('，');
-    }
-  }
-
-  const erpEvent = result.events.find(
-    (event) => event.ok && event.toolName === 'erp.read-model',
-  );
-
-  if (erpEvent && erpEvent.ok) {
-    const output = erpEvent.output as {
-      resource?: string;
-      count?: number;
-    };
-
-    return [
-      '已读取 ERP 数据',
-      output.resource ? `资源 ${output.resource}` : null,
-      typeof output.count === 'number' ? `记录数 ${output.count}` : null,
-    ]
-      .filter(Boolean)
-      .join('，');
+  if (firstEventSummary) {
+    return firstEventSummary;
   }
 
   return `步骤 ${stepOrder} 已完成，真实工具结果已回传。`;

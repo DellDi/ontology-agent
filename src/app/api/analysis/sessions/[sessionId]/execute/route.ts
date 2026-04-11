@@ -11,6 +11,7 @@ import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
+import { auditUseCases } from '@/infrastructure/audit';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
@@ -67,6 +68,20 @@ export async function POST(request: Request, { params }: RouteContext) {
   });
 
   if (!analysisSession) {
+    await auditUseCases.recordEvent({
+      userId: authSession.userId,
+      organizationId: authSession.scope.organizationId,
+      sessionId,
+      eventType: 'authorization.denied',
+      eventResult: 'denied',
+      eventSource: 'route-handler',
+      payload: {
+        route: `/api/analysis/sessions/${sessionId}/execute`,
+        method: 'POST',
+        reason: 'session-not-accessible',
+      },
+    });
+
     return NextResponse.json(
       { error: '会话不存在或无权访问。' },
       { status: 404 },

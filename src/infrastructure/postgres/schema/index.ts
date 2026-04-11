@@ -1,4 +1,5 @@
 export { authSessions, platformSchema } from './auth-sessions';
+export { auditEvents } from './audit-events';
 export { analysisSessions } from './analysis-sessions';
 export { analysisSessionFollowUps } from './analysis-session-follow-ups';
 export { analysisExecutionSnapshots } from './analysis-execution-snapshots';
