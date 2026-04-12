@@ -1,6 +1,6 @@
 # Story 7.3: 建立自托管容器化部署基线
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -27,6 +27,12 @@ so that 我们可以在自有环境中运行系统而不依赖公有云专属托
 - [x] 覆盖部署基线验证（AC: 1, 2, 3）
   - [x] 运行 `docker compose config` 与容器启动冒烟验证。
   - [x] 校验健康检查与依赖顺序。
+
+### Review Findings
+
+- [x] [Review][Patch] 部署文档错误声称“所有服务已配置 healthcheck” [docs/deployment.md:83]
+- [x] [Review][Patch] 部署契约测试仍使用 `.env.example` 而不是 `.env.prod.example` [tests/story-7-3-container-deployment.test.mjs:14]
+- [x] [Review][Defer] Redis job queue 缺少租约 / 回收机制，worker 崩溃后任务可能永久卡在 `processing` [src/infrastructure/job/redis-job-queue.ts:34] — deferred, pre-existing
 
 ## Dev Notes
 

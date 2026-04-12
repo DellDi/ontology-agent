@@ -80,7 +80,9 @@ docker compose up -d
 
 ## 健康检查
 
-所有服务已配置 `healthcheck`，`web` 服务等待 `migrate` 完成后才启动（`service_completed_successfully`）。
+当前已为 `web`、`postgres`、`redis`、`cube`、`neo4j` 配置 `healthcheck`。
+`worker` 暂未单独配置 `healthcheck`，当前依赖进程退出与 `restart: unless-stopped` 暴露故障；
+`web` 服务等待 `migrate` 完成后才启动（`service_completed_successfully`）。
 
 检查健康状态：
 ```bash
