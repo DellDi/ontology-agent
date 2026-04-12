@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../');
 const PROJECT = 'ontology-agent-7-3-test';
-const COMPOSE_ARGS = ['-f', 'compose.prod.yaml', '--env-file', '.env.example', '-p', PROJECT];
+const COMPOSE_ARGS = ['-f', 'compose.prod.yaml', '--env-file', '.env.prod.example', '-p', PROJECT];
 
 async function dc(...args) {
   return execFileAsync('docker', ['compose', ...COMPOSE_ARGS, ...args], { cwd: ROOT });

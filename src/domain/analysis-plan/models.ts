@@ -1,6 +1,7 @@
 import type { AnalysisContext } from '@/domain/analysis-context/models';
 import type { AnalysisIntentType } from '@/domain/analysis-intent/models';
 import type { CandidateFactor } from '@/domain/factor-expansion/models';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 
 export const ANALYSIS_PLAN_MODES = ['minimal', 'multi-step'] as const;
 
@@ -238,5 +239,125 @@ export function buildAnalysisPlan(input: {
         dependencyIds: ['inspect-metric-change', 'validate-candidate-factors'],
       },
     ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Grounded Context 支持 (Story 9.3)
+// ---------------------------------------------------------------------------
+
+export type GroundedAnalysisPlanInput = {
+  intentType: AnalysisIntentType;
+  groundedContext: OntologyGroundedContext;
+  legacyContext: AnalysisContext; // 保留兼容
+  candidateFactors: CandidateFactor[];
+  shouldExpandFactors: boolean;
+};
+
+/**
+ * 基于 Ontology Grounded Context 构建分析计划
+ *
+ * AC2: planner 消费 grounded definitions 而不是自由文本
+ */
+export function buildAnalysisPlanFromGroundedContext(input: GroundedAnalysisPlanInput): AnalysisPlan & {
+  _groundedSource: string; // ontologyVersionId 引用
+  _groundingStatus: OntologyGroundedContext['groundingStatus'];
+} {
+  // 从 grounded context 提取 canonical definitions
+  const groundedMetrics = input.groundedContext.metrics
+    .filter((m) => m.status === 'success' && m.canonicalDefinition)
+    .map((m) => m.canonicalDefinition!.displayName);
+
+  const groundedEntities = input.groundedContext.entities
+    .filter((e) => e.status === 'success' && e.canonicalDefinition)
+    .map((e) => e.canonicalDefinition!.displayName);
+
+  const groundedTimeSemantics = input.groundedContext.timeSemantics
+    .filter((t) => t.status === 'success' && t.canonicalDefinition)
+    .map((t) => t.canonicalDefinition!.displayName);
+
+  // 使用 grounded definitions 作为 plan 构建基础
+  const metric = groundedMetrics[0] ?? getDisplayValue(input.legacyContext.targetMetric.value, '当前目标指标', [
+    '待补充目标指标',
+    '指标描述不够具体',
+  ]);
+  const entity = groundedEntities[0] ?? getDisplayValue(input.legacyContext.entity.value, '当前分析对象', [
+    '待补充实体对象',
+  ]);
+  const timeRange = groundedTimeSemantics[0] ?? getDisplayValue(input.legacyContext.timeRange.value, '当前分析周期', [
+    '待补充时间范围',
+  ]);
+
+  // 构建 steps，使用 grounded factors 而非 raw candidate factors
+  const groundedFactorLabels = input.groundedContext.factors
+    .filter((f) => f.status === 'success' && f.canonicalDefinition)
+    .map((f) => f.canonicalDefinition!.displayName);
+
+  const factorPreview = groundedFactorLabels.length > 0
+    ? groundedFactorLabels.slice(0, 2).join('、')
+    : input.candidateFactors.slice(0, 2).map((f) => f.label).join('、');
+
+  if (!input.shouldExpandFactors) {
+    return {
+      mode: 'minimal',
+      summary: '基于治理化定义的计划：系统先确认查询口径，再返回指标结果。',
+      steps: [
+        {
+          id: 'confirm-grounded-scope',
+          order: 1,
+          title: '确认治理化口径',
+          objective: `确认 ${metric}（治理化指标定义）、${entity}（治理化实体定义）、${timeRange}（治理化时间语义）的分析边界。`,
+          dependencyIds: [],
+        },
+        {
+          id: 'query-grounded-metric',
+          order: 2,
+          title: '查询治理化指标',
+          objective: `基于治理化定义返回 ${metric} 结果，使用 canoncial definitions 而非自由文本映射。`,
+          dependencyIds: ['confirm-grounded-scope'],
+        },
+      ],
+      _groundedSource: input.groundedContext.ontologyVersionId,
+      _groundingStatus: input.groundedContext.groundingStatus,
+    };
+  }
+
+  return {
+    mode: 'multi-step',
+    summary: '基于治理化定义的复杂问题计划骨架：确认口径、验证候选方向、汇总归因。',
+    steps: [
+      {
+        id: 'confirm-grounded-analysis-scope',
+        order: 1,
+        title: '确认治理化分析口径',
+        objective: `基于 governance definitions 确认 ${metric}、${entity} 和 ${timeRange} 的分析边界。`,
+        dependencyIds: [],
+      },
+      {
+        id: 'inspect-grounded-metric-change',
+        order: 2,
+        title: '校验治理化指标波动',
+        objective: `验证 ${metric} 是否真实波动，基于 governance metric variant 和 time semantic 定位。`,
+        dependencyIds: ['confirm-grounded-analysis-scope'],
+      },
+      {
+        id: 'validate-grounded-factors',
+        order: 3,
+        title: '验证治理化候选因素',
+        objective: factorPreview.length > 0
+          ? `围绕治理化因素 ${factorPreview} 逐项查证，使用 canonical factor definitions。`
+          : '围绕候选方向逐项查证，识别值得验证的因素。',
+        dependencyIds: ['confirm-grounded-analysis-scope', 'inspect-grounded-metric-change'],
+      },
+      {
+        id: 'synthesize-grounded-attribution',
+        order: 4,
+        title: '汇总治理化归因判断',
+        objective: '基于 governance causality edges 和 evidence types 汇总归因判断。',
+        dependencyIds: ['inspect-grounded-metric-change', 'validate-grounded-factors'],
+      },
+    ],
+    _groundedSource: input.groundedContext.ontologyVersionId,
+    _groundingStatus: input.groundedContext.groundingStatus,
   };
 }

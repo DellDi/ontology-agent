@@ -2,6 +2,7 @@ import type { AnalysisContextReadModel } from '@/application/analysis-context/us
 import type { CandidateFactorReadModel } from '@/application/factor-expansion/use-cases';
 import {
   buildAnalysisPlan,
+  buildAnalysisPlanFromGroundedContext,
   buildAnalysisPlanDiff,
   type AnalysisPlan,
   type AnalysisPlanDiff,
@@ -9,6 +10,7 @@ import {
 } from '@/domain/analysis-plan/models';
 import type { AnalysisExecutionPlanSnapshot } from '@/domain/analysis-execution/models';
 import type { AnalysisIntentType } from '@/domain/analysis-intent/models';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 
 export type AnalysisPlanStepReadModel = {
   id: string;
@@ -127,6 +129,42 @@ export function createAnalysisPlanningUseCases() {
         reusableCompletedStepIds: input.reusableCompletedStepIds,
         reason: input.reason,
       });
+    },
+
+    /**
+     * 基于 Ontology Grounded Context 构建计划 (Story 9.3)
+     *
+     * AC2: planner 消费 grounded definitions 而非自由文本
+     */
+    buildPlanFromGroundedContext({
+      intentType,
+      groundedContext,
+      contextReadModel,
+      candidateFactorReadModel,
+    }: {
+      intentType: AnalysisIntentType;
+      groundedContext: OntologyGroundedContext;
+      contextReadModel: AnalysisContextReadModel;
+      candidateFactorReadModel: CandidateFactorReadModel;
+    }): AnalysisPlanReadModel & {
+      _groundedSource: string;
+      _groundingStatus: OntologyGroundedContext['groundingStatus'];
+    } {
+      const plan = buildAnalysisPlanFromGroundedContext({
+        intentType,
+        groundedContext,
+        legacyContext: contextReadModel.context,
+        candidateFactors: candidateFactorReadModel.factors,
+        shouldExpandFactors: candidateFactorReadModel.mode === 'expand',
+      });
+
+      const readModel = buildPlanReadModelFromSnapshot(plan);
+
+      return {
+        ...readModel,
+        _groundedSource: plan._groundedSource,
+        _groundingStatus: plan._groundingStatus,
+      };
     },
   };
 }

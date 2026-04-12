@@ -7,6 +7,7 @@ import {
   buildToolRenderBlocks,
   summarizeToolEvent,
 } from '@/shared/tooling/tool-event-presentation';
+import { llmStructuredAnalysisOutputValueSchema } from '@/application/tooling/models';
 
 export function buildToolStatus(
   result: OrchestrationStepExecutionResult,
@@ -90,23 +91,18 @@ export function extractStructuredConclusion(result: OrchestrationStepExecutionRe
     return {};
   }
 
-  const output = llmEvent.output as {
-    value?: {
-      summary?: string;
-      conclusion?: string;
-      evidence?: { label?: string; detail?: string }[];
-      confidence?: number;
-    };
-  };
+  const parsed = llmStructuredAnalysisOutputValueSchema.safeParse(llmEvent.output);
+  if (!parsed.success || parsed.data.taskType !== 'conclusion-summary') {
+    return {};
+  }
+
+  const value = parsed.data.value;
 
   return {
-    summary: output.value?.summary?.trim(),
-    conclusion: output.value?.conclusion?.trim(),
-    confidence:
-      typeof output.value?.confidence === 'number'
-        ? output.value.confidence
-        : null,
-    evidence: (output.value?.evidence ?? [])
+    summary: value.summary?.trim(),
+    conclusion: value.conclusion?.trim(),
+    confidence: typeof value.confidence === 'number' ? value.confidence : null,
+    evidence: (value.evidence ?? [])
       .map((item) => ({
         label: item.label?.trim() || '',
         summary: item.detail?.trim() || '',

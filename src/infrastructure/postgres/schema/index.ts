@@ -27,3 +27,5 @@ export { ontologyMetricVariants } from './ontology-metric-variants';
 export { ontologyTimeSemantics } from './ontology-time-semantics';
 export { ontologyCausalityEdges } from './ontology-causality-edges';
 export { ontologyEvidenceTypeDefinitions } from './ontology-evidence-type-definitions';
+export { ontologyGroundedContexts, type DbOntologyGroundedContext } from './ontology-grounded-contexts';
+export { ontologyToolCapabilityBindings, type DbOntologyToolCapabilityBinding } from './ontology-tool-capability-bindings';

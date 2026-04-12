@@ -21,10 +21,39 @@ export const llmStructuredAnalysisInputSchema = z.object({
   model: z.string().min(1).optional(),
 });
 
-export const llmStructuredAnalysisOutputSchema = z.object({
-  taskType: z.string().min(1),
+const conclusionSummaryValueSchema = z.object({
+  summary: z.string().optional(),
+  conclusion: z.string().optional(),
+  confidence: z.number().nullable().optional(),
+  evidence: z
+    .array(
+      z.object({
+        label: z.string().optional(),
+        detail: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
+const toolSelectionValueSchema = z.object({
+  selectedTool: z.string().optional(),
+  bindingId: z.string().optional(),
+  confidence: z.number().optional(),
+  reason: z.string().optional(),
+});
+
+export const llmStructuredAnalysisOutputValueSchema = z.discriminatedUnion('taskType', [
+  z.object({ taskType: z.literal('conclusion-summary'), value: conclusionSummaryValueSchema }),
+  z.object({ taskType: z.literal('tool-selection'), value: toolSelectionValueSchema }),
+  z.object({ taskType: z.literal('analysis-intent'), value: z.unknown() }),
+  z.object({ taskType: z.literal('analysis-context'), value: z.unknown() }),
+  z.object({ taskType: z.literal('analysis-plan'), value: z.unknown() }),
+]);
+
+export type LlmStructuredAnalysisOutputValue = z.infer<typeof llmStructuredAnalysisOutputValueSchema>;
+
+const llmStructuredAnalysisOutputBaseSchema = z.object({
   ok: z.boolean(),
-  value: z.unknown(),
   issues: z.array(
     z.object({
       path: z.string().min(1),
@@ -35,6 +64,12 @@ export const llmStructuredAnalysisOutputSchema = z.object({
   model: z.string().min(1),
   finishReason: z.string().nullable(),
 });
+
+export const llmStructuredAnalysisOutputSchema = llmStructuredAnalysisOutputBaseSchema.and(
+  llmStructuredAnalysisOutputValueSchema,
+);
+
+export type LlmStructuredAnalysisOutput = z.infer<typeof llmStructuredAnalysisOutputSchema>;
 
 const permissionScopeSchema = z.object({
   organizationId: z.string().min(1),

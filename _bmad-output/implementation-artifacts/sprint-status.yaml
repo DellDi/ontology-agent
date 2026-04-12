@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-25
-last_updated: 2026-04-11
+last_updated: 2026-04-12
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -96,7 +96,7 @@ development_status:
   epic-7: in-progress
   7-1-server-side-authorization-enforcement: done
   7-2-audit-analysis-and-tool-events: done
-  7-3-self-hosted-container-deployment-baseline: review
+  7-3-self-hosted-container-deployment-baseline: done
   7-4-observability-and-availability-monitoring: ready-for-dev
   7-5-account-or-mobile-login-and-url-passwordless-bridge: done
   7-6-graph-sync-run-metadata-and-org-rebuild: done
@@ -113,7 +113,7 @@ development_status:
   epic-9: in-progress
   9-1-minimal-ontology-registry-and-version-model: done
   9-2-govern-metric-variant-factor-and-time-semantics: review
-  9-3-ontology-grounding-for-context-planning-and-tool-selection: ready-for-dev
+  9-3-ontology-grounding-for-context-planning-and-tool-selection: review
   9-4-ontology-change-request-approval-and-publish-audit: ready-for-dev
   9-5-ontology-governance-admin-console: ready-for-dev
   9-6-bind-execution-follow-up-and-history-to-ontology-version: ready-for-dev
