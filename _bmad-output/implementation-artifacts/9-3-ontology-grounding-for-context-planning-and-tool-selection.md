@@ -54,6 +54,15 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
   - [x] 验证 tool selection 能消费正式 binding。
   - [x] 验证 follow-up / replan 使用 grounded context 作为基线。
 
+### Review Findings
+
+- [ ] [Review][Patch] 运行时执行、工作台计划展示与 replan 仍然走 legacy context/buildPlan 主路径，`groundAnalysisContext` 与 `buildPlanFromGroundedContext` 没有接进真实链路，AC1/AC2/AC4 实际未达成 [src/app/api/analysis/sessions/[sessionId]/execute/route.ts:125]
+- [ ] [Review][Patch] tool selection 运行时仍依赖 `STEP_TOOL_FALLBACKS`、LLM 返回别名和后续正则输入推断，`ToolCapabilityBinding` 仅停留在领域模型层，AC3 未真正落地 [src/application/analysis-execution/use-cases.ts:49]
+- [ ] [Review][Patch] `buildAnalysisPlanFromGroundedContext` 在缺失 canonical definition 时静默回退到 `legacyContext` 与原始 candidate factors，违反 “planner 只消费 grounded definitions/受控 read model” 的约束 [src/domain/analysis-plan/models.ts:279]
+- [ ] [Review][Patch] grounding 状态计算把 mixed failed/success 降为 `partial`，而 `isGroundingBlocked` 又不会阻断 `partial`，这会让未完全 grounding 的输入继续进入 planner，违背 fail-loud 规则 [src/application/ontology/grounding.ts:365]
+- [ ] [Review][Patch] bootstrap 在 definitions 写入前就把版本发布为 `approved`，且根本没有落 `planStepTemplates / causalityEdges / evidenceTypes`，失败时会留下不完整的已发布 ontology version [src/application/ontology/grounding.ts:556]
+- [ ] [Review][Patch] Story 9.3 测试主要验证“文件存在/文本包含/独立 snippet”，没有验证 execute、follow-up、replan、tool selection 是否真的切到 grounded 主链，导致当前假绿 [tests/story-9-3-ontology-grounding.test.mjs:42]
+
 ## Dev Notes
 
 - `9.3` 是 Epic 9 第一次真正改运行时主链的 story。它要做的是“接线”，不是“重新发明 planner”。

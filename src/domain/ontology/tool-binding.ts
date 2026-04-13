@@ -279,11 +279,41 @@ export function buildDefaultToolCapabilityBindingSeeds(
   createdBy: string,
 ): CreateToolCapabilityBindingInput[] {
   return [
+    // 显式能力检查绑定
+    {
+      id: `tcb-capability-confirm-query-${versionId}`,
+      ontologyVersionId: versionId,
+      boundStepTemplateKey: 'confirm-query-scope',
+      boundCapabilityTag: 'capability-status',
+      toolName: 'platform.capability-status',
+      activationConditions: [{ type: 'always', value: true }],
+      description: '确认查询口径前先检查平台能力与依赖可用性',
+      status: 'approved',
+      priority: 100,
+      createdAt: ts,
+      updatedAt: ts,
+      createdBy,
+    },
+    {
+      id: `tcb-capability-confirm-analysis-${versionId}`,
+      ontologyVersionId: versionId,
+      boundStepTemplateKey: 'confirm-analysis-scope',
+      boundCapabilityTag: 'capability-status',
+      toolName: 'platform.capability-status',
+      activationConditions: [{ type: 'always', value: true }],
+      description: '确认分析口径前先检查平台能力与依赖可用性',
+      status: 'approved',
+      priority: 100,
+      createdAt: ts,
+      updatedAt: ts,
+      createdBy,
+    },
+
     // 语义查询类绑定
     {
       id: `tcb-cube-query-collection-rate-${versionId}`,
       ontologyVersionId: versionId,
-      boundStepTemplateKey: 'metric-query',
+      boundStepTemplateKey: 'inspect-metric-change',
       boundCapabilityTag: 'semantic-query',
       toolName: 'cube.semantic-query',
       activationConditions: [
@@ -299,7 +329,7 @@ export function buildDefaultToolCapabilityBindingSeeds(
     {
       id: `tcb-cube-query-default-${versionId}`,
       ontologyVersionId: versionId,
-      boundStepTemplateKey: 'metric-query',
+      boundStepTemplateKey: 'return-metric-result',
       boundCapabilityTag: 'semantic-query',
       toolName: 'cube.semantic-query',
       activationConditions: [{ type: 'always', value: true }],
@@ -315,7 +345,7 @@ export function buildDefaultToolCapabilityBindingSeeds(
     {
       id: `tcb-neo4j-factor-expansion-${versionId}`,
       ontologyVersionId: versionId,
-      boundStepTemplateKey: 'factor-expansion',
+      boundStepTemplateKey: 'validate-candidate-factors',
       boundCapabilityTag: 'graph-query',
       toolName: 'neo4j.graph-query',
       activationConditions: [
@@ -331,7 +361,7 @@ export function buildDefaultToolCapabilityBindingSeeds(
     {
       id: `tcb-neo4j-default-${versionId}`,
       ontologyVersionId: versionId,
-      boundStepTemplateKey: 'factor-expansion',
+      boundStepTemplateKey: 'validate-candidate-factors',
       boundCapabilityTag: 'graph-query',
       toolName: 'neo4j.graph-query',
       activationConditions: [{ type: 'always', value: true }],
@@ -347,7 +377,7 @@ export function buildDefaultToolCapabilityBindingSeeds(
     {
       id: `tcb-erp-master-data-${versionId}`,
       ontologyVersionId: versionId,
-      boundStepTemplateKey: 'master-data-lookup',
+      boundStepTemplateKey: 'validate-candidate-factors',
       boundCapabilityTag: 'erp-read',
       toolName: 'erp.read-model',
       activationConditions: [
@@ -363,7 +393,7 @@ export function buildDefaultToolCapabilityBindingSeeds(
     {
       id: `tcb-erp-default-${versionId}`,
       ontologyVersionId: versionId,
-      boundStepTemplateKey: 'master-data-lookup',
+      boundStepTemplateKey: 'validate-candidate-factors',
       boundCapabilityTag: 'erp-read',
       toolName: 'erp.read-model',
       activationConditions: [{ type: 'always', value: true }],
@@ -379,7 +409,7 @@ export function buildDefaultToolCapabilityBindingSeeds(
     {
       id: `tcb-llm-structured-${versionId}`,
       ontologyVersionId: versionId,
-      boundStepTemplateKey: 'structured-analysis',
+      boundStepTemplateKey: 'synthesize-attribution',
       boundCapabilityTag: 'llm-analysis',
       toolName: 'llm.structured-analysis',
       activationConditions: [{ type: 'always', value: true }],

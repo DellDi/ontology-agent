@@ -19,6 +19,8 @@ export type AnalysisPlan = {
   mode: AnalysisPlanMode;
   summary: string;
   steps: AnalysisPlanStep[];
+  _groundedSource?: string;
+  _groundingStatus?: OntologyGroundedContext['groundingStatus'];
 };
 
 export type AnalysisPlanDiffStep = {
@@ -249,10 +251,36 @@ export function buildAnalysisPlan(input: {
 export type GroundedAnalysisPlanInput = {
   intentType: AnalysisIntentType;
   groundedContext: OntologyGroundedContext;
-  legacyContext: AnalysisContext; // 保留兼容
-  candidateFactors: CandidateFactor[];
   shouldExpandFactors: boolean;
 };
+
+export class InvalidGroundedAnalysisPlanError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidGroundedAnalysisPlanError';
+  }
+}
+
+function getRequiredGroundedDefinitionDisplayName(
+  items: Array<{
+    status: 'success' | 'ambiguous' | 'failed';
+    originalText: string;
+    canonicalDefinition: { displayName: string } | null;
+  }>,
+  label: string,
+) {
+  const matched = items.find(
+    (item) => item.status === 'success' && item.canonicalDefinition,
+  );
+
+  if (!matched?.canonicalDefinition) {
+    throw new InvalidGroundedAnalysisPlanError(
+      `缺少可用的治理化${label}定义，无法生成 grounded plan。`,
+    );
+  }
+
+  return matched.originalText || matched.canonicalDefinition.displayName;
+}
 
 /**
  * 基于 Ontology Grounded Context 构建分析计划
@@ -263,58 +291,46 @@ export function buildAnalysisPlanFromGroundedContext(input: GroundedAnalysisPlan
   _groundedSource: string; // ontologyVersionId 引用
   _groundingStatus: OntologyGroundedContext['groundingStatus'];
 } {
-  // 从 grounded context 提取 canonical definitions
-  const groundedMetrics = input.groundedContext.metrics
-    .filter((m) => m.status === 'success' && m.canonicalDefinition)
-    .map((m) => m.canonicalDefinition!.displayName);
-
-  const groundedEntities = input.groundedContext.entities
-    .filter((e) => e.status === 'success' && e.canonicalDefinition)
-    .map((e) => e.canonicalDefinition!.displayName);
-
-  const groundedTimeSemantics = input.groundedContext.timeSemantics
-    .filter((t) => t.status === 'success' && t.canonicalDefinition)
-    .map((t) => t.canonicalDefinition!.displayName);
-
-  // 使用 grounded definitions 作为 plan 构建基础
-  const metric = groundedMetrics[0] ?? getDisplayValue(input.legacyContext.targetMetric.value, '当前目标指标', [
-    '待补充目标指标',
-    '指标描述不够具体',
-  ]);
-  const entity = groundedEntities[0] ?? getDisplayValue(input.legacyContext.entity.value, '当前分析对象', [
-    '待补充实体对象',
-  ]);
-  const timeRange = groundedTimeSemantics[0] ?? getDisplayValue(input.legacyContext.timeRange.value, '当前分析周期', [
-    '待补充时间范围',
-  ]);
+  const metric = getRequiredGroundedDefinitionDisplayName(
+    input.groundedContext.metrics,
+    '指标',
+  );
+  const entity = getRequiredGroundedDefinitionDisplayName(
+    input.groundedContext.entities,
+    '实体',
+  );
+  const timeRange = getRequiredGroundedDefinitionDisplayName(
+    input.groundedContext.timeSemantics,
+    '时间语义',
+  );
 
   // 构建 steps，使用 grounded factors 而非 raw candidate factors
   const groundedFactorLabels = input.groundedContext.factors
     .filter((f) => f.status === 'success' && f.canonicalDefinition)
-    .map((f) => f.canonicalDefinition!.displayName);
+    .map((f) => f.originalText || f.canonicalDefinition!.displayName);
 
   const factorPreview = groundedFactorLabels.length > 0
     ? groundedFactorLabels.slice(0, 2).join('、')
-    : input.candidateFactors.slice(0, 2).map((f) => f.label).join('、');
+    : '';
 
   if (!input.shouldExpandFactors) {
     return {
       mode: 'minimal',
-      summary: '基于治理化定义的计划：系统先确认查询口径，再返回指标结果。',
+      summary: '这是一个极简计划，系统会先确认查询口径，再返回指标结果或基础对比。',
       steps: [
         {
-          id: 'confirm-grounded-scope',
+          id: 'confirm-query-scope',
           order: 1,
-          title: '确认治理化口径',
-          objective: `确认 ${metric}（治理化指标定义）、${entity}（治理化实体定义）、${timeRange}（治理化时间语义）的分析边界。`,
+          title: '确认查询口径',
+          objective: `确认${metric}的统计口径，并补齐${entity}、${timeRange}等必要范围信息。`,
           dependencyIds: [],
         },
         {
-          id: 'query-grounded-metric',
+          id: 'return-metric-result',
           order: 2,
-          title: '查询治理化指标',
-          objective: `基于治理化定义返回 ${metric} 结果，使用 canoncial definitions 而非自由文本映射。`,
-          dependencyIds: ['confirm-grounded-scope'],
+          title: '返回指标结果',
+          objective: `基于确认后的范围返回${metric}结果，必要时提供基础对比或趋势说明。`,
+          dependencyIds: ['confirm-query-scope'],
         },
       ],
       _groundedSource: input.groundedContext.ontologyVersionId,
@@ -324,37 +340,37 @@ export function buildAnalysisPlanFromGroundedContext(input: GroundedAnalysisPlan
 
   return {
     mode: 'multi-step',
-    summary: '基于治理化定义的复杂问题计划骨架：确认口径、验证候选方向、汇总归因。',
+    summary: '这是本次复杂问题的计划骨架，系统会先确认口径，再逐步验证候选方向，最后汇总归因判断。',
     steps: [
       {
-        id: 'confirm-grounded-analysis-scope',
+        id: 'confirm-analysis-scope',
         order: 1,
-        title: '确认治理化分析口径',
-        objective: `基于 governance definitions 确认 ${metric}、${entity} 和 ${timeRange} 的分析边界。`,
+        title: '确认分析口径',
+        objective: `确认${metric}、${entity}和${timeRange}的分析边界，确保后续步骤基于同一口径推进。`,
         dependencyIds: [],
       },
       {
-        id: 'inspect-grounded-metric-change',
+        id: 'inspect-metric-change',
         order: 2,
-        title: '校验治理化指标波动',
-        objective: `验证 ${metric} 是否真实波动，基于 governance metric variant 和 time semantic 定位。`,
-        dependencyIds: ['confirm-grounded-analysis-scope'],
+        title: '校验核心指标波动',
+        objective: `先验证${metric}是否真实发生波动，并定位波动主要集中在哪些实体或时间切片。`,
+        dependencyIds: ['confirm-analysis-scope'],
       },
       {
-        id: 'validate-grounded-factors',
+        id: 'validate-candidate-factors',
         order: 3,
-        title: '验证治理化候选因素',
+        title: '逐项验证候选因素',
         objective: factorPreview.length > 0
-          ? `围绕治理化因素 ${factorPreview} 逐项查证，使用 canonical factor definitions。`
-          : '围绕候选方向逐项查证，识别值得验证的因素。',
-        dependencyIds: ['confirm-grounded-analysis-scope', 'inspect-grounded-metric-change'],
+          ? `围绕${factorPreview}等候选方向逐项查证，识别哪些因素值得进入下一轮验证。`
+          : '围绕当前会话扩展出的候选方向逐项查证，识别哪些因素值得进入下一轮验证。',
+        dependencyIds: ['confirm-analysis-scope', 'inspect-metric-change'],
       },
       {
-        id: 'synthesize-grounded-attribution',
+        id: 'synthesize-attribution',
         order: 4,
-        title: '汇总治理化归因判断',
-        objective: '基于 governance causality edges 和 evidence types 汇总归因判断。',
-        dependencyIds: ['inspect-grounded-metric-change', 'validate-grounded-factors'],
+        title: '汇总归因判断',
+        objective: '汇总前序步骤形成的证据，整理出待验证的归因判断，并为后续执行与证据展示做好准备。',
+        dependencyIds: ['inspect-metric-change', 'validate-candidate-factors'],
       },
     ],
     _groundedSource: input.groundedContext.ontologyVersionId,

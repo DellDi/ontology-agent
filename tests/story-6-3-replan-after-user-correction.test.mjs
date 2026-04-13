@@ -87,6 +87,133 @@ async function runTsSnippet(code) {
   return JSON.parse(stdout.trim());
 }
 
+async function seedApprovedOntologyRuntime({
+  versionId = `story-6-3-grounding-${crypto.randomUUID()}`,
+} = {}) {
+  return await runTsSnippet(`
+    import postgresClientModule from './src/infrastructure/postgres/client.ts';
+    import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
+    import entityStoreModule from './src/infrastructure/ontology/postgres-ontology-entity-definition-store.ts';
+    import metricStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-definition-store.ts';
+    import factorStoreModule from './src/infrastructure/ontology/postgres-ontology-factor-definition-store.ts';
+    import timeStoreModule from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
+
+    const { createPostgresDb } = postgresClientModule;
+    const { createPostgresOntologyVersionStore } = versionStoreModule;
+    const { createPostgresOntologyEntityDefinitionStore } = entityStoreModule;
+    const { createPostgresOntologyMetricDefinitionStore } = metricStoreModule;
+    const { createPostgresOntologyFactorDefinitionStore } = factorStoreModule;
+    const { createPostgresOntologyTimeSemanticStore } = timeStoreModule;
+
+    const now = new Date().toISOString();
+    const { db, pool } = createPostgresDb();
+    const versionStore = createPostgresOntologyVersionStore(db);
+    const entityStore = createPostgresOntologyEntityDefinitionStore(db);
+    const metricStore = createPostgresOntologyMetricDefinitionStore(db);
+    const factorStore = createPostgresOntologyFactorDefinitionStore(db);
+    const timeSemanticStore = createPostgresOntologyTimeSemanticStore(db);
+
+    await versionStore.create({
+      id: ${JSON.stringify(versionId)},
+      semver: '99.6.3-grounding-test',
+      displayName: 'Story 6.3 Grounding Runtime',
+      description: 'replan grounding test',
+      createdBy: 'story-6-3-test',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await versionStore.updateStatus(${JSON.stringify(versionId)}, 'approved', now, { publishedAt: now });
+
+    await entityStore.bulkCreate([{
+      id: 'entity-project-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'project',
+      displayName: '项目',
+      description: null,
+      status: 'approved',
+      synonyms: ['丰和园小区项目', '丰和园小区', '项目'],
+      parentBusinessKey: null,
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+    await metricStore.bulkCreate([{
+      id: 'metric-collection-rate-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'collection-rate',
+      displayName: '收费回款率',
+      description: null,
+      status: 'approved',
+      applicableSubjectKeys: ['project'],
+      defaultAggregation: 'ratio',
+      unit: '%',
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+    await factorStore.bulkCreate([
+      {
+        id: 'factor-fee-policy-' + ${JSON.stringify(versionId)},
+        ontologyVersionId: ${JSON.stringify(versionId)},
+        businessKey: 'fee-policy-reach',
+        displayName: '收费政策触达',
+        description: null,
+        status: 'approved',
+        category: '收费结构',
+        relatedMetricKeys: ['collection-rate'],
+        metadata: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'factor-property-service-' + ${JSON.stringify(versionId)},
+        ontologyVersionId: ${JSON.stringify(versionId)},
+        businessKey: 'property-service',
+        displayName: '物业服务',
+        description: null,
+        status: 'approved',
+        category: '服务质量',
+        relatedMetricKeys: ['collection-rate'],
+        metadata: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'factor-satisfaction-' + ${JSON.stringify(versionId)},
+        ontologyVersionId: ${JSON.stringify(versionId)},
+        businessKey: 'satisfaction-score',
+        displayName: '满意度评价',
+        description: null,
+        status: 'approved',
+        category: '客户反馈',
+        relatedMetricKeys: ['collection-rate'],
+        metadata: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    await timeSemanticStore.bulkCreate([{
+      id: 'time-three-months-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'payment-date',
+      displayName: '近三个月',
+      description: null,
+      status: 'approved',
+      semanticType: 'transaction-date',
+      entityDateFieldMapping: {},
+      cubeTimeDimensionMapping: {},
+      calculationRule: null,
+      defaultGranularity: 'month',
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+
+    await pool.end();
+    console.log(JSON.stringify({ versionId: ${JSON.stringify(versionId)} }));
+  `);
+}
+
 async function login({
   employeeId,
   displayName,
@@ -378,6 +505,7 @@ test.before(async () => {
     },
   });
   await ensureAnalysisExecutionSnapshotsTable(TEST_DATABASE_URL);
+  await seedApprovedOntologyRuntime();
 
   await ensureNextBuildReady({
     cwd: process.cwd(),
@@ -477,6 +605,15 @@ test('纠正 follow-up 上下文后可重生成新版本计划，并展示计划
 
   const state = await readFollowUpPlanState(followUpId);
   assert.equal(state.followUp.plan_version, 2);
+  assert.ok(
+    state.followUp.current_plan_snapshot._groundedSource,
+    '重规划后的 follow-up plan 必须记录 _groundedSource',
+  );
+  assert.equal(
+    state.followUp.current_plan_snapshot._groundingStatus,
+    'success',
+    '重规划后的 follow-up plan 必须标记 grounding 成功',
+  );
   assert.equal(state.followUp.current_plan_diff.reason, '新增因素条件触发了计划重算。');
   assert.ok(
     state.followUp.current_plan_diff.reusedSteps.some(
@@ -554,6 +691,12 @@ test('重规划后的执行入口会提交当前 follow-up 计划和 follow-up �
 
   const executionJob = await readExecutionJob(executionId);
   assert.equal(executionJob.data.questionText, '继续看一下物业服务因素');
+  assert.ok(executionJob.data.plan._groundedSource, 'follow-up 执行任务必须继承 grounded plan');
+  assert.equal(executionJob.data.plan._groundingStatus, 'success');
+  assert.ok(
+    executionJob.data.groundedContext?.ontologyVersionId,
+    'follow-up 执行任务必须携带 groundedContext',
+  );
   assert.match(
     executionJob.data.plan.steps[2].objective,
     /物业服务/,

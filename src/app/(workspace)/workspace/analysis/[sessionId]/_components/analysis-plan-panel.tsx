@@ -4,12 +4,14 @@ type AnalysisPlanPanelProps = {
   sessionId: string;
   readModel: AnalysisPlanReadModel;
   followUpId?: string;
+  blockingMessage?: string;
 };
 
 export function AnalysisPlanPanel({
   sessionId,
   readModel,
   followUpId,
+  blockingMessage,
 }: AnalysisPlanPanelProps) {
   return (
     <article className="glass-panel p-6" data-testid="analysis-plan-panel">
@@ -80,8 +82,15 @@ export function AnalysisPlanPanel({
           执行入口
         </p>
         <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]">
-          系统会将当前计划提交到后台执行，不会在当前请求里同步跑完整个分析链路。
+          {blockingMessage
+            ? '当前治理化计划未通过校验，系统不会接受执行提交，直到上下文被修正到可治理状态。'
+            : '系统会将当前计划提交到后台执行，不会在当前请求里同步跑完整个分析链路。'}
         </p>
+        {blockingMessage ? (
+          <div className="status-banner mt-4" data-tone="error">
+            {blockingMessage}
+          </div>
+        ) : null}
         <form
           action={`/api/analysis/sessions/${sessionId}/execute`}
           className="mt-4"
@@ -90,7 +99,7 @@ export function AnalysisPlanPanel({
           {followUpId ? (
             <input name="followUpId" type="hidden" value={followUpId} />
           ) : null}
-          <button className="primary-button" type="submit">
+          <button className="primary-button" disabled={Boolean(blockingMessage)} type="submit">
             开始执行分析
           </button>
         </form>

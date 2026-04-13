@@ -1,4 +1,6 @@
+import type { AnalysisContext } from '@/domain/analysis-context/models';
 import type { AnalysisPlan } from '@/domain/analysis-plan/models';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 
 export type AnalysisExecutionPlanSnapshot = AnalysisPlan;
 
@@ -10,6 +12,8 @@ export type AnalysisExecutionJobData = {
   areaIds: string[];
   followUpId: string | null;
   questionText: string;
+  context?: AnalysisContext;
+  groundedContext?: OntologyGroundedContext;
   submittedAt: string;
   plan: AnalysisExecutionPlanSnapshot;
 };
@@ -122,6 +126,14 @@ export function validateAnalysisExecutionJobData(
     areaIds: assertStringArray(candidate.areaIds, 'areaIds'),
     followUpId,
     questionText: assertNonEmptyString(candidate.questionText, 'questionText'),
+    context:
+      candidate.context && typeof candidate.context === 'object'
+        ? (candidate.context as AnalysisContext)
+        : undefined,
+    groundedContext:
+      candidate.groundedContext && typeof candidate.groundedContext === 'object'
+        ? (candidate.groundedContext as OntologyGroundedContext)
+        : undefined,
     submittedAt: assertNonEmptyString(candidate.submittedAt, 'submittedAt'),
     plan: validateAnalysisExecutionPlanSnapshot(
       candidate.plan as AnalysisExecutionPlanSnapshot,

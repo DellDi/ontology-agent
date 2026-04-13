@@ -2,12 +2,26 @@ import type { SemanticMetricKey } from '@/application/semantic-query/models';
 import type { AnalysisContext } from '@/domain/analysis-context/models';
 import { recognizeIntentFromQuestion } from '@/domain/analysis-intent/models';
 import type { AuthSession } from '@/domain/auth/models';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 import type { AnalysisToolName } from '@/domain/tooling/models';
 
 export function resolveSemanticMetricKey(
   metricValue: string,
   questionText: string,
+  groundedContext?: OntologyGroundedContext,
 ): SemanticMetricKey {
+  const groundedMetricKey =
+    groundedContext?.metrics.find(
+      (metric) => metric.status === 'success' && (metric.variant || metric.canonicalDefinition),
+    )?.variant?.businessKey ??
+    groundedContext?.metrics.find(
+      (metric) => metric.status === 'success' && metric.canonicalDefinition,
+    )?.canonicalDefinition?.businessKey;
+
+  if (groundedMetricKey) {
+    return groundedMetricKey as SemanticMetricKey;
+  }
+
   const usesTailArrearsSemantics =
     /尾欠|历史欠费|跨年未收|历史遗留/.test(metricValue) ||
     /尾欠|历史欠费|跨年未收|历史遗留/.test(questionText);
@@ -76,14 +90,22 @@ export function resolveDateRange(
   metric: SemanticMetricKey,
   context: AnalysisContext,
   now: Date = new Date(),
+  groundedContext?: OntologyGroundedContext,
 ) {
   const value = context.timeRange.value;
   const current = new Date(now);
+  const groundedDimension =
+    groundedContext?.timeSemantics.find(
+      (item) => item.status === 'success' && item.canonicalDefinition,
+    )?.canonicalDefinition?.businessKey;
+  const resolvedDimension = groundedDimension
+    ? (groundedDimension as ReturnType<typeof resolveDateDimension>)
+    : resolveDateDimension(metric);
 
   if (/本月/.test(value)) {
     const from = new Date(current.getFullYear(), current.getMonth(), 1);
     return {
-      dimension: resolveDateDimension(metric),
+      dimension: resolvedDimension,
       from: formatDate(from),
       to: formatDate(current),
     };
@@ -93,7 +115,7 @@ export function resolveDateRange(
     const from = new Date(current.getFullYear(), current.getMonth() - 1, 1);
     const to = new Date(current.getFullYear(), current.getMonth(), 0);
     return {
-      dimension: resolveDateDimension(metric),
+      dimension: resolvedDimension,
       from: formatDate(from),
       to: formatDate(to),
     };
@@ -102,7 +124,7 @@ export function resolveDateRange(
   if (/近三个月|最近三个月/.test(value)) {
     const from = new Date(current.getFullYear(), current.getMonth() - 2, 1);
     return {
-      dimension: resolveDateDimension(metric),
+      dimension: resolvedDimension,
       from: formatDate(from),
       to: formatDate(current),
     };
@@ -112,7 +134,7 @@ export function resolveDateRange(
     const quarterMonth = Math.floor(current.getMonth() / 3) * 3;
     const from = new Date(current.getFullYear(), quarterMonth, 1);
     return {
-      dimension: resolveDateDimension(metric),
+      dimension: resolvedDimension,
       from: formatDate(from),
       to: formatDate(current),
     };
@@ -121,7 +143,7 @@ export function resolveDateRange(
   if (/今年/.test(value)) {
     const from = new Date(current.getFullYear(), 0, 1);
     return {
-      dimension: resolveDateDimension(metric),
+      dimension: resolvedDimension,
       from: formatDate(from),
       to: formatDate(current),
     };
@@ -131,7 +153,7 @@ export function resolveDateRange(
     const from = new Date(current.getFullYear() - 1, 0, 1);
     const to = new Date(current.getFullYear() - 1, 11, 31);
     return {
-      dimension: resolveDateDimension(metric),
+      dimension: resolvedDimension,
       from: formatDate(from),
       to: formatDate(to),
     };
@@ -181,6 +203,7 @@ export function buildToolInputs(input: {
   areaIds: string[];
   questionText: string;
   context: AnalysisContext;
+  groundedContext?: OntologyGroundedContext;
   step: {
     id: string;
     title: string;
@@ -192,6 +215,7 @@ export function buildToolInputs(input: {
   const metric = resolveSemanticMetricKey(
     input.context.targetMetric.value,
     input.questionText,
+    input.groundedContext,
   );
   const authSession = buildWorkerAuthSession({
     sessionId: input.sessionId,
@@ -230,7 +254,7 @@ export function buildToolInputs(input: {
         organizationId: input.organizationId,
         projectIds: input.projectIds,
       },
-      dateRange: resolveDateRange(metric, input.context),
+      dateRange: resolveDateRange(metric, input.context, new Date(), input.groundedContext),
       groupBy: input.projectIds.length > 1 ? ['project-name'] : undefined,
       limit: 20,
     },

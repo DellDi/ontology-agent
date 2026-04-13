@@ -1,9 +1,11 @@
 import type { AnalysisSession } from '@/domain/analysis-session/models';
 import type { Job, JobStatus } from '@/domain/job-contract/models';
+import type { AnalysisContext } from '@/domain/analysis-context/models';
 import {
   type AnalysisExecutionPlanSnapshot,
   validateAnalysisExecutionPlanSnapshot,
 } from '@/domain/analysis-execution/models';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 import type { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 
 type JobUseCases = {
@@ -39,12 +41,16 @@ export function createAnalysisExecutionSubmissionUseCases({
       executionId,
       followUpId,
       questionText,
+      context,
+      groundedContext,
     }: {
       session: AnalysisSession;
       plan: AnalysisExecutionPlanSnapshot;
       executionId?: string;
       followUpId?: string | null;
       questionText?: string;
+      context?: AnalysisContext;
+      groundedContext?: OntologyGroundedContext;
     }): Promise<SubmittedAnalysisExecution> {
       const executablePlan = validateAnalysisExecutionPlanSnapshot(plan);
       const submittedAt = new Date().toISOString();
@@ -59,6 +65,8 @@ export function createAnalysisExecutionSubmissionUseCases({
           areaIds: session.areaIds,
           followUpId: followUpId ?? null,
           questionText: questionText ?? session.questionText,
+          context,
+          groundedContext,
           submittedAt,
           plan: executablePlan,
         },

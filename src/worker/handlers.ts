@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { AnalysisSessionStore } from '@/application/analysis-session/ports';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 import { buildToolInputs } from '@/application/analysis-execution/tool-input-builder';
+import {
+  recognizeIntentFromQuestion,
+  type AnalysisIntentType,
+} from '@/domain/analysis-intent/models';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { Job } from '@/domain/job-contract/models';
 import type {
@@ -51,6 +55,7 @@ type AnalysisExecutionUseCases = {
       purpose: string;
       sessionId?: string;
     };
+    intentType?: AnalysisIntentType;
     invocationContext: {
       correlationId: string;
       source: 'worker';
@@ -59,6 +64,7 @@ type AnalysisExecutionUseCases = {
       organizationId?: string;
     };
     toolInputsByName: Partial<Record<AnalysisToolName, unknown>>;
+    groundedContext?: import('@/domain/ontology/grounding').OntologyGroundedContext;
   }) => Promise<OrchestrationStepExecutionResult>;
 };
 
@@ -103,6 +109,7 @@ export function createAnalysisExecutionJobHandler(
 
     const streamUseCases = resolveStreamUseCases(dependencies, context);
     let processedStepCount = 0;
+    const inferredIntentType = recognizeIntentFromQuestion(jobData.questionText).type;
 
     for (const step of jobData.plan.steps) {
       await streamUseCases.publishEvent(
@@ -125,6 +132,7 @@ export function createAnalysisExecutionJobHandler(
           purpose: 'analysis-execution',
           sessionId: jobData.sessionId,
         },
+        intentType: inferredIntentType,
         invocationContext: {
           correlationId: `${job.id}:${step.id}:${randomUUID()}`,
           source: 'worker',
@@ -139,10 +147,12 @@ export function createAnalysisExecutionJobHandler(
           projectIds: jobData.projectIds,
           areaIds: jobData.areaIds,
           questionText: jobData.questionText,
-          context: analysisSession.savedContext,
+          context: jobData.context ?? analysisSession.savedContext,
+          groundedContext: jobData.groundedContext,
           step,
           planSummary: jobData.plan.summary,
         }),
+        groundedContext: jobData.groundedContext,
       });
 
       const nextProcessedCount =

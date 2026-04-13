@@ -10,6 +10,10 @@ import type {
   OntologyVersion,
   OntologyVersionStatus,
 } from '@/domain/ontology/models';
+import type {
+  CreateToolCapabilityBindingInput,
+  ToolCapabilityBinding,
+} from '@/domain/ontology/tool-binding';
 
 export type CreateOntologyVersionInput = {
   id: string;
@@ -186,4 +190,13 @@ export type OntologyEvidenceTypeDefinitionStore = {
     ontologyVersionId: string,
     businessKey: string,
   ): Promise<OntologyEvidenceTypeDefinition | null>;
+};
+
+export type OntologyToolCapabilityBindingStore = {
+  bulkCreate(
+    items: CreateToolCapabilityBindingInput[],
+  ): Promise<ToolCapabilityBinding[]>;
+  findByVersionId(
+    ontologyVersionId: string,
+  ): Promise<ToolCapabilityBinding[]>;
 };

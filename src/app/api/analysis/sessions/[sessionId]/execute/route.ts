@@ -4,11 +4,13 @@ import { randomUUID } from 'node:crypto';
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionSubmissionUseCases } from '@/application/analysis-execution/submission-use-cases';
 import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
+import { buildGroundedPlanningArtifacts } from '@/application/ontology/grounded-planning';
 import { InvalidAnalysisExecutionPlanError } from '@/domain/analysis-execution/models';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
+import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { auditUseCases } from '@/infrastructure/audit';
@@ -25,6 +27,7 @@ const analysisSessionUseCases = createAnalysisSessionUseCases({
 const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
   followUpStore: createPostgresAnalysisSessionFollowUpStore(),
 });
+const ontologyRuntimeServices = createOntologyRuntimeServices();
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);
@@ -162,13 +165,33 @@ export async function POST(request: Request, { params }: RouteContext) {
         ],
       }
     : candidateFactorReadModel;
-  const plan =
-    followUp?.currentPlanSnapshot ??
-    analysisPlanningUseCases.buildPlan({
+  let groundedArtifacts;
+
+  try {
+    groundedArtifacts = await buildGroundedPlanningArtifacts({
+      sessionId: analysisSession.id,
+      ownerUserId: authSession.userId,
       intentType: intent?.type ?? 'general-analysis',
       contextReadModel: executionContextReadModel,
       candidateFactorReadModel: mergedCandidateFactorReadModel,
+      groundingUseCases: ontologyRuntimeServices.groundingUseCases,
+      groundedContextStore: ontologyRuntimeServices.groundedContextStore,
+      analysisPlanningUseCases,
     });
+  } catch (error) {
+    const url = buildSessionUrl(request, sessionId);
+    url.searchParams.set(
+      'executionError',
+      error instanceof Error ? error.message : '治理化上下文生成失败。',
+    );
+    if (followUp) {
+      url.searchParams.set('followUpId', followUp.id);
+    }
+
+    return NextResponse.redirect(url, {
+      status: 303,
+    });
+  }
 
   try {
     const executionId = randomUUID();
@@ -184,9 +207,11 @@ export async function POST(request: Request, { params }: RouteContext) {
       return await submissionUseCases.submitExecution({
         session: analysisSession,
         executionId,
-        plan,
+        plan: groundedArtifacts.planSnapshot,
         followUpId: followUp?.id ?? null,
         questionText: executionQuestionText,
+        context: executionContextReadModel.context,
+        groundedContext: groundedArtifacts.groundedContext,
       });
     });
 

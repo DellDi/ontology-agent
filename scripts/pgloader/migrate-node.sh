@@ -3,7 +3,7 @@ set -euo pipefail
 
 # 纯 Node.js 迁移方案 - 绕过 pgloader 的 macOS ARM Bug
 
-MYSQL_URL="${MYSQL_URL:-mysql://77196957-6017-4cf7-9f43-a6de003be095:MQ8bVLK6y8IuLBec@jms.new-see.com:33061/newsee-datacenter}"
+MYSQL_URL="${MYSQL_URL:-mysql://57b66018-8aa5-421c-811f-b41e03bd5a97:WXFJ6aSRXo4Fq14N@jms.new-see.com:33061/newsee-datacenter}"
 DATABASE_URL="${DATABASE_URL:-postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent}"
 
 PROJECTION_DB="${PROJECTION_DB:-newsee_datacenter_pgloader_debug_check}"

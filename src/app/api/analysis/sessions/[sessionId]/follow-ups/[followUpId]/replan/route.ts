@@ -8,11 +8,13 @@ import {
   InvalidAnalysisFollowUpReplanError,
 } from '@/application/follow-up/use-cases';
 import { createFactorExpansionUseCases } from '@/application/factor-expansion/use-cases';
+import { buildGroundedPlanningArtifacts } from '@/application/ontology/grounded-planning';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { graphUseCases } from '@/infrastructure/neo4j';
+import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 type RouteContext = {
@@ -33,6 +35,7 @@ const analysisPlanningUseCases = createAnalysisPlanningUseCases();
 const factorExpansionUseCases = createFactorExpansionUseCases({
   graphUseCases,
 });
+const ontologyRuntimeServices = createOntologyRuntimeServices();
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);
@@ -123,20 +126,42 @@ export async function POST(request: Request, { params }: RouteContext) {
       (factor) => !manualFactorLabels.has(factor.label),
     ),
   ];
-  const nextPlanSnapshot = analysisPlanningUseCases.buildPlan({
-    intentType: intent?.type ?? 'general-analysis',
-    contextReadModel: {
+  const followUpContextReadModel = {
+    sessionId: analysisSession.id,
+    version: 0,
+    context: followUp.mergedContext,
+    canUndo: false,
+    originalQuestionText: followUp.questionText,
+  };
+  let groundedArtifacts;
+
+  try {
+    groundedArtifacts = await buildGroundedPlanningArtifacts({
       sessionId: analysisSession.id,
-      version: 0,
-      context: followUp.mergedContext,
-      canUndo: false,
-      originalQuestionText: followUp.questionText,
-    },
-    candidateFactorReadModel: {
-      ...candidateFactorReadModel,
-      factors: dedupedFactors,
-    },
-  });
+      ownerUserId: authSession.userId,
+      intentType: intent?.type ?? 'general-analysis',
+      contextReadModel: followUpContextReadModel,
+      candidateFactorReadModel: {
+        ...candidateFactorReadModel,
+        factors: dedupedFactors,
+      },
+      groundingUseCases: ontologyRuntimeServices.groundingUseCases,
+      groundedContextStore: ontologyRuntimeServices.groundedContextStore,
+      analysisPlanningUseCases,
+    });
+  } catch (error) {
+    const url = buildSessionUrl(request, sessionId);
+    url.searchParams.set('followUpId', followUp.id);
+    url.searchParams.set(
+      'followUpReplanError',
+      error instanceof Error ? error.message : '治理化重规划失败，请稍后重试。',
+    );
+
+    return NextResponse.redirect(url, {
+      status: 303,
+    });
+  }
+
   const reusableCompletedStepIds = [
     ...(baseSnapshot?.stepResults ?? []),
   ]
@@ -151,10 +176,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     const updatedFollowUp = await analysisFollowUpUseCases.updateFollowUpPlan({
       followUp,
       previousPlanSnapshot,
-      nextPlanSnapshot,
+      nextPlanSnapshot: groundedArtifacts.planSnapshot,
       planDiff: analysisPlanningUseCases.buildPlanVersionDiff({
         previousPlanSnapshot,
-        nextPlanSnapshot,
+        nextPlanSnapshot: groundedArtifacts.planSnapshot,
         reusableCompletedStepIds,
         reason: replanReason,
       }),

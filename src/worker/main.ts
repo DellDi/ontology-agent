@@ -1,3 +1,8 @@
+import { loadEnvConfig } from '@next/env';
+
+// 加载 .env 文件（worker 独立运行时需要）
+loadEnvConfig(process.cwd());
+
 import { createRedisClient } from '@/infrastructure/redis/client';
 import { createRedisJobQueue } from '@/infrastructure/job/redis-job-queue';
 import { createJobUseCases } from '@/application/job/use-cases';
