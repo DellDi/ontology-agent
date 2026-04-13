@@ -139,23 +139,19 @@ export function createAnalysisPlanningUseCases() {
     buildPlanFromGroundedContext({
       intentType,
       groundedContext,
-      contextReadModel,
       candidateFactorReadModel,
     }: {
       intentType: AnalysisIntentType;
       groundedContext: OntologyGroundedContext;
-      contextReadModel: AnalysisContextReadModel;
       candidateFactorReadModel: CandidateFactorReadModel;
     }): AnalysisPlanReadModel & {
       _groundedSource: string;
       _groundingStatus: OntologyGroundedContext['groundingStatus'];
     } {
-      const plan = buildAnalysisPlanFromGroundedContext({
+      const plan = this.buildPlanSnapshotFromGroundedContext({
         intentType,
         groundedContext,
-        legacyContext: contextReadModel.context,
-        candidateFactors: candidateFactorReadModel.factors,
-        shouldExpandFactors: candidateFactorReadModel.mode === 'expand',
+        candidateFactorReadModel,
       });
 
       const readModel = buildPlanReadModelFromSnapshot(plan);
@@ -165,6 +161,25 @@ export function createAnalysisPlanningUseCases() {
         _groundedSource: plan._groundedSource,
         _groundingStatus: plan._groundingStatus,
       };
+    },
+
+    buildPlanSnapshotFromGroundedContext({
+      intentType,
+      groundedContext,
+      candidateFactorReadModel,
+    }: {
+      intentType: AnalysisIntentType;
+      groundedContext: OntologyGroundedContext;
+      candidateFactorReadModel: CandidateFactorReadModel;
+    }): AnalysisExecutionPlanSnapshot & {
+      _groundedSource: string;
+      _groundingStatus: OntologyGroundedContext['groundingStatus'];
+    } {
+      return buildAnalysisPlanFromGroundedContext({
+        intentType,
+        groundedContext,
+        shouldExpandFactors: candidateFactorReadModel.mode === 'expand',
+      });
     },
   };
 }

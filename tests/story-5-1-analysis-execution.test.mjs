@@ -150,6 +150,105 @@ async function createSession(cookie, questionText) {
   return location.split('/').pop();
 }
 
+async function seedApprovedOntologyRuntime({
+  versionId = `story-5-1-grounding-${crypto.randomUUID()}`,
+} = {}) {
+  return await runTsSnippet(`
+    import postgresClientModule from './src/infrastructure/postgres/client.ts';
+    import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
+    import entityStoreModule from './src/infrastructure/ontology/postgres-ontology-entity-definition-store.ts';
+    import metricStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-definition-store.ts';
+    import factorStoreModule from './src/infrastructure/ontology/postgres-ontology-factor-definition-store.ts';
+    import timeStoreModule from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
+
+    const { createPostgresDb } = postgresClientModule;
+    const { createPostgresOntologyVersionStore } = versionStoreModule;
+    const { createPostgresOntologyEntityDefinitionStore } = entityStoreModule;
+    const { createPostgresOntologyMetricDefinitionStore } = metricStoreModule;
+    const { createPostgresOntologyFactorDefinitionStore } = factorStoreModule;
+    const { createPostgresOntologyTimeSemanticStore } = timeStoreModule;
+
+    const now = new Date().toISOString();
+    const { db, pool } = createPostgresDb();
+    const versionStore = createPostgresOntologyVersionStore(db);
+    const entityStore = createPostgresOntologyEntityDefinitionStore(db);
+    const metricStore = createPostgresOntologyMetricDefinitionStore(db);
+    const factorStore = createPostgresOntologyFactorDefinitionStore(db);
+    const timeSemanticStore = createPostgresOntologyTimeSemanticStore(db);
+
+    await versionStore.create({
+      id: ${JSON.stringify(versionId)},
+      semver: '99.5.1-grounding-test',
+      displayName: 'Story 5.1 Grounding Runtime',
+      description: 'execute grounding test',
+      createdBy: 'story-5-1-test',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await versionStore.updateStatus(${JSON.stringify(versionId)}, 'approved', now, { publishedAt: now });
+
+    await entityStore.bulkCreate([{
+      id: 'entity-project-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'project',
+      displayName: '项目',
+      description: null,
+      status: 'approved',
+      synonyms: ['moon项目', 'moon', '小区'],
+      parentBusinessKey: null,
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+    await metricStore.bulkCreate([{
+      id: 'metric-collection-rate-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'collection-rate',
+      displayName: '收缴率',
+      description: null,
+      status: 'approved',
+      applicableSubjectKeys: ['project'],
+      defaultAggregation: 'ratio',
+      unit: '%',
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+    await factorStore.bulkCreate([{
+      id: 'factor-fee-policy-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'fee-policy-reach',
+      displayName: '收费政策触达',
+      description: null,
+      status: 'approved',
+      category: '收费结构',
+      relatedMetricKeys: ['collection-rate'],
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+    await timeSemanticStore.bulkCreate([{
+      id: 'time-month-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'payment-date',
+      displayName: '本月',
+      description: null,
+      status: 'approved',
+      semanticType: 'transaction-date',
+      entityDateFieldMapping: {},
+      cubeTimeDimensionMapping: {},
+      calculationRule: null,
+      defaultGranularity: 'month',
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+
+    await pool.end();
+    console.log(JSON.stringify({ versionId: ${JSON.stringify(versionId)} }));
+  `);
+}
+
 test.before(async () => {
   port = await getAvailablePort();
   baseUrl = `http://127.0.0.1:${port}`;
@@ -205,6 +304,7 @@ test.after(async () => {
 });
 
 test('会话页在存在计划时提供开始执行分析入口', async () => {
+  await seedApprovedOntologyRuntime();
   const cookie = await login();
   const sessionId = await createSession(
     cookie,
@@ -225,13 +325,14 @@ test('会话页在存在计划时提供开始执行分析入口', async () => {
 });
 
 test('提交执行后会创建 execution record，并把用户带回会话页展示当前状态', async () => {
+  await seedApprovedOntologyRuntime();
   const cookie = await login({
     employeeId: 'exec-u-owner',
     displayName: '执行拥有者',
   });
   const sessionId = await createSession(
     cookie,
-    '为什么本月项目 moon 的收费回款率下降了？',
+    '为什么本月项目 moon 的收缴率下降了？',
   );
 
   const response = await fetch(
@@ -300,6 +401,77 @@ test('提交执行后会创建 execution record，并把用户带回会话页展
     executionRecord.data.plan.steps.map((step) => step.order),
     executionRecord.data.plan.steps.map((_, index) => index + 1),
   );
+});
+
+test('execute 主链会把 grounded plan 与 grounded context 一起提交到后台任务', async () => {
+  await seedApprovedOntologyRuntime();
+  const cookie = await login({
+    employeeId: 'exec-u-grounded',
+    displayName: 'Grounded Execute Owner',
+  });
+  const sessionId = await createSession(
+    cookie,
+    '为什么本月 moon项目 的收缴率下降了？',
+  );
+
+  const response = await fetch(
+    `${baseUrl}/api/analysis/sessions/${sessionId}/execute`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(response.status, 303);
+  const location = response.headers.get('location') ?? '';
+  const executionId = new URL(location).searchParams.get('executionId');
+  assert.ok(executionId, '重定向地址应包含 executionId');
+
+  const result = await runTsSnippet(`
+    import jobQueueModule from './src/infrastructure/job/redis-job-queue.ts';
+    import jobUseCasesModule from './src/application/job/use-cases.ts';
+    import redisClientModule from './src/infrastructure/redis/client.ts';
+    import groundedContextStoreModule from './src/infrastructure/ontology/postgres-grounded-context-store.ts';
+
+    const { createRedisClient } = redisClientModule;
+    const { createRedisJobQueue } = jobQueueModule;
+    const { createJobUseCases } = jobUseCasesModule;
+    const { createPostgresGroundedContextStore } = groundedContextStoreModule;
+
+    const { redis } = createRedisClient(${JSON.stringify(TEST_REDIS_URL)});
+    await redis.connect();
+
+    try {
+      const jobUseCases = createJobUseCases({
+        jobQueue: createRedisJobQueue(redis),
+      });
+      const job = await jobUseCases.getJob(${JSON.stringify(executionId)});
+      const groundedContext = await createPostgresGroundedContextStore().getLatest(${JSON.stringify(sessionId)});
+
+      console.log(JSON.stringify({
+        groundedSource: job?.data?.plan?._groundedSource ?? null,
+        groundingStatus: job?.data?.plan?._groundingStatus ?? null,
+        groundedContextVersion: job?.data?.groundedContext?.ontologyVersionId ?? null,
+        persistedGroundedContextVersion: groundedContext?.ontologyVersionId ?? null,
+        persistedGroundedStatus: groundedContext?.groundingStatus ?? null,
+      }));
+    } finally {
+      await redis.quit();
+    }
+  `);
+
+  assert.ok(result.groundedSource, '提交到后台的 plan 必须带上 _groundedSource');
+  assert.equal(result.groundingStatus, 'success', '提交到后台的 plan 必须标记 grounding 成功');
+  assert.ok(result.groundedContextVersion, '后台任务数据必须携带 groundedContext');
+  assert.equal(
+    result.persistedGroundedContextVersion,
+    result.groundedContextVersion,
+    'grounded context 应同时持久化到 grounded context store',
+  );
+  assert.equal(result.persistedGroundedStatus, 'success');
 });
 
 test('其他用户不能为不属于自己的会话提交执行', async () => {

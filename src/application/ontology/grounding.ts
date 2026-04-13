@@ -28,13 +28,18 @@ import type {
   OntologyVersion,
 } from '@/domain/ontology/models';
 import { isActiveForRuntime } from '@/domain/ontology/models';
+import { buildDefaultToolCapabilityBindingSeeds } from '@/domain/ontology/tool-binding';
 
 import type {
+  OntologyCausalityEdgeStore,
   OntologyEntityDefinitionStore,
+  OntologyEvidenceTypeDefinitionStore,
   OntologyFactorDefinitionStore,
   OntologyMetricDefinitionStore,
   OntologyMetricVariantStore,
+  OntologyPlanStepTemplateStore,
   OntologyTimeSemanticStore,
+  OntologyToolCapabilityBindingStore,
   OntologyVersionStore,
 } from './ports';
 
@@ -49,6 +54,13 @@ export type OntologyGroundingDependencies = {
   factorStore: OntologyFactorDefinitionStore;
   metricVariantStore: OntologyMetricVariantStore;
   timeSemanticStore: OntologyTimeSemanticStore;
+};
+
+export type OntologyBootstrapDependencies = OntologyGroundingDependencies & {
+  planStepTemplateStore: OntologyPlanStepTemplateStore;
+  causalityEdgeStore: OntologyCausalityEdgeStore;
+  evidenceTypeStore: OntologyEvidenceTypeDefinitionStore;
+  toolCapabilityBindingStore: OntologyToolCapabilityBindingStore;
 };
 
 // ---------------------------------------------------------------------------
@@ -230,6 +242,50 @@ function matchTimeSemantic(
   return { status: 'failed', reason: `未能找到与 "${text}" 匹配的时间语义定义`, confidence: 0 };
 }
 
+function inferTimeSemanticFromMetricVariant(
+  text: string,
+  definitions: OntologyTimeSemantic[],
+  metricVariant: OntologyMetricVariant | null,
+): MatchResult<OntologyTimeSemantic> | null {
+  if (!text.trim()) {
+    return null;
+  }
+
+  const inferredBusinessKey = (() => {
+    if (!metricVariant) {
+      return null;
+    }
+
+    if (/tail-arrears/.test(metricVariant.businessKey)) {
+      return 'billing-cycle-end-date';
+    }
+
+    if (/paid-amount/.test(metricVariant.businessKey)) {
+      return 'payment-date';
+    }
+
+    return 'receivable-accounting-period';
+  })();
+
+  if (!inferredBusinessKey) {
+    return null;
+  }
+
+  const matched = definitions.find(
+    (definition) => definition.businessKey === inferredBusinessKey,
+  );
+
+  if (!matched) {
+    return null;
+  }
+
+  return {
+    status: 'success',
+    item: matched,
+    confidence: 0.85,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Use Cases
 // ---------------------------------------------------------------------------
@@ -351,7 +407,22 @@ export function createOntologyGroundingUseCases(
 
       // Ground time semantics (从 analysisContext.timeRange 提取)
       if (analysisContext.timeRange.value && analysisContext.timeRange.value !== '待补充时间范围') {
-        const match = matchTimeSemantic(analysisContext.timeRange.value, activeTimeSemantics, strategy);
+        const directMatch = matchTimeSemantic(
+          analysisContext.timeRange.value,
+          activeTimeSemantics,
+          strategy,
+        );
+        const inferredMatch =
+          directMatch.status === 'failed'
+            ? inferTimeSemanticFromMetricVariant(
+                analysisContext.timeRange.value,
+                activeTimeSemantics,
+                groundedMetrics.find(
+                  (metric) => metric.status === 'success' && metric.variant,
+                )?.variant ?? null,
+              )
+            : null;
+        const match = inferredMatch ?? directMatch;
         groundedTimeSemantics.push({
           status: match.status,
           originalText: analysisContext.timeRange.value,
@@ -372,10 +443,10 @@ export function createOntologyGroundingUseCases(
 
       if (failedCount > 0 && successCount === 0) {
         groundingStatus = 'failed';
-      } else if (failedCount > 0 && successCount > 0) {
-        groundingStatus = 'partial';
       } else if (ambiguousCount > 0) {
         groundingStatus = 'ambiguous';
+      } else if (failedCount > 0 && successCount > 0) {
+        groundingStatus = 'partial';
       }
 
       // 5. 构建 merged context 文本（保留原始自由文本）
@@ -413,8 +484,12 @@ export function createOntologyGroundingUseCases(
         diagnostics,
       };
 
-      // 7. 如 grounding 被阻断（ambiguous 或完全 failed），抛出错误供上层处理
-      if (isGroundingBlocked(groundedContext) && !strategy.allowFallbackToFreeText) {
+      // 7. 如 grounding 被阻断（ambiguous / partial / failed），抛出错误供上层处理
+      if (
+        (isGroundingBlocked(groundedContext) ||
+          groundedContext.groundingStatus === 'partial') &&
+        !strategy.allowFallbackToFreeText
+      ) {
         throw new OntologyGroundingError(
           `Ontology grounding ${groundingStatus}: 无法继续生成分析计划`,
           groundingStatus,
@@ -484,11 +559,12 @@ export type OntologyBootstrapResult = {
   timeSemanticsCreated: number;
   causalityEdgesCreated: number;
   evidenceTypesCreated: number;
+  toolBindingsCreated: number;
   skipped: boolean; // 如已存在同版本，则跳过
   message: string;
 };
 
-export function createOntologyBootstrapUseCases(deps: OntologyGroundingDependencies) {
+export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependencies) {
   return {
     /**
      * 幂等的 bootstrap 流程：确保 canonical definitions 被装载到 platform schema
@@ -537,6 +613,7 @@ export function createOntologyBootstrapUseCases(deps: OntologyGroundingDependenc
             timeSemanticsCreated: 0,
             causalityEdgesCreated: 0,
             evidenceTypesCreated: 0,
+            toolBindingsCreated: 0,
             skipped: true,
             message: `Ontology version ${requestedVersionId} (${requestedSemver}) 已存在且已发布/退役，跳过 bootstrap`,
           };
@@ -553,7 +630,7 @@ export function createOntologyBootstrapUseCases(deps: OntologyGroundingDependenc
         );
       }
 
-      // 2. 创建 ontology version（先创建为 draft，然后更新为 approved）
+      // 2. 创建 ontology version（先保持 draft，完整写入后再发布）
       let version = await deps.versionStore.create({
         id: requestedVersionId,
         semver: requestedSemver,
@@ -564,7 +641,31 @@ export function createOntologyBootstrapUseCases(deps: OntologyGroundingDependenc
         updatedAt: now,
       });
 
-      // 更新为 approved 状态
+      // 3. 批量写入 definitions
+      const [
+        entities,
+        metrics,
+        factors,
+        planStepTemplates,
+        metricVariants,
+        timeSemantics,
+        causalityEdges,
+        evidenceTypes,
+      ] = await Promise.all([
+        deps.entityStore.bulkCreate(seedDefinitions.entities),
+        deps.metricStore.bulkCreate(seedDefinitions.metrics),
+        deps.factorStore.bulkCreate(seedDefinitions.factors),
+        deps.planStepTemplateStore.bulkCreate(seedDefinitions.planStepTemplates),
+        deps.metricVariantStore.bulkCreate(seedDefinitions.metricVariants),
+        deps.timeSemanticStore.bulkCreate(seedDefinitions.timeSemantics),
+        deps.causalityEdgeStore.bulkCreate(seedDefinitions.causalityEdges),
+        deps.evidenceTypeStore.bulkCreate(seedDefinitions.evidenceTypes),
+      ]);
+
+      const toolBindings = await deps.toolCapabilityBindingStore.bulkCreate(
+        buildDefaultToolCapabilityBindingSeeds(version.id, now, createdBy),
+      );
+
       version = await deps.versionStore.updateStatus(
         version.id,
         'approved',
@@ -572,28 +673,17 @@ export function createOntologyBootstrapUseCases(deps: OntologyGroundingDependenc
         { publishedAt: now, deprecatedAt: null, retiredAt: null },
       );
 
-      // 3. 批量写入 definitions
-      const [entities, metrics, factors, metricVariants, timeSemantics] = await Promise.all([
-        deps.entityStore.bulkCreate(seedDefinitions.entities),
-        deps.metricStore.bulkCreate(seedDefinitions.metrics),
-        deps.factorStore.bulkCreate(seedDefinitions.factors),
-        deps.metricVariantStore.bulkCreate(seedDefinitions.metricVariants),
-        deps.timeSemanticStore.bulkCreate(seedDefinitions.timeSemantics),
-      ]);
-
-      // 注意：planStepTemplates, causalityEdges, evidenceTypes 需要额外的 stores
-      // 这里简化处理，假设它们已在 seed 中定义但可能需要后续补充
-
       return {
         version,
         entitiesCreated: entities.length,
         metricsCreated: metrics.length,
         factorsCreated: factors.length,
-        planStepTemplatesCreated: 0, // 需补充 store
+        planStepTemplatesCreated: planStepTemplates.length,
         metricVariantsCreated: metricVariants.length,
         timeSemanticsCreated: timeSemantics.length,
-        causalityEdgesCreated: 0, // 需补充 store
-        evidenceTypesCreated: 0, // 需补充 store
+        causalityEdgesCreated: causalityEdges.length,
+        evidenceTypesCreated: evidenceTypes.length,
+        toolBindingsCreated: toolBindings.length,
         skipped: false,
         message: `成功 bootstrap Ontology version ${requestedVersionId} (${requestedSemver})`,
       };
@@ -645,6 +735,3 @@ export function createOntologyBootstrapUseCases(deps: OntologyGroundingDependenc
     },
   };
 }
-
-// 补充导入
-import type { OntologyCausalityEdgeStore, OntologyPlanStepTemplateStore, OntologyEvidenceTypeDefinitionStore } from './ports';

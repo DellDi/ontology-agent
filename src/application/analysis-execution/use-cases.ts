@@ -1,4 +1,6 @@
 import type { AnalysisAiTaskContext } from '@/domain/analysis-ai/models';
+import type { AnalysisIntentType } from '@/domain/analysis-intent/models';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 import type {
   AnalysisToolInvocationContext,
   AnalysisToolInvocationResult,
@@ -44,6 +46,17 @@ type ToolSelectionAiUseCases = {
 type AnalysisExecutionDependencies = {
   toolRegistryUseCases: ToolRegistryUseCases;
   analysisAiUseCases: ToolSelectionAiUseCases;
+  ontologyToolBindingUseCases?: {
+    selectToolsForStep: (input: {
+      stepId: string;
+      availableToolNames: AnalysisToolName[];
+      groundedContext?: OntologyGroundedContext;
+      intentType?: AnalysisIntentType;
+      questionText?: string;
+      stepTitle?: string;
+      stepObjective?: string;
+    }) => Promise<OrchestrationStepSelection | null>;
+  };
 };
 
 const STEP_TOOL_FALLBACKS: Record<string, AnalysisToolName[]> = {
@@ -163,6 +176,7 @@ function buildConclusionSummaryToolInput(
 export function createAnalysisExecutionUseCases({
   toolRegistryUseCases,
   analysisAiUseCases,
+  ontologyToolBindingUseCases,
 }: AnalysisExecutionDependencies) {
   return {
     async selectToolsForStep({
@@ -172,6 +186,8 @@ export function createAnalysisExecutionUseCases({
       questionText,
       planSummary,
       context,
+      groundedContext,
+      intentType,
     }: {
       stepId: string;
       stepTitle?: string;
@@ -179,6 +195,8 @@ export function createAnalysisExecutionUseCases({
       questionText: string;
       planSummary?: string;
       context: AnalysisAiTaskContext;
+      groundedContext?: OntologyGroundedContext;
+      intentType?: AnalysisIntentType;
     }): Promise<OrchestrationStepSelection> {
       const toolDefinitions = toolRegistryUseCases.listToolDefinitions();
       const readyToolNames = new Set(
@@ -189,6 +207,20 @@ export function createAnalysisExecutionUseCases({
       const registeredToolNames = new Set(
         toolDefinitions.map((tool) => tool.name),
       );
+
+      const ontologySelection = await ontologyToolBindingUseCases?.selectToolsForStep({
+        stepId,
+        availableToolNames: [...registeredToolNames],
+        groundedContext,
+        intentType,
+        questionText,
+        stepTitle,
+        stepObjective,
+      });
+
+      if (ontologySelection && ontologySelection.tools.length > 0) {
+        return ontologySelection;
+      }
 
       const toolSelection = await (async () => {
         try {
@@ -233,13 +265,15 @@ export function createAnalysisExecutionUseCases({
       );
 
       return {
-        strategy: fallbackTools.some(
-          (tool) =>
-            tool.toolName === 'platform.capability-status' &&
-            !readyToolNames.has(tool.toolName),
-        )
-          ? '结构化工具选择未命中，回退到平台能力检查降级路径。'
-          : '结构化工具选择未命中，回退到步骤级保守映射。',
+        strategy: ontologySelection
+          ? 'ontology binding 未命中可用工具，temporary mitigation: 回退到既有步骤级选择路径。'
+          : fallbackTools.some(
+                (tool) =>
+                  tool.toolName === 'platform.capability-status' &&
+                  !readyToolNames.has(tool.toolName),
+              )
+            ? '结构化工具选择未命中，回退到平台能力检查降级路径。'
+            : '结构化工具选择未命中，回退到步骤级保守映射。',
         tools: fallbackTools,
       };
     },
@@ -253,6 +287,8 @@ export function createAnalysisExecutionUseCases({
       selectionContext,
       invocationContext,
       toolInputsByName,
+      groundedContext,
+      intentType,
     }: {
       stepId: string;
       stepTitle?: string;
@@ -262,6 +298,8 @@ export function createAnalysisExecutionUseCases({
       selectionContext: AnalysisAiTaskContext;
       invocationContext: AnalysisToolInvocationContext;
       toolInputsByName: Partial<Record<AnalysisToolName, unknown>>;
+      groundedContext?: OntologyGroundedContext;
+      intentType?: AnalysisIntentType;
     }): Promise<OrchestrationStepExecutionResult> {
       const selection = await this.selectToolsForStep({
         stepId,
@@ -270,6 +308,8 @@ export function createAnalysisExecutionUseCases({
         questionText,
         planSummary,
         context: selectionContext,
+        groundedContext,
+        intentType,
       });
 
       const events: AnalysisToolInvocationResult[] = [];

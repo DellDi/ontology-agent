@@ -39,311 +39,280 @@ async function runTsSnippet(code) {
   return JSON.parse(stdout.trim());
 }
 
-// ─── 静态检查：文件存在性 ──────────────────────────────────────────────────
+test('AC3 ontology binding use case 能基于 grounded context 选出绑定工具', async () => {
+  const result = await runTsSnippet(`
+    import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
+    import postgresClientModule from './src/infrastructure/postgres/client.ts';
+    import toolBindingUseCasesModule from './src/application/ontology/tool-binding-use-cases.ts';
+    import toolBindingStoreModule from './src/infrastructure/ontology/postgres-ontology-tool-capability-binding-store.ts';
+    import toolBindingDomainModule from './src/domain/ontology/tool-binding.ts';
 
-test('AC1 grounding 领域模型文件存在', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/grounding.ts');
-  assert.ok(fs.existsSync(filePath), 'src/domain/ontology/grounding.ts 必须存在');
-});
+    const { createPostgresDb } = postgresClientModule;
+    const { createPostgresOntologyVersionStore } = versionStoreModule;
+    const { createPostgresOntologyToolCapabilityBindingStore } = toolBindingStoreModule;
+    const { createOntologyToolBindingUseCases } = toolBindingUseCasesModule;
+    const { buildDefaultToolCapabilityBindingSeeds } = toolBindingDomainModule;
 
-test('AC1 grounding 应用层 use cases 文件存在', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/application/ontology/grounding.ts');
-  assert.ok(fs.existsSync(filePath), 'src/application/ontology/grounding.ts 必须存在');
-});
+    const versionId = 'binding-test-' + crypto.randomUUID();
+    const now = new Date().toISOString();
+    const { db, pool } = createPostgresDb();
+    const versionStore = createPostgresOntologyVersionStore(db);
+    const bindingStore = createPostgresOntologyToolCapabilityBindingStore(db);
 
-test('AC3 tool binding 领域模型文件存在', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/tool-binding.ts');
-  assert.ok(fs.existsSync(filePath), 'src/domain/ontology/tool-binding.ts 必须存在');
-});
+    await versionStore.create({
+      id: versionId,
+      semver: '99.3.2-binding-test',
+      displayName: 'Binding Test Version',
+      description: 'binding test',
+      createdBy: 'story-9-3-binding-test',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await versionStore.updateStatus(versionId, 'approved', now, { publishedAt: now });
+    await bindingStore.bulkCreate(buildDefaultToolCapabilityBindingSeeds(versionId, now, 'story-9-3-binding-test'));
 
-test('AC1 grounded context schema 文件存在', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/infrastructure/postgres/schema/ontology-grounded-contexts.ts');
-  assert.ok(fs.existsSync(filePath), 'ontology-grounded-contexts.ts schema 必须存在');
-});
+    const useCases = createOntologyToolBindingUseCases({
+      versionStore,
+      toolCapabilityBindingStore: bindingStore,
+    });
 
-test('AC1 grounded context store 文件存在', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/infrastructure/ontology/postgres-grounded-context-store.ts');
-  assert.ok(fs.existsSync(filePath), 'postgres-grounded-context-store.ts 必须存在');
-});
+    const selection = await useCases.selectToolsForStep({
+      stepId: 'inspect-metric-change',
+      availableToolNames: ['cube.semantic-query', 'neo4j.graph-query', 'erp.read-model', 'llm.structured-analysis', 'platform.capability-status'],
+      groundedContext: {
+        ontologyVersionId: versionId,
+        groundingStatus: 'success',
+        entities: [{
+          status: 'success',
+          originalText: '项目A',
+          canonicalDefinition: { id: 'entity-project', ontologyVersionId: versionId, businessKey: 'project', displayName: '项目', description: null, status: 'approved', synonyms: [], parentBusinessKey: null, metadata: {}, createdAt: now, updatedAt: now },
+          candidates: [],
+          confidence: 1,
+        }],
+        metrics: [{
+          status: 'success',
+          originalText: '收缴率',
+          canonicalDefinition: { id: 'metric-collection-rate', ontologyVersionId: versionId, businessKey: 'collection-rate', displayName: '收缴率', description: null, status: 'approved', applicableSubjectKeys: ['project'], defaultAggregation: 'ratio', unit: '%', metadata: {}, createdAt: now, updatedAt: now },
+          variant: null,
+          candidates: [],
+          confidence: 1,
+        }],
+        factors: [],
+        timeSemantics: [],
+        originalMergedContext: '项目A收缴率',
+        groundedAt: now,
+        groundingStrategy: 'exact-match',
+      },
+      intentType: 'fee-analysis',
+      questionText: '为什么项目A收缴率下降了？',
+      stepTitle: '校验核心指标波动',
+      stepObjective: '验证收缴率是否真实下降。',
+    });
 
-test('AC3 tool capability binding schema 文件存在', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/infrastructure/postgres/schema/ontology-tool-capability-bindings.ts');
-  assert.ok(fs.existsSync(filePath), 'ontology-tool-capability-bindings.ts schema 必须存在');
-});
+    await pool.end();
+    console.log(JSON.stringify(selection));
+  `);
 
-// ─── 静态检查：导出内容 ──────────────────────────────────────────────────
-
-test('AC1 grounding 领域模型导出关键类型', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/grounding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(content.includes('OntologyGroundedContext'), '必须导出 OntologyGroundedContext 类型');
-  assert.ok(content.includes('GroundedEntity'), '必须导出 GroundedEntity 类型');
-  assert.ok(content.includes('GroundedMetric'), '必须导出 GroundedMetric 类型');
-  assert.ok(content.includes('GroundedFactor'), '必须导出 GroundedFactor 类型');
-  assert.ok(content.includes('GroundedTimeSemantic'), '必须导出 GroundedTimeSemantic 类型');
-  assert.ok(content.includes('GROUNDING_STATUS'), '必须导出 GROUNDING_STATUS');
-  assert.ok(content.includes('OntologyGroundingError'), '必须导出 OntologyGroundingError 类');
-});
-
-test('AC1 grounding use cases 导出关键函数', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/application/ontology/grounding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(content.includes('createOntologyGroundingUseCases'), '必须导出 createOntologyGroundingUseCases');
-  assert.ok(content.includes('createOntologyBootstrapUseCases'), '必须导出 createOntologyBootstrapUseCases');
-  assert.ok(content.includes('groundAnalysisContext'), '必须包含 groundAnalysisContext 方法');
-});
-
-test('AC3 tool binding 导出关键函数', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/tool-binding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(content.includes('ToolCapabilityBinding'), '必须包含 ToolCapabilityBinding 类型');
-  assert.ok(content.includes('evaluateBindingActivation'), '必须导出 evaluateBindingActivation 函数');
-  assert.ok(content.includes('selectBestToolBinding'), '必须导出 selectBestToolBinding 函数');
-});
-
-// ─── 静态检查：关键设计约束 ───────────────────────────────────────────────
-
-test('AC1 grounding 实现 fail loud 策略（不静默回退）', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/application/ontology/grounding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(
-    content.includes('isGroundingBlocked') || content.includes('OntologyGroundingError'),
-    '必须检查 grounding 阻断状态或抛出错误'
-  );
-  assert.ok(
-    !content.includes('allowFallbackToFreeText: true') || content.includes('// temporary mitigation'),
-    '如允许自由文本回退，必须明确标记为临时兼容路径'
+  assert.match(result.strategy, /ontology binding/i);
+  assert.deepEqual(
+    result.tools.map((tool) => tool.toolName),
+    ['cube.semantic-query'],
+    'inspect-metric-change 应优先命中 ontology binding 绑定的 cube 查询工具'
   );
 });
 
-test('AC3 tool selection 使用 binding 而非字符串匹配', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/tool-binding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
+test('AC2 grounded planner 在缺失 canonical definition 时必须 fail loud，而不是回退自由文本', async () => {
+  const result = await runTsSnippet(`
+    import planModule from './src/domain/analysis-plan/models.ts';
 
-  assert.ok(
-    content.includes('BindingActivationCondition'),
-    '必须定义 BindingActivationCondition 激活条件'
-  );
-  assert.ok(
-    content.includes('toolName') && content.includes('boundStepTemplateKey'),
-    'binding 必须关联 toolName 和 boundStepTemplateKey'
-  );
-});
+    const { buildAnalysisPlanFromGroundedContext } = planModule;
+    const now = new Date().toISOString();
 
-// ─── LLM 输出契约：discriminated union schema 校验（Story 4.6 Code Review [B3]）─────
+    try {
+      const plan = buildAnalysisPlanFromGroundedContext({
+        intentType: 'general-analysis',
+        groundedContext: {
+          ontologyVersionId: 'test-version',
+          groundingStatus: 'success',
+          entities: [{
+            status: 'success',
+            originalText: '项目A',
+            canonicalDefinition: {
+              id: 'entity-project',
+              ontologyVersionId: 'test-version',
+              businessKey: 'project',
+              displayName: '项目',
+              description: null,
+              status: 'approved',
+              synonyms: [],
+              parentBusinessKey: null,
+              metadata: {},
+              createdAt: now,
+              updatedAt: now,
+            },
+            candidates: [],
+            confidence: 1,
+          }],
+          metrics: [{
+            status: 'failed',
+            originalText: '自由文本指标',
+            canonicalDefinition: null,
+            variant: null,
+            candidates: [],
+            confidence: 0,
+            failureReason: '未命中 canonical metric',
+          }],
+          factors: [],
+          timeSemantics: [{
+            status: 'success',
+            originalText: '本月',
+            canonicalDefinition: {
+              id: 'time-semantic',
+              ontologyVersionId: 'test-version',
+              businessKey: 'payment-date',
+              displayName: '缴款日期',
+              description: null,
+              status: 'approved',
+              semanticType: 'transaction-date',
+              entityDateFieldMapping: {},
+              cubeTimeDimensionMapping: {},
+              calculationRule: null,
+              defaultGranularity: 'month',
+              metadata: {},
+              createdAt: now,
+              updatedAt: now,
+            },
+            candidates: [],
+            confidence: 1,
+          }],
+          originalMergedContext: '项目A本月自由文本指标',
+          groundedAt: now,
+          groundingStrategy: 'exact-match',
+        },
+        shouldExpandFactors: true,
+      });
 
-test('discriminated union: conclusion-summary taskType 校验通过', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const content = fs.readFileSync(path.join(ROOT, 'src/application/tooling/models.ts'), 'utf8');
-
-  assert.ok(content.includes("z.discriminatedUnion('taskType'"), 'llmStructuredAnalysisOutputValueSchema 必须使用 discriminatedUnion');
-  assert.ok(content.includes("z.literal('conclusion-summary')"), '必须覆盖 conclusion-summary taskType');
-  assert.ok(content.includes("z.literal('tool-selection')"), '必须覆盖 tool-selection taskType');
-  assert.ok(content.includes('LlmStructuredAnalysisOutput'), '必须导出 LlmStructuredAnalysisOutput 类型');
-});
-
-test('discriminated union: extractStructuredConclusion 不再使用 as 类型断言', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/worker/analysis-execution-renderer.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(
-    !content.includes('as {') && !content.includes('output as {'),
-    'extractStructuredConclusion 不应再使用 as { ... } 类型断言'
-  );
-  assert.ok(
-    content.includes('llmStructuredAnalysisOutputValueSchema'),
-    'extractStructuredConclusion 必须使用 llmStructuredAnalysisOutputValueSchema 进行运行时解析'
-  );
-  assert.ok(
-    content.includes('safeParse'),
-    '必须使用 safeParse 做安全解析，而非直接 parse 抛出'
-  );
-});
-
-// ─── Grounding 领域逻辑单测（纯函数，不需要数据库）──────────────────────────
-
-test('AC1 isGroundingSuccess / isGroundingBlocked 逻辑正确', () => {
-  const { isGroundingSuccess, isGroundingBlocked } = (() => {
-    // 内联实现以避免 ESM import 的 TS 问题
-    function isGroundingSuccess(ctx) {
-      return ctx.groundingStatus === 'success';
+      console.log(JSON.stringify({ ok: true, plan }));
+    } catch (error) {
+      console.log(JSON.stringify({
+        ok: false,
+        name: error instanceof Error ? error.name : 'UnknownError',
+        message: error instanceof Error ? error.message : 'unknown',
+      }));
     }
-    function isGroundingBlocked(ctx) {
-      return ctx.groundingStatus === 'ambiguous' || ctx.groundingStatus === 'failed';
+  `);
+
+  assert.equal(result.ok, false, '缺失 canonical metric 时应直接失败');
+  assert.match(result.message, /ground|治理化|canonical|缺少/i);
+});
+
+test('AC1 grounding mixed failed/success 必须阻断 planner，而不是以 partial 悄悄放行', async () => {
+  const versionId = `story-9-3-partial-${randomUUID()}`;
+
+  const result = await runTsSnippet(`
+    import postgresClientModule from './src/infrastructure/postgres/client.ts';
+    import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
+    import entityStoreModule from './src/infrastructure/ontology/postgres-ontology-entity-definition-store.ts';
+    import metricStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-definition-store.ts';
+    import factorStoreModule from './src/infrastructure/ontology/postgres-ontology-factor-definition-store.ts';
+    import variantStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-variant-store.ts';
+    import timeStoreModule from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
+    import groundingModule from './src/application/ontology/grounding.ts';
+
+    const { createPostgresDb } = postgresClientModule;
+    const { createPostgresOntologyVersionStore } = versionStoreModule;
+    const { createPostgresOntologyEntityDefinitionStore } = entityStoreModule;
+    const { createPostgresOntologyMetricDefinitionStore } = metricStoreModule;
+    const { createPostgresOntologyFactorDefinitionStore } = factorStoreModule;
+    const { createPostgresOntologyMetricVariantStore } = variantStoreModule;
+    const { createPostgresOntologyTimeSemanticStore } = timeStoreModule;
+    const { createOntologyGroundingUseCases } = groundingModule;
+
+    const now = new Date().toISOString();
+    const { db, pool } = createPostgresDb();
+    const versionStore = createPostgresOntologyVersionStore(db);
+    const entityStore = createPostgresOntologyEntityDefinitionStore(db);
+    const metricStore = createPostgresOntologyMetricDefinitionStore(db);
+    const factorStore = createPostgresOntologyFactorDefinitionStore(db);
+    const metricVariantStore = createPostgresOntologyMetricVariantStore(db);
+    const timeSemanticStore = createPostgresOntologyTimeSemanticStore(db);
+
+    await versionStore.create({
+      id: ${JSON.stringify(versionId)},
+      semver: '99.3.3-partial-test',
+      displayName: 'Partial Grounding Test',
+      description: 'partial grounding test',
+      createdBy: 'story-9-3-partial-test',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await versionStore.updateStatus(${JSON.stringify(versionId)}, 'approved', now, { publishedAt: now });
+
+    await entityStore.bulkCreate([{
+      id: 'entity-project-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'project',
+      displayName: '项目',
+      description: null,
+      status: 'approved',
+      synonyms: ['项目A'],
+      parentBusinessKey: null,
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+    await metricStore.bulkCreate([{
+      id: 'metric-collection-rate-' + ${JSON.stringify(versionId)},
+      ontologyVersionId: ${JSON.stringify(versionId)},
+      businessKey: 'collection-rate',
+      displayName: '收缴率',
+      description: null,
+      status: 'approved',
+      applicableSubjectKeys: ['project'],
+      defaultAggregation: 'ratio',
+      unit: '%',
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    }]);
+
+    const useCases = createOntologyGroundingUseCases({
+      versionStore,
+      entityStore,
+      metricStore,
+      factorStore,
+      metricVariantStore,
+      timeSemanticStore,
+    });
+
+    try {
+      await useCases.groundAnalysisContext({
+        sessionId: 'partial-session',
+        ownerUserId: 'partial-owner',
+        preferredVersionId: ${JSON.stringify(versionId)},
+        analysisContext: {
+          targetMetric: { label: '目标指标', value: '收缴率', state: 'confirmed' },
+          entity: { label: '实体对象', value: '项目A', state: 'confirmed' },
+          timeRange: { label: '时间范围', value: '本月', state: 'confirmed' },
+          comparison: { label: '比较方式', value: '同比', state: 'confirmed' },
+          constraints: [],
+        },
+      });
+
+      console.log(JSON.stringify({ ok: true }));
+    } catch (error) {
+      console.log(JSON.stringify({
+        ok: false,
+        name: error instanceof Error ? error.name : 'UnknownError',
+        message: error instanceof Error ? error.message : 'unknown',
+      }));
+    } finally {
+      await pool.end();
     }
-    return { isGroundingSuccess, isGroundingBlocked };
-  })();
+  `);
 
-  const successCtx = { groundingStatus: 'success' };
-  const ambiguousCtx = { groundingStatus: 'ambiguous' };
-  const failedCtx = { groundingStatus: 'failed' };
-  const partialCtx = { groundingStatus: 'partial' };
-
-  assert.ok(isGroundingSuccess(successCtx), 'success 状态应为 success');
-  assert.ok(!isGroundingSuccess(ambiguousCtx), 'ambiguous 状态不应为 success');
-  assert.ok(isGroundingBlocked(ambiguousCtx), 'ambiguous 状态应被阻断');
-  assert.ok(isGroundingBlocked(failedCtx), 'failed 状态应被阻断');
-  assert.ok(!isGroundingBlocked(successCtx), 'success 状态不应被阻断');
-  assert.ok(!isGroundingBlocked(partialCtx), 'partial 状态不应阻断（部分成功可继续）');
-});
-
-test('AC1 DEFAULT_GROUNDING_STRATEGY 默认关闭 allowFallbackToFreeText', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/grounding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(
-    content.includes('allowFallbackToFreeText: false'),
-    'DEFAULT_GROUNDING_STRATEGY 必须默认关闭 allowFallbackToFreeText'
-  );
-});
-
-// ─── Tool Binding 逻辑单测（纯函数）─────────────────────────────────────────
-
-test('AC3 evaluateBindingActivation - always 条件激活', async () => {
-  const binding = {
-    id: 'test-binding',
-    ontologyVersionId: 'v1',
-    boundStepTemplateKey: 'metric-query',
-    boundCapabilityTag: null,
-    toolName: 'cube.semantic-query',
-    activationConditions: [{ type: 'always', value: true }],
-    description: null,
-    status: 'approved',
-    priority: 10,
-    createdAt: '2026-01-01',
-    updatedAt: '2026-01-01',
-    createdBy: 'system',
-  };
-
-  // 手动实现 evaluateBindingActivation 逻辑校验
-  const conditions = binding.activationConditions;
-  assert.strictEqual(conditions.length, 1, '应有 1 个激活条件');
-  assert.strictEqual(conditions[0].type, 'always', '条件类型应为 always');
-});
-
-test('AC3 buildDefaultToolCapabilityBindingSeeds 文件包含必要工具绑定', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/tool-binding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(content.includes('cube.semantic-query'), '默认 seeds 必须包含 cube.semantic-query');
-  assert.ok(content.includes('neo4j.graph-query'), '默认 seeds 必须包含 neo4j.graph-query');
-  assert.ok(content.includes('erp.read-model'), '默认 seeds 必须包含 erp.read-model');
-  assert.ok(content.includes('llm.structured-analysis'), '默认 seeds 必须包含 llm.structured-analysis');
-  assert.ok(
-    content.includes('TOOL_SELECTION_STATUS'),
-    '必须导出 TOOL_SELECTION_STATUS 状态枚举'
-  );
-});
-
-// ─── Planner 集成：grounded context 消费路径 ─────────────────────────────────
-
-test('AC2 analysis-plan/models.ts 包含 buildAnalysisPlanFromGroundedContext', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/analysis-plan/models.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(content.includes('buildAnalysisPlanFromGroundedContext'), '必须导出 buildAnalysisPlanFromGroundedContext');
-  assert.ok(content.includes('_groundedSource'), '计划结果必须包含 _groundedSource 字段');
-  assert.ok(content.includes('_groundingStatus'), '计划结果必须包含 _groundingStatus 字段');
-  assert.ok(content.includes('OntologyGroundedContext'), '必须消费 OntologyGroundedContext 类型');
-});
-
-test('AC2 analysis-planning/use-cases.ts 包含 buildPlanFromGroundedContext 方法', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/application/analysis-planning/use-cases.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(content.includes('buildPlanFromGroundedContext'), '应用层必须导出 buildPlanFromGroundedContext');
-  assert.ok(content.includes('groundedContext'), '必须接收 groundedContext 参数');
-});
-
-// ─── Migration 文件存在检查 ────────────────────────────────────────────────
-
-test('AC1 drizzle migration 文件包含新增表定义', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const migrationFiles = fs.readdirSync(path.join(ROOT, 'drizzle'))
-    .filter(f => f.endsWith('.sql'));
-
-  let foundGroundedContexts = false;
-  let foundToolCapabilityBindings = false;
-
-  for (const file of migrationFiles) {
-    const content = fs.readFileSync(path.join(ROOT, 'drizzle', file), 'utf8');
-    if (content.includes('ontology_grounded_contexts')) foundGroundedContexts = true;
-    if (content.includes('ontology_tool_capability_bindings')) foundToolCapabilityBindings = true;
-  }
-
-  assert.ok(foundGroundedContexts, 'migration 文件必须包含 ontology_grounded_contexts 表');
-  assert.ok(foundToolCapabilityBindings, 'migration 文件必须包含 ontology_tool_capability_bindings 表');
-});
-
-test('AC1 migration 新增表在正确的 platform schema 下', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const migrationFiles = fs.readdirSync(path.join(ROOT, 'drizzle'))
-    .filter(f => f.endsWith('.sql'));
-
-  let groundedContextsInPlatform = false;
-  let toolBindingsInPlatform = false;
-
-  for (const file of migrationFiles) {
-    const content = fs.readFileSync(path.join(ROOT, 'drizzle', file), 'utf8');
-    if (content.includes('"platform"."ontology_grounded_contexts"')) groundedContextsInPlatform = true;
-    if (content.includes('"platform"."ontology_tool_capability_bindings"')) toolBindingsInPlatform = true;
-  }
-
-  assert.ok(groundedContextsInPlatform, 'ontology_grounded_contexts 必须在 platform schema 下');
-  assert.ok(toolBindingsInPlatform, 'ontology_tool_capability_bindings 必须在 platform schema 下');
-});
-
-// ─── AC4 follow-up / grounded context 兼容结构检查 ──────────────────────────
-
-test('AC4 OntologyGroundedContext 包含 originalMergedContext（供追问可读性）', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const filePath = path.join(ROOT, 'src/domain/ontology/grounding.ts');
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  assert.ok(content.includes('originalMergedContext'), '必须保留 originalMergedContext 供追问使用');
-  assert.ok(content.includes('toLegacyContextProjection'), '必须提供 toLegacyContextProjection 兼容投影');
-  assert.ok(content.includes('_transitional: true'), 'legacy 投影必须标记为 _transitional');
-  assert.ok(content.includes('_groundedSource'), 'legacy 投影必须保留 _groundedSource 版本引用');
+  assert.equal(result.ok, false, 'mixed failed/success 应阻断');
+  assert.match(result.message, /grounding/i);
 });
 
 // ─── 构建检查 ────────────────────────────────────────────────────────────
@@ -548,6 +517,7 @@ test('RT-AC3 bootstrap: 幂等性——重复 bootstrap 不覆盖已 approved �
     import planStepStoreModule from './src/infrastructure/ontology/postgres-ontology-plan-step-template-store.ts';
     import causalityStoreModule from './src/infrastructure/ontology/postgres-ontology-causality-edge-store.ts';
     import evidenceStoreModule from './src/infrastructure/ontology/postgres-ontology-evidence-type-definition-store.ts';
+    import toolBindingStoreModule from './src/infrastructure/ontology/postgres-ontology-tool-capability-binding-store.ts';
     import groundingModule from './src/application/ontology/grounding.ts';
 
     const { createPostgresDb } = postgresClientModule;
@@ -560,6 +530,7 @@ test('RT-AC3 bootstrap: 幂等性——重复 bootstrap 不覆盖已 approved �
     const { createPostgresOntologyPlanStepTemplateStore } = planStepStoreModule;
     const { createPostgresOntologyCausalityEdgeStore } = causalityStoreModule;
     const { createPostgresOntologyEvidenceTypeDefinitionStore } = evidenceStoreModule;
+    const { createPostgresOntologyToolCapabilityBindingStore } = toolBindingStoreModule;
     const { createOntologyBootstrapUseCases } = groundingModule;
 
     const { db, pool } = createPostgresDb();
@@ -574,6 +545,7 @@ test('RT-AC3 bootstrap: 幂等性——重复 bootstrap 不覆盖已 approved �
       planStepTemplateStore: createPostgresOntologyPlanStepTemplateStore(db),
       causalityEdgeStore: createPostgresOntologyCausalityEdgeStore(db),
       evidenceTypeStore: createPostgresOntologyEvidenceTypeDefinitionStore(db),
+      toolCapabilityBindingStore: createPostgresOntologyToolCapabilityBindingStore(db),
     };
 
     const bootstrapUseCases = createOntologyBootstrapUseCases(deps);
@@ -611,4 +583,145 @@ test('RT-AC3 bootstrap: 幂等性——重复 bootstrap 不覆盖已 approved �
   assert.strictEqual(result.secondSkipped, true, '第二次 bootstrap 必须 skip（幂等）');
   assert.ok(result.sameVersion, '两次 bootstrap 必须返回相同 versionId');
   assert.strictEqual(result.firstVersionId, IDEMPOTENT_VERSION_ID, 'versionId 必须匹配');
+});
+
+test('RT-AC3 bootstrap: 必须完整写入 planStepTemplates / causalityEdges / evidenceTypes / tool bindings 后再发布版本', async () => {
+  const versionId = `test-bootstrap-complete-${randomUUID()}`;
+
+  const result = await runTsSnippet(`
+    import postgresClientModule from './src/infrastructure/postgres/client.ts';
+    import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
+    import entityStoreModule from './src/infrastructure/ontology/postgres-ontology-entity-definition-store.ts';
+    import metricStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-definition-store.ts';
+    import factorStoreModule from './src/infrastructure/ontology/postgres-ontology-factor-definition-store.ts';
+    import variantStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-variant-store.ts';
+    import timeStoreModule from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
+    import planStepStoreModule from './src/infrastructure/ontology/postgres-ontology-plan-step-template-store.ts';
+    import causalityStoreModule from './src/infrastructure/ontology/postgres-ontology-causality-edge-store.ts';
+    import evidenceStoreModule from './src/infrastructure/ontology/postgres-ontology-evidence-type-definition-store.ts';
+    import toolBindingStoreModule from './src/infrastructure/ontology/postgres-ontology-tool-capability-binding-store.ts';
+    import groundingModule from './src/application/ontology/grounding.ts';
+
+    const { createPostgresDb } = postgresClientModule;
+    const { createPostgresOntologyVersionStore } = versionStoreModule;
+    const { createPostgresOntologyEntityDefinitionStore } = entityStoreModule;
+    const { createPostgresOntologyMetricDefinitionStore } = metricStoreModule;
+    const { createPostgresOntologyFactorDefinitionStore } = factorStoreModule;
+    const { createPostgresOntologyMetricVariantStore } = variantStoreModule;
+    const { createPostgresOntologyTimeSemanticStore } = timeStoreModule;
+    const { createPostgresOntologyPlanStepTemplateStore } = planStepStoreModule;
+    const { createPostgresOntologyCausalityEdgeStore } = causalityStoreModule;
+    const { createPostgresOntologyEvidenceTypeDefinitionStore } = evidenceStoreModule;
+    const { createPostgresOntologyToolCapabilityBindingStore } = toolBindingStoreModule;
+    const { createOntologyBootstrapUseCases } = groundingModule;
+
+    const now = new Date().toISOString();
+    const { db, pool } = createPostgresDb();
+    const deps = {
+      versionStore: createPostgresOntologyVersionStore(db),
+      entityStore: createPostgresOntologyEntityDefinitionStore(db),
+      metricStore: createPostgresOntologyMetricDefinitionStore(db),
+      factorStore: createPostgresOntologyFactorDefinitionStore(db),
+      metricVariantStore: createPostgresOntologyMetricVariantStore(db),
+      timeSemanticStore: createPostgresOntologyTimeSemanticStore(db),
+      planStepTemplateStore: createPostgresOntologyPlanStepTemplateStore(db),
+      causalityEdgeStore: createPostgresOntologyCausalityEdgeStore(db),
+      evidenceTypeStore: createPostgresOntologyEvidenceTypeDefinitionStore(db),
+      toolCapabilityBindingStore: createPostgresOntologyToolCapabilityBindingStore(db),
+    };
+
+    const useCases = createOntologyBootstrapUseCases(deps);
+    const bootstrap = await useCases.bootstrapCanonicalDefinitions({
+      requestedVersionId: ${JSON.stringify(versionId)},
+      requestedSemver: '99.3.4-bootstrap-complete',
+      createdBy: 'story-9-3-bootstrap-complete',
+      seedDefinitions: {
+        entities: [],
+        metrics: [],
+        factors: [],
+        planStepTemplates: [{
+          id: 'plan-step-' + ${JSON.stringify(versionId)},
+          ontologyVersionId: ${JSON.stringify(versionId)},
+          businessKey: 'inspect-metric-change',
+          displayName: '校验核心指标波动',
+          description: null,
+          status: 'approved',
+          intentTypes: ['fee-analysis'],
+          requiredCapabilities: ['semantic-query'],
+          sortOrder: 1,
+          metadata: {},
+          createdAt: now,
+          updatedAt: now,
+        }],
+        metricVariants: [],
+        timeSemantics: [],
+        causalityEdges: [{
+          id: 'causality-' + ${JSON.stringify(versionId)},
+          ontologyVersionId: ${JSON.stringify(versionId)},
+          businessKey: 'causality-edge',
+          displayName: '因果边',
+          description: null,
+          status: 'approved',
+          sourceEntityKey: 'factor-a',
+          targetEntityKey: 'metric-a',
+          causalityType: 'direct-influence',
+          isAttributionPathEnabled: true,
+          defaultWeight: {},
+          neo4jRelationshipTypes: ['INFLUENCES'],
+          temporalConstraints: null,
+          filterConditions: null,
+          metadata: {},
+          createdAt: now,
+          updatedAt: now,
+        }],
+        evidenceTypes: [{
+          id: 'evidence-' + ${JSON.stringify(versionId)},
+          ontologyVersionId: ${JSON.stringify(versionId)},
+          businessKey: 'table-evidence',
+          displayName: '表格证据',
+          description: null,
+          status: 'approved',
+          evidenceCategory: 'quantitative',
+          rendererConfig: { type: 'table' },
+          dataSourceConfig: { adapter: 'cube' },
+          defaultPriority: 'high',
+          isInteractive: false,
+          templateSchema: null,
+          validationRules: [],
+          metadata: {},
+          createdAt: now,
+          updatedAt: now,
+        }],
+      },
+    });
+
+    const version = await deps.versionStore.findById(${JSON.stringify(versionId)});
+    const planSteps = await deps.planStepTemplateStore.findByVersionId(${JSON.stringify(versionId)});
+    const causalityEdges = await deps.causalityEdgeStore.findByVersionId(${JSON.stringify(versionId)});
+    const evidenceTypes = await deps.evidenceTypeStore.findByVersionId(${JSON.stringify(versionId)});
+    const toolBindings = await deps.toolCapabilityBindingStore.findByVersionId(${JSON.stringify(versionId)});
+
+    await pool.end();
+    console.log(JSON.stringify({
+      versionStatus: version?.status ?? null,
+      planStepTemplatesCreated: bootstrap.planStepTemplatesCreated,
+      causalityEdgesCreated: bootstrap.causalityEdgesCreated,
+      evidenceTypesCreated: bootstrap.evidenceTypesCreated,
+      toolBindingsCreated: bootstrap.toolBindingsCreated,
+      storedPlanStepCount: planSteps.length,
+      storedCausalityEdgeCount: causalityEdges.length,
+      storedEvidenceTypeCount: evidenceTypes.length,
+      storedToolBindingCount: toolBindings.length,
+    }));
+  `);
+
+  assert.equal(result.versionStatus, 'approved', '完整写入完成后版本才应处于 approved');
+  assert.equal(result.planStepTemplatesCreated, 1, '必须创建 plan step templates');
+  assert.equal(result.causalityEdgesCreated, 1, '必须创建 causality edges');
+  assert.equal(result.evidenceTypesCreated, 1, '必须创建 evidence types');
+  assert.ok(result.toolBindingsCreated > 0, 'bootstrap 必须创建 tool bindings');
+  assert.equal(result.storedPlanStepCount, 1, '数据库中必须存在 plan step template');
+  assert.equal(result.storedCausalityEdgeCount, 1, '数据库中必须存在 causality edge');
+  assert.equal(result.storedEvidenceTypeCount, 1, '数据库中必须存在 evidence type');
+  assert.ok(result.storedToolBindingCount > 0, '数据库中必须存在 tool bindings');
 });

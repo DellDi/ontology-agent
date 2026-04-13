@@ -4,12 +4,17 @@ import { createAnalysisSessionUseCases } from '@/application/analysis-session/us
 import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
 import { analysisHistoryUseCases } from '@/application/analysis-history/use-cases';
 import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
+import {
+  buildGroundedPlanningArtifacts,
+  buildGroundingBlockedPlanReadModel,
+} from '@/application/ontology/grounded-planning';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
+import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
@@ -90,6 +95,7 @@ const analysisExecutionPersistenceUseCases =
 const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
   followUpStore: createPostgresAnalysisSessionFollowUpStore(),
 });
+const ontologyRuntimeServices = createOntologyRuntimeServices();
 
 export default async function AnalysisSessionPage({
   params,
@@ -265,15 +271,37 @@ export default async function AnalysisSessionPage({
       ? activeFollowUp.currentPlanSnapshot
       : snapshotForDisplay?.planSnapshot) ??
     null;
-  const analysisPlanReadModel = planSnapshotForDisplay
+  let groundedPlanPreviewError: Error | null = null;
+  let groundedPlanPreviewSnapshot = planSnapshotForDisplay;
+
+  if (!groundedPlanPreviewSnapshot) {
+    try {
+      groundedPlanPreviewSnapshot = (
+        await buildGroundedPlanningArtifacts({
+          sessionId: analysisSession.id,
+          ownerUserId: currentUser.userId,
+          intentType: intent?.type ?? 'general-analysis',
+          contextReadModel: planContextReadModel,
+          candidateFactorReadModel: mergedCandidateFactorReadModel,
+          groundingUseCases: ontologyRuntimeServices.groundingUseCases,
+          analysisPlanningUseCases,
+        })
+      ).planSnapshot;
+    } catch (error) {
+      groundedPlanPreviewError =
+        error instanceof Error
+          ? error
+          : new Error('治理化计划预览生成失败。');
+    }
+  }
+
+  const analysisPlanReadModel = groundedPlanPreviewSnapshot
     ? analysisPlanningUseCases.buildPlanReadModelFromSnapshot({
-        planSnapshot: planSnapshotForDisplay,
+        planSnapshot: groundedPlanPreviewSnapshot,
       })
-    : analysisPlanningUseCases.buildPlanReadModel({
-        intentType: intent?.type ?? 'general-analysis',
-        contextReadModel: planContextReadModel,
-        candidateFactorReadModel: mergedCandidateFactorReadModel,
-      });
+    : buildGroundingBlockedPlanReadModel(
+        groundedPlanPreviewError ?? new Error('治理化计划预览生成失败。'),
+      );
   const resolvedExecutionId =
     requestedExecutionIdForDisplay || snapshotForDisplay?.executionId || '';
   const executionStreamReadModel = sessionScopedRequestedExecutionSnapshot
@@ -454,6 +482,7 @@ export default async function AnalysisSessionPage({
           sessionId={analysisSession.id}
           readModel={analysisPlanReadModel}
           followUpId={activeFollowUp?.id}
+          blockingMessage={groundedPlanPreviewError?.message}
         />
 
         {resolvedExecutionId && executionStreamReadModel ? (

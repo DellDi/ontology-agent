@@ -1205,6 +1205,31 @@ So that 结论来源、历史回放和问题诊断可以追溯到明确的知识
 **Then** 应记录所使用的 ontology version
 **And** 历史回放时能够识别结论对应的知识版本
 
+### Story 9.7: 初始化首个可运行本体版本与 Bootstrap 命令
+
+As a 平台团队与部署运维,
+I want 提供正式的 ontology bootstrap/init 命令与首个 approved seed package,
+So that 新环境在完成迁移后可以稳定进入 grounded runtime，而不是继续依赖测试 snippet 或手工写库。
+
+**关联需求：** FR6, FR13, NFR5
+
+**Acceptance Criteria:**
+
+**Given** 一个刚完成 `db:migrate` 的新环境
+**When** 运维或开发执行 ontology 初始化命令
+**Then** 系统应幂等写入首个可运行的 approved ontology version
+**And** 至少覆盖当前运行时所需的 entity / metric / factor / plan step / governance / tool binding 定义
+
+**Given** 环境中已存在 approved ontology version
+**When** 再次执行初始化命令
+**Then** 系统应返回明确的 skip / status 诊断
+**And** 不得静默覆盖已生效版本
+
+**Given** 初始化缺少关键定义或写入不完整
+**When** 命令结束
+**Then** 系统必须 fail loud 并给出缺失项诊断
+**And** 不得把不完整版本发布为 approved
+
 ## Epic 10: AI 应用运行时与多端渲染层
 
 平台团队可以在不改变既有执行内核、历史事实模型与知识治理边界的前提下，引入正式的 AI application runtime layer，统一流式消息、工具态、富渲染块、多端投影，以及记忆/知识资源/技能系统/工具系统的工程接入，从而支撑 PC 工作台、历史回放、移动端摘要和未来更高级的 AI 原生界面。

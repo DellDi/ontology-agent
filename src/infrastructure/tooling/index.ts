@@ -20,6 +20,7 @@ import type { AuthSession } from '@/domain/auth/models';
 import type { AnalysisToolDefinition } from '@/domain/tooling/models';
 import { getCubeProviderConfig } from '@/infrastructure/cube/config';
 import { isNeo4jConfigured } from '@/infrastructure/neo4j/config';
+import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
 import { getLlmProviderConfig } from '@/infrastructure/llm/config';
 import { createPostgresAuditEventStore } from '@/infrastructure/audit/postgres-audit-event-store';
 
@@ -449,6 +450,9 @@ export function createAnalysisToolingServices({
         };
       },
     },
+    ontologyToolBindingUseCases: process.env.DATABASE_URL
+      ? createOntologyRuntimeServices().toolBindingUseCases
+      : undefined,
   });
 
   return {
