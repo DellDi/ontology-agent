@@ -48,16 +48,12 @@ export function normalizePermissionScope(
 export function hasWorkspaceAccess(session: AuthSession | AuthIdentity) {
   return (
     Boolean(session.scope.organizationId) &&
-    (session.scope.projectIds.length > 0 ||
-      session.scope.areaIds.length > 0 ||
-      session.scope.roleCodes.length > 0)
+    (session.scope.projectIds.length > 0 || session.scope.roleCodes.length > 0)
   );
 }
 
 export function hasScopedTargets(session: AuthSession | AuthIdentity) {
-  return (
-    session.scope.projectIds.length > 0 || session.scope.areaIds.length > 0
-  );
+  return session.scope.projectIds.length > 0;
 }
 
 export function parseScopeList(value: FormDataEntryValue | string | null) {

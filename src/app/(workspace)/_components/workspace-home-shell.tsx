@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import type { WorkspaceHomeModel } from '@/application/workspace/home';
+import { ProjectScopeDialog } from './project-scope-dialog';
 
 type WorkspaceHomeShellProps = {
   model: WorkspaceHomeModel;
@@ -89,7 +90,7 @@ export function WorkspaceHomeShell({
           </form>
         ) : (
           <div className="mt-6 status-banner" data-tone="info">
-            当前会话还没有可直接发起分析的项目或区域范围。
+            当前会话还没有可直接发起分析的项目范围。
           </div>
         )}
       </article>
@@ -213,17 +214,10 @@ export function WorkspaceHomeShell({
               <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
                 项目
               </p>
-              <p className="mt-2 text-base text-[color:var(--ink-900)]">
-                {model.scopeSummary.projects}
-              </p>
-            </div>
-            <div className="rounded-3xl bg-white/76 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
-                区域
-              </p>
-              <p className="mt-2 text-base text-[color:var(--ink-900)]">
-                {model.scopeSummary.areas}
-              </p>
+              <ProjectScopeDialog
+                summary={model.projectScopeSummary}
+                projects={model.projectDisplayNames}
+              />
             </div>
             <div className="rounded-3xl bg-white/76 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">

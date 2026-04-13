@@ -122,6 +122,7 @@ GPT-5 Codex
 - `pnpm lint` — lint 零告警
 - `pnpm build` — TypeScript 编译通过，所有路由均成功构建
 - `node --test --test-concurrency=1 tests/story-7-5-directory-login.test.mjs` — 需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT = 'admin' / TEST_ERP_PASSWORD = 'vX6&xJ0.yQ1-w' 运行
+- `node --test --test-concurrency=1 tests/story-7-5-scope-resolution.test.mjs`
 
 ### Completion Notes List
 
@@ -140,12 +141,24 @@ GPT-5 Codex
 - `src/infrastructure/erp-auth/erp-password-encrypt.ts`
 - `src/infrastructure/erp-auth/erp-scope-resolver.ts`
 - `src/infrastructure/erp-auth/erp-directory-auth-adapter.ts`
+- `src/application/workspace/home.ts`
+- `src/domain/analysis-session/models.ts`
+- `src/domain/auth/errors.ts`
+- `src/domain/auth/models.ts`
 - `src/infrastructure/session/server-auth.ts`
 - `src/app/(auth)/login/page.tsx`
+- `src/app/(workspace)/workspace/page.tsx`
+- `src/app/(workspace)/layout.tsx`
+- `src/app/(workspace)/_components/workspace-home-shell.tsx`
+- `src/app/(workspace)/_components/project-scope-dialog.tsx`
 - `src/app/api/auth/directory-login/route.ts`
 - `src/app/api/auth/bridge/route.ts`
 - `tests/story-7-5-directory-login.test.mjs`
+- `tests/story-7-5-scope-resolution.test.mjs`
+- `tests/story-7-5-workspace-project-display.test.mjs`
 
 ## Change Log
 
 - 2026-04-11: 实现账号密码目录登录、URL 免密桥接、scope 推导（user→org→propertyProject→projectId），替换登录页手填表单，移除 dev 手填 scope 降级路径，auth-hardening 3/3 pass，集成测试 7/7 pass（含 Origin 头修复、scope 推导方向修复、/api/auth/me scope 校验）。
+- 2026-04-13: 修复目录登录 scope 推导缺陷。`erp-scope-resolver.ts` 不再错误使用 `dw_datacenter_precinct.organization_id`，改为按真实链路字段 `org_id` 映射 `propertyProject -> precinctId`；同时把 `areaIds` 从工作台分析入口判断和主提示文案中移出，补充 `tests/story-7-5-scope-resolution.test.mjs` 防止回归。
+- 2026-04-13: 优化工作台项目范围展示。首页改为显示“已覆盖 N 个项目”的数量摘要，并通过详情弹层展示项目名称列表，不再在首页直接平铺项目 ID；补充 `tests/story-7-5-workspace-project-display.test.mjs` 防止回归。

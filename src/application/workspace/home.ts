@@ -12,6 +12,7 @@ import {
   type AuthSession,
 } from '@/domain/auth/models';
 import { formatScopeSummary } from '@/shared/permissions/format-scope-summary';
+import type { ErpProject } from '@/domain/erp-read/models';
 
 export type WorkspaceHomeModel = {
   greeting: string;
@@ -34,6 +35,8 @@ export type WorkspaceHomeModel = {
       }
     | null;
   scopeSummary: ReturnType<typeof formatScopeSummary>;
+  projectScopeSummary: string;
+  projectDisplayNames: string[];
   boundaryMessage: string;
   boundaryGuidance: {
     supported: string[];
@@ -52,9 +55,20 @@ export type WorkspaceHomeModel = {
 export function createWorkspaceHomeModel(
   session: AuthSession,
   historySessions: AnalysisSession[],
+  scopedProjects: Pick<ErpProject, 'id' | 'name'>[] = [],
 ): WorkspaceHomeModel {
   const scopeSummary = formatScopeSummary(session);
   const hasTargets = hasScopedTargets(session);
+  const projectsById = new Map(
+    scopedProjects.map((project) => [project.id, project.name]),
+  );
+  const projectDisplayNames = session.scope.projectIds.map(
+    (projectId) => projectsById.get(projectId) ?? projectId,
+  );
+  const projectScopeSummary =
+    projectDisplayNames.length > 0
+      ? `已覆盖 ${projectDisplayNames.length} 个项目`
+      : '未分配';
 
   return {
     greeting: `${session.displayName}，从你有权限的范围开始今天的分析`,
@@ -85,6 +99,8 @@ export function createWorkspaceHomeModel(
           }
         : null,
     scopeSummary,
+    projectScopeSummary,
+    projectDisplayNames,
     boundaryMessage: '当前版本仅支持物业分析',
     boundaryGuidance: {
       supported: [...SUPPORTED_ANALYSIS_TOPICS],
@@ -94,8 +110,8 @@ export function createWorkspaceHomeModel(
     emptyState: hasTargets
       ? null
       : {
-          title: '当前会话还没有可直接发起分析的项目或区域范围',
-          description: '请联系管理员补充分配项目或区域权限，当前仍可确认组织与角色上下文。',
+          title: '当前会话还没有可直接发起分析的项目范围',
+          description: '请联系管理员补充分配项目权限，当前仍可确认组织与角色上下文。',
         },
     canCreateAnalysis: hasTargets,
   };

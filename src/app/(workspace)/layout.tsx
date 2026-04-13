@@ -77,14 +77,6 @@ export default async function WorkspaceLayout({
                 {session.scope.projectIds.join(', ') || '未配置'}
               </p>
             </div>
-            <div className="rounded-3xl bg-white/75 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
-                区域范围
-              </p>
-              <p className="mt-2 text-base text-[color:var(--ink-900)]">
-                {session.scope.areaIds.join(', ') || '未配置'}
-              </p>
-            </div>
           </div>
 
           <form action="/api/auth/logout" method="post">

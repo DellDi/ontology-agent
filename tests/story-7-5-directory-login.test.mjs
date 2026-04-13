@@ -341,6 +341,11 @@ test('Story 7.5 直接登录与 URL 桥接得到的 scope 来源一致（不含 
     'scope.areaIds 应为空数组，不再作为权限链路',
   );
   assert.ok(
+    Array.isArray(directMe.scope?.projectIds) &&
+      directMe.scope.projectIds.length > 0,
+    '目录登录成功后必须自动解析出非空 projectIds',
+  );
+  assert.ok(
     typeof directMe.scope?.organizationId === 'string' && directMe.scope.organizationId,
     'scope.organizationId 应来自目录',
   );
@@ -367,5 +372,10 @@ test('Story 7.5 直接登录与 URL 桥接得到的 scope 来源一致（不含 
   assert.ok(
     Array.isArray(bridgeMe.scope?.areaIds) && bridgeMe.scope.areaIds.length === 0,
     'URL 桥接 scope.areaIds 应为空数组',
+  );
+  assert.ok(
+    Array.isArray(bridgeMe.scope?.projectIds) &&
+      bridgeMe.scope.projectIds.length > 0,
+    'URL 桥接成功后也必须自动解析出非空 projectIds',
   );
 });
