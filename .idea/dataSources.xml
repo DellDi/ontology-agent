@@ -15,7 +15,7 @@
       <jdbc-url>jdbc:postgresql://localhost:55432/postgres</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
-    <data-source source="LOCAL" name="旭阳" uuid="15be98f3-9280-4a00-b92a-97c4fe310dde">
+    <data-source source="LOCAL" name="中油阳光" uuid="15be98f3-9280-4a00-b92a-97c4fe310dde">
       <driver-ref>mysql.8</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>com.mysql.cj.jdbc.Driver</jdbc-driver>

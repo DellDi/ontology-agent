@@ -77,7 +77,9 @@ export async function resolveUserScope(
       .select({ precinctId: erpPrecincts.precinctId })
       .from(erpPrecincts)
       .where(
-        sql`CAST(${erpPrecincts.organizationId} AS text) = ANY(${sql`ARRAY[${sql.join(propertyProjectOrgIds.map((id) => sql`${id}`), sql`, `)}]`})`,
+        sql`coalesce(${erpPrecincts.isDelete}, 0) <> 1
+          and coalesce(${erpPrecincts.deleteFlag}, 0) <> 1
+          and ${erpPrecincts.orgId} = ANY(${sql`ARRAY[${sql.join(propertyProjectOrgIds.map((id) => sql`${id}`), sql`, `)}]`})`,
       );
 
     projectIds = projectRows.map((row) => row.precinctId);

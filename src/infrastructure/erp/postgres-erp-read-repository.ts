@@ -30,6 +30,7 @@ type OrganizationPathMap = Map<string, string | null>;
 type OrganizationScopeResolution = {
   normalizedScope: ErpPermissionScope;
   organizationIds: string[];
+  organizationPaths: OrganizationPathMap;
 };
 
 function normalizeText(value: string | number | bigint | null | undefined) {
@@ -287,6 +288,7 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
     const rows = await resolvedDb
       .select({
         organizationId: erpOrganizations.sourceId,
+        organizationPath: erpOrganizations.organizationPath,
       })
       .from(erpOrganizations)
       .where(
@@ -306,10 +308,17 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
           .filter(Boolean),
       ),
     ];
+    const organizationPaths = new Map(
+      rows.map((row) => [
+        normalizeRequiredText(row.organizationId, ''),
+        normalizeText(row.organizationPath),
+      ]),
+    );
 
     return {
       normalizedScope,
       organizationIds,
+      organizationPaths,
     };
   }
 
@@ -349,7 +358,8 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
     },
 
     async listProjects(scope: ErpPermissionScope) {
-      const { normalizedScope, organizationIds } = await resolveOrganizationScope(scope);
+      const { normalizedScope, organizationIds, organizationPaths } =
+        await resolveOrganizationScope(scope);
 
       if (organizationIds.length === 0) {
         return [];
@@ -378,7 +388,14 @@ export function createPostgresErpReadRepository(db?: PostgresDb): ErpReadPort {
 
       return rows
         .map(mapPrecinctRow)
-        .filter((project) => canAccessErpScope(scope, { organizationId: project.organizationId, projectId: project.id }));
+        .filter((project) =>
+          canAccessErpScope(scope, {
+            organizationId: project.organizationId,
+            organizationPath:
+              organizationPaths.get(project.organizationId) ?? null,
+            projectId: project.id,
+          }),
+        );
     },
 
     async listCurrentOwners(scope: ErpPermissionScope) {

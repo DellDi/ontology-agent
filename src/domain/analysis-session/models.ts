@@ -54,7 +54,7 @@ export function validateQuestionText(questionText: string) {
 }
 
 export function getMissingScopedTargetsMessage() {
-  return '当前账号还没有可直接发起分析的项目或区域范围。';
+  return '当前账号还没有可直接发起分析的项目范围。';
 }
 
 export function isSessionAccessibleInScope(

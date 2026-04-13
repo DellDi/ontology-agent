@@ -7,7 +7,7 @@ export class InvalidErpCredentialsError extends Error {
 
 export class WorkspaceAuthorizationError extends Error {
   constructor(
-    message = '当前账号暂无可用分析权限，请联系管理员开通项目或区域范围。',
+    message = '当前账号暂无可用分析权限，请联系管理员开通项目范围。',
   ) {
     super(message);
     this.name = 'WorkspaceAuthorizationError';
