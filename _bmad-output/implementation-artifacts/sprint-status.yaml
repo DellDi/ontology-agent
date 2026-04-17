@@ -93,11 +93,11 @@ development_status:
   6-4-preserve-multi-round-history: done
   epic-6-retrospective: done
 
-  epic-7: in-progress
+  epic-7: done
   7-1-server-side-authorization-enforcement: done
   7-2-audit-analysis-and-tool-events: done
   7-3-self-hosted-container-deployment-baseline: done
-  7-4-observability-and-availability-monitoring: review
+  7-4-observability-and-availability-monitoring: done
   7-5-account-or-mobile-login-and-url-passwordless-bridge: done
   7-6-graph-sync-run-metadata-and-org-rebuild: done
   7-7-graph-sync-incremental-scan-and-dirty-scope-dispatch: done
