@@ -1,6 +1,6 @@
 # Story 9.2: 指标口径、因素与时间语义治理化
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

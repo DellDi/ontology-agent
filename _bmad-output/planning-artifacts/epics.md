@@ -1318,6 +1318,12 @@ So that 现有 execution events、result blocks 和 follow-up 历史可以稳定
 **Then** 系统必须保留 10.6 已建立的客户端行为语义（默认收起的 side sheet 可恢复态、Esc 关闭、sessionStorage-scope 自动执行去重、assumption 在 ConclusionPanel 的 amber 投影）
 **And** 不得通过重写 `AnalysisExecutionLiveShell` 导致这些能力丢失
 
+**Given** `Story 9.3` 已建立 ontology grounding domain 与 tool capability binding 模型，但 runtime 主链仍走 legacy path（execute route / analysis-execution / STEP_TOOL_FALLBACKS）
+**When** 10.1 runtime adapter 接管 context → planner → tool selection 的运行时边界
+**Then** 系统必须调用 `groundAnalysisContext` 作为 context → planner 强制入口，调用 `buildAnalysisPlanFromGroundedContext` 替换 `buildAnalysisPlan`，令 tool selection 消费 `ToolCapabilityBinding.selectBestToolBinding`
+**And** 必须新增 integration 测试覆盖 execute / follow-up / replan / tool selection 的真实 grounded 主链，以吸收 Story 9.3 review findings #1 / #2 / #6
+**And** 本 AC 不负责 grounding domain/infra 层修正（9.3 findings #3 / #4 / #5）——那些仍由 9.3 在本 story 之外独立完成
+
 ### Story 10.2: 建立 Renderer Registry 支持富分析块
 
 As a 物业分析用户,
