@@ -25,6 +25,7 @@ export type AnalysisPlanReadModel = {
   headline: string;
   summary: string;
   steps: AnalysisPlanStepReadModel[];
+  assumptions: string[];
 };
 
 export type VersionedAnalysisPlanReadModel = {
@@ -45,6 +46,7 @@ export function createAnalysisPlanningUseCases() {
       mode: plan.mode,
       headline: '分析计划',
       summary: plan.summary,
+      assumptions: plan._executionAssumptions ?? [],
       steps: plan.steps.map((step) => ({
         id: step.id,
         order: step.order,

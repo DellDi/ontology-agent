@@ -3,9 +3,9 @@ import type { AnalysisPlanReadModel } from '@/application/analysis-planning/use-
 import type { CandidateFactorReadModel } from '@/application/factor-expansion/use-cases';
 import type { AnalysisExecutionPlanSnapshot } from '@/domain/analysis-execution/models';
 import type { AnalysisIntentType } from '@/domain/analysis-intent/models';
-import type {
-  OntologyGroundedContext,
+import {
   OntologyGroundingError,
+  type OntologyGroundedContext,
 } from '@/domain/ontology/grounding';
 
 import type {
@@ -17,6 +17,7 @@ type GroundingUseCases = {
     sessionId: string;
     ownerUserId: string;
     analysisContext: AnalysisContextReadModel['context'];
+    allowFallbackToFreeText?: boolean;
   }) => Promise<OntologyGroundedContext>;
 };
 
@@ -34,6 +35,71 @@ type AnalysisPlanningUseCases = {
   }) => AnalysisPlanReadModel;
 };
 
+type GroundingIssueType =
+  | 'entity'
+  | 'metric'
+  | 'factor'
+  | 'time'
+  | 'version'
+  | 'permission';
+
+const HARD_BLOCKING_ISSUE_TYPES = new Set<GroundingIssueType>([
+  'entity',
+  'metric',
+  'version',
+  'permission',
+]);
+
+function collectGroundingIssueTypes(
+  error: OntologyGroundingError,
+): Set<GroundingIssueType> {
+  const types = new Set<GroundingIssueType>();
+
+  error.details.failedItems.forEach((item) => {
+    types.add(item.type);
+  });
+  (error.details.ambiguousItems ?? []).forEach((item) => {
+    types.add(item.type);
+  });
+
+  return types;
+}
+
+function isHardBlockingGroundingError(error: OntologyGroundingError) {
+  const issueTypes = collectGroundingIssueTypes(error);
+
+  for (const issueType of issueTypes) {
+    if (HARD_BLOCKING_ISSUE_TYPES.has(issueType)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildAutoExecutionAssumptions(error: OntologyGroundingError) {
+  const issueTypes = collectGroundingIssueTypes(error);
+  const assumptions: string[] = [];
+
+  if (issueTypes.has('time')) {
+    assumptions.push('时间语义暂未完全治理化，先按当前问题中的时间范围继续执行。');
+  }
+
+  if (issueTypes.has('factor')) {
+    assumptions.push('部分候选因素未命中或存在歧义，先按已识别因素推进后续验证。');
+  }
+
+  return assumptions;
+}
+
+function appendAssumptionsToSummary(summary: string, assumptions: string[]) {
+  if (!assumptions.length) {
+    return summary;
+  }
+
+  return `${summary} 自动假设：${assumptions.join('；')}`;
+}
+
 export async function buildGroundedPlanningArtifacts(input: {
   sessionId: string;
   ownerUserId: string;
@@ -44,11 +110,32 @@ export async function buildGroundedPlanningArtifacts(input: {
   analysisPlanningUseCases: AnalysisPlanningUseCases;
   groundedContextStore?: OntologyGroundedContextStore;
 }) {
-  const groundedContext = await input.groundingUseCases.groundAnalysisContext({
-    sessionId: input.sessionId,
-    ownerUserId: input.ownerUserId,
-    analysisContext: input.contextReadModel.context,
-  });
+  let groundedContext: OntologyGroundedContext;
+  let autoExecutionAssumptions: string[] = [];
+
+  try {
+    groundedContext = await input.groundingUseCases.groundAnalysisContext({
+      sessionId: input.sessionId,
+      ownerUserId: input.ownerUserId,
+      analysisContext: input.contextReadModel.context,
+    });
+  } catch (error) {
+    if (!(error instanceof OntologyGroundingError)) {
+      throw error;
+    }
+
+    if (isHardBlockingGroundingError(error)) {
+      throw error;
+    }
+
+    autoExecutionAssumptions = buildAutoExecutionAssumptions(error);
+    groundedContext = await input.groundingUseCases.groundAnalysisContext({
+      sessionId: input.sessionId,
+      ownerUserId: input.ownerUserId,
+      analysisContext: input.contextReadModel.context,
+      allowFallbackToFreeText: true,
+    });
+  }
 
   await input.groundedContextStore?.save({
     ...groundedContext,
@@ -56,12 +143,20 @@ export async function buildGroundedPlanningArtifacts(input: {
     ownerUserId: input.ownerUserId,
   });
 
-  const planSnapshot =
+  const groundedPlanSnapshot =
     input.analysisPlanningUseCases.buildPlanSnapshotFromGroundedContext({
       intentType: input.intentType,
       groundedContext,
       candidateFactorReadModel: input.candidateFactorReadModel,
     });
+  const planSnapshot = {
+    ...groundedPlanSnapshot,
+    summary: appendAssumptionsToSummary(
+      groundedPlanSnapshot.summary,
+      autoExecutionAssumptions,
+    ),
+    _executionAssumptions: autoExecutionAssumptions,
+  };
 
   return {
     groundedContext,
@@ -79,6 +174,7 @@ export function buildGroundingBlockedPlanReadModel(
     mode: 'minimal',
     headline: '治理化计划阻断',
     summary: error.message,
+    assumptions: [],
     steps: [],
   };
 }

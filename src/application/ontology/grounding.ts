@@ -306,21 +306,37 @@ export function createOntologyGroundingUseCases(
       ownerUserId, // 将来用于权限校验和保存
       analysisContext,
       preferredVersionId,
+      allowFallbackToFreeText = false,
     }: {
       sessionId: string;
       ownerUserId: string;
       analysisContext: AnalysisContext;
       preferredVersionId?: string; // 如指定，使用特定版本；否则使用当前 approved 版本
+      allowFallbackToFreeText?: boolean;
     }): Promise<OntologyGroundedContext> {
-      // 1. 获取 ontology version
-      let version: OntologyVersion | null;
+      const shouldAllowFallbackToFreeText =
+        strategy.allowFallbackToFreeText || allowFallbackToFreeText;
+
+      const candidateVersions: OntologyVersion[] = [];
+      let lastGroundingError: OntologyGroundingError | null = null;
+
       if (preferredVersionId) {
-        version = await deps.versionStore.findById(preferredVersionId);
+        const preferredVersion = await deps.versionStore.findById(preferredVersionId);
+        if (preferredVersion) {
+          candidateVersions.push(preferredVersion);
+        }
+      } else if (typeof deps.versionStore.listApprovedCandidates === 'function') {
+        candidateVersions.push(
+          ...(await deps.versionStore.listApprovedCandidates(20)),
+        );
       } else {
-        version = await deps.versionStore.findCurrentApproved();
+        const currentApproved = await deps.versionStore.findCurrentApproved();
+        if (currentApproved) {
+          candidateVersions.push(currentApproved);
+        }
       }
 
-      if (!version) {
+      if (!candidateVersions.length) {
         throw new OntologyGroundingError(
           '无法找到可用的 Ontology Version',
           'failed',
@@ -331,181 +347,274 @@ export function createOntologyGroundingUseCases(
         );
       }
 
-      // 2. 获取该版本下的所有 approved definitions
-      const [entities, metrics, factors, timeSemantics, metricVariants] = await Promise.all([
-        deps.entityStore.findByVersionId(version.id),
-        deps.metricStore.findByVersionId(version.id),
-        deps.factorStore.findByVersionId(version.id),
-        deps.timeSemanticStore.findByVersionId(version.id),
-        deps.metricVariantStore.findByVersionId(version.id),
-      ]);
+      for (let candidateIndex = 0; candidateIndex < candidateVersions.length; candidateIndex += 1) {
+        const version = candidateVersions[candidateIndex];
 
-      // 过滤出 runtime active 的定义
-      const activeEntities = entities.filter((e) => isActiveForRuntime(e.status));
-      const activeMetrics = metrics.filter((m) => isActiveForRuntime(m.status));
-      const activeFactors = factors.filter((f) => isActiveForRuntime(f.status));
-      const activeTimeSemantics = timeSemantics.filter((t) => isActiveForRuntime(t.status));
-      const activeMetricVariants = metricVariants.filter((v) => isActiveForRuntime(v.status));
+        // 2. 获取该版本下的所有 approved definitions
+        const [entities, metrics, factors, timeSemantics, metricVariants] = await Promise.all([
+          deps.entityStore.findByVersionId(version.id),
+          deps.metricStore.findByVersionId(version.id),
+          deps.factorStore.findByVersionId(version.id),
+          deps.timeSemanticStore.findByVersionId(version.id),
+          deps.metricVariantStore.findByVersionId(version.id),
+        ]);
 
-      // 3. 逐个 grounding
-      const groundedEntities: GroundedEntity[] = [];
-      const groundedMetrics: GroundedMetric[] = [];
-      const groundedFactors: GroundedFactor[] = [];
-      const groundedTimeSemantics: GroundedTimeSemantic[] = [];
+        // 过滤出 runtime active 的定义
+        const activeEntities = entities.filter((e) => isActiveForRuntime(e.status));
+        const activeMetrics = metrics.filter((m) => isActiveForRuntime(m.status));
+        const activeFactors = factors.filter((f) => isActiveForRuntime(f.status));
+        const activeTimeSemantics = timeSemantics.filter((t) => isActiveForRuntime(t.status));
+        const activeMetricVariants = metricVariants.filter((v) => isActiveForRuntime(v.status));
 
-      // Ground entity (从 analysisContext.entity 提取)
-      if (analysisContext.entity.value && analysisContext.entity.value !== '待补充实体对象') {
-        const match = matchEntity(analysisContext.entity.value, activeEntities, strategy);
-        groundedEntities.push({
-          status: match.status,
-          originalText: analysisContext.entity.value,
-          canonicalDefinition: match.status === 'success' ? match.item : null,
-          candidates: match.status === 'ambiguous' ? match.candidates : [],
-          confidence: match.confidence,
-          failureReason: match.status === 'failed' ? match.reason : undefined,
-        });
-      }
+        // 3. 逐个 grounding
+        const groundedEntities: GroundedEntity[] = [];
+        const groundedMetrics: GroundedMetric[] = [];
+        const groundedFactors: GroundedFactor[] = [];
+        const groundedTimeSemantics: GroundedTimeSemantic[] = [];
 
-      // Ground metrics (从 analysisContext.targetMetric 提取)
-      if (analysisContext.targetMetric.value && analysisContext.targetMetric.value !== '待补充目标指标') {
-        const match = matchMetric(analysisContext.targetMetric.value, activeMetrics, strategy);
-        const matchedMetric = match.status === 'success' ? match.item : null;
-
-        // 查找关联的 variant
-        let matchedVariant: OntologyMetricVariant | null = null;
-        if (matchedMetric) {
-          matchedVariant =
-            activeMetricVariants.find((v) => v.parentMetricDefinitionId === matchedMetric.id) ?? null;
+        // Ground entity (从 analysisContext.entity 提取)
+        if (analysisContext.entity.value && analysisContext.entity.value !== '待补充实体对象') {
+          const match = matchEntity(analysisContext.entity.value, activeEntities, strategy);
+          groundedEntities.push({
+            status: match.status,
+            originalText: analysisContext.entity.value,
+            canonicalDefinition: match.status === 'success' ? match.item : null,
+            candidates: match.status === 'ambiguous' ? match.candidates : [],
+            confidence: match.confidence,
+            failureReason: match.status === 'failed' ? match.reason : undefined,
+          });
         }
 
-        groundedMetrics.push({
-          status: match.status,
-          originalText: analysisContext.targetMetric.value,
-          canonicalDefinition: matchedMetric,
-          variant: matchedVariant,
-          candidates: match.status === 'ambiguous' ? match.candidates : [],
-          confidence: match.confidence,
-          failureReason: match.status === 'failed' ? match.reason : undefined,
-        });
-      }
+        // Ground metrics (从 analysisContext.targetMetric 提取)
+        if (analysisContext.targetMetric.value && analysisContext.targetMetric.value !== '待补充目标指标') {
+          const match = matchMetric(analysisContext.targetMetric.value, activeMetrics, strategy);
+          const matchedMetric = match.status === 'success' ? match.item : null;
 
-      // Ground factors (从 constraints 中提取可能的 factor 相关约束)
-      const factorConstraints = analysisContext.constraints.filter(
-        (c) => c.label.includes('因素') || c.label.includes('因子') || c.label.includes('维度')
-      );
-      for (const constraint of factorConstraints) {
-        const match = matchFactor(constraint.value, activeFactors, strategy);
-        groundedFactors.push({
-          status: match.status,
-          originalText: constraint.value,
-          canonicalDefinition: match.status === 'success' ? match.item : null,
-          candidates: match.status === 'ambiguous' ? match.candidates : [],
-          confidence: match.confidence,
-          failureReason: match.status === 'failed' ? match.reason : undefined,
-        });
-      }
+          // 查找关联的 variant
+          let matchedVariant: OntologyMetricVariant | null = null;
+          if (matchedMetric) {
+            matchedVariant =
+              activeMetricVariants.find((v) => v.parentMetricDefinitionId === matchedMetric.id) ?? null;
+          }
 
-      // Ground time semantics (从 analysisContext.timeRange 提取)
-      if (analysisContext.timeRange.value && analysisContext.timeRange.value !== '待补充时间范围') {
-        const directMatch = matchTimeSemantic(
-          analysisContext.timeRange.value,
-          activeTimeSemantics,
-          strategy,
+          groundedMetrics.push({
+            status: match.status,
+            originalText: analysisContext.targetMetric.value,
+            canonicalDefinition: matchedMetric,
+            variant: matchedVariant,
+            candidates: match.status === 'ambiguous' ? match.candidates : [],
+            confidence: match.confidence,
+            failureReason: match.status === 'failed' ? match.reason : undefined,
+          });
+        }
+
+        // Ground factors (从 constraints 中提取可能的 factor 相关约束)
+        const factorConstraints = analysisContext.constraints.filter(
+          (c) => c.label.includes('因素') || c.label.includes('因子') || c.label.includes('维度')
         );
-        const inferredMatch =
-          directMatch.status === 'failed'
-            ? inferTimeSemanticFromMetricVariant(
-                analysisContext.timeRange.value,
-                activeTimeSemantics,
-                groundedMetrics.find(
-                  (metric) => metric.status === 'success' && metric.variant,
-                )?.variant ?? null,
-              )
-            : null;
-        const match = inferredMatch ?? directMatch;
-        groundedTimeSemantics.push({
-          status: match.status,
-          originalText: analysisContext.timeRange.value,
-          canonicalDefinition: match.status === 'success' ? match.item : null,
-          candidates: match.status === 'ambiguous' ? match.candidates : [],
-          confidence: match.confidence,
-          failureReason: match.status === 'failed' ? match.reason : undefined,
-        });
-      }
+        for (const constraint of factorConstraints) {
+          const match = matchFactor(constraint.value, activeFactors, strategy);
+          groundedFactors.push({
+            status: match.status,
+            originalText: constraint.value,
+            canonicalDefinition: match.status === 'success' ? match.item : null,
+            candidates: match.status === 'ambiguous' ? match.candidates : [],
+            confidence: match.confidence,
+            failureReason: match.status === 'failed' ? match.reason : undefined,
+          });
+        }
 
-      // 4. 计算整体 grounding status
-      let groundingStatus: GroundingStatus = 'success';
-      const allResults = [...groundedEntities, ...groundedMetrics, ...groundedFactors, ...groundedTimeSemantics];
+        // Ground time semantics (从 analysisContext.timeRange 提取)
+        if (analysisContext.timeRange.value && analysisContext.timeRange.value !== '待补充时间范围') {
+          const directMatch = matchTimeSemantic(
+            analysisContext.timeRange.value,
+            activeTimeSemantics,
+            strategy,
+          );
+          const inferredMatch =
+            directMatch.status === 'failed'
+              ? inferTimeSemanticFromMetricVariant(
+                  analysisContext.timeRange.value,
+                  activeTimeSemantics,
+                  groundedMetrics.find(
+                    (metric) => metric.status === 'success' && metric.variant,
+                  )?.variant ?? null,
+                )
+              : null;
+          const match = inferredMatch ?? directMatch;
+          groundedTimeSemantics.push({
+            status: match.status,
+            originalText: analysisContext.timeRange.value,
+            canonicalDefinition: match.status === 'success' ? match.item : null,
+            candidates: match.status === 'ambiguous' ? match.candidates : [],
+            confidence: match.confidence,
+            failureReason: match.status === 'failed' ? match.reason : undefined,
+          });
+        }
 
-      const failedCount = allResults.filter((r) => r.status === 'failed').length;
-      const ambiguousCount = allResults.filter((r) => r.status === 'ambiguous').length;
-      const successCount = allResults.filter((r) => r.status === 'success').length;
+        // 4. 计算整体 grounding status
+        let groundingStatus: GroundingStatus = 'success';
+        const allResults = [...groundedEntities, ...groundedMetrics, ...groundedFactors, ...groundedTimeSemantics];
 
-      if (failedCount > 0 && successCount === 0) {
-        groundingStatus = 'failed';
-      } else if (ambiguousCount > 0) {
-        groundingStatus = 'ambiguous';
-      } else if (failedCount > 0 && successCount > 0) {
-        groundingStatus = 'partial';
-      }
+        const failedCount = allResults.filter((r) => r.status === 'failed').length;
+        const ambiguousCount = allResults.filter((r) => r.status === 'ambiguous').length;
+        const successCount = allResults.filter((r) => r.status === 'success').length;
 
-      // 5. 构建 merged context 文本（保留原始自由文本）
-      const originalMergedContext = `
+        if (failedCount > 0 && successCount === 0) {
+          groundingStatus = 'failed';
+        } else if (ambiguousCount > 0) {
+          groundingStatus = 'ambiguous';
+        } else if (failedCount > 0 && successCount > 0) {
+          groundingStatus = 'partial';
+        }
+
+        // 5. 构建 merged context 文本（保留原始自由文本）
+        const originalMergedContext = `
 目标指标: ${analysisContext.targetMetric.value}
 实体对象: ${analysisContext.entity.value}
 时间范围: ${analysisContext.timeRange.value}
 比较方式: ${analysisContext.comparison.value}
 约束条件: ${analysisContext.constraints.map((c: { label: string; value: string }) => `${c.label}: ${c.value}`).join(', ')}
-      `.trim();
+        `.trim();
 
-      // 6. 构建 diagnostics
-      const diagnostics = {
-        unmatchedEntities: groundedEntities.filter((e) => e.status === 'failed').map((e) => e.originalText),
-        unmatchedMetrics: groundedMetrics.filter((m) => m.status === 'failed').map((m) => m.originalText),
-        unmatchedFactors: groundedFactors.filter((f) => f.status === 'failed').map((f) => f.originalText),
-        ambiguousMatches: [
-          ...groundedEntities.filter((e) => e.status === 'ambiguous').map((e) => ({ type: 'entity' as const, originalText: e.originalText, candidateCount: e.candidates.length })),
-          ...groundedMetrics.filter((m) => m.status === 'ambiguous').map((m) => ({ type: 'metric' as const, originalText: m.originalText, candidateCount: m.candidates.length })),
-          ...groundedFactors.filter((f) => f.status === 'ambiguous').map((f) => ({ type: 'factor' as const, originalText: f.originalText, candidateCount: f.candidates.length })),
-          ...groundedTimeSemantics.filter((t) => t.status === 'ambiguous').map((t) => ({ type: 'time' as const, originalText: t.originalText, candidateCount: t.candidates.length })),
-        ],
-      };
+        // 6. 构建 diagnostics
+        const diagnostics = {
+          unmatchedEntities: groundedEntities.filter((e) => e.status === 'failed').map((e) => e.originalText),
+          unmatchedMetrics: groundedMetrics.filter((m) => m.status === 'failed').map((m) => m.originalText),
+          unmatchedFactors: groundedFactors.filter((f) => f.status === 'failed').map((f) => f.originalText),
+          ambiguousMatches: [
+            ...groundedEntities.filter((e) => e.status === 'ambiguous').map((e) => ({ type: 'entity' as const, originalText: e.originalText, candidateCount: e.candidates.length })),
+            ...groundedMetrics.filter((m) => m.status === 'ambiguous').map((m) => ({ type: 'metric' as const, originalText: m.originalText, candidateCount: m.candidates.length })),
+            ...groundedFactors.filter((f) => f.status === 'ambiguous').map((f) => ({ type: 'factor' as const, originalText: f.originalText, candidateCount: f.candidates.length })),
+            ...groundedTimeSemantics.filter((t) => t.status === 'ambiguous').map((t) => ({ type: 'time' as const, originalText: t.originalText, candidateCount: t.candidates.length })),
+          ],
+        };
 
-      const groundedContext: OntologyGroundedContext = {
-        ontologyVersionId: version.id,
-        groundingStatus,
-        entities: groundedEntities,
-        metrics: groundedMetrics,
-        factors: groundedFactors,
-        timeSemantics: groundedTimeSemantics,
-        originalMergedContext,
-        groundedAt: new Date().toISOString(),
-        groundingStrategy: 'exact-match', // 简化：记录主要策略
-        diagnostics,
-      };
-
-      // 7. 如 grounding 被阻断（ambiguous / partial / failed），抛出错误供上层处理
-      if (
-        (isGroundingBlocked(groundedContext) ||
-          groundedContext.groundingStatus === 'partial') &&
-        !strategy.allowFallbackToFreeText
-      ) {
-        throw new OntologyGroundingError(
-          `Ontology grounding ${groundingStatus}: 无法继续生成分析计划`,
+        const groundedContext: OntologyGroundedContext = {
+          ontologyVersionId: version.id,
           groundingStatus,
-          {
-            ontologyVersionId: version.id,
-            failedItems: allResults
-              .filter((r) => r.status === 'failed')
-              .map((r) => ({ type: 'unknown', text: r.originalText, reason: r.failureReason ?? '匹配失败' })),
-            ambiguousItems: allResults
-              .filter((r) => r.status === 'ambiguous')
-              .map((r) => ({ type: 'unknown', text: r.originalText, candidates: r.candidates.map((c) => c.businessKey) })),
-          },
-        );
+          entities: groundedEntities,
+          metrics: groundedMetrics,
+          factors: groundedFactors,
+          timeSemantics: groundedTimeSemantics,
+          originalMergedContext,
+          groundedAt: new Date().toISOString(),
+          groundingStrategy: 'exact-match', // 简化：记录主要策略
+          diagnostics,
+        };
+
+        const failedItems = [
+          ...groundedEntities
+            .filter((item) => item.status === 'failed')
+            .map((item) => ({
+              type: 'entity' as const,
+              text: item.originalText,
+              reason: item.failureReason ?? '匹配失败',
+            })),
+          ...groundedMetrics
+            .filter((item) => item.status === 'failed')
+            .map((item) => ({
+              type: 'metric' as const,
+              text: item.originalText,
+              reason: item.failureReason ?? '匹配失败',
+            })),
+          ...groundedFactors
+            .filter((item) => item.status === 'failed')
+            .map((item) => ({
+              type: 'factor' as const,
+              text: item.originalText,
+              reason: item.failureReason ?? '匹配失败',
+            })),
+          ...groundedTimeSemantics
+            .filter((item) => item.status === 'failed')
+            .map((item) => ({
+              type: 'time' as const,
+              text: item.originalText,
+              reason: item.failureReason ?? '匹配失败',
+            })),
+        ];
+
+        const ambiguousItems = [
+          ...groundedEntities
+            .filter((item) => item.status === 'ambiguous')
+            .map((item) => ({
+              type: 'entity' as const,
+              text: item.originalText,
+              candidates: item.candidates.map((candidate) => candidate.businessKey),
+            })),
+          ...groundedMetrics
+            .filter((item) => item.status === 'ambiguous')
+            .map((item) => ({
+              type: 'metric' as const,
+              text: item.originalText,
+              candidates: item.candidates.map((candidate) => candidate.businessKey),
+            })),
+          ...groundedFactors
+            .filter((item) => item.status === 'ambiguous')
+            .map((item) => ({
+              type: 'factor' as const,
+              text: item.originalText,
+              candidates: item.candidates.map((candidate) => candidate.businessKey),
+            })),
+          ...groundedTimeSemantics
+            .filter((item) => item.status === 'ambiguous')
+            .map((item) => ({
+              type: 'time' as const,
+              text: item.originalText,
+              candidates: item.candidates.map((candidate) => candidate.businessKey),
+            })),
+        ];
+
+        // 7. 如 grounding 被阻断（ambiguous / partial / failed），抛出错误供上层处理
+        if (
+          (isGroundingBlocked(groundedContext) ||
+            groundedContext.groundingStatus === 'partial') &&
+          !shouldAllowFallbackToFreeText
+        ) {
+          const blockingError = new OntologyGroundingError(
+            `Ontology grounding ${groundingStatus}: 无法继续生成分析计划`,
+            groundingStatus,
+            {
+              ontologyVersionId: version.id,
+              failedItems,
+              ambiguousItems,
+            },
+          );
+          const canTryNextApprovedVersion =
+            !preferredVersionId &&
+            groundingStatus === 'failed' &&
+            successCount === 0 &&
+            candidateIndex < candidateVersions.length - 1;
+
+          if (canTryNextApprovedVersion) {
+            lastGroundingError = blockingError;
+            continue;
+          }
+
+          throw blockingError;
+        }
+
+        return groundedContext;
       }
 
-      return groundedContext;
+      if (lastGroundingError) {
+        throw lastGroundingError;
+      }
+
+      throw new OntologyGroundingError(
+        'Ontology grounding failed: 无法在已发布版本中找到可执行的治理化上下文',
+        'failed',
+        {
+          ontologyVersionId: candidateVersions[0]?.id ?? preferredVersionId ?? 'current-approved',
+          failedItems: [
+            {
+              type: 'version',
+              text: 'ontology-version',
+              reason: '没有可执行的已发布版本',
+            },
+          ],
+        },
+      );
       /* eslint-enable @typescript-eslint/no-unused-vars */
     },
 

@@ -62,10 +62,31 @@ export function createPostgresOntologyVersionStore(
         .select()
         .from(ontologyVersions)
         .where(eq(ontologyVersions.status, 'approved'))
-        .orderBy(desc(ontologyVersions.publishedAt))
+        .orderBy(
+          desc(ontologyVersions.publishedAt),
+          desc(ontologyVersions.updatedAt),
+          desc(ontologyVersions.createdAt),
+          desc(ontologyVersions.id),
+        )
         .limit(1);
 
       return rows[0] ? rowToOntologyVersion(rows[0]) : null;
+    },
+
+    async listApprovedCandidates(limit = 20) {
+      const rows = await resolvedDb
+        .select()
+        .from(ontologyVersions)
+        .where(eq(ontologyVersions.status, 'approved'))
+        .orderBy(
+          desc(ontologyVersions.publishedAt),
+          desc(ontologyVersions.updatedAt),
+          desc(ontologyVersions.createdAt),
+          desc(ontologyVersions.id),
+        )
+        .limit(limit);
+
+      return rows.map((row) => rowToOntologyVersion(row));
     },
 
     async updateStatus(id, status, updatedAt, timestamps) {
