@@ -25,6 +25,7 @@ import { AnalysisExecutionLiveShell } from './_components/analysis-execution-liv
 import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
 import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
+import { AnalysisAutoExecuteGate } from './_components/analysis-auto-execute-gate';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
 import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/models';
@@ -376,78 +377,65 @@ export default async function AnalysisSessionPage({
     snapshots: sessionSnapshots,
     selectedRoundId: historyRoundId || null,
   });
+  const hasSessionExecution = Boolean(latestExecutionSnapshot);
+  const hasActiveFollowUpExecution = Boolean(activeFollowUp?.resultExecutionId);
+  const shouldAutoExecuteBase =
+    !requestedExecutionIdForDisplay &&
+    !executionError &&
+    !groundedPlanPreviewError &&
+    (!activeFollowUp ? !hasSessionExecution : !hasActiveFollowUpExecution);
+  const shouldAutoExecuteAfterReplan =
+    Boolean(activeFollowUp) &&
+    Boolean(followUpReplanned) &&
+    !followUpReplanError &&
+    !requestedExecutionIdForDisplay &&
+    !executionError &&
+    !groundedPlanPreviewError;
+  const shouldAutoExecute = shouldAutoExecuteBase || shouldAutoExecuteAfterReplan;
 
   return (
-    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px]">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
       <div className="space-y-6">
-        <article className="hero-panel p-7 md:p-9">
-          <p className="text-sm font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
+        <article className="glass-panel p-6">
+          <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
             Analysis Session
           </p>
-          <h2 className="mt-3 font-display text-3xl font-semibold text-[color:var(--ink-900)]">
-            主分析区
+          <h2 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
+            {analysisSession.questionText}
           </h2>
-          <p className="mt-4 text-base leading-7 text-[color:var(--ink-600)]">
-            当前会话已经创建成功，后续意图识别、计划生成和执行步骤会围绕这条原始问题继续展开。
-          </p>
-        </article>
-
-        <article className="glass-panel p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
-                会话起点
-              </p>
-              <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
-                {analysisSession.questionText}
-              </h3>
-            </div>
-            <span className="rounded-full bg-[color:var(--sky-100)] px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
-              待分析
-            </span>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {intent ? (
+              <span
+                className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-sm font-medium text-[color:var(--brand-700)]"
+                data-testid="intent-result"
+              >
+                {getIntentTypeLabel(intent.type)}
+              </span>
+            ) : null}
+            {activeFollowUp ? (
+              <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-[color:var(--ink-600)]">
+                当前轮次：追问模式
+              </span>
+            ) : null}
           </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl bg-white/76 p-5">
-              <p className="text-xs text-[color:var(--ink-600)]">会话 ID</p>
-              <p className="mt-2 break-all text-base text-[color:var(--ink-900)]">
-                {analysisSession.id}
-              </p>
-            </div>
-            <div className="rounded-3xl bg-white/76 p-5">
-              <p className="text-xs text-[color:var(--ink-600)]">创建时间</p>
-              <p className="mt-2 text-base text-[color:var(--ink-900)]">
-                {analysisSession.createdAt}
-              </p>
-            </div>
-          </div>
-        </article>
-
-        {intent && (
-          <article className="glass-panel p-6" data-testid="intent-result">
-            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
-              意图识别结果
+          {intent?.goal ? (
+            <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]" data-testid="intent-goal">
+              {intent.goal}
             </p>
-            <div className="mt-4 space-y-4">
-              <div className="rounded-3xl bg-white/76 p-5">
-                <p className="text-xs text-[color:var(--ink-600)]">分析类型</p>
-                <p className="mt-2 text-lg font-semibold text-[color:var(--ink-900)]" data-testid="intent-type">
-                  {getIntentTypeLabel(intent.type)}
-                </p>
-              </div>
-              <div className="rounded-3xl bg-white/76 p-5">
-                <p className="text-xs text-[color:var(--ink-600)]">核心目标</p>
-                <p className="mt-2 text-base leading-7 text-[color:var(--ink-900)]" data-testid="intent-goal">
-                  {intent.goal}
-                </p>
-              </div>
-            </div>
-          </article>
-        )}
+          ) : null}
+        </article>
 
-        <AnalysisContextPanel
+        <AnalysisPlanPanel
           sessionId={analysisSession.id}
-          initialReadModel={contextReadModel}
+          readModel={analysisPlanReadModel}
+          followUpId={activeFollowUp?.id}
+          blockingMessage={groundedPlanPreviewError?.message}
+        />
+
+        <AnalysisAutoExecuteGate
+          sessionId={analysisSession.id}
+          followUpId={activeFollowUp?.id}
+          enabled={shouldAutoExecute}
         />
 
         {(requestedExecutionIdForDisplay || executionError) ? (
@@ -478,13 +466,6 @@ export default async function AnalysisSessionPage({
           </article>
         ) : null}
 
-        <AnalysisPlanPanel
-          sessionId={analysisSession.id}
-          readModel={analysisPlanReadModel}
-          followUpId={activeFollowUp?.id}
-          blockingMessage={groundedPlanPreviewError?.message}
-        />
-
         {resolvedExecutionId && executionStreamReadModel ? (
           <AnalysisExecutionLiveShell
             sessionId={analysisSession.id}
@@ -495,6 +476,18 @@ export default async function AnalysisSessionPage({
         ) : liveConclusionReadModel ? (
           <AnalysisConclusionPanel readModel={liveConclusionReadModel} />
         ) : null}
+
+        <details className="glass-panel p-6">
+          <summary className="cursor-pointer text-sm font-semibold text-[color:var(--ink-900)]">
+            上下文修正（可选）
+          </summary>
+          <div className="mt-4">
+            <AnalysisContextPanel
+              sessionId={analysisSession.id}
+              initialReadModel={contextReadModel}
+            />
+          </div>
+        </details>
 
         {latestFollowUpConclusion ? (
           <AnalysisFollowUpPanel
@@ -511,36 +504,29 @@ export default async function AnalysisSessionPage({
           />
         ) : null}
 
-        <AnalysisHistoryPanel
-          sessionId={analysisSession.id}
-          activeFollowUpId={activeFollowUp?.id}
-          readModel={historyReadModel}
-        />
+        <details className="glass-panel p-6">
+          <summary className="cursor-pointer text-sm font-semibold text-[color:var(--ink-900)]">
+            历史回放（可选）
+          </summary>
+          <div className="mt-4">
+            <AnalysisHistoryPanel
+              sessionId={analysisSession.id}
+              activeFollowUpId={activeFollowUp?.id}
+              readModel={historyReadModel}
+            />
+          </div>
+        </details>
       </div>
 
       <aside className="space-y-6">
-        <CandidateFactorPanel readModel={candidateFactorReadModel} />
-
-        <article className="glass-panel p-6">
-          <p className="text-sm font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
-            证据辅助区
-          </p>
-          <h3 className="mt-3 text-2xl font-semibold text-[color:var(--ink-900)]">
-            证据和计划将在这里逐步展开
-          </h3>
-          <p className="mt-4 text-sm leading-7 text-[color:var(--ink-600)]">
-            Story 1.4 先保留稳定的右侧容器关系，后续会继续接入计划时间线、证据堆栈和原因排序面板。
-          </p>
-        </article>
-
-        <article className="glass-panel p-6">
-          <p className="text-sm font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
-            会话导航区
-          </p>
-          <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]">
-            左侧固定导航继续承载用户身份与权限范围，这里保留会话级补充信息和后续快捷动作。
-          </p>
-        </article>
+        <details className="glass-panel p-6">
+          <summary className="cursor-pointer text-sm font-semibold text-[color:var(--ink-900)]">
+            候选因素（可选）
+          </summary>
+          <div className="mt-4">
+            <CandidateFactorPanel readModel={candidateFactorReadModel} />
+          </div>
+        </details>
       </aside>
     </section>
   );

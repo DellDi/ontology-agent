@@ -33,6 +33,19 @@ export function AnalysisPlanPanel({
         {readModel.summary}
       </p>
 
+      {readModel.assumptions.length > 0 ? (
+        <section className="mt-4 rounded-3xl border border-amber-100 bg-amber-50/80 p-4">
+          <p className="text-xs font-medium tracking-[0.18em] text-amber-700 uppercase">
+            自动执行假设
+          </p>
+          <ul className="mt-2 space-y-1 text-sm leading-7 text-amber-900">
+            {readModel.assumptions.map((assumption) => (
+              <li key={assumption}>- {assumption}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <div className="mt-5 space-y-4">
         {readModel.steps.map((step) => (
           <section
@@ -83,8 +96,8 @@ export function AnalysisPlanPanel({
         </p>
         <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]">
           {blockingMessage
-            ? '当前治理化计划未通过校验，系统不会接受执行提交，直到上下文被修正到可治理状态。'
-            : '系统会将当前计划提交到后台执行，不会在当前请求里同步跑完整个分析链路。'}
+            ? '系统会将当前计划提交到后台执行；若治理化计划未通过校验，会在提交前阻断并提示你修正上下文。'
+            : '系统默认自动发起后台执行；你无需补齐所有细项后再手动启动。'}
         </p>
         {blockingMessage ? (
           <div className="status-banner mt-4" data-tone="error">
@@ -100,7 +113,7 @@ export function AnalysisPlanPanel({
             <input name="followUpId" type="hidden" value={followUpId} />
           ) : null}
           <button className="primary-button" disabled={Boolean(blockingMessage)} type="submit">
-            开始执行分析
+            手动执行（兜底）
           </button>
         </form>
       </div>

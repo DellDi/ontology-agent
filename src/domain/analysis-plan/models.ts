@@ -21,6 +21,7 @@ export type AnalysisPlan = {
   steps: AnalysisPlanStep[];
   _groundedSource?: string;
   _groundingStatus?: OntologyGroundedContext['groundingStatus'];
+  _executionAssumptions?: string[];
 };
 
 export type AnalysisPlanDiffStep = {
@@ -282,6 +283,29 @@ function getRequiredGroundedDefinitionDisplayName(
   return matched.originalText || matched.canonicalDefinition.displayName;
 }
 
+function getOptionalGroundedDefinitionDisplayName(
+  items: Array<{
+    status: 'success' | 'ambiguous' | 'failed';
+    originalText: string;
+    canonicalDefinition: { displayName: string } | null;
+  }>,
+  fallback: string,
+) {
+  const matched = items.find(
+    (item) => item.status === 'success' && item.canonicalDefinition,
+  );
+
+  if (matched?.canonicalDefinition) {
+    return matched.originalText || matched.canonicalDefinition.displayName;
+  }
+
+  const originalText = items
+    .map((item) => item.originalText.trim())
+    .find((value) => value.length > 0);
+
+  return originalText ?? fallback;
+}
+
 /**
  * 基于 Ontology Grounded Context 构建分析计划
  *
@@ -299,9 +323,9 @@ export function buildAnalysisPlanFromGroundedContext(input: GroundedAnalysisPlan
     input.groundedContext.entities,
     '实体',
   );
-  const timeRange = getRequiredGroundedDefinitionDisplayName(
+  const timeRange = getOptionalGroundedDefinitionDisplayName(
     input.groundedContext.timeSemantics,
-    '时间语义',
+    '当前分析周期',
   );
 
   // 构建 steps，使用 grounded factors 而非 raw candidate factors

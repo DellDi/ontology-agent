@@ -107,8 +107,16 @@ export class OntologyGroundingError extends Error {
     public readonly status: GroundingStatus,
     public readonly details: {
       ontologyVersionId: string;
-      failedItems: Array<{ type: string; text: string; reason: string }>;
-      ambiguousItems?: Array<{ type: string; text: string; candidates: string[] }>;
+      failedItems: Array<{
+        type: 'entity' | 'metric' | 'factor' | 'time' | 'version' | 'permission';
+        text: string;
+        reason: string;
+      }>;
+      ambiguousItems?: Array<{
+        type: 'entity' | 'metric' | 'factor' | 'time' | 'version' | 'permission';
+        text: string;
+        candidates: string[];
+      }>;
     },
   ) {
     super(message);

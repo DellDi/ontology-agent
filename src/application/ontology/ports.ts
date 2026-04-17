@@ -29,6 +29,7 @@ export type OntologyVersionStore = {
   create(input: CreateOntologyVersionInput): Promise<OntologyVersion>;
   findById(id: string): Promise<OntologyVersion | null>;
   findCurrentApproved(): Promise<OntologyVersion | null>;
+  listApprovedCandidates?(limit?: number): Promise<OntologyVersion[]>;
   updateStatus(
     id: string,
     status: OntologyVersionStatus,
