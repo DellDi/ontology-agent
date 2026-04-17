@@ -15,11 +15,19 @@ import { AnalysisExecutionStreamPanel } from './analysis-execution-stream-panel'
 type AnalysisExecutionLiveShellProps = {
   sessionId: string;
   executionId: string;
+  ownerUserId: string;
   initialReadModel: AnalysisExecutionStreamReadModel;
   initialConclusionReadModel: AnalysisConclusionReadModel | null;
+  planAssumptions?: string[];
 };
 
-const PROCESS_BOARD_STORAGE_KEY = 'analysis-process-board-open-v1';
+// D2: localStorage key 按 user 命名空间隔离，避免多账户同设备互相干扰；
+// 同时保留 v2 版本号，前缀 v1 的旧 key 适时废弃。
+const PROCESS_BOARD_STORAGE_KEY_PREFIX = 'analysis-process-board-open-v2';
+
+function buildProcessBoardStorageKey(ownerUserId: string) {
+  return `${PROCESS_BOARD_STORAGE_KEY_PREFIX}:${ownerUserId}`;
+}
 
 function resolveExecutionStatus(events: AnalysisExecutionStreamEvent[]) {
   const latestStatusEvent = [...events]
@@ -49,13 +57,18 @@ function resolveExecutionStatus(events: AnalysisExecutionStreamEvent[]) {
 export function AnalysisExecutionLiveShell({
   sessionId,
   executionId,
+  ownerUserId,
   initialReadModel,
   initialConclusionReadModel,
+  planAssumptions,
 }: AnalysisExecutionLiveShellProps) {
+  // D2: key 在 ownerUserId 下隔离，不再使用全局 key。
+  const processBoardStorageKey = buildProcessBoardStorageKey(ownerUserId);
   const [events, setEvents] = useState(initialReadModel.events);
-  // P1 fix: SSR 与 CSR 首轮渲染必须保持一致，避免 hydration mismatch。
-  // localStorage 读取推迟到挂载后的 useEffect 中执行，首轮统一使用 true。
-  const [isProcessBoardOpen, setIsProcessBoardOpen] = useState(true);
+  // D1 + P1 fix: 默认态为收起，严格对齐 UX addendum "主画布优先展示阶段结果与结论叙事"。
+  // SSR 与 CSR 首轮渲染都为 false，避免 hydration mismatch；
+  // 用户在本会话之前已显式展开过的状态通过 localStorage 在挂载后恢复。
+  const [isProcessBoardOpen, setIsProcessBoardOpen] = useState(false);
   const [hasRestoredOpenState, setHasRestoredOpenState] = useState(false);
   const [conclusionReadModel, setConclusionReadModel] = useState(
     buildLiveConclusionReadModel({
@@ -68,13 +81,14 @@ export function AnalysisExecutionLiveShell({
     // 读取 localStorage 必须在挂载后进行，否则 SSR/CSR 初值不一致会导致 hydration mismatch。
     // React 19 的 react-hooks/set-state-in-effect 无法识别"从外部持久化层恢复 UI 状态"这一合法场景，
     // 此处的 one-shot setState 仅会触发一次额外渲染，不构成 cascading renders。
-    const persisted = window.localStorage.getItem(PROCESS_BOARD_STORAGE_KEY);
-    if (persisted === '0') {
+    const persisted = window.localStorage.getItem(processBoardStorageKey);
+    // D1: 默认收起；仅当用户显式展开过（persisted === '1'）才恢复为展开。
+    if (persisted === '1') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsProcessBoardOpen(false);
+      setIsProcessBoardOpen(true);
     }
     setHasRestoredOpenState(true);
-  }, []);
+  }, [processBoardStorageKey]);
 
   useEffect(() => {
     if (!hasRestoredOpenState) {
@@ -82,10 +96,10 @@ export function AnalysisExecutionLiveShell({
     }
 
     window.localStorage.setItem(
-      PROCESS_BOARD_STORAGE_KEY,
+      processBoardStorageKey,
       isProcessBoardOpen ? '1' : '0',
     );
-  }, [hasRestoredOpenState, isProcessBoardOpen]);
+  }, [hasRestoredOpenState, isProcessBoardOpen, processBoardStorageKey]);
 
   // P2 支持：Esc 关闭流程看板，不拦截主画布阅读。
   useEffect(() => {
@@ -147,7 +161,10 @@ export function AnalysisExecutionLiveShell({
   return (
     <>
       {conclusionReadModel ? (
-        <AnalysisConclusionPanel readModel={conclusionReadModel} />
+        <AnalysisConclusionPanel
+          readModel={conclusionReadModel}
+          planAssumptions={planAssumptions}
+        />
       ) : null}
 
       <article className="glass-panel p-6">

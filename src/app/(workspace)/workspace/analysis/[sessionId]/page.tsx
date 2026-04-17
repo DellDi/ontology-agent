@@ -470,11 +470,16 @@ export default async function AnalysisSessionPage({
           <AnalysisExecutionLiveShell
             sessionId={analysisSession.id}
             executionId={resolvedExecutionId}
+            ownerUserId={currentUser.userId}
             initialReadModel={executionStreamReadModel}
             initialConclusionReadModel={liveConclusionReadModel}
+            planAssumptions={analysisPlanReadModel.assumptions}
           />
         ) : liveConclusionReadModel ? (
-          <AnalysisConclusionPanel readModel={liveConclusionReadModel} />
+          <AnalysisConclusionPanel
+            readModel={liveConclusionReadModel}
+            planAssumptions={analysisPlanReadModel.assumptions}
+          />
         ) : null}
 
         <details className="glass-panel p-6">
