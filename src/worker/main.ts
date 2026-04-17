@@ -3,6 +3,11 @@ import { loadEnvConfig } from '@next/env';
 // 加载 .env 文件（worker 独立运行时需要）
 loadEnvConfig(process.cwd());
 
+import {
+  createLogger,
+  metrics,
+  rootLogger,
+} from '@/infrastructure/observability';
 import { createRedisClient } from '@/infrastructure/redis/client';
 import { createRedisJobQueue } from '@/infrastructure/job/redis-job-queue';
 import { createJobUseCases } from '@/application/job/use-cases';
@@ -20,11 +25,16 @@ import { finalizeSuccessfulAnalysisExecution } from './finalize-analysis-executi
 const POLL_INTERVAL_MS = 1000;
 
 async function main() {
-  console.log('[worker] 启动中...');
+  // Story 7.4: worker 端独立命名服务，让日志平台的 `service` 字段能区分 web / worker。
+  if (!process.env.OBSERVABILITY_SERVICE_NAME) {
+    process.env.OBSERVABILITY_SERVICE_NAME = 'ontology-agent-worker';
+  }
+  const workerLogger = createLogger({ component: 'worker' });
+  workerLogger.info('worker.starting');
 
   const { redis } = createRedisClient();
   await redis.connect();
-  console.log('[worker] Redis 连接成功');
+  workerLogger.info('worker.redis_connected');
 
   const jobQueue = createRedisJobQueue(redis);
   const jobUseCases = createJobUseCases({ jobQueue });
@@ -43,16 +53,16 @@ async function main() {
   let running = true;
 
   process.on('SIGINT', () => {
-    console.log('[worker] 收到 SIGINT，准备退出...');
+    workerLogger.info('worker.signal', { signal: 'SIGINT' });
     running = false;
   });
 
   process.on('SIGTERM', () => {
-    console.log('[worker] 收到 SIGTERM，准备退出...');
+    workerLogger.info('worker.signal', { signal: 'SIGTERM' });
     running = false;
   });
 
-  console.log('[worker] 开始轮询任务队列...');
+  workerLogger.info('worker.poll_started');
 
   while (running) {
     try {
@@ -63,7 +73,13 @@ async function main() {
         continue;
       }
 
-      console.log(`[worker] 开始处理任务 ${job.id} (${job.type})`);
+      metrics.increment('worker.jobs.started');
+      metrics.increment(`worker.jobs.by_type.${job.type}`);
+      const jobLogger = workerLogger.child({
+        jobId: job.id,
+        jobType: job.type,
+      });
+      jobLogger.info('worker.job_started');
 
       if (job.type === 'analysis-execution') {
         await analysisExecutionStreamUseCases.publishExecutionStatus({
@@ -80,7 +96,10 @@ async function main() {
       const handler = getJobHandler(job.type);
 
       if (!handler) {
-        console.error(`[worker] 未知任务类型: ${job.type}`);
+        jobLogger.error('worker.job_unknown_type', {
+          errorKind: 'worker.unknown_job_type',
+        });
+        metrics.increment('worker.jobs.failed');
         await jobUseCases.failJob(job.id, `未知任务类型: ${job.type}`);
         continue;
       }
@@ -100,14 +119,16 @@ async function main() {
             });
 
           if (completionOutcome.postCompletionError) {
-            console.error(
-              `[worker] 任务 ${job.id} 已完成，但完成态副作用失败: ${completionOutcome.postCompletionError}`,
-            );
+            jobLogger.error('worker.job_post_completion_failed', {
+              errorKind: 'worker.post_completion',
+              errorMessage: completionOutcome.postCompletionError,
+            });
           }
         } else {
           await jobUseCases.completeJob(job.id, result);
         }
-        console.log(`[worker] 任务 ${job.id} 完成`);
+        metrics.increment('worker.jobs.completed');
+        jobLogger.info('worker.job_completed');
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : '未知错误';
@@ -151,20 +172,33 @@ async function main() {
             });
           }
         }
-        console.error(`[worker] 任务 ${job.id} 失败: ${errorMessage}`);
+        metrics.increment('worker.jobs.failed');
+        jobLogger.error('worker.job_failed', {
+          errorKind: 'worker.job_failed',
+          errorMessage,
+        });
       }
     } catch (err) {
-      console.error('[worker] 轮询异常:', err);
+      const errMessage = err instanceof Error ? err.message : String(err);
+      metrics.increment('worker.poll_errors');
+      workerLogger.error('worker.poll_error', {
+        errorKind: 'worker.poll_error',
+        errorMessage: errMessage,
+      });
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
   }
 
-  console.log('[worker] 断开 Redis 连接...');
+  workerLogger.info('worker.disconnecting');
   await redis.destroy();
-  console.log('[worker] 已退出');
+  workerLogger.info('worker.exited');
 }
 
 main().catch((err) => {
-  console.error('[worker] 启动失败:', err);
+  const errMessage = err instanceof Error ? err.message : String(err);
+  rootLogger.error('worker.boot_failed', {
+    errorKind: 'worker.boot',
+    errorMessage: errMessage,
+  });
   process.exit(1);
 });
