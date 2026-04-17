@@ -129,12 +129,20 @@ export async function buildGroundedPlanningArtifacts(input: {
     }
 
     autoExecutionAssumptions = buildAutoExecutionAssumptions(error);
-    groundedContext = await input.groundingUseCases.groundAnalysisContext({
-      sessionId: input.sessionId,
-      ownerUserId: input.ownerUserId,
-      analysisContext: input.contextReadModel.context,
-      allowFallbackToFreeText: true,
-    });
+
+    // P5 fix: 直接复用 grounding 错误中携带的已构建 groundedContext，
+    // 避免对同一上下文再次发起 grounding 造成双倍 DB 往返。
+    // 仅当错误未附带已构建 context（防御性兜底）时才降级为二次调用。
+    if (error.details.groundedContext) {
+      groundedContext = error.details.groundedContext;
+    } else {
+      groundedContext = await input.groundingUseCases.groundAnalysisContext({
+        sessionId: input.sessionId,
+        ownerUserId: input.ownerUserId,
+        analysisContext: input.contextReadModel.context,
+        allowFallbackToFreeText: true,
+      });
+    }
   }
 
   await input.groundedContextStore?.save({

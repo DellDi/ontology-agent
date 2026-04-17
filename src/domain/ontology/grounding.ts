@@ -117,6 +117,11 @@ export class OntologyGroundingError extends Error {
         text: string;
         candidates: string[];
       }>;
+      // P5: 已构建的 grounded context 随错误一起传出，
+      // 允许上层在非阻断场景直接消费，避免二次调用 grounding。
+      groundedContext?: OntologyGroundedContext;
+      // P8: 多版本探测的可观测性轨迹。
+      attemptedVersionIds?: string[];
     },
   ) {
     super(message);
