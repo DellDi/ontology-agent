@@ -53,13 +53,10 @@ export function AnalysisExecutionLiveShell({
   initialConclusionReadModel,
 }: AnalysisExecutionLiveShellProps) {
   const [events, setEvents] = useState(initialReadModel.events);
-  const [isProcessBoardOpen, setIsProcessBoardOpen] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true;
-    }
-
-    return window.localStorage.getItem(PROCESS_BOARD_STORAGE_KEY) !== '0';
-  });
+  // P1 fix: SSR 与 CSR 首轮渲染必须保持一致，避免 hydration mismatch。
+  // localStorage 读取推迟到挂载后的 useEffect 中执行，首轮统一使用 true。
+  const [isProcessBoardOpen, setIsProcessBoardOpen] = useState(true);
+  const [hasRestoredOpenState, setHasRestoredOpenState] = useState(false);
   const [conclusionReadModel, setConclusionReadModel] = useState(
     buildLiveConclusionReadModel({
       events: initialReadModel.events,
@@ -68,10 +65,42 @@ export function AnalysisExecutionLiveShell({
   );
 
   useEffect(() => {
+    // 读取 localStorage 必须在挂载后进行，否则 SSR/CSR 初值不一致会导致 hydration mismatch。
+    // React 19 的 react-hooks/set-state-in-effect 无法识别"从外部持久化层恢复 UI 状态"这一合法场景，
+    // 此处的 one-shot setState 仅会触发一次额外渲染，不构成 cascading renders。
+    const persisted = window.localStorage.getItem(PROCESS_BOARD_STORAGE_KEY);
+    if (persisted === '0') {
+      setIsProcessBoardOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasRestoredOpenState(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestoredOpenState) {
+      return;
+    }
+
     window.localStorage.setItem(
       PROCESS_BOARD_STORAGE_KEY,
       isProcessBoardOpen ? '1' : '0',
     );
+  }, [hasRestoredOpenState, isProcessBoardOpen]);
+
+  // P2 支持：Esc 关闭流程看板，不拦截主画布阅读。
+  useEffect(() => {
+    if (!isProcessBoardOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsProcessBoardOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isProcessBoardOpen]);
 
   useEffect(() => {
@@ -193,14 +222,10 @@ export function AnalysisExecutionLiveShell({
         </div>
       </aside>
 
-      {isProcessBoardOpen ? (
-        <button
-          aria-label="关闭执行流程看板"
-          className="fixed inset-0 z-30 bg-slate-900/18"
-          onClick={() => setIsProcessBoardOpen(false)}
-          type="button"
-        />
-      ) : (
+      {/* P2 fix: 移除全屏遮罩 button，避免打开看板时阻断主画布交互；
+          符合 UX addendum "切换态：收起/展开不应中断执行流" 的 AC。
+          用户可通过 aside 内的"收起"按钮、头部 toggle 或 Esc 键关闭。 */}
+      {!isProcessBoardOpen ? (
         <button
           className="primary-button fixed right-5 bottom-5 z-30"
           onClick={() => setIsProcessBoardOpen(true)}
@@ -208,7 +233,7 @@ export function AnalysisExecutionLiveShell({
         >
           打开执行流程看板
         </button>
-      )}
+      ) : null}
     </>
   );
 }

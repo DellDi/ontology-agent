@@ -65,7 +65,7 @@ function collectGroundingIssueTypes(
   return types;
 }
 
-function isHardBlockingGroundingError(error: OntologyGroundingError) {
+export function isHardBlockingGroundingError(error: OntologyGroundingError) {
   const issueTypes = collectGroundingIssueTypes(error);
 
   for (const issueType of issueTypes) {
@@ -77,7 +77,7 @@ function isHardBlockingGroundingError(error: OntologyGroundingError) {
   return false;
 }
 
-function buildAutoExecutionAssumptions(error: OntologyGroundingError) {
+export function buildAutoExecutionAssumptions(error: OntologyGroundingError) {
   const issueTypes = collectGroundingIssueTypes(error);
   const assumptions: string[] = [];
 
