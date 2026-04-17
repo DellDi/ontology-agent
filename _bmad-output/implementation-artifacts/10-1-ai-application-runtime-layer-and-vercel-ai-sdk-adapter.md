@@ -16,6 +16,15 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
 4. 当 runtime layer 暴露工具能力时，系统必须提供统一的 tool runtime bridge，使后续 tool calling、tool approval、memory、knowledge resources、skills prompts 与外部工具接入能够沿同一 runtime 边界扩展；但在本 story 中不得把这些能力真正实现成新的治理系统或新的业务事实源。
 5. 当现有 `stream route` 与 `live shell` 被接入 runtime layer 后，系统仍应保留现有 SSE / EventSource 传输模式与已验证的执行流行为，确保 `5.2 / 5.4 / 6.4` 已建立的执行、持久化与历史回放语义不回退。
 
+6. 当 `Story 10.6` 已提前落地侧滑流程看板、自动执行闸门与 assumption 投影时，系统必须保留 10.6 已建立的客户端行为语义（默认收起的 side sheet 可恢复态、Esc 关闭、sessionStorage-scope 自动执行去重、assumption 在 ConclusionPanel 的 amber 投影），不得通过重写 `AnalysisExecutionLiveShell` 导致这些能力丢失。
+
+7. 当 runtime adapter 将 `context extraction → planner → tool selection` 接入到 `Vercel AI SDK` 边界时，它必须作为 `Story 9.3` 的 grounding 主链正式上线的**运行时边界 (runtime wiring)**：
+   - 调用 `createOntologyGroundingUseCases.groundAnalysisContext` 作为 context → planner 的强制边界，不得继续让 execute route handler 直接走 legacy `AnalysisContext` 主路径 (吸收 9.3 review finding #1)。
+   - 调用 `buildAnalysisPlanFromGroundedContext` 替换 `buildAnalysisPlan` 作为 planner 入口 (吸收 9.3 review finding #1)。
+   - 令 tool selection 消费 `ToolCapabilityBinding.selectBestToolBinding`，替换 `STEP_TOOL_FALLBACKS` 硬编码 fallback (吸收 9.3 review finding #2)。
+   - 新增 integration 测试覆盖 execute / follow-up / replan / tool selection 的真实 grounded 主链路径 (吸收 9.3 review finding #6)。
+   - 本 AC 只负责 runtime wiring；`buildAnalysisPlanFromGroundedContext` 的静默回退 (9.3 finding #3)、grounding status fail-loud (9.3 finding #4)、bootstrap 事务边界 (9.3 finding #5) 仍由 9.3 domain/infra 层自身修正，不在本 story 范围。
+
 ## Tasks / Subtasks
 
 - [ ] 建立 AI application runtime 的应用层契约与投影模型（AC: 1, 3, 4）
