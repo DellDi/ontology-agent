@@ -1,6 +1,6 @@
 # Story 7.4: 建立运行监控与可用性观测
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,15 +18,37 @@ so that 我们可以在试点阶段及时发现问题并维持目标可用性。
 
 ## Tasks / Subtasks
 
-- [ ] 建立基础 observability 模块（AC: 1, 2, 3）
-  - [ ] 明确 health、metrics、structured logs、trace / correlation id 的最小契约。
-  - [ ] 避免日志泄露 cookie、token 或原始敏感问题文本。
-- [ ] 接入关键服务端入口（AC: 1, 2, 3）
-  - [ ] 为分析相关 API、执行链路和关键错误路径加观测。
-  - [ ] 若 worker 已存在，保留跨进程 trace 关联。
-- [ ] 覆盖观测契约测试（AC: 1, 2, 3）
-  - [ ] 验证 health / metrics / trace 基础配置。
-  - [ ] 验证关键请求产生日志字段和 correlation id。
+- [x] 建立基础 observability 模块（AC: 1, 2, 3）
+  - [x] 明确 health、metrics、structured logs、trace / correlation id 的最小契约。
+  - [x] 避免日志泄露 cookie、token 或原始敏感问题文本。
+- [x] 接入关键服务端入口（AC: 1, 2, 3）
+  - [x] 为分析相关 API、执行链路和关键错误路径加观测。
+  - [x] 若 worker 已存在，保留跨进程 trace 关联。
+- [x] 覆盖观测契约测试（AC: 1, 2, 3）
+  - [x] 验证 health / metrics / trace 基础配置。
+  - [x] 验证关键请求产生日志字段和 correlation id。
+
+### Implementation Notes (2026-04-17)
+
+- 新建 `src/infrastructure/observability/` 模块，分 5 个文件：
+  - `sanitize.ts` — 敏感字段脱敏（password / token / secret / cookie / session / apiKey），自由文本（question/prompt）替换为长度摘要
+  - `correlation.ts` — `x-correlation-id` 入站优先 + AsyncLocalStorage 传递
+  - `metrics.ts` — 进程内 counter + 最近 50 条错误采样
+  - `logger.ts` — 结构化 JSON logger，输出到 stdout/stderr 供容器日志平台采集
+  - `request.ts` — `withRequestObservability` wrapper 统一注入 correlation、计数、错误采样
+  - `index.ts` — public surface，未来替换为 OTel 只需改这里
+- `instrumentation.ts` — Next.js 16 register hook，启动时输出 service 元信息；Edge runtime 跳过
+- `src/app/api/health/route.ts` — 并行探测 postgres / redis，返回结构化 `status: "ok" | "degraded"`，`degraded` 时返回 503
+- `src/app/api/metrics/route.ts` — JSON 暴露 counter snapshot + recent errors，供 prometheus json_exporter 拉取
+- `src/worker/main.ts` — 将所有 `console.*` 替换为结构化 logger，job 级别使用 child logger 绑定 jobId / jobType；全部关键状态转换转为 metrics counter
+
+### Test Coverage (2026-04-17)
+
+- `tests/story-7-4-observability.test.mts` — 14 个用例
+  - sanitize (4)：敏感字段 / 长文本 / 基本类型保留 / Error 序列化
+  - correlation (4)：入站 header / 缺省生成 / AsyncLocalStorage 传递 / Response 头写入
+  - metrics (2)：counter 累加 / recordError
+  - request wrapper (4)：correlation 注入 / 200 计数 / 500 计数 / unhandled exception / header 继承
 
 ## Dev Notes
 
