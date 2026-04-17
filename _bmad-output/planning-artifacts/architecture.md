@@ -232,9 +232,17 @@ pnpm create next-app@latest ontology-agent --ts --app
 ### 执行触发与阻断策略
 
 - 分析执行默认采用“先自动执行、再按需人工纠偏”的主链，不以用户手工补齐全部字段为默认前置条件。
-- 服务端必须区分两类触发条件：
-  - `Blocking`：权限冲突、核心实体冲突、核心指标冲突、严重语义歧义。
-  - `Non-blocking`：时间范围缺省、比较基线缺省、次要约束缺省。
+- 服务端必须区分两类触发条件，二者对应的 grounding issue type 必须与代码端 `HARD_BLOCKING_ISSUE_TYPES` 常量一一对齐：
+  - `Blocking`（issue type: `entity` / `metric` / `version` / `permission`）
+    - `entity`：核心实体冲突（例如指代到多个项目、指代不存在的主体）。
+    - `metric`：核心指标冲突（例如目标指标未命中治理指标或命中相互冲突的定义）。
+    - `version`：无可用已发布 ontology 版本，或指定版本不可用。
+    - `permission`：请求者 scope 无法覆盖所选实体/指标的访问边界。
+    - 以上任一命中即归为“严重语义歧义”，必须阻断并返回可诊断原因。
+  - `Non-blocking`（issue type: `time` / `factor`）
+    - `time`：时间语义未完全治理化或模糊（例如“上季度”未绑定 calendar semantic）。
+    - `factor`：部分候选因素未命中或存在歧义，但不影响主链推进。
+    - 其余比较基线缺省、次要约束缺省等 UX 层缺省条件，同样归为 non-blocking。
 - 对 `Blocking` 条件：
   - 明确阻断执行并返回可诊断原因。
   - 在交互层提供下一步确认/纠偏入口。
@@ -242,6 +250,7 @@ pnpm create next-app@latest ontology-agent --ts --app
   - 允许继续执行最小可行分析链路。
   - 必须写入并回传 `assumption trace`，保证可解释与可审计。
 - `fail loud` 原则不变，但“是否阻断”由风险级别决定，而不是把所有缺省都当作阻断项。
+- 代码权威源：`src/application/ontology/grounded-planning.ts` 的 `HARD_BLOCKING_ISSUE_TYPES`。新增或调整 issue type 时必须同步修改本段与该常量。
 
 ### 前端架构
 
