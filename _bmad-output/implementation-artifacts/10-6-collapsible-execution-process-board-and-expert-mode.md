@@ -67,7 +67,7 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 - [x] [Review][Patch][🟠 Med] **P7 double-submit 可访问性** — 已修复：合并双 form 为单 form，自动触发与手动提交共享同一元素与同一 action，根源性消除 double-submit 歧义与 不合理的 sr-only 提交按钮 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:55-67`
 - [x] [Review][Patch][🟠 Med] **P8 多版本探测无 observability** — 已修复：`attemptedVersionIds` 轨迹写入异常 details；回退到下一版本前新增 `console.warn` 输出步进信息（版本 id、尝试序列、status、failed/ambiguous type），完成 diagnosable 补全 `@src/application/ontology/grounding.ts:322-323, 583-611, 625-636`
 - [x] [Review][Patch][🟠 Med] **P9 `_executionAssumptions` 下划线私有字段** — 转为 **deferred**：domain 层既有 `_groundedSource` / `_groundingStatus` 同类约定，单改会破坏一致性；该项已追加到 `deferred-work.md`，建议在 Epic 10 retrospective 统一决策（整体去下划线 OR 将下划线约定写入 domain 规范）
-- [ ] [Review][Patch][🟡 Low] **P10 architecture.md 与代码不对齐**：文档 Blocking 列未包含 `version`，但代码 `HARD_BLOCKING_ISSUE_TYPES` 含之；应在 architecture.md 补齐并将"严重语义歧义"细化到 issue type `@_bmad-output/planning-artifacts/architecture.md:232-244`
+- [x] [Review][Patch][🟡 Low] **P10 architecture.md 与代码不对齐** — 已修复：Blocking 列新增 `version`，issue type 一一列出（entity/metric/version/permission 归为 "严重语义歧义"，time/factor 归为 non-blocking），并声明 `HARD_BLOCKING_ISSUE_TYPES` 为代码权威源 `@_bmad-output/planning-artifacts/architecture.md:232-253`
 - [x] [Review][Patch][🟡 Low] **P11 `requestSubmit()` 兼容性** — 已修复：auto-execute-gate 对 `typeof form.requestSubmit === 'function'` 做 feature-detect，缺失时降级到 `form.submit()` `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:54-58`
 - [ ] [Review][Patch][🟡 Low] **P12 ConclusionPanel 未展示 assumptions**：Story 5.1 AC-B 要求"结果中展示"，但目前仅 PlanPanel 展示；需在 Conclusion 面板补充投影（与 D5 联动）`@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-plan-panel.tsx:36-46`
 
@@ -115,10 +115,15 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 - `P9` 下划线字段 — 降为 **deferred**（与现有 domain 约定包括 `_groundedSource` 共同处理）
 - `P11` `requestSubmit` 兼容 — feature-detect 降级到 `form.submit()`
 
-Patch wave 3 剩余（🟡 Low）：
+### Completion Notes (2026-04-17, patch wave 3)
 
-- `P10` architecture.md 与代码不对齐
-- `P12` ConclusionPanel 未展示 assumptions（与 D5 联动）
+收尾 🟡 Low 层：
+
+- `P10` architecture.md 与代码对齐 — 列出 blocking 6 种 issue type、non-blocking 2 种，声明 `HARD_BLOCKING_ISSUE_TYPES` 为权威源
+
+Patch wave 3 剩余（阻塞于 decision）：
+
+- `P12` ConclusionPanel 未展示 assumptions — 与 `D5` 联动，决策后再做
 
 `D1 — D5` 等 5 项 decision-needed 仍阻塞于 PM/UX 拍板，清溅前禁止将状态推入 `done`。
 
