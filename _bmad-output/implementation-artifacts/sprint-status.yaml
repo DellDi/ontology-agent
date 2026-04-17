@@ -104,10 +104,11 @@ development_status:
   7-8-graph-sync-scheduling-compensation-and-consistency-sweep: done
   epic-7-retrospective: optional
 
-  epic-8: in-progress
-  8-1-mobile-latest-analysis-summary: ready-for-dev
-  8-2-mobile-key-evidence-view: ready-for-dev
-  8-3-mobile-lightweight-follow-up: ready-for-dev
+  # Epic 8 已合并到 Story 10.5，详见 planning-artifacts/sprint-change-proposal-2026-04-17-b.md
+  epic-8: merged-into-10-5
+  8-1-mobile-latest-analysis-summary: merged-into-10-5
+  8-2-mobile-key-evidence-view: merged-into-10-5
+  8-3-mobile-lightweight-follow-up: merged-into-10-5
   epic-8-retrospective: optional
 
   epic-9: in-progress
@@ -126,4 +127,5 @@ development_status:
   10-4-runtime-bridge-for-memory-knowledge-skills-and-tools: ready-for-dev
   10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema: ready-for-dev
   10-6-collapsible-execution-process-board-and-expert-mode: done
+  10-7-epic-10-alignment-sweep: backlog
   epic-10-retrospective: optional
