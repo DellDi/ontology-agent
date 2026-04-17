@@ -289,21 +289,27 @@ function getOptionalGroundedDefinitionDisplayName(
     originalText: string;
     canonicalDefinition: { displayName: string } | null;
   }>,
+  label: string,
   fallback: string,
 ) {
+  // Story 9.3 review #3: 不得静默使用 failed/ambiguous 的 originalText 作为 planner 输入。
+  // 空列表（用户未指定该维度）→ 返回 fallback（系统级默认值，允许）。
+  // 列表非空但无 success → 抛错（上游 grounding 未命中，planner 不得继续）。
+  if (items.length === 0) {
+    return fallback;
+  }
+
   const matched = items.find(
     (item) => item.status === 'success' && item.canonicalDefinition,
   );
 
-  if (matched?.canonicalDefinition) {
-    return matched.originalText || matched.canonicalDefinition.displayName;
+  if (!matched?.canonicalDefinition) {
+    throw new InvalidGroundedAnalysisPlanError(
+      `缺少可用的治理化${label}定义（存在 ${items.length} 项非 success 结果），无法生成 grounded plan。`,
+    );
   }
 
-  const originalText = items
-    .map((item) => item.originalText.trim())
-    .find((value) => value.length > 0);
-
-  return originalText ?? fallback;
+  return matched.originalText || matched.canonicalDefinition.displayName;
 }
 
 /**
@@ -325,6 +331,7 @@ export function buildAnalysisPlanFromGroundedContext(input: GroundedAnalysisPlan
   );
   const timeRange = getOptionalGroundedDefinitionDisplayName(
     input.groundedContext.timeSemantics,
+    '时间语义',
     '当前分析周期',
   );
 
