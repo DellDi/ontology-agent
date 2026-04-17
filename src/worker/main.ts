@@ -7,6 +7,8 @@ import {
   createLogger,
   metrics,
   rootLogger,
+  generateCorrelationId,
+  withCorrelationAsync,
 } from '@/infrastructure/observability';
 import { createRedisClient } from '@/infrastructure/redis/client';
 import { createRedisJobQueue } from '@/infrastructure/job/redis-job-queue';
@@ -75,42 +77,65 @@ async function main() {
 
       metrics.increment('worker.jobs.started');
       metrics.increment(`worker.jobs.by_type.${job.type}`);
+
+      // Story 7.4 D2: 若 job payload 带有 originCorrelationId，
+      // 复用同一条 trace；否则生成新的 id，保证 worker 日志永远可追踪。
+      const rawOriginCorrelationId = (job.data as { originCorrelationId?: unknown })
+        .originCorrelationId;
+      const jobOriginCorrelationId =
+        typeof rawOriginCorrelationId === 'string' &&
+        rawOriginCorrelationId.trim().length > 0
+          ? rawOriginCorrelationId.trim()
+          : generateCorrelationId();
+      const correlationOrigin: 'job-metadata' | 'generated' =
+        typeof rawOriginCorrelationId === 'string' &&
+        rawOriginCorrelationId.trim().length > 0
+          ? 'job-metadata'
+          : 'generated';
+      const currentJob = job;
+
+      await withCorrelationAsync(
+        {
+          correlationId: jobOriginCorrelationId,
+          origin: correlationOrigin,
+        },
+        async () => {
       const jobLogger = workerLogger.child({
-        jobId: job.id,
-        jobType: job.type,
+        jobId: currentJob.id,
+        jobType: currentJob.type,
       });
       jobLogger.info('worker.job_started');
 
-      if (job.type === 'analysis-execution') {
+      if (currentJob.type === 'analysis-execution') {
         await analysisExecutionStreamUseCases.publishExecutionStatus({
-          sessionId: String(job.data.sessionId ?? ''),
-          executionId: job.id,
+          sessionId: String(currentJob.data.sessionId ?? ''),
+          executionId: currentJob.id,
           status: 'processing',
           message: 'worker 已开始处理分析执行任务。',
           metadata: {
-            jobType: job.type,
+            jobType: currentJob.type,
           },
         });
       }
 
-      const handler = getJobHandler(job.type);
+      const handler = getJobHandler(currentJob.type);
 
       if (!handler) {
         jobLogger.error('worker.job_unknown_type', {
           errorKind: 'worker.unknown_job_type',
         });
         metrics.increment('worker.jobs.failed');
-        await jobUseCases.failJob(job.id, `未知任务类型: ${job.type}`);
-        continue;
+        await jobUseCases.failJob(currentJob.id, `未知任务类型: ${currentJob.type}`);
+        return;
       }
 
       try {
-        const result = await handler(job, { redis });
+        const result = await handler(currentJob, { redis });
 
-        if (job.type === 'analysis-execution') {
+        if (currentJob.type === 'analysis-execution') {
           const completionOutcome =
             await finalizeSuccessfulAnalysisExecution({
-              job,
+              job: currentJob,
               result,
               jobUseCases,
               analysisExecutionStreamUseCases,
@@ -125,36 +150,36 @@ async function main() {
             });
           }
         } else {
-          await jobUseCases.completeJob(job.id, result);
+          await jobUseCases.completeJob(currentJob.id, result);
         }
         metrics.increment('worker.jobs.completed');
         jobLogger.info('worker.job_completed');
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : '未知错误';
-        await jobUseCases.failJob(job.id, errorMessage);
-        if (job.type === 'analysis-execution') {
-          const jobData = getValidatedAnalysisExecutionJobData(job);
+        await jobUseCases.failJob(currentJob.id, errorMessage);
+        if (currentJob.type === 'analysis-execution') {
+          const jobData = getValidatedAnalysisExecutionJobData(currentJob);
 
           await analysisExecutionStreamUseCases.publishExecutionStatus({
             sessionId: jobData.sessionId,
-            executionId: job.id,
+            executionId: currentJob.id,
             status: 'failed',
             message: errorMessage,
             metadata: {
-              jobType: job.type,
+              jobType: currentJob.type,
             },
           });
 
           const events =
             await analysisExecutionStreamUseCases.listExecutionEvents({
               sessionId: jobData.sessionId,
-              executionId: job.id,
+              executionId: currentJob.id,
             });
           const conclusionReadModel = buildAnalysisConclusionReadModel(events);
 
           await analysisExecutionPersistenceUseCases.saveExecutionSnapshot({
-            executionId: job.id,
+            executionId: currentJob.id,
             sessionId: jobData.sessionId,
             ownerUserId: jobData.ownerUserId,
             followUpId: jobData.followUpId,
@@ -168,7 +193,7 @@ async function main() {
             await analysisFollowUpUseCases.attachFollowUpExecution({
               followUpId: jobData.followUpId,
               ownerUserId: jobData.ownerUserId,
-              executionId: job.id,
+              executionId: currentJob.id,
             });
           }
         }
@@ -178,6 +203,8 @@ async function main() {
           errorMessage,
         });
       }
+        },
+      );
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
       metrics.increment('worker.poll_errors');

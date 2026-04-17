@@ -43,6 +43,7 @@ export function createAnalysisExecutionSubmissionUseCases({
       questionText,
       context,
       groundedContext,
+      originCorrelationId,
     }: {
       session: AnalysisSession;
       plan: AnalysisExecutionPlanSnapshot;
@@ -51,6 +52,8 @@ export function createAnalysisExecutionSubmissionUseCases({
       questionText?: string;
       context?: AnalysisContext;
       groundedContext?: OntologyGroundedContext;
+      // Story 7.4 D2: web 发起执行时传入，worker 消费时恢复到同一条 trace。
+      originCorrelationId?: string;
     }): Promise<SubmittedAnalysisExecution> {
       const executablePlan = validateAnalysisExecutionPlanSnapshot(plan);
       const submittedAt = new Date().toISOString();
@@ -69,6 +72,7 @@ export function createAnalysisExecutionSubmissionUseCases({
           groundedContext,
           submittedAt,
           plan: executablePlan,
+          originCorrelationId,
         },
       });
 

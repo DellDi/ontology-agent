@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 
 import { createPostgresDb } from '@/infrastructure/postgres/client';
-import { createRedisClient } from '@/infrastructure/redis/client';
+import {
+  createRedisClient,
+  ensureRedisConnected,
+} from '@/infrastructure/redis/client';
 import {
   createLogger,
   withRequestObservability,
@@ -72,11 +75,14 @@ async function checkPostgres(): Promise<CheckResult> {
 
 async function checkRedis(): Promise<CheckResult> {
   const startedAtMs = Date.now();
+  // P2 / D3: 复用进程级 singleton Redis client，避免探针 churn。
   const { redis } = createRedisClient();
   try {
-    if (!redis.isOpen) {
-      await withTimeout(redis.connect(), CHECK_TIMEOUT_MS, 'redis-connect');
-    }
+    await withTimeout(
+      ensureRedisConnected(redis),
+      CHECK_TIMEOUT_MS,
+      'redis-connect',
+    );
     await withTimeout(redis.ping(), CHECK_TIMEOUT_MS, 'redis-ping');
     return {
       status: 'ok',
@@ -89,15 +95,6 @@ async function checkRedis(): Promise<CheckResult> {
       latencyMs: Date.now() - startedAtMs,
       message,
     };
-  } finally {
-    // 本地短连接：检查完毕显式销毁，避免健康检查占用连接池。
-    try {
-      if (redis.isOpen) {
-        await redis.destroy();
-      }
-    } catch {
-      // ignore
-    }
   }
 }
 

@@ -12,12 +12,13 @@
 
 // Key 匹配同时兼容 snake_case / kebab-case / camelCase 边界：
 // 前置边界 (^|_|-)，后置边界 ($|_|-|[A-Z]) 使得 sessionId / apiKey 等字段也能命中。
+// 仅匹配高信号敏感字段。`key` 单独匹配过度激进（会波及 publicKey / workflowKey
+// 等业务字段），本轮移除；通过 apiKey / accessToken 等精确规则已覆盖真实密钥语义。
 const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /(^|_|-)(password|passwd|pwd)($|_|-|[A-Z])/,
   /(^|_|-)(token|secret|credential|cred)($|_|-|[A-Z])/i,
   /(^|_|-)(cookie|session|auth)($|_|-|[A-Z])/i,
   /(^|_|-)(api[-_]?key|access[-_]?token|refresh[-_]?token)($|_|-|[A-Z])/i,
-  /(^|_|-)key($|_|-|[A-Z])/i,
 ];
 
 const QUESTION_KEY_PATTERNS: RegExp[] = [
