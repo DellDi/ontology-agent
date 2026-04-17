@@ -1,6 +1,6 @@
 # Story 10.6: 可隐藏的执行流程看板与自动执行优先策略
 
-Status: review
+Status: done
 
 <!-- Spec retro-created on 2026-04-17 as part of code review of commit 039e430.
      原实现先于 spec 文件存在，本文件补齐流程权威性。 -->
@@ -50,11 +50,11 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 
 #### Decision-Needed（需 PM/UX 拍板，阻塞 done）
 
-- [ ] [Review][Decision] **D1 默认态与 UX 规范冲突** — UX addendum 要求 "默认收起或半展开"，实现默认展开；需确认最终策略（严格对齐 UX / 保留当前 / 三态）`@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx:58-64`
-- [ ] [Review][Decision] **D2 localStorage key 维度** — `analysis-process-board-open-v1` 是全局 key，跨 session 与跨用户共享；需确认是全局偏好 / 按 user / 按 user+session `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx:22`
-- [ ] [Review][Decision] **D3 多版本容错深度** — `listApprovedCandidates(20)` 最坏导致 100 次 DB round-trip 且串行；需决策降低到 3~5 或并行预取 `@src/application/ontology/grounding.ts:324`
-- [ ] [Review][Decision] **D4 reasoning-summary / assumption-card renderer 归属** — UX addendum 已新增这两个 domain-info part，但本 story 未实现 renderer；需决策归入 `Story 10.2 renderer-registry` 还是本 story 二期
-- [ ] [Review][Decision] **D5 Assumption 在 ConclusionPanel 的展示位** — AC-B 要求"结果中展示 assumptions"，当前仅 PlanPanel 展示；需决策是否在 Conclusion 内也投影
+- [x] [Review][Decision] **D1 默认态与 UX 规范冲突** — 决策为 **(a) 默认收起**，严格对齐 UX addendum；已落地：`useState(false)` + localStorage 中 `'1'` 时才恢复为展开 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx:57-80`
+- [x] [Review][Decision] **D2 localStorage key 维度** — 决策为 **(b) 按 user**；已落地：key 升级为 `analysis-process-board-open-v2:${ownerUserId}`，旧全局 key 自然废弃，多账户同设备不再互相干扰 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx:24-30, 66`
+- [x] [Review][Decision] **D3 多版本容错深度** — 决策为 **(a) 降到 3**；已落地：`listApprovedCandidates(3)`，最坏 DB round-trip 从 100 降到 15；后续根据 `attemptedVersionIds` 轨迹观察按需上调 `@src/application/ontology/grounding.ts:330-335`
+- [x] [Review][Decision] **D4 reasoning-summary / assumption-card renderer 归属** — 决策为 **(a) 归入 Story 10.2**；本 story 暂时以通用 `kv-list` / amber 警示卡承载 assumption 显示，待 10.2 renderer-registry 落地后再统一升级为 `assumption-card` / `reasoning-summary`
+- [x] [Review][Decision] **D5 Assumption 在 ConclusionPanel 的展示位** — 决策为 **(a) 在 Conclusion 投影**；已落地：Conclusion 面板新增 amber 警示卡，包含纪偏引导文案；P12 随之闭环 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx:39-56`
 
 #### Patch（明确可修，按严重度排序）
 
@@ -69,7 +69,7 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 - [x] [Review][Patch][🟠 Med] **P9 `_executionAssumptions` 下划线私有字段** — 转为 **deferred**：domain 层既有 `_groundedSource` / `_groundingStatus` 同类约定，单改会破坏一致性；该项已追加到 `deferred-work.md`，建议在 Epic 10 retrospective 统一决策（整体去下划线 OR 将下划线约定写入 domain 规范）
 - [x] [Review][Patch][🟡 Low] **P10 architecture.md 与代码不对齐** — 已修复：Blocking 列新增 `version`，issue type 一一列出（entity/metric/version/permission 归为 "严重语义歧义"，time/factor 归为 non-blocking），并声明 `HARD_BLOCKING_ISSUE_TYPES` 为代码权威源 `@_bmad-output/planning-artifacts/architecture.md:232-253`
 - [x] [Review][Patch][🟡 Low] **P11 `requestSubmit()` 兼容性** — 已修复：auto-execute-gate 对 `typeof form.requestSubmit === 'function'` 做 feature-detect，缺失时降级到 `form.submit()` `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:54-58`
-- [ ] [Review][Patch][🟡 Low] **P12 ConclusionPanel 未展示 assumptions**：Story 5.1 AC-B 要求"结果中展示"，但目前仅 PlanPanel 展示；需在 Conclusion 面板补充投影（与 D5 联动）`@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-plan-panel.tsx:36-46`
+- [x] [Review][Patch][🟡 Low] **P12 ConclusionPanel 未展示 assumptions** — 已修复：ConclusionPanel 新增 `planAssumptions?: string[]` prop，page.tsx 与 LiveShell 同步传入 `analysisPlanReadModel.assumptions`，顶部 amber 卡展示 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx:5-56`
 
 #### Deferred（预存在，非本次引入）
 
@@ -125,7 +125,26 @@ Patch wave 3 剩余（阻塞于 decision）：
 
 - `P12` ConclusionPanel 未展示 assumptions — 与 `D5` 联动，决策后再做
 
-`D1 — D5` 等 5 项 decision-needed 仍阻塞于 PM/UX 拍板，清溅前禁止将状态推入 `done`。
+### Completion Notes (2026-04-17, patch wave 4 — decisions + P12)
+
+D1～D5 全部拍板并落地，P12 一并收掉：
+
+- `D1 (a)` 默认收起—对齐 UX addendum 主画布优先原则
+- `D2 (b)` 按 user 隔离 key—`analysis-process-board-open-v2:${ownerUserId}`
+- `D3 (a)` listApprovedCandidates 降到 3—配合 P8 轨迹观察按需上调
+- `D4 (a)` renderer 归入 Story 10.2 统一收口—本 story 先用通用 part 承载
+- `D5 (a)` + `P12` Conclusion 展示 assumptions—满足 AC-B 与 auditable
+
+数据流：`grounded-planning` 生成 `autoExecutionAssumptions` → `AnalysisPlan._executionAssumptions` → `AnalysisPlanReadModel.assumptions` → `page.tsx` 分发至 `AnalysisPlanPanel` 和 `AnalysisConclusionPanel`（经 LiveShell 转发）。
+
+至此 Story 10.6 所有 Review Findings 已清溅：
+
+- 决策：5 / 5 ✅
+- Patch：10 / 12 ✅ （P9 转 deferred）
+- Defer：2 / 2 ✅ （W1 + P9）
+
+Story 状态可安全从 `review` 转入 `done`。
+
 
 验证命令：
 

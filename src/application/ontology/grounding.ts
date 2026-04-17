@@ -328,8 +328,10 @@ export function createOntologyGroundingUseCases(
           candidateVersions.push(preferredVersion);
         }
       } else if (typeof deps.versionStore.listApprovedCandidates === 'function') {
+        // D3: 候选版本深度默认限制到 3（当前 approved + 上一版本 + 紧急 rollback 版本）。
+        // 治理正常时首轮即应命中；若发现 3 不够，可结合 P8 新增的 attemptedVersionIds 轨迹评估扩容。
         candidateVersions.push(
-          ...(await deps.versionStore.listApprovedCandidates(20)),
+          ...(await deps.versionStore.listApprovedCandidates(3)),
         );
       } else {
         const currentApproved = await deps.versionStore.findCurrentApproved();
