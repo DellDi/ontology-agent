@@ -43,9 +43,36 @@ function detectService(): string {
   return 'ontology-agent-web';
 }
 
+function safeStringify(value: unknown): string {
+  // P4: JSON.stringify 默认会在遇到循环引用 / BigInt 时抛出。
+  // 观测层必须 fail-loud 但不能因为日志本身问题丢失请求。
+  // 这里用 replacer + try-catch 双保险：循环引用替换为标记，整体抛出则降级为最小 JSON。
+  try {
+    const seen = new WeakSet<object>();
+    return JSON.stringify(value, (_key, entry) => {
+      if (typeof entry === 'bigint') {
+        return `${entry.toString()}n`;
+      }
+      if (typeof entry === 'object' && entry !== null) {
+        if (seen.has(entry as object)) {
+          return '[Circular]';
+        }
+        seen.add(entry as object);
+      }
+      return entry;
+    });
+  } catch {
+    return JSON.stringify({
+      level: 'error',
+      message: 'log.serialize_failed',
+      time: new Date().toISOString(),
+    });
+  }
+}
+
 function emit(record: LogRecord): void {
   const sanitized = sanitizeLogPayload(record);
-  const serialized = JSON.stringify(sanitized);
+  const serialized = safeStringify(sanitized);
   if (record.level === 'error') {
     console.error(serialized);
     return;

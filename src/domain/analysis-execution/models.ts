@@ -16,6 +16,9 @@ export type AnalysisExecutionJobData = {
   groundedContext?: OntologyGroundedContext;
   submittedAt: string;
   plan: AnalysisExecutionPlanSnapshot;
+  // Story 7.4 D2: 承载 web 端发起执行时的 correlation id，
+  // worker 用它把后续处理纳入同一条 trace，修复 AC3 "跨进程定位问题范围"。
+  originCorrelationId?: string;
 };
 
 export class InvalidAnalysisExecutionPlanError extends Error {
@@ -138,5 +141,10 @@ export function validateAnalysisExecutionJobData(
     plan: validateAnalysisExecutionPlanSnapshot(
       candidate.plan as AnalysisExecutionPlanSnapshot,
     ),
+    originCorrelationId:
+      typeof candidate.originCorrelationId === 'string' &&
+      candidate.originCorrelationId.trim().length > 0
+        ? candidate.originCorrelationId.trim()
+        : undefined,
   };
 }

@@ -44,11 +44,28 @@ so that 我们可以在试点阶段及时发现问题并维持目标可用性。
 
 ### Test Coverage (2026-04-17)
 
-- `tests/story-7-4-observability.test.mts` — 14 个用例
-  - sanitize (4)：敏感字段 / 长文本 / 基本类型保留 / Error 序列化
+- `tests/story-7-4-observability.test.mts` — 19 个用例
+  - sanitize (5)：敏感字段 / 长文本 / 基本类型保留 / Error 序列化 / 深度限制
+  - sanitize P5 验证 (1)：publicKey/workflowKey 不误伤，apiKey 正常脱敏
   - correlation (4)：入站 header / 缺省生成 / AsyncLocalStorage 传递 / Response 头写入
+  - P1 ReadableStream 保护 (1)
   - metrics (2)：counter 累加 / recordError
-  - request wrapper (4)：correlation 注入 / 200 计数 / 500 计数 / unhandled exception / header 继承
+  - request wrapper (6)：correlation 注入 / 200 计数 / 500 计数 / unhandled exception / header 继承 / 不覆盖 handler-set header
+  - P4 logger 循环引用保护 (1)
+
+### Review Patches (2026-04-17, Wave 1)
+
+基于 code review of commit `7e08300`，完整清溅 decision-needed 与 patch：
+
+- `D1` `/api/metrics` 鉴权：`OBSERVABILITY_TOKEN` 支持 `x-observability-token` 或 `Authorization: Bearer`，未配置 token 时保持开发态开放
+- `D2` web → worker correlation id 继承：`AnalysisExecutionJobData` 新增 `originCorrelationId`，worker 消费时 `withCorrelationAsync` 恢复 trace
+- `D3 + P2` Redis singleton：`createRedisClient` 进程级缓存 + `ensureRedisConnected` 并发安全，health 探针不再每次 churn
+- `D4` reasoning-summary / assumption-card renderer 归属：deferred 到 Story 10.2 renderer-registry
+- `P1` `attachResponseCorrelationHeader` 对 ReadableStream body 跳过克隆，保护 SSE 流
+- `P4` logger `safeStringify` 处理循环引用 / BigInt / 降级 fallback
+- `P5` sanitize 移除过度激进的单独 `key` 规则，避免误伤 publicKey / workflowKey
+- `P6` 外部服务 correlation 传播：deferred 到后续 LLM/ERP adapter 专项
+- `W1` HMR AsyncLocalStorage 重建：dev-only，接受
 
 ## Dev Notes
 

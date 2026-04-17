@@ -81,17 +81,22 @@ export function attachResponseCorrelationHeader(
   response: Response,
   correlationId: string,
 ): Response {
-  // Response 的 headers 在 Next.js RSC 场景可能是 immutable；
-  // 这里用新 Response 克隆方式避免 frozen headers 导致写入失败。
-  if (!response.headers.has(CORRELATION_HEADER)) {
-    try {
-      response.headers.set(CORRELATION_HEADER, correlationId);
-      return response;
-    } catch {
-      const cloned = new Response(response.body, response);
-      cloned.headers.set(CORRELATION_HEADER, correlationId);
-      return cloned;
-    }
+  if (response.headers.has(CORRELATION_HEADER)) {
+    return response;
   }
-  return response;
+
+  try {
+    response.headers.set(CORRELATION_HEADER, correlationId);
+    return response;
+  } catch {
+    // P1: 若 headers frozen，优先尝试原地修改；失败时才考虑克隆。
+    // 但 Response body 若为 ReadableStream（SSE / 大文件下载），克隆会锁流导致断流。
+    // 因此检测到 stream body 时宁愿丢失 header，也不破坏响应本身。
+    if (response.body instanceof ReadableStream) {
+      return response;
+    }
+    const cloned = new Response(response.body, response);
+    cloned.headers.set(CORRELATION_HEADER, correlationId);
+    return cloned;
+  }
 }

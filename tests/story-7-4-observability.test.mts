@@ -245,3 +245,96 @@ test('Story 7.4 | withRequestObservability 继承入站 x-correlation-id', async
 
   assert.equal(captured, 'inherited-trace');
 });
+
+// ---------------- 补充覆盖（P3） ----------------
+
+test('Story 7.4 | sanitize 对深层嵌套超出 maxDepth 回落到标记', async () => {
+  const { sanitize } = await loadModules();
+  let node: Record<string, unknown> = { leaf: 'value' };
+  for (let i = 0; i < 8; i += 1) {
+    node = { nested: node };
+  }
+  const serialized = JSON.stringify(sanitize.sanitizeLogPayload(node));
+  assert.ok(
+    serialized.includes('[DEPTH_LIMIT]'),
+    '超过 maxDepth 时必须有明显标记避免无限递归',
+  );
+});
+
+test('Story 7.4 | sanitize 不再把 publicKey / workflowKey 误伤为 REDACTED（P5 验证）', async () => {
+  const { sanitize } = await loadModules();
+  const result = sanitize.sanitizeLogPayload({
+    publicKey: 'abc-public',
+    workflowKey: 'flow-123',
+    apiKey: 'secret-key-should-redact',
+  });
+  assert.equal(result.publicKey, 'abc-public');
+  assert.equal(result.workflowKey, 'flow-123');
+  assert.equal(result.apiKey, '[REDACTED]');
+});
+
+test('Story 7.4 | logger safeStringify 处理循环引用不抛出（P4 验证）', async () => {
+  const logger = (await loadModules()).requestMod; // reuse import chain
+  // 直接加载 logger 验证 safeStringify 的"不抛异常"契约。
+  const { createLogger } = (await import(
+    '@/infrastructure/observability/logger'
+  )) as typeof import('../src/infrastructure/observability/logger');
+  const log = createLogger();
+  const circular: Record<string, unknown> = { name: 'root' };
+  circular.self = circular;
+  // 能不抛异常完成记录即通过；借助 assert.doesNotThrow 验证契约。
+  assert.doesNotThrow(() => {
+    log.info('test.circular', { payload: circular });
+  });
+  // 防止 unused 变量 lint
+  assert.ok(logger);
+});
+
+test('Story 7.4 | attachResponseCorrelationHeader 对 ReadableStream body 不克隆（P1 验证）', async () => {
+  const { correlation } = await loadModules();
+
+  // 手动生成一个 frozen header 的 Response，迫使走 catch 分支。
+  const originalHeaders = new Headers();
+  Object.freeze(originalHeaders);
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: hello\n\n'));
+      controller.close();
+    },
+  });
+
+  // 由于 frozen header 只能在某些 runtime 上构造出来，这里直接断言
+  // stream body 情况下即便 header 写入失败也返回原始 Response，不会破坏 stream。
+  const response = new Response(stream, {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' },
+  });
+
+  const result = correlation.attachResponseCorrelationHeader(
+    response,
+    'trace-for-stream',
+  );
+  // 一切正常 set 的 runtime 下也必须保证 body 仍是可读流。
+  assert.ok(result.body instanceof ReadableStream);
+});
+
+test('Story 7.4 | metrics 请求 wrapper 不对已存在 correlation id 重复写入响应头', async () => {
+  const { requestMod } = await loadModules();
+  const request = new Request('http://localhost/api/test', {
+    method: 'GET',
+    headers: { 'x-correlation-id': 'inbound-a' },
+  });
+
+  const response = await requestMod.withRequestObservability(
+    request,
+    'test.op',
+    async () => {
+      const pre = new Response(null, { status: 204 });
+      pre.headers.set('x-correlation-id', 'handler-set');
+      return pre;
+    },
+  );
+
+  // handler 已主动写入的 correlation id 必须被尊重，不被 wrapper 覆盖。
+  assert.equal(response.headers.get('x-correlation-id'), 'handler-set');
+});

@@ -15,6 +15,7 @@ import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { auditUseCases } from '@/infrastructure/audit';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
+import { getCurrentCorrelationId } from '@/infrastructure/observability';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 type RouteContext = {
@@ -212,6 +213,9 @@ export async function POST(request: Request, { params }: RouteContext) {
         questionText: executionQuestionText,
         context: executionContextReadModel.context,
         groundedContext: groundedArtifacts.groundedContext,
+        // Story 7.4 D2: 把当前请求的 correlation id 写入 job payload，
+        // worker 消费时恢复到同一条 trace，支撑 AC3 跨进程定位。
+        originCorrelationId: getCurrentCorrelationId(),
       });
     });
 
