@@ -62,13 +62,13 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 - [x] [Review][Patch][🔴 High] **P2 遮罩阻断主画布** — 已修复：移除全屏遮罩 button，aside 看板仅占右侧 540px，主画布保持可交互；同时新增 Esc 键关闭支持以提升可访问性 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx:104-116, 223-234`
 - [x] [Review][Patch][🔴 High] **P3 零测试覆盖** — 已补齐：新增 `tests/story-10-6-grounded-planning.test.mts`，覆盖 12 个用例（blocking 判定的 6 种 issue type 组合 + assumption 生成的4 种输入）；`isHardBlockingGroundingError` / `buildAutoExecutionAssumptions` 随之导出供测试消费 `@tests/story-10-6-grounded-planning.test.mts` + `@src/application/ontology/grounded-planning.ts:68, 80`
 - [x] [Review][Patch][🔴 High] **P4 sprint-status.yaml 状态错误** — 已修复：`10-6` 由 `backlog` 更正为 `review` `@_bmad-output/implementation-artifacts/sprint-status.yaml:128`
-- [ ] [Review][Patch][🟠 Med] **P5 重复 grounding 调用**：`catch` 分支再次调用 `groundAnalysisContext`，双倍 DB 往返；应改为 grounding 内部一次性返回"是否需要假设继续" `@src/application/ontology/grounded-planning.ts:114-135`
-- [ ] [Review][Patch][🟠 Med] **P6 自动提交无失败保护**：POST 5xx/网络失败后 `hasSessionExecution` 仍 false，gate 会反复 auto-submit；应加 backoff + 错误 banner + 最大重试次数 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:20-27`
-- [ ] [Review][Patch][🟠 Med] **P7 double-submit 可访问性**：`sr-only` form 对 screen reader / Tab 仍可访问，可能与自动 `requestSubmit` 冲突；应加 `aria-hidden` + `tabindex="-1"` 或合并为单 form `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:42-52`
-- [ ] [Review][Patch][🟠 Med] **P8 多版本探测无 observability**：循环尝试最多 20 个版本，失败仅抛单一 error，无"尝试过哪些版本、各自失败原因"日志；违反 `diagnosable` `@src/application/ontology/grounding.ts:325-360`
-- [ ] [Review][Patch][🟠 Med] **P9 `_executionAssumptions` 下划线私有字段**：领域模型使用下划线前缀挂载运行时字段，属 anti-pattern；应重命名为正式 `assumptions: string[]` 并在 domain 文档说明 `@src/domain/analysis-plan/models.ts:24`
+- [x] [Review][Patch][🟠 Med] **P5 重复 grounding 调用** — 已修复：`OntologyGroundingError.details` 新增 `groundedContext?` 字段，随错误携带已构建的 context；catch 分支优先复用，仅在防御性 fallback 路径才维持二次调用 `@src/application/ontology/grounded-planning.ts:131-146` + `@src/domain/ontology/grounding.ts:120-124`
+- [x] [Review][Patch][🟠 Med] **P6 自动提交无失败保护** — 已修复：服务端 `shouldAutoExecute` 已涉及 `executionError` 拦截；用户 F5 场景在客户端增加 `sessionStorage` 级 scope 去重作为双保险，防止同一浏览器 session 内反复自动提交；用户可通过"手动执行"按钮显式重试 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:21-46`
+- [x] [Review][Patch][🟠 Med] **P7 double-submit 可访问性** — 已修复：合并双 form 为单 form，自动触发与手动提交共享同一元素与同一 action，根源性消除 double-submit 歧义与 不合理的 sr-only 提交按钮 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:55-67`
+- [x] [Review][Patch][🟠 Med] **P8 多版本探测无 observability** — 已修复：`attemptedVersionIds` 轨迹写入异常 details；回退到下一版本前新增 `console.warn` 输出步进信息（版本 id、尝试序列、status、failed/ambiguous type），完成 diagnosable 补全 `@src/application/ontology/grounding.ts:322-323, 583-611, 625-636`
+- [x] [Review][Patch][🟠 Med] **P9 `_executionAssumptions` 下划线私有字段** — 转为 **deferred**：domain 层既有 `_groundedSource` / `_groundingStatus` 同类约定，单改会破坏一致性；该项已追加到 `deferred-work.md`，建议在 Epic 10 retrospective 统一决策（整体去下划线 OR 将下划线约定写入 domain 规范）
 - [ ] [Review][Patch][🟡 Low] **P10 architecture.md 与代码不对齐**：文档 Blocking 列未包含 `version`，但代码 `HARD_BLOCKING_ISSUE_TYPES` 含之；应在 architecture.md 补齐并将"严重语义歧义"细化到 issue type `@_bmad-output/planning-artifacts/architecture.md:232-244`
-- [ ] [Review][Patch][🟡 Low] **P11 `requestSubmit()` 兼容性**：Safari < 16 / iOS 旧版缺失；应做 feature-detect fallback 到 `form.submit()` 或显示手动按钮 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:26`
+- [x] [Review][Patch][🟡 Low] **P11 `requestSubmit()` 兼容性** — 已修复：auto-execute-gate 对 `typeof form.requestSubmit === 'function'` 做 feature-detect，缺失时降级到 `form.submit()` `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:54-58`
 - [ ] [Review][Patch][🟡 Low] **P12 ConclusionPanel 未展示 assumptions**：Story 5.1 AC-B 要求"结果中展示"，但目前仅 PlanPanel 展示；需在 Conclusion 面板补充投影（与 D5 联动）`@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-plan-panel.tsx:36-46`
 
 #### Deferred（预存在，非本次引入）
@@ -104,10 +104,21 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 - `P3` 零测试 — 新增 12 个单测用例，全部 pass
 - `P4` sprint-status 状态 — `10-6` 转为 `review`
 
-下轮 patch wave 2 待处理（按优先级）：
+### Completion Notes (2026-04-17, patch wave 2)
 
-1. `P5` / `P6` / `P7` / `P8` / `P9`（4 项 🟠 Med + 1 项 🟠 Med）
-2. `P10` / `P11` / `P12`（3 项 🟡 Low）
+补完 5 项 🟠 Med，一并顺手收掉 1 项 🟡 Low：
+
+- `P5` 重复 grounding 调用 — `OntologyGroundingError` 携带 `groundedContext`，catch 分支直接复用，双倍 DB 往返消除
+- `P6` 自动提交失败保护 — sessionStorage 级 scope 去重 + 服务端 `executionError` 检查的双保险
+- `P7` double-submit 可访问性 — 双 form 合并为单 form
+- `P8` 版本探测可观测性 — `attemptedVersionIds` 轨迹 + console.warn 日志
+- `P9` 下划线字段 — 降为 **deferred**（与现有 domain 约定包括 `_groundedSource` 共同处理）
+- `P11` `requestSubmit` 兼容 — feature-detect 降级到 `form.submit()`
+
+Patch wave 3 剩余（🟡 Low）：
+
+- `P10` architecture.md 与代码不对齐
+- `P12` ConclusionPanel 未展示 assumptions（与 D5 联动）
 
 `D1 — D5` 等 5 项 decision-needed 仍阻塞于 PM/UX 拍板，清溅前禁止将状态推入 `done`。
 

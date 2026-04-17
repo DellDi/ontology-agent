@@ -70,9 +70,9 @@ export function AnalysisExecutionLiveShell({
     // 此处的 one-shot setState 仅会触发一次额外渲染，不构成 cascading renders。
     const persisted = window.localStorage.getItem(PROCESS_BOARD_STORAGE_KEY);
     if (persisted === '0') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsProcessBoardOpen(false);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasRestoredOpenState(true);
   }, []);
 

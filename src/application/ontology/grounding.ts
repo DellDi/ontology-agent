@@ -319,6 +319,8 @@ export function createOntologyGroundingUseCases(
 
       const candidateVersions: OntologyVersion[] = [];
       let lastGroundingError: OntologyGroundingError | null = null;
+      // P8: 记录多版本探测轨迹，便于上层 audit 与诊断。
+      const attemptedVersionIds: string[] = [];
 
       if (preferredVersionId) {
         const preferredVersion = await deps.versionStore.findById(preferredVersionId);
@@ -349,6 +351,7 @@ export function createOntologyGroundingUseCases(
 
       for (let candidateIndex = 0; candidateIndex < candidateVersions.length; candidateIndex += 1) {
         const version = candidateVersions[candidateIndex];
+        attemptedVersionIds.push(version.id);
 
         // 2. 获取该版本下的所有 approved definitions
         const [entities, metrics, factors, timeSemantics, metricVariants] = await Promise.all([
@@ -578,6 +581,10 @@ export function createOntologyGroundingUseCases(
               ontologyVersionId: version.id,
               failedItems,
               ambiguousItems,
+              // P5: 携带已构建的 grounded context，
+              // 允许上层在非阻断场景直接消费而不是再次调用。
+              groundedContext,
+              attemptedVersionIds: [...attemptedVersionIds],
             },
           );
           const canTryNextApprovedVersion =
@@ -587,6 +594,18 @@ export function createOntologyGroundingUseCases(
             candidateIndex < candidateVersions.length - 1;
 
           if (canTryNextApprovedVersion) {
+            // P8: 向服务器日志推送过程性告警，便于诊断治理漏洞。
+            console.warn(
+              '[ontology-grounding] 版本探测回退',
+              {
+                attemptedVersionId: version.id,
+                attemptIndex: candidateIndex + 1,
+                totalCandidates: candidateVersions.length,
+                groundingStatus,
+                failedTypes: failedItems.map((item) => item.type),
+                ambiguousTypes: ambiguousItems.map((item) => item.type),
+              },
+            );
             lastGroundingError = blockingError;
             continue;
           }
@@ -613,6 +632,7 @@ export function createOntologyGroundingUseCases(
               reason: '没有可执行的已发布版本',
             },
           ],
+          attemptedVersionIds: [...attemptedVersionIds],
         },
       );
       /* eslint-enable @typescript-eslint/no-unused-vars */
