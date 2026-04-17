@@ -165,7 +165,15 @@ export function isGroundingSuccess(context: OntologyGroundedContext): boolean {
 }
 
 export function isGroundingBlocked(context: OntologyGroundedContext): boolean {
-  return context.groundingStatus === 'ambiguous' || context.groundingStatus === 'failed';
+  // Story 9.3 review #4: `partial` 也必须阻断默认 planner / tool selection 主路径，
+  // 否则未完全 grounding 的输入会继续进入运行时，违反 fail-loud 规则。
+  // 如需在 transitional path 放行 partial，调用方必须显式启用
+  // `GroundingStrategy.allowFallbackToFreeText`，而不是依赖本 helper 返回 false。
+  return (
+    context.groundingStatus === 'ambiguous' ||
+    context.groundingStatus === 'failed' ||
+    context.groundingStatus === 'partial'
+  );
 }
 
 export function getGroundingFailures(context: OntologyGroundedContext): Array<{

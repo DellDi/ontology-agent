@@ -725,3 +725,255 @@ test('RT-AC3 bootstrap: 必须完整写入 planStepTemplates / causalityEdges / 
   assert.equal(result.storedEvidenceTypeCount, 1, '数据库中必须存在 evidence type');
   assert.ok(result.storedToolBindingCount > 0, '数据库中必须存在 tool bindings');
 });
+
+// ---------------------------------------------------------------------------
+// Story 9.3 Review Findings 回归（domain / infra 修正）
+// ---------------------------------------------------------------------------
+
+test('Review#4 isGroundingBlocked 必须把 partial 视为阻断，防止未完全 grounding 的输入进入 planner', async () => {
+  const result = await runTsSnippet(`
+    import groundingDomain from './src/domain/ontology/grounding.ts';
+    const { isGroundingBlocked } = groundingDomain;
+    const base = {
+      ontologyVersionId: 'v',
+      entities: [],
+      metrics: [],
+      factors: [],
+      timeSemantics: [],
+      originalMergedContext: '',
+      groundedAt: new Date().toISOString(),
+      groundingStrategy: 'exact-match',
+    };
+    console.log(JSON.stringify({
+      success: isGroundingBlocked({ ...base, groundingStatus: 'success' }),
+      ambiguous: isGroundingBlocked({ ...base, groundingStatus: 'ambiguous' }),
+      failed: isGroundingBlocked({ ...base, groundingStatus: 'failed' }),
+      partial: isGroundingBlocked({ ...base, groundingStatus: 'partial' }),
+    }));
+  `);
+  assert.equal(result.success, false, 'success 不应被阻断');
+  assert.equal(result.ambiguous, true, 'ambiguous 应被阻断');
+  assert.equal(result.failed, true, 'failed 应被阻断');
+  assert.equal(result.partial, true, 'partial 必须被阻断（Story 9.3 review #4）');
+});
+
+test('Review#3 buildAnalysisPlanFromGroundedContext 在 timeSemantics 非空但无 success 时必须抛错', async () => {
+  const result = await runTsSnippet(`
+    import planModule from './src/domain/analysis-plan/models.ts';
+    const { buildAnalysisPlanFromGroundedContext } = planModule;
+    const now = new Date().toISOString();
+    const entity = {
+      id: 'entity-project',
+      ontologyVersionId: 'v',
+      businessKey: 'project',
+      displayName: '项目',
+      description: null,
+      status: 'approved',
+      synonyms: [],
+      parentBusinessKey: null,
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    };
+    const metric = {
+      id: 'metric-x',
+      ontologyVersionId: 'v',
+      businessKey: 'rate',
+      displayName: '收缴率',
+      description: null,
+      status: 'approved',
+      applicableSubjectKeys: ['project'],
+      defaultAggregation: 'ratio',
+      unit: '%',
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // 场景 A：timeSemantics 空数组（用户未指定时间），应回落到默认 fallback —— 允许
+    let planAOk = false;
+    try {
+      const plan = buildAnalysisPlanFromGroundedContext({
+        intentType: 'general-analysis',
+        shouldExpandFactors: false,
+        groundedContext: {
+          ontologyVersionId: 'v',
+          groundingStatus: 'success',
+          entities: [{ status: 'success', originalText: '项目A', canonicalDefinition: entity, candidates: [], confidence: 1 }],
+          metrics: [{ status: 'success', originalText: '收缴率', canonicalDefinition: metric, variant: null, candidates: [], confidence: 1 }],
+          factors: [],
+          timeSemantics: [],
+          originalMergedContext: '',
+          groundedAt: now,
+          groundingStrategy: 'exact-match',
+        },
+      });
+      planAOk = plan.steps.length > 0;
+    } catch (err) { planAOk = false; }
+
+    // 场景 B：timeSemantics 非空但 grounding 全部 failed，应抛 InvalidGroundedAnalysisPlanError
+    let planBThrown = false;
+    let planBMessage = '';
+    try {
+      buildAnalysisPlanFromGroundedContext({
+        intentType: 'general-analysis',
+        shouldExpandFactors: false,
+        groundedContext: {
+          ontologyVersionId: 'v',
+          groundingStatus: 'partial',
+          entities: [{ status: 'success', originalText: '项目A', canonicalDefinition: entity, candidates: [], confidence: 1 }],
+          metrics: [{ status: 'success', originalText: '收缴率', canonicalDefinition: metric, variant: null, candidates: [], confidence: 1 }],
+          factors: [],
+          timeSemantics: [{ status: 'failed', originalText: '上个季度', canonicalDefinition: null, candidates: [], confidence: 0, failureReason: '未命中' }],
+          originalMergedContext: '',
+          groundedAt: now,
+          groundingStrategy: 'exact-match',
+        },
+      });
+    } catch (err) {
+      planBThrown = true;
+      planBMessage = err.message;
+    }
+
+    console.log(JSON.stringify({ planAOk, planBThrown, planBMessage }));
+  `);
+  assert.equal(result.planAOk, true, '空 timeSemantics 应允许 fallback 到默认值');
+  assert.equal(result.planBThrown, true, 'timeSemantics 非空且全部 failed 时必须 fail-loud（Story 9.3 review #3）');
+  assert.match(result.planBMessage, /时间语义/, 'fail-loud 错误消息必须指出缺失的治理对象类型');
+});
+
+test('Review#5 bootstrap 任一 bulkCreate 抛错时必须不把 version 晋升为 approved', async () => {
+  const result = await runTsSnippet(`
+    import groundingAppModule from './src/application/ontology/grounding.ts';
+    const { createOntologyBootstrapUseCases } = groundingAppModule;
+
+    const now = new Date().toISOString();
+    const versionId = 'bootstrap-rollback-' + crypto.randomUUID();
+    let currentVersion = null;
+
+    // Mock stores：entity bulkCreate 成功，metric bulkCreate 故意抛错
+    const deps = {
+      versionStore: {
+        async findById(id) { return currentVersion?.id === id ? currentVersion : null; },
+        async create(input) {
+          currentVersion = { ...input, status: 'draft', publishedAt: null, deprecatedAt: null, retiredAt: null };
+          return currentVersion;
+        },
+        async updateStatus(id, status, updatedAt, extra) {
+          currentVersion = { ...currentVersion, status, updatedAt, ...extra };
+          return currentVersion;
+        },
+        async findCurrentApproved() { return null; },
+      },
+      entityStore: { async bulkCreate(items) { return items; } },
+      metricStore: { async bulkCreate() { throw new Error('simulated metric write failure'); } },
+      factorStore: { async bulkCreate(items) { return items; } },
+      planStepTemplateStore: { async bulkCreate(items) { return items; } },
+      metricVariantStore: { async bulkCreate(items) { return items; } },
+      timeSemanticStore: { async bulkCreate(items) { return items; } },
+      causalityEdgeStore: { async bulkCreate(items) { return items; } },
+      evidenceTypeStore: { async bulkCreate(items) { return items; } },
+      toolCapabilityBindingStore: { async bulkCreate(items) { return items; } },
+    };
+
+    const useCases = createOntologyBootstrapUseCases(deps);
+    let thrown = false;
+    let errorName = '';
+    try {
+      await useCases.bootstrapCanonicalDefinitions({
+        seedDefinitions: {
+          entities: [{}],
+          metrics: [{}],
+          factors: [],
+          planStepTemplates: [],
+          metricVariants: [],
+          timeSemantics: [],
+          causalityEdges: [],
+          evidenceTypes: [],
+        },
+        requestedVersionId: versionId,
+        requestedSemver: '0.0.1-test',
+        createdBy: 'review-5-test',
+      });
+    } catch (err) {
+      thrown = true;
+      errorName = err.name;
+    }
+
+    console.log(JSON.stringify({
+      thrown,
+      errorName,
+      finalVersionStatus: currentVersion?.status ?? null,
+    }));
+  `);
+  assert.equal(result.thrown, true, '任一 bulkCreate 失败必须抛错');
+  assert.equal(result.errorName, 'OntologyGroundingError', '抛出类型必须是 OntologyGroundingError');
+  assert.equal(result.finalVersionStatus, 'draft', 'version 必须保留为 draft，不得被提升为 approved（Story 9.3 review #5）');
+});
+
+test('Review#5 bootstrap 完整性校验：seed 非空但 bulkCreate 返回空，必须 fail-loud', async () => {
+  const result = await runTsSnippet(`
+    import groundingAppModule from './src/application/ontology/grounding.ts';
+    const { createOntologyBootstrapUseCases } = groundingAppModule;
+
+    const versionId = 'bootstrap-integrity-' + crypto.randomUUID();
+    let currentVersion = null;
+
+    const deps = {
+      versionStore: {
+        async findById() { return null; },
+        async create(input) {
+          currentVersion = { ...input, status: 'draft', publishedAt: null };
+          return currentVersion;
+        },
+        async updateStatus(id, status) {
+          currentVersion = { ...currentVersion, status };
+          return currentVersion;
+        },
+        async findCurrentApproved() { return null; },
+      },
+      entityStore: { async bulkCreate() { return []; } }, // 故意返回空
+      metricStore: { async bulkCreate(items) { return items; } },
+      factorStore: { async bulkCreate(items) { return items; } },
+      planStepTemplateStore: { async bulkCreate(items) { return items; } },
+      metricVariantStore: { async bulkCreate(items) { return items; } },
+      timeSemanticStore: { async bulkCreate(items) { return items; } },
+      causalityEdgeStore: { async bulkCreate(items) { return items; } },
+      evidenceTypeStore: { async bulkCreate(items) { return items; } },
+      toolCapabilityBindingStore: { async bulkCreate(items) { return items; } },
+    };
+
+    const useCases = createOntologyBootstrapUseCases(deps);
+    let thrown = false;
+    let message = '';
+    try {
+      await useCases.bootstrapCanonicalDefinitions({
+        seedDefinitions: {
+          entities: [{}, {}],  // seed 非空
+          metrics: [],
+          factors: [],
+          planStepTemplates: [],
+          metricVariants: [],
+          timeSemantics: [],
+          causalityEdges: [],
+          evidenceTypes: [],
+        },
+        requestedVersionId: versionId,
+        requestedSemver: '0.0.1-integrity',
+        createdBy: 'integrity-test',
+      });
+    } catch (err) {
+      thrown = true;
+      message = err.message;
+    }
+
+    console.log(JSON.stringify({
+      thrown,
+      message,
+      versionStatus: currentVersion?.status ?? null,
+    }));
+  `);
+  assert.equal(result.thrown, true, '完整性校验失败必须抛错');
+  assert.match(result.message, /完整性校验失败|entities/, '错误消息需定位失败字段');
+  assert.equal(result.versionStatus, 'draft', '完整性失败时 version 必须保留为 draft');
+});

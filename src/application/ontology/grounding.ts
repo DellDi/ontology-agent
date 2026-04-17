@@ -571,11 +571,9 @@ export function createOntologyGroundingUseCases(
         ];
 
         // 7. 如 grounding 被阻断（ambiguous / partial / failed），抛出错误供上层处理
-        if (
-          (isGroundingBlocked(groundedContext) ||
-            groundedContext.groundingStatus === 'partial') &&
-          !shouldAllowFallbackToFreeText
-        ) {
+        // NOTE: `isGroundingBlocked` 现已包含 partial（Story 9.3 review #4），
+        // 不再需要单独比较 `partial` 状态。
+        if (isGroundingBlocked(groundedContext) && !shouldAllowFallbackToFreeText) {
           const blockingError = new OntologyGroundingError(
             `Ontology grounding ${groundingStatus}: 无法继续生成分析计划`,
             groundingStatus,
@@ -772,52 +770,110 @@ export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependenc
         updatedAt: now,
       });
 
-      // 3. 批量写入 definitions
-      const [
-        entities,
-        metrics,
-        factors,
-        planStepTemplates,
-        metricVariants,
-        timeSemantics,
-        causalityEdges,
-        evidenceTypes,
-      ] = await Promise.all([
-        deps.entityStore.bulkCreate(seedDefinitions.entities),
-        deps.metricStore.bulkCreate(seedDefinitions.metrics),
-        deps.factorStore.bulkCreate(seedDefinitions.factors),
-        deps.planStepTemplateStore.bulkCreate(seedDefinitions.planStepTemplates),
-        deps.metricVariantStore.bulkCreate(seedDefinitions.metricVariants),
-        deps.timeSemanticStore.bulkCreate(seedDefinitions.timeSemantics),
-        deps.causalityEdgeStore.bulkCreate(seedDefinitions.causalityEdges),
-        deps.evidenceTypeStore.bulkCreate(seedDefinitions.evidenceTypes),
-      ]);
+      // Story 9.3 review #5: 把 definitions 写入 + approve 晋升包装为"准事务"边界。
+      // 若底层 store 任一 bulkCreate 失败，必须：
+      //   - 保证 version 状态不被提升为 approved
+      //   - 抛出可诊断错误，列出失败的 definition 类型与已成功写入的计数
+      //   - 不得让"部分写入 + 已发布"的半成品进入运行时
+      // 真正的 DB transaction 需要 store 层统一 tx 封装（待独立 story 推动）；
+      // 本次修正以应用层 try/catch + 明确状态机为最小闭环。
+      try {
+        // 3. 批量写入 definitions
+        const [
+          entities,
+          metrics,
+          factors,
+          planStepTemplates,
+          metricVariants,
+          timeSemantics,
+          causalityEdges,
+          evidenceTypes,
+        ] = await Promise.all([
+          deps.entityStore.bulkCreate(seedDefinitions.entities),
+          deps.metricStore.bulkCreate(seedDefinitions.metrics),
+          deps.factorStore.bulkCreate(seedDefinitions.factors),
+          deps.planStepTemplateStore.bulkCreate(seedDefinitions.planStepTemplates),
+          deps.metricVariantStore.bulkCreate(seedDefinitions.metricVariants),
+          deps.timeSemanticStore.bulkCreate(seedDefinitions.timeSemantics),
+          deps.causalityEdgeStore.bulkCreate(seedDefinitions.causalityEdges),
+          deps.evidenceTypeStore.bulkCreate(seedDefinitions.evidenceTypes),
+        ]);
 
-      const toolBindings = await deps.toolCapabilityBindingStore.bulkCreate(
-        buildDefaultToolCapabilityBindingSeeds(version.id, now, createdBy),
-      );
+        const toolBindings = await deps.toolCapabilityBindingStore.bulkCreate(
+          buildDefaultToolCapabilityBindingSeeds(version.id, now, createdBy),
+        );
 
-      version = await deps.versionStore.updateStatus(
-        version.id,
-        'approved',
-        now,
-        { publishedAt: now, deprecatedAt: null, retiredAt: null },
-      );
+        // 4. 完整性校验：任一核心 definition 写入数量为 0（而 seed 非空）应视为失败
+        //    —— 防止静默产出"空 version"。
+        const integrityIssues: string[] = [];
+        if (seedDefinitions.entities.length > 0 && entities.length === 0) integrityIssues.push('entities');
+        if (seedDefinitions.metrics.length > 0 && metrics.length === 0) integrityIssues.push('metrics');
+        if (seedDefinitions.factors.length > 0 && factors.length === 0) integrityIssues.push('factors');
+        if (seedDefinitions.planStepTemplates.length > 0 && planStepTemplates.length === 0) integrityIssues.push('planStepTemplates');
+        if (seedDefinitions.metricVariants.length > 0 && metricVariants.length === 0) integrityIssues.push('metricVariants');
+        if (seedDefinitions.timeSemantics.length > 0 && timeSemantics.length === 0) integrityIssues.push('timeSemantics');
+        if (seedDefinitions.causalityEdges.length > 0 && causalityEdges.length === 0) integrityIssues.push('causalityEdges');
+        if (seedDefinitions.evidenceTypes.length > 0 && evidenceTypes.length === 0) integrityIssues.push('evidenceTypes');
+        if (integrityIssues.length > 0) {
+          throw new OntologyGroundingError(
+            `Bootstrap 完整性校验失败：definitions 写入为空但 seed 非空 (${integrityIssues.join(', ')})`,
+            'failed',
+            {
+              ontologyVersionId: version.id,
+              failedItems: integrityIssues.map((type) => ({
+                type: 'version' as const,
+                text: type,
+                reason: 'bulkCreate 返回空，且 seed 非空',
+              })),
+            },
+          );
+        }
 
-      return {
-        version,
-        entitiesCreated: entities.length,
-        metricsCreated: metrics.length,
-        factorsCreated: factors.length,
-        planStepTemplatesCreated: planStepTemplates.length,
-        metricVariantsCreated: metricVariants.length,
-        timeSemanticsCreated: timeSemantics.length,
-        causalityEdgesCreated: causalityEdges.length,
-        evidenceTypesCreated: evidenceTypes.length,
-        toolBindingsCreated: toolBindings.length,
-        skipped: false,
-        message: `成功 bootstrap Ontology version ${requestedVersionId} (${requestedSemver})`,
-      };
+        // 5. 仅在全部写入成功后才把 version 提升为 approved
+        version = await deps.versionStore.updateStatus(
+          version.id,
+          'approved',
+          now,
+          { publishedAt: now, deprecatedAt: null, retiredAt: null },
+        );
+
+        return {
+          version,
+          entitiesCreated: entities.length,
+          metricsCreated: metrics.length,
+          factorsCreated: factors.length,
+          planStepTemplatesCreated: planStepTemplates.length,
+          metricVariantsCreated: metricVariants.length,
+          timeSemanticsCreated: timeSemantics.length,
+          causalityEdgesCreated: causalityEdges.length,
+          evidenceTypesCreated: evidenceTypes.length,
+          toolBindingsCreated: toolBindings.length,
+          skipped: false,
+          message: `成功 bootstrap Ontology version ${requestedVersionId} (${requestedSemver})`,
+        };
+      } catch (writeError) {
+        // 任一步写入失败：保留 version 为 draft（便于人工诊断 / 补写），
+        // 但绝不允许它以 approved 身份进入运行时。
+        // 如果是我们主动抛出的 integrity error，直接上抛保留诊断；
+        // 其他底层错误包装为 OntologyGroundingError 并附带可观测字段。
+        if (writeError instanceof OntologyGroundingError) {
+          throw writeError;
+        }
+        throw new OntologyGroundingError(
+          `Bootstrap 写入失败：底层 store 报错，version ${requestedVersionId} 保留为 draft 以便诊断`,
+          'failed',
+          {
+            ontologyVersionId: requestedVersionId,
+            failedItems: [
+              {
+                type: 'version',
+                text: requestedVersionId,
+                reason: writeError instanceof Error ? writeError.message : String(writeError),
+              },
+            ],
+          },
+        );
+      }
     },
 
     /**
