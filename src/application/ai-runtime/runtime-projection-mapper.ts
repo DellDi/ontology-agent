@@ -11,16 +11,20 @@ import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/model
 import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { JobStatus } from '@/domain/job-contract/models';
 
-import type {
-  AiRuntimeConclusionCardPart,
-  AiRuntimeEvidenceCardPart,
-  AiRuntimeMessage,
-  AiRuntimeMessagePart,
-  AiRuntimeProjection,
-  AiRuntimeProjectionInput,
-  AiRuntimeResumeAnchorPart,
-  AiRuntimeStatusBannerPart,
-  AiRuntimeStepTimelinePart,
+import {
+  AI_RUNTIME_CONTRACT_VERSION,
+  AI_RUNTIME_SCHEMA_VERSION,
+  computeAiRuntimePartId,
+  resolveAiRuntimePartLayout,
+  type AiRuntimeConclusionCardPart,
+  type AiRuntimeEvidenceCardPart,
+  type AiRuntimeMessage,
+  type AiRuntimeMessagePart,
+  type AiRuntimeProjection,
+  type AiRuntimeProjectionInput,
+  type AiRuntimeResumeAnchorPart,
+  type AiRuntimeStatusBannerPart,
+  type AiRuntimeStepTimelinePart,
 } from './runtime-contract';
 
 const ASSISTANT_MESSAGE_ID_PREFIX = 'ai-runtime:assistant:';
@@ -101,9 +105,12 @@ function resolveCurrentStage(
 function buildStatusBannerPart(
   events: readonly AnalysisExecutionStreamEvent[],
   status: JobStatus,
+  anchors: { sessionId: string; executionId: string },
 ): AiRuntimeStatusBannerPart {
   const latest = resolveLatestStatusEvent(events);
   return {
+    id: computeAiRuntimePartId('status-banner', anchors),
+    ...resolveAiRuntimePartLayout('status-banner'),
     kind: 'status-banner',
     status,
     label: getExecutionStatusLabel(status),
@@ -114,8 +121,11 @@ function buildStatusBannerPart(
 
 function buildStepTimelinePart(
   events: readonly AnalysisExecutionStreamEvent[],
+  anchors: { sessionId: string; executionId: string },
 ): AiRuntimeStepTimelinePart {
   return {
+    id: computeAiRuntimePartId('step-timeline', anchors),
+    ...resolveAiRuntimePartLayout('step-timeline'),
     kind: 'step-timeline',
     steps: mergeSteps(events),
     currentStage: resolveCurrentStage(events),
@@ -124,6 +134,7 @@ function buildStepTimelinePart(
 
 function buildEvidenceCardParts(
   events: readonly AnalysisExecutionStreamEvent[],
+  anchors: { sessionId: string; executionId: string },
 ): AiRuntimeEvidenceCardPart[] {
   const parts: AiRuntimeEvidenceCardPart[] = [];
   for (const event of events) {
@@ -131,6 +142,11 @@ function buildEvidenceCardParts(
     const title =
       event.step?.title ?? event.stage?.label ?? event.message ?? undefined;
     parts.push({
+      id: computeAiRuntimePartId('evidence-card', {
+        ...anchors,
+        eventSequence: event.sequence,
+      }),
+      ...resolveAiRuntimePartLayout('evidence-card'),
       kind: 'evidence-card',
       sourceEventId: event.id,
       sequence: event.sequence,
@@ -144,13 +160,24 @@ function buildEvidenceCardParts(
 function buildConclusionCardPart(
   events: readonly AnalysisExecutionStreamEvent[],
   fallbackConclusion: AnalysisConclusionReadModel | null | undefined,
+  anchors: { sessionId: string; executionId: string },
 ): AiRuntimeConclusionCardPart | null {
   const derived = buildAnalysisConclusionReadModel([...events]);
   if (derived.causes.length > 0) {
-    return { kind: 'conclusion-card', readModel: derived };
+    return {
+      id: computeAiRuntimePartId('conclusion-card', anchors),
+      ...resolveAiRuntimePartLayout('conclusion-card'),
+      kind: 'conclusion-card',
+      readModel: derived,
+    };
   }
   if (fallbackConclusion && fallbackConclusion.causes.length > 0) {
-    return { kind: 'conclusion-card', readModel: fallbackConclusion };
+    return {
+      id: computeAiRuntimePartId('conclusion-card', anchors),
+      ...resolveAiRuntimePartLayout('conclusion-card'),
+      kind: 'conclusion-card',
+      readModel: fallbackConclusion,
+    };
   }
   return null;
 }
@@ -162,6 +189,11 @@ function buildResumeAnchorPart(input: {
   status: JobStatus;
 }): AiRuntimeResumeAnchorPart {
   return {
+    id: computeAiRuntimePartId('resume-anchor', {
+      sessionId: input.sessionId,
+      executionId: input.executionId,
+    }),
+    ...resolveAiRuntimePartLayout('resume-anchor'),
     kind: 'resume-anchor',
     sessionId: input.sessionId,
     executionId: input.executionId,
@@ -193,14 +225,19 @@ function buildAssistantMessage(input: {
   sessionId: string;
   fallbackConclusion: AnalysisConclusionReadModel | null | undefined;
 }): AiRuntimeMessage {
+  const anchors = {
+    sessionId: input.sessionId,
+    executionId: input.executionId,
+  };
   const parts: AiRuntimeMessagePart[] = [];
-  parts.push(buildStatusBannerPart(input.events, input.status));
-  parts.push(buildStepTimelinePart(input.events));
-  parts.push(...buildEvidenceCardParts(input.events));
+  parts.push(buildStatusBannerPart(input.events, input.status, anchors));
+  parts.push(buildStepTimelinePart(input.events, anchors));
+  parts.push(...buildEvidenceCardParts(input.events, anchors));
 
   const conclusion = buildConclusionCardPart(
     input.events,
     input.fallbackConclusion,
+    anchors,
   );
   if (conclusion) parts.push(conclusion);
 
@@ -253,6 +290,8 @@ export function buildAiRuntimeProjection(
     lastSequence,
     isTerminal,
     messages: [message],
+    schemaVersion: AI_RUNTIME_SCHEMA_VERSION,
+    contractVersion: AI_RUNTIME_CONTRACT_VERSION,
   };
 }
 

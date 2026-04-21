@@ -1,6 +1,6 @@
 # Story 10.1.p2: Slot / Lane / Placement Contract for Renderer Registry
 
-Status: ready-for-dev
+Status: done
 
 ## 背景
 
@@ -37,26 +37,28 @@ so that Story 10.2 renderer registry 与未来多种前端（Web / Mobile / Expe
 
 ## Tasks / Subtasks
 
-- [ ] 扩展 `runtime-contract.ts`（AC: 1, 2, 3, 4）
-  - [ ] 新增 `AiRuntimePartSlot` / `AiRuntimePartLane` / `AiRuntimePartPlacement` 三个字面量联合类型。
-  - [ ] 把三个字段加到 `AiRuntimePart` base type，做成 required。
-  - [ ] 在注释里写明语义与未来扩展规则（扩展枚举必须通过 patch story，不得 free-string）。
+- [x] 扩展 `runtime-contract.ts`（AC: 1, 2, 3, 4）
+  - [x] 新增 `AiRuntimePartSlot` / `AiRuntimePartLane` / `AiRuntimePartPlacement` 三个字面量联合类型，并配套 `AI_RUNTIME_PART_SLOTS` / `_LANES` / `_PLACEMENTS` `as const` 常量数组。
+  - [x] 把三个字段加到 `AiRuntimePartBase`，做成 required；5 种 foundation part 统一 extend。
+  - [x] 新增 `resolveAiRuntimePartLayout(kind)` 单一入口纯函数，注释写明语义、扩展规则（不得 free-string）与 10.2 fork 边界。
 
-- [ ] 扩展 `runtime-projection-mapper.ts`（AC: 5）
-  - [ ] `status-banner` → `slot=narrative-header, lane=primary, placement=sticky-top`
-  - [ ] `step-timeline` → `slot=narrative-body, lane=primary, placement=inline`（Expert Mode / 10.6 process board 由 10.2 决定是否 fork 到 `slot=process-board, lane=secondary`）
-  - [ ] `evidence-card` → `slot=narrative-body, lane=primary, placement=inline`
-  - [ ] `conclusion-card` → `slot=narrative-footer, lane=primary, placement=inline`
-  - [ ] `resume-anchor` → `slot=resume, lane=primary, placement=floating`
+- [x] 扩展 `runtime-projection-mapper.ts`（AC: 5）
+  - [x] `status-banner` → `slot=narrative-header, lane=primary, placement=sticky-top`
+  - [x] `step-timeline` → `slot=narrative-body, lane=primary, placement=inline`（Expert Mode / 10.6 process board fork 延后到 10.2）
+  - [x] `evidence-card` → `slot=narrative-body, lane=primary, placement=inline`
+  - [x] `conclusion-card` → `slot=narrative-footer, lane=primary, placement=inline`
+  - [x] `resume-anchor` → `slot=resume, lane=primary, placement=floating`
+  - [x] 5 个 builder 统一用 `...resolveAiRuntimePartLayout(kind)` 展开，不在 builder 内硬编码字面量。
 
-- [ ] 扩展 `vercel-ai-sdk-adapter.ts`（AC: 6）
-  - [ ] 在 `UIMessage.parts[].data` 里透传 `slot / lane / placement`。
-  - [ ] 不得改变 `UIMessage.parts[].type` 命名规则（仍然是 `data-<kind>`）。
+- [x] 扩展 `vercel-ai-sdk-adapter.ts`（AC: 6）
+  - [x] `UIMessage.parts[].data` 直接承载完整 part（包含 `slot / lane / placement`），SDK 消费端可直接读取。
+  - [x] 保留 `UIMessage.parts[].type` 命名规则为 `data-<kind>`，不更动。
 
-- [ ] 新增 story 级测试 `tests/story-10-1-p2-*.test.mjs`（AC: 7）
-  - [ ] 遍历所有 foundation parts，断言三个字段存在且值在枚举内。
-  - [ ] 断言 Primary Narrative Lane 的顺序与 10.1 First-Cut 完全一致。
-  - [ ] 断言幂等性。
+- [x] 新增 story 级测试 `tests/story-10-1-p2-*.test.mjs`（AC: 7）3/3 通过：
+  - [x] `resolveAiRuntimePartLayout` 输出对每种 kind 严格等值，且枚举集合存在并稳定。
+  - [x] projection 每个 part 都带三字段、值在枚举内；同一输入两次映射 layout 序列严格相等。
+  - [x] adapter 层 `UIMessage.parts[].data` 透传 `slot / lane / placement`，`type` 仍为 `data-*` 命名。
+  - [x] 首尾顺序不退化（`status-banner` 在首、`resume-anchor` 在尾）。
 
 ## Dev Notes
 
@@ -88,8 +90,24 @@ so that Story 10.2 renderer registry 与未来多种前端（Web / Mobile / Expe
 
 ### Completion Notes List
 
+- 三个字密奇型都定制为字面量联合类型 + `as const` 常量数组，方便测试时 `AI_RUNTIME_PART_SLOTS.includes(part.slot)` 直接大收尾。
+- `resolveAiRuntimePartLayout` 放在 contract 中，给 renderer registry / SDK 消费端一个单一入口，避免未来不同渲染器都写一遍映射表。
+- 严格保留 10.1 First-Cut 的 Primary Narrative Lane 顺序，story 级测试同时守住“首首尾”与“字段枚举严格等值”。
+- Adapter 将 `slot / lane / placement` 通过 `data` 透传，不改 `type: data-<kind>` 命名。
+
 ### File List
+
+**Modified**
+- `src/application/ai-runtime/runtime-contract.ts` —— 新增 `AI_RUNTIME_PART_SLOTS` / `_LANES` / `_PLACEMENTS` 常量、字面量联合类型、`resolveAiRuntimePartLayout` 纯函数；`AiRuntimePartBase` 加 `slot / lane / placement` required。
+- `src/application/ai-runtime/runtime-projection-mapper.ts` —— 所有 part builder 新增 `...resolveAiRuntimePartLayout(kind)` 扩展。
+
+**Added**
+- `tests/story-10-1-p2-slot-lane-placement.test.mjs`
+
+**Docs**
+- `_bmad-output/implementation-artifacts/10-1-p2-slot-lane-placement-contract-for-renderer-registry.md`
 
 ### Change Log
 
 - 2026-04-21 —— patch story 从 10.1 fresh-context review 产出，`ready-for-dev`。
+- 2026-04-21 —— 落地完成。`tests/story-10-1-p2-*.test.mjs` 3/3 ✅；全部 10.1 系列测试 16/16 ✅；`pnpm build` ✅；`pnpm lint` ✅；`tsc --noEmit` ✅。`review` 直接 → `done`（patch 范围极小，契约改动已全部由类型系统与测试兼顾）。
