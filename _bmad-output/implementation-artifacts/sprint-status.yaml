@@ -114,13 +114,15 @@ development_status:
   epic-9: in-progress
   9-1-minimal-ontology-registry-and-version-model: done
   9-2-govern-metric-variant-factor-and-time-semantics: done
-  # 9.3 spec 自标 in-progress；Review Findings 6 项 Patch 未消溅（AC1~AC4 实际未达成）。
-  # 运行时 wiring (findings #1/#2/#6) 已由 Story 10.1 的 AC6/AC7 吸收；
-  # domain/bootstrap 修正 (findings #3/#4/#5) 待后续 story 拆分处理。
+  # 9.3 spec 自标 in-progress；Review Findings 6 项：
+  # - domain/infra 修正 (#3/#4/#5) 已于 2026-04-17 在本 story 内 fix + 回归测试（commit d1d8df9）。
+  # - 运行时 wiring (#1/#2/#6) 由 Story 10.1 AC6/AC7 吸收。
+  # - bootstrap 正式 seed package 与 operator CLI 由 Story 9.7 承接。
   9-3-ontology-grounding-for-context-planning-and-tool-selection: in-progress
   9-4-ontology-change-request-approval-and-publish-audit: ready-for-dev
   9-5-ontology-governance-admin-console: ready-for-dev
   9-6-bind-execution-follow-up-and-history-to-ontology-version: ready-for-dev
+  9-7-bootstrap-first-approved-ontology-runtime-package: ready-for-dev
   epic-9-retrospective: optional
 
   epic-10: in-progress
