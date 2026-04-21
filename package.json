@@ -28,6 +28,7 @@
     "worker:dev": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json src/worker/main.ts"
   },
   "dependencies": {
+    "ai": "^5.0.179",
     "drizzle-orm": "0.45.1",
     "mysql2": "^3.20.0",
     "neo4j-driver": "^6.0.1",

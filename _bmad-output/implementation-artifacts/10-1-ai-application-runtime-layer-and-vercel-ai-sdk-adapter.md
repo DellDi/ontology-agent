@@ -1,6 +1,6 @@
 # Story 10.1: 建立 AI Application Runtime Layer 与 Vercel AI SDK Adapter
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -27,31 +27,32 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
 
 ## Tasks / Subtasks
 
-- [ ] 建立 AI application runtime 的应用层契约与投影模型（AC: 1, 3, 4）
-  - [ ] 在 `src/application/` 下新增 runtime 相关模块，定义用于消息、parts、projection、resume 和 tool bridge 的正式接口。
-  - [ ] 把现有 `AnalysisExecutionStreamEvent`、`AnalysisExecutionSnapshot`、`AnalysisConclusionReadModel` 作为输入源，而不是复制成新的事实模型。
-  - [ ] 明确 runtime 层只负责“映射与投影”，不负责执行编排、结果持久化或 ontology 治理。
+- [x] 建立 AI application runtime 的应用层契约与投影模型（AC: 1, 3, 4）
+  - [x] 在 `src/application/ai-runtime/` 下新增 runtime 相关模块（`runtime-contract.ts`、`runtime-projection-mapper.ts`、`tool-runtime-bridge.ts`、`index.ts`），定义 message / parts / projection / tool bridge 的正式接口。
+  - [x] 把现有 `AnalysisExecutionStreamEvent` / `AnalysisConclusionReadModel` 作为输入源，不复制为新事实模型。
+  - [x] 明确 runtime 层只负责“映射与投影”，并在文档与代码注释中写死不承担 Worker orchestration / 结果持久化 / ontology 治理。
 
-- [ ] 建立 `Vercel AI SDK` 适配层并接入现有流式路径（AC: 1, 2, 5）
-  - [ ] 在 `src/infrastructure/` 下实现 SDK adapter，将应用层 runtime contract 转成 SDK 需要的消息 / parts / stream 形态。
-  - [ ] 让 `src/app/api/analysis/sessions/[sessionId]/stream/route.ts` 继续作为服务端 transport edge，但将事件到 UI 的语义转换下沉到 runtime adapter。
-  - [ ] 让 `src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx` 从“手工合并事件”演进为“消费 runtime projection”，避免页面继续维护底层流协议细节。
+- [x] 建立 `Vercel AI SDK` 适配层并接入现有流式路径（AC: 1, 2, 5）
+  - [x] 引入 `ai@^5` 依赖，在 `src/infrastructure/ai-runtime/vercel-ai-sdk-adapter.ts` 实现 `projectionToUIMessages`，把 application contract 映射为 SDK `UIMessage<metadata, data-parts>` 形态。
+  - [x] 保留 `src/app/api/analysis/sessions/[sessionId]/stream/route.ts` 为 transport edge，不改 Redis/SSE 事实来源。
+  - [x] 将 `analysis-execution-live-shell.tsx` 改造为“消费 `AiRuntimeProjection`”：组件不再直接派生 status / conclusion，而是 `useMemo(buildAiRuntimeProjection(events))` 并通过 `resolveStatusBanner` / `resolveConclusionReadModel` 读取 parts。
+  - [x] 事件合并改用 application 层纯函数 `mergeAnalysisExecutionStreamEvents`，带 session / execution 串流保护。
 
-- [ ] 定义 resume / projection 边界与回放规则（AC: 3, 5）
-  - [ ] 复用现有 execution snapshot、follow-up history 和 conclusion read model 作为 resume 输入。
-  - [ ] 明确 projection 仅用于恢复 UI message lifecycle 与交互状态，不写回 execution truth。
-  - [ ] 保留当前 SSE、事件顺序和完成态关闭策略，确保历史回放与实时续流行为一致。
+- [ ] 定义 resume / projection 边界与回放规则（AC: 3, 5）—— First-Cut 仅完成最小骨架，完整闭环延后
+  - [x] 保留当前 SSE / 事件顺序 / 完成态关闭策略，live-shell 在 completed / failed 时仍主动关闭 EventSource。
+  - [x] 契约层明确 projection 只读、不得改写 canonical truth，story 级测试“相同输入两次映射”与“原始 events 未被修改”双向验证。
+  - [ ] 完整“从 snapshot + follow-up history + conclusion read model 重建 projection”的最小端到端闭环延后到后续补丁 story（资源冲突风险：与 10.3 projection persistence 有潜在重叠，按推荐顺序先冻结 contract 再落地 resume）。
 
-- [ ] 建立统一 tool runtime bridge 的最小骨架（AC: 2, 4）
-  - [ ] 提供可扩展的 tool bridge 接口，承接未来 tool invocation、approval、memory、knowledge resources、skills prompts 与外部工具接入。
-  - [ ] 当前只实现最小可用转接面，不把 bridge 直接连成新的 worker 编排层。
-  - [ ] 在代码和注释中标明：tool bridge 不是 ontology registry，也不是 execution orchestration。
+- [ ] 建立统一 tool runtime bridge 的最小骨架（AC: 2, 4）—— First-Cut 仅锁定接口，空实现
+  - [x] 定义 `AiRuntimeToolBridge` 与 `AiRuntimeToolDescriptor`，并提供 `createEmptyAiRuntimeToolBridge()` 的默认空实现。
+  - [x] 在代码注释与 story Dev Agent Record 中明确：本接口不是 ontology registry / execution orchestration / worker 编排层。
+  - [ ] 将 bridge 与 `ToolCapabilityBinding` / 9.x tool governance 做真正接线延后到 10.4 / 9.x 对接 story。
 
-- [ ] 补齐 story 级验证与回归保护（AC: 1, 2, 3, 5）
-  - [ ] 为 runtime mapping、resume projection 和 adapter 边界新增 `tests/story-10-1-*.test.mjs`。
-  - [ ] 验证 runtime adapter 能消费现有 execution events，并输出稳定的消息 / parts 投影。
-  - [ ] 验证刷新、切轮次或重新进入会话时，交互层恢复的是 projection 而不是新的事实。
-  - [ ] 验证引入 runtime layer 后，已有 SSE 流、快照持久化与历史回放语义不被破坏。
+- [x] 补齐 story 级验证与回归保护（AC: 1, 2, 3, 5）
+  - [x] 新增 `tests/story-10-1-ai-application-runtime-layer.test.mjs`，覆盖：mapper 稳定顺序、merge 幂等与串流保护、projection 只读、fallback conclusion 降级策略、SDK adapter `data-*` 契约、tool bridge 空实现。6/6 通过。
+  - [x] `pnpm build` 通过（Next 16 / React 19 / TS 5 / ai@5）。
+  - [x] `pnpm lint` 通过（0 error / 0 warning）。
+  - [x] 事前回归：对比 baseline（stash live-shell）重跑 `story-5-2`，复现相同 2 个 failure（`executionId` 重定向断言 —— 与本 story 无关），确认无新增 regression。
 
 ## Dev Notes
 
@@ -257,6 +258,66 @@ GPT-5 Codex
 - 明确 canonical truth 仍然是 execution events、snapshots、follow-up history、result blocks 和 ontology governance。
 - 明确 future memory / knowledge / skills / tools runtime 只预留接入面，不在本 story 中落成新的治理系统。
 
+#### 2026-04-21 Dev 会话（First-Cut 最小闭环）
+
+- ✅ 交付四件最小结果：application 层 runtime contract、execution events → runtime messages mapper、infrastructure 层 Vercel AI SDK adapter、live-shell 改为消费 projection。
+- ✅ foundation parts 按 Primary Narrative Lane 稳定顺序输出：`status-banner → step-timeline → evidence-card* → conclusion-card(可选) → resume-anchor`，并以 story 级测试守住顺序。
+- ✅ `reduceAiRuntimeProjection` 刻意 **不** 实现：reducer 如果从 projection 反推 events，会把 projection 变成第二号事实源；改为 live-shell 仍持有 canonical events 数组 + 纯函数 `mergeAnalysisExecutionStreamEvents`，再由 `useMemo` 触发 projection 全量重算，守住“projection 只读”语义。
+- ✅ `AiRuntimeToolBridge` 只定义接口 + 空实现；明确拒绝把 First-Cut 变成半套 agent framework。
+- ✅ Adapter 使用 `ai@5` 的 `UIMessage<metadata, data-parts>` 形态，所有 part 走 `data-*` 命名空间，metadata 携带 `sessionId / executionId / status / lastSequence / isTerminal`，为后续 10.2 renderer registry 与 client-side `useChat` 迁移预留正式接口，但本 story 不引入 client hook。
+- ⏭️ **延后项（未在 First-Cut 范围）**：
+  - AC 7：`createOntologyGroundingUseCases.groundAnalysisContext` / `buildAnalysisPlanFromGroundedContext` / `ToolCapabilityBinding.selectBestToolBinding` 在 execute route handler 的 runtime wiring，以及对应 integration 测试。应作为后续 patch story 推进，与 9.3 review findings 对齐。
+  - AC 4 完整 tool runtime bridge 与 9.x / 10.4 的真实接线。
+  - AC 3 完整 resume projection 端到端闭环（快照 + follow-up history + conclusion read model → projection 重建）。
+- ⚠️ **发现但未修复**：`tests/story-5-2-execution-stream.test.mjs` 与 `tests/story-5-3-ranked-conclusions.test.mjs` 的“重定向地址应包含 executionId”断言在 baseline（stash 本 story 改动后）已失败，为 **pre-existing failure**，与本 story 无关；已通过 stash 对照复现确认，留给相关 story owner 跟进。
+- 🧪 验证：`pnpm build` ✅、`pnpm lint` ✅、`tsc --noEmit` ✅、`tests/story-10-1-*.test.mjs` 6/6 ✅、`story-5-3` 纯单元子测试 ✅。
+
+#### 2026-04-21 Dev 会话（Code Review 响应：P0 correctness fix）
+
+**背景**：外部 code review 发现 A 类 correctness bug：`AnalysisExecutionLiveShell` 在父层切换 execution（历史查看 / follow-up 切换）时，`events` state 会残留上一条 execution 的 canonical facts，导致 projection 派生出混入旧 execution 事实的错误 status/timeline/conclusion。Review 明确要求该 bug 必须在 10.1 内修完，而非拆到 patch story。
+
+**修复**：
+- 在 `src/application/ai-runtime/runtime-projection-mapper.ts` 中新增纯函数 `resolveLiveShellCanonicalEvents`，将"根据 props 同步重置 state"的决策从 React 组件中下沉到 application 层，便于无 React 环境做回归验证。
+- `analysis-execution-live-shell.tsx` 改用该纯函数：在 render 期间用 `sessionId::executionId` 作为 tracking key，一旦 key 变化就同步 `setEvents(initialReadModel.events)`，使用 React 官方"storing information from previous renders"模式避免多一次 render。
+- 只重置 canonical events；UI 偏好（processBoard 展开态）在 session 维度稳定，不随 execution 切换重置。
+
+**回归测试**：`tests/story-10-1-*.test.mjs` 新增 "execution 切换时 resolveLiveShellCanonicalEvents 必须重置 canonical events" 用例，覆盖四个场景：
+1. 同一 execution 的后续 render 不重置
+2. 切换 executionId 必须重置为新 execution 的 initial events
+3. 切换 sessionId 同样必须重置
+4. 切换后 projection 的 executionId / status / lastSequence / timeline / resume-anchor 全部反映新 execution 事实，不得混入旧事实
+5. 反向守护断言：若未来 bug 回潮（未重置路径），timeline 会出现旧 execution 的 steps；该断言记录"坏路径"特征供后续 regression 对比。
+
+**验证**：`tests/story-10-1-*.test.mjs` 7/7 ✅、`pnpm build` ✅、`pnpm lint` ✅、`tsc --noEmit` ✅。
+
+**其余 10.2 前瞻增强（稳定 part id / slot-lane-placement / schema-version 元数据）按 review 建议拆为 10.1.p1 / 10.1.p2 / 10.1.p3 patch stories**，不在本 story 内继续膨胀。
+
+#### 2026-04-21 fresh-context 复审（外部评审 → done）
+
+复审质疑：未发现新的 blocker；P0 correctness fix 与回归测试能确实守住“execution 切换后 projection 必须只反映新 execution 事实”这个关键契约；type-check / lint / build / 7 条 story 测试全部通过。
+
+决议：
+- **10.1 从 `review` → `done`**。
+- 10.2 前瞻增强拆为 `10.1.p1` / `10.1.p2` / `10.1.p3` patch stories，不再回塞 10.1。
+
 ### File List
 
-- {project-root}/_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md
+**Added**
+- `src/application/ai-runtime/runtime-contract.ts`
+- `src/application/ai-runtime/runtime-projection-mapper.ts`
+- `src/application/ai-runtime/tool-runtime-bridge.ts`
+- `src/application/ai-runtime/index.ts`
+- `src/infrastructure/ai-runtime/vercel-ai-sdk-adapter.ts`
+- `src/infrastructure/ai-runtime/index.ts`
+- `tests/story-10-1-ai-application-runtime-layer.test.mjs`
+
+**Modified**
+- `src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx` —— 组件内不再手工派生 status / conclusion，改为 `useMemo` 消费 `AiRuntimeProjection`；事件合并下沉到 `mergeAnalysisExecutionStreamEvents`。
+- `package.json` / `pnpm-lock.yaml` —— 新增 `ai@5.0.179` 依赖。
+
+**Docs**
+- `_bmad-output/implementation-artifacts/10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter.md`
+
+### Change Log
+
+- 2026-04-21 —— First-Cut 最小闭环落地：application 层 runtime contract、execution facts → messages mapper、infrastructure 层 Vercel AI SDK adapter、live-shell 改为消费 projection、story 级测试（6/6 通过）。AC 7 (9.3 grounding runtime wiring)、完整 resume 闭环、真实 tool bridge 接线按 Dev Notes 推荐顺序延后。

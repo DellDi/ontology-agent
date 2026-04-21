@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import {
+  buildAiRuntimeProjection,
+  mergeAnalysisExecutionStreamEvents,
+  resolveLiveShellCanonicalEvents,
+  type AiRuntimeProjection,
+  type AiRuntimeStatusBannerPart,
+} from '@/application/ai-runtime';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
-import {
-  buildLiveConclusionReadModel,
-  mergeExecutionEvents,
-} from '../analysis-execution-display';
 import { AnalysisConclusionPanel } from './analysis-conclusion-panel';
 import { AnalysisExecutionStreamPanel } from './analysis-execution-stream-panel';
 
@@ -29,29 +32,28 @@ function buildProcessBoardStorageKey(ownerUserId: string) {
   return `${PROCESS_BOARD_STORAGE_KEY_PREFIX}:${ownerUserId}`;
 }
 
-function resolveExecutionStatus(events: AnalysisExecutionStreamEvent[]) {
-  const latestStatusEvent = [...events]
-    .reverse()
-    .find((event) => event.kind === 'execution-status' && event.status);
-
-  if (latestStatusEvent?.status === 'completed') {
-    return {
-      label: '已完成',
-      tone: 'success' as const,
-    };
+function resolveStatusBanner(projection: AiRuntimeProjection) {
+  for (const message of projection.messages) {
+    for (const part of message.parts) {
+      if (part.kind === 'status-banner') {
+        return part as AiRuntimeStatusBannerPart;
+      }
+    }
   }
+  return null;
+}
 
-  if (latestStatusEvent?.status === 'failed') {
-    return {
-      label: '已失败',
-      tone: 'error' as const,
-    };
+function resolveConclusionReadModel(
+  projection: AiRuntimeProjection,
+): AnalysisConclusionReadModel | null {
+  for (const message of projection.messages) {
+    for (const part of message.parts) {
+      if (part.kind === 'conclusion-card') {
+        return part.readModel;
+      }
+    }
   }
-
-  return {
-    label: '执行中',
-    tone: 'info' as const,
-  };
+  return null;
 }
 
 export function AnalysisExecutionLiveShell({
@@ -64,17 +66,47 @@ export function AnalysisExecutionLiveShell({
 }: AnalysisExecutionLiveShellProps) {
   // D2: key 在 ownerUserId 下隔离，不再使用全局 key。
   const processBoardStorageKey = buildProcessBoardStorageKey(ownerUserId);
-  const [events, setEvents] = useState(initialReadModel.events);
+  const [events, setEvents] = useState<AnalysisExecutionStreamEvent[]>(
+    initialReadModel.events,
+  );
+
+  // Story 10.1 P0 fix：当父层切换 execution（历史查看 / follow-up 切换等场景）时，
+  // 组件实例可能被 React 复用，此时 events state 会残留上一条 execution 的 canonical facts，
+  // 导致 projection 派生出错误的 status/timeline/conclusion，污染交互叙事。
+  // 使用 React 官方"根据 props 同步重置 state"模式（https://react.dev/reference/react/useState#storing-information-from-previous-renders），
+  // 将决策下沉到 application 层的 resolveLiveShellCanonicalEvents 纯函数，方便无 React 环境做回归验证。
+  // 备注：只重置 canonical events；UI 偏好（processBoard 展开态）在 session 维度稳定，不随 execution 切换而重置。
+  const [trackedExecutionKey, setTrackedExecutionKey] = useState(
+    () => `${sessionId}::${executionId}`,
+  );
+  const canonicalResolution = resolveLiveShellCanonicalEvents({
+    sessionId,
+    executionId,
+    previousTrackingKey: trackedExecutionKey,
+    previousEvents: events,
+    initialEventsForCurrentExecution: initialReadModel.events,
+  });
+  if (canonicalResolution.didReset) {
+    setTrackedExecutionKey(canonicalResolution.trackingKey);
+    setEvents(canonicalResolution.events as AnalysisExecutionStreamEvent[]);
+  }
+
   // D1 + P1 fix: 默认态为收起，严格对齐 UX addendum "主画布优先展示阶段结果与结论叙事"。
   // SSR 与 CSR 首轮渲染都为 false，避免 hydration mismatch；
   // 用户在本会话之前已显式展开过的状态通过 localStorage 在挂载后恢复。
   const [isProcessBoardOpen, setIsProcessBoardOpen] = useState(false);
   const [hasRestoredOpenState, setHasRestoredOpenState] = useState(false);
-  const [conclusionReadModel, setConclusionReadModel] = useState(
-    buildLiveConclusionReadModel({
-      events: initialReadModel.events,
-      fallbackReadModel: initialConclusionReadModel,
-    }),
+
+  // Story 10.1: 交互层只消费 AiRuntimeProjection，不再在组件内手写 conclusion/status 派生逻辑。
+  const projection = useMemo(
+    () =>
+      buildAiRuntimeProjection({
+        sessionId,
+        executionId,
+        events,
+        fallbackConclusion: initialConclusionReadModel,
+      }),
+    [sessionId, executionId, events, initialConclusionReadModel],
   );
 
   useEffect(() => {
@@ -125,19 +157,14 @@ export function AnalysisExecutionLiveShell({
     eventSource.onmessage = (message) => {
       const nextEvent = JSON.parse(message.data) as AnalysisExecutionStreamEvent;
 
-      setEvents((previousEvents) => {
-        const nextEvents = mergeExecutionEvents(previousEvents, nextEvent);
-
-        setConclusionReadModel((previousConclusionReadModel) =>
-          buildLiveConclusionReadModel({
-            events: nextEvents,
-            fallbackReadModel:
-              previousConclusionReadModel ?? initialConclusionReadModel,
-          }),
-        );
-
-        return nextEvents;
-      });
+      // Story 10.1: 合并交由 runtime layer 的纯函数，不再在组件内手工派生 conclusion。
+      // projection 通过 useMemo 从 events 重算，组件只维护 canonical events state。
+      setEvents((previousEvents) =>
+        mergeAnalysisExecutionStreamEvents(previousEvents, nextEvent, {
+          sessionId,
+          executionId,
+        }),
+      );
 
       if (
         nextEvent.kind === 'execution-status' &&
@@ -154,9 +181,14 @@ export function AnalysisExecutionLiveShell({
     return () => {
       eventSource.close();
     };
-  }, [executionId, initialConclusionReadModel, sessionId]);
+  }, [executionId, sessionId]);
 
-  const executionStatus = resolveExecutionStatus(events);
+  const statusBanner = resolveStatusBanner(projection);
+  const executionStatus = {
+    label: statusBanner?.label ?? '执行中',
+    tone: statusBanner?.tone ?? ('info' as const),
+  };
+  const conclusionReadModel = resolveConclusionReadModel(projection);
 
   return (
     <>
