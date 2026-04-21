@@ -1,13 +1,22 @@
 /**
  * seed-ontology-baseline.mts
  *
- * Canonical ontology registry 初始装载入口。
- * 从当前仓库已存在的真实业务定义中抽取最小初始数据，写入 platform schema。
+ * ⚠️ DEPRECATED（Story 9.7, 2026-04-21）
  *
- * 这是"第一版 ontology version"的正式装载路径，不是测试假数据脚本。
- * 后续正式治理发布（变更单 + 审批）应走 9.4 的治理流程，与此脚本分开维护。
+ * 本脚本是 Epic 9.1/9.2 时期的半成品初始化入口：
+ * - 仅覆盖 4 类对象（entities / metrics / factors / planStepTemplates）
+ * - 使用老的 `loadOntologyDefinitions`，不走 Story 9.3 补齐的事务边界与完整性校验
+ * - 不装载 metricVariants / timeSemantics / causalityEdges / evidenceTypes / toolBindings
  *
- * 使用方式：
+ * 新环境初始化的正式入口是 Story 9.7 的：
+ *   pnpm ontology:bootstrap             # 幂等装载首个 approved version
+ *   pnpm ontology:bootstrap:status      # 检查 baseline completeness
+ *
+ * 本文件保留是因为其中 organization / owner / staff / receivables-focused 等 entity
+ * 与 metric 定义仍有扩展价值，作为 Story 9.4 正式 change request / approval 流程
+ * 引入新版本时的候选参考。**不再作为生产初始化入口调用**。
+ *
+ * 历史使用方式（已 deprecated）：
  *   pnpm exec tsx scripts/seed-ontology-baseline.mts
  *
  * 环境要求：DATABASE_URL 必须已设置或存在于 .env 文件。
