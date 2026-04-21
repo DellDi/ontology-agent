@@ -877,18 +877,51 @@ export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependenc
     },
 
     /**
-     * 检查 bootstrap 状态：返回当前是否已有可用的 approved ontology version
+     * 检查 bootstrap 状态：返回当前是否已有可用的 approved ontology version。
+     *
+     * Story 9.7 AC5：该检查是部署验收与运维诊断的最小入口，必须覆盖运行时主链依赖的
+     * **全部** 8 类 canonical definitions + tool bindings，并给出人类可读的 completeness 诊断。
+     *
+     * @param expectedMinimums - 可选。若提供，则按"每项 >= 期望值"判定 completeness；
+     *   未提供时只回答"是否存在 approved version"与"各项实际数量"。
+     *   这个参数由 `scripts/ontology-bootstrap.mts` 传入
+     *   `DEFAULT_RUNTIME_BASELINE_EXPECTED_COUNTS`，从而避免把业务 baseline 数字硬编码进 application 层。
      */
-    async checkBootstrapStatus(): Promise<{
+    async checkBootstrapStatus(expectedMinimums?: {
+      entities?: number;
+      metrics?: number;
+      factors?: number;
+      planStepTemplates?: number;
+      metricVariants?: number;
+      timeSemantics?: number;
+      causalityEdges?: number;
+      evidenceTypes?: number;
+      toolBindingsMin?: number;
+    }): Promise<{
       hasApprovedVersion: boolean;
       currentVersion: OntologyVersion | null;
       definitionsCount: {
         entities: number;
         metrics: number;
         factors: number;
+        planStepTemplates: number;
         metricVariants: number;
         timeSemantics: number;
+        causalityEdges: number;
+        evidenceTypes: number;
+        toolBindings: number;
       } | null;
+      /**
+       * 完整性诊断：
+       * - isComplete：是否所有类别均 >= 期望值（未传 expectedMinimums 时永远为 null，表示"未判定"）。
+       * - missingCategories：实际数量低于期望值的类别列表，供 CLI / 监控直接消费。
+       * - humanReadable：可直接打印给运维看的一行诊断文本。
+       */
+      completeness: {
+        isComplete: boolean | null;
+        missingCategories: Array<{ category: string; actual: number; expected: number }>;
+        humanReadable: string;
+      };
     }> {
       const version = await deps.versionStore.findCurrentApproved();
 
@@ -897,26 +930,103 @@ export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependenc
           hasApprovedVersion: false,
           currentVersion: null,
           definitionsCount: null,
+          completeness: {
+            isComplete: expectedMinimums ? false : null,
+            missingCategories: [],
+            humanReadable: '当前环境没有任何 approved ontology version，需执行 bootstrap 初始化。',
+          },
         };
       }
 
-      const [entities, metrics, factors, metricVariants, timeSemantics] = await Promise.all([
+      const [
+        entities,
+        metrics,
+        factors,
+        planStepTemplates,
+        metricVariants,
+        timeSemantics,
+        causalityEdges,
+        evidenceTypes,
+        toolBindings,
+      ] = await Promise.all([
         deps.entityStore.findByVersionId(version.id),
         deps.metricStore.findByVersionId(version.id),
         deps.factorStore.findByVersionId(version.id),
+        deps.planStepTemplateStore.findByVersionId(version.id),
         deps.metricVariantStore.findByVersionId(version.id),
         deps.timeSemanticStore.findByVersionId(version.id),
+        deps.causalityEdgeStore.findByVersionId(version.id),
+        deps.evidenceTypeStore.findByVersionId(version.id),
+        deps.toolCapabilityBindingStore.findByVersionId(version.id),
       ]);
+
+      const counts = {
+        entities: entities.length,
+        metrics: metrics.length,
+        factors: factors.length,
+        planStepTemplates: planStepTemplates.length,
+        metricVariants: metricVariants.length,
+        timeSemantics: timeSemantics.length,
+        causalityEdges: causalityEdges.length,
+        evidenceTypes: evidenceTypes.length,
+        toolBindings: toolBindings.length,
+      };
+
+      // completeness 诊断
+      let isComplete: boolean | null = null;
+      const missing: Array<{ category: string; actual: number; expected: number }> = [];
+      let humanReadable = `approved version ${version.semver} (${version.id}) 已激活。`;
+
+      if (expectedMinimums) {
+        // 常规八类：实际 < 期望 → missing
+        const categoryChecks: Array<[string, number, number | undefined]> = [
+          ['entities', counts.entities, expectedMinimums.entities],
+          ['metrics', counts.metrics, expectedMinimums.metrics],
+          ['factors', counts.factors, expectedMinimums.factors],
+          ['planStepTemplates', counts.planStepTemplates, expectedMinimums.planStepTemplates],
+          ['metricVariants', counts.metricVariants, expectedMinimums.metricVariants],
+          ['timeSemantics', counts.timeSemantics, expectedMinimums.timeSemantics],
+          ['causalityEdges', counts.causalityEdges, expectedMinimums.causalityEdges],
+          ['evidenceTypes', counts.evidenceTypes, expectedMinimums.evidenceTypes],
+        ];
+        for (const [name, actual, expected] of categoryChecks) {
+          if (typeof expected === 'number' && actual < expected) {
+            missing.push({ category: name, actual, expected });
+          }
+        }
+        // tool bindings 只校验下限（数量会随扩展而变）
+        if (
+          typeof expectedMinimums.toolBindingsMin === 'number' &&
+          counts.toolBindings < expectedMinimums.toolBindingsMin
+        ) {
+          missing.push({
+            category: 'toolBindings',
+            actual: counts.toolBindings,
+            expected: expectedMinimums.toolBindingsMin,
+          });
+        }
+
+        isComplete = missing.length === 0;
+        if (isComplete) {
+          humanReadable = `approved version ${version.semver} (${version.id}) 已完整装载全部核心 canonical definitions。`;
+        } else {
+          humanReadable =
+            `approved version ${version.semver} 存在脏状态：` +
+            missing
+              .map((m) => `${m.category} ${m.actual}/${m.expected}`)
+              .join('，') +
+            '。请重新 bootstrap 或由 9.4 审批流补齐。';
+        }
+      }
 
       return {
         hasApprovedVersion: true,
         currentVersion: version,
-        definitionsCount: {
-          entities: entities.length,
-          metrics: metrics.length,
-          factors: factors.length,
-          metricVariants: metricVariants.length,
-          timeSemantics: timeSemantics.length,
+        definitionsCount: counts,
+        completeness: {
+          isComplete,
+          missingCategories: missing,
+          humanReadable,
         },
       };
     },
