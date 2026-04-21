@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-25
-last_updated: 2026-04-17
+last_updated: 2026-04-21
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -126,7 +126,10 @@ development_status:
   epic-9-retrospective: optional
 
   epic-10: in-progress
-  10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter: ready-for-dev
+  10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter: done
+  10-1-p1-foundation-parts-stable-id-strategy: ready-for-dev
+  10-1-p2-slot-lane-placement-contract-for-renderer-registry: ready-for-dev
+  10-1-p3-schema-version-and-contract-version-metadata: ready-for-dev
   10-2-renderer-registry-for-rich-analysis-blocks: ready-for-dev
   10-3-ui-message-projection-persistence-and-resume: ready-for-dev
   10-4-runtime-bridge-for-memory-knowledge-skills-and-tools: ready-for-dev
