@@ -34,6 +34,9 @@ export type AiRuntimeUIMessageMetadata = {
   status: AiRuntimeProjection['status'];
   lastSequence: number;
   isTerminal: boolean;
+  /** Story 10.1.p3：从 projection 透传，而非 adapter 独立引入常量，保持事实单一来源。 */
+  schemaVersion: number;
+  contractVersion: number;
 };
 
 export type AiRuntimeUIMessage = UIMessage<
@@ -44,21 +47,19 @@ export type AiRuntimeUIMessage = UIMessage<
 function toDataPart(
   part: AiRuntimeMessagePart,
 ): UIMessagePart<AiRuntimeUIDataParts, never> {
+  // Story 10.1.p1：所有 data part 的 id 必须直接沿用 application 层 `part.id`，
+  // adapter 不得重新生成，避免 renderer registry 与 application contract 之间出现 id 漂移。
   switch (part.kind) {
     case 'status-banner':
-      return { type: 'data-status-banner', data: part };
+      return { type: 'data-status-banner', id: part.id, data: part };
     case 'step-timeline':
-      return { type: 'data-step-timeline', data: part };
+      return { type: 'data-step-timeline', id: part.id, data: part };
     case 'evidence-card':
-      return {
-        type: 'data-evidence-card',
-        id: part.sourceEventId,
-        data: part,
-      };
+      return { type: 'data-evidence-card', id: part.id, data: part };
     case 'conclusion-card':
-      return { type: 'data-conclusion-card', data: part };
+      return { type: 'data-conclusion-card', id: part.id, data: part };
     case 'resume-anchor':
-      return { type: 'data-resume-anchor', data: part };
+      return { type: 'data-resume-anchor', id: part.id, data: part };
   }
 }
 
@@ -75,6 +76,8 @@ function toUIMessage(
       status: projection.status,
       lastSequence: projection.lastSequence,
       isTerminal: projection.isTerminal,
+      schemaVersion: projection.schemaVersion,
+      contractVersion: projection.contractVersion,
     },
     parts: message.parts.map((part) => toDataPart(part)),
   };

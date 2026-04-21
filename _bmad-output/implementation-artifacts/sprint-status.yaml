@@ -127,9 +127,9 @@ development_status:
 
   epic-10: in-progress
   10-1-ai-application-runtime-layer-and-vercel-ai-sdk-adapter: done
-  10-1-p1-foundation-parts-stable-id-strategy: ready-for-dev
-  10-1-p2-slot-lane-placement-contract-for-renderer-registry: ready-for-dev
-  10-1-p3-schema-version-and-contract-version-metadata: ready-for-dev
+  10-1-p1-foundation-parts-stable-id-strategy: done
+  10-1-p2-slot-lane-placement-contract-for-renderer-registry: done
+  10-1-p3-schema-version-and-contract-version-metadata: done
   10-2-renderer-registry-for-rich-analysis-blocks: ready-for-dev
   10-3-ui-message-projection-persistence-and-resume: ready-for-dev
   10-4-runtime-bridge-for-memory-knowledge-skills-and-tools: ready-for-dev
