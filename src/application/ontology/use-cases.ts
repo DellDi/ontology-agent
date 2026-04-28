@@ -112,10 +112,18 @@ export async function getDefinitionsByVersion(
   return { entities, metrics, factors, planStepTemplates };
 }
 
+/**
+ * 运行时默认读取当前 *approved + published* 的 ontology version 及其 definitions。
+ *
+ * Story 9.4 AC3：默认运行时路径只认「已通过审批且已发布」的版本，绝不能
+ * 让 approved 但未 publish 的版本（`publishedAt IS NULL`）泄漏到 grounding、
+ * tool selection、governance runtime。若存在 approved 但未 publish 的候选，
+ * 必须由 {@link createGovernanceUseCases.publishVersion} 形成正式 publish 边界后才生效。
+ */
 export async function getCurrentApprovedDefinitions(
   deps: OntologyRegistryDeps,
 ): Promise<{ version: OntologyVersion; definitions: OntologyRegistryDefinitions } | null> {
-  const version = await deps.versionStore.findCurrentApproved();
+  const version = await deps.versionStore.findCurrentPublished();
 
   if (!version) {
     return null;
@@ -183,10 +191,14 @@ export async function getGovernanceDefinitionsByVersion(
   };
 }
 
+/**
+ * 运行时治理 definitions 视图。与 {@link getCurrentApprovedDefinitions} 同语义：
+ * 只允许 approved + published 的版本进入默认运行时（Story 9.4 AC3）。
+ */
 export async function getApprovedGovernanceDefinitions(
   deps: OntologyGovernanceDeps,
 ): Promise<{ version: OntologyVersion; definitions: OntologyGovernanceDefinitions } | null> {
-  const version = await deps.versionStore.findCurrentApproved();
+  const version = await deps.versionStore.findCurrentPublished();
 
   if (!version) {
     return null;
