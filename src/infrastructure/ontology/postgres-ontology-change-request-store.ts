@@ -141,5 +141,15 @@ export function createPostgresOntologyChangeRequestStore(
 
       return rows.map(rowToDomain);
     },
+
+    async listRecent(limit = 50) {
+      const rows = await resolvedDb
+        .select()
+        .from(ontologyChangeRequests)
+        .orderBy(desc(ontologyChangeRequests.updatedAt), desc(ontologyChangeRequests.createdAt))
+        .limit(limit);
+
+      return rows.map(rowToDomain);
+    },
   };
 }

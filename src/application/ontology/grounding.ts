@@ -639,7 +639,10 @@ export function createOntologyGroundingUseCases(
     },
 
     /**
-     * 获取当前 approved version 的 grounded definitions（用于 tool selection 等场景）
+     * 获取当前 approved + published 版本的 grounded definitions（用于 tool selection 等运行时场景）。
+     *
+     * Story 9.4 AC3：运行时只认已通过审批且已发布的版本，approved 但未 publish 的候选
+     * 必须等到 `publishVersion` 形成发布边界后才进入运行时。
      */
     async getCurrentApprovedDefinitions(): Promise<{
       version: OntologyVersion;
@@ -649,7 +652,7 @@ export function createOntologyGroundingUseCases(
       timeSemantics: OntologyTimeSemantic[];
       metricVariants: OntologyMetricVariant[];
     } | null> {
-      const version = await deps.versionStore.findCurrentApproved();
+      const version = await deps.versionStore.findCurrentPublished();
       if (!version) {
         return null;
       }

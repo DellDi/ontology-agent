@@ -39,6 +39,7 @@ export type OntologyChangeRequestStore = {
     ontologyVersionId: string,
     status: ChangeRequestStatus,
   ): Promise<OntologyChangeRequest[]>;
+  listRecent(limit?: number): Promise<OntologyChangeRequest[]>;
 };
 
 export type CreateApprovalRecordInput = {
@@ -69,4 +70,5 @@ export type OntologyPublishRecordStore = {
   create(input: CreatePublishRecordInput): Promise<OntologyPublishRecord>;
   findByVersionId(ontologyVersionId: string): Promise<OntologyPublishRecord[]>;
   findLatest(): Promise<OntologyPublishRecord | null>;
+  listRecent(limit?: number): Promise<OntologyPublishRecord[]>;
 };

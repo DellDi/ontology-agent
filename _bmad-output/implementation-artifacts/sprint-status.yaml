@@ -121,7 +121,7 @@ development_status:
   # - bootstrap 正式 seed package 与 operator CLI 由 Story 9.7 承接。
   9-3-ontology-grounding-for-context-planning-and-tool-selection: done
   9-4-ontology-change-request-approval-and-publish-audit: done
-  9-5-ontology-governance-admin-console: ready-for-dev
+  9-5-ontology-governance-admin-console: review
   9-6-bind-execution-follow-up-and-history-to-ontology-version: ready-for-dev
   9-7-bootstrap-first-approved-ontology-runtime-package: done
   epic-9-retrospective: optional

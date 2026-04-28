@@ -22,11 +22,33 @@ import type {
 } from './governance-ports';
 import type { OntologyVersionStore } from './ports';
 
+/**
+ * publishVersion 事务内所需的 store 子集。基础设施层在 `db.transaction` 内
+ * 使用绑定到同一个事务上下文的 store 实例实现这个形状，保证 5 条 DB 写操作
+ * （目标版本 status + publishedAt、前代版本 deprecated、N 条 CR status、发布记录）
+ * 要么一起成功，要么全部回滚，绝不留下半发布状态。
+ */
+export type PublishTransactionStores = {
+  versionStore: OntologyVersionStore;
+  changeRequestStore: OntologyChangeRequestStore;
+  publishRecordStore: OntologyPublishRecordStore;
+};
+
+export type RunInPublishTransaction = <T>(
+  fn: (stores: PublishTransactionStores) => Promise<T>,
+) => Promise<T>;
+
 export type GovernanceUseCasesDeps = {
   changeRequestStore: OntologyChangeRequestStore;
   approvalRecordStore: OntologyApprovalRecordStore;
   publishRecordStore: OntologyPublishRecordStore;
   versionStore: OntologyVersionStore;
+  /**
+   * 可选：发布流程的事务边界 runner。生产环境（Postgres）会注入基于
+   * `db.transaction` 的实现；测试 stub 可不提供，退化为无事务的顺序执行
+   * （仅用于测试，生产路径必须注入）。
+   */
+  runInPublishTransaction?: RunInPublishTransaction;
   now?: () => Date;
 };
 
@@ -165,37 +187,57 @@ export function createGovernanceUseCases(deps: GovernanceUseCasesDeps) {
       );
     }
 
-    await deps.versionStore.updateStatus(
-      input.ontologyVersionId,
-      'approved',
-      timestamp,
-      { publishedAt: timestamp },
-    );
-
-    if (currentPublished && currentPublished.id !== input.ontologyVersionId) {
-      await deps.versionStore.updateStatus(
-        currentPublished.id,
-        'deprecated',
-        timestamp,
-        { deprecatedAt: timestamp },
-      );
-    }
-
     const changeRequestIds = approvedRequests.map((cr) => cr.id);
+    const publishRecordId = randomUUID();
 
-    for (const crId of changeRequestIds) {
-      await deps.changeRequestStore.updateStatus(crId, 'published', timestamp);
-    }
+    // 所有 DB 写操作必须发生在同一个事务内，避免半发布状态：
+    //   1) 目标版本切换为 published（写入 publishedAt）
+    //   2) 前代 published 版本切换为 deprecated
+    //   3) 关联的 approved CR 状态批量切换为 published
+    //   4) 写入 ontology_publish_records 审计记录
+    // 任一步失败都必须整体回滚；若未注入事务 runner，则仅用于测试 stub，
+    // 明确记录降级语义。
+    const executePublishMutations = async (
+      stores: PublishTransactionStores,
+    ): Promise<OntologyPublishRecord> => {
+      await stores.versionStore.updateStatus(
+        input.ontologyVersionId,
+        'approved',
+        timestamp,
+        { publishedAt: timestamp },
+      );
 
-    const publishRecord = await deps.publishRecordStore.create({
-      id: randomUUID(),
-      ontologyVersionId: input.ontologyVersionId,
-      publishedBy: input.publishedBy,
-      previousVersionId: currentPublished?.id ?? null,
-      changeRequestIds,
-      publishNote: input.publishNote ?? null,
-      createdAt: timestamp,
-    });
+      if (currentPublished && currentPublished.id !== input.ontologyVersionId) {
+        await stores.versionStore.updateStatus(
+          currentPublished.id,
+          'deprecated',
+          timestamp,
+          { deprecatedAt: timestamp },
+        );
+      }
+
+      for (const crId of changeRequestIds) {
+        await stores.changeRequestStore.updateStatus(crId, 'published', timestamp);
+      }
+
+      return stores.publishRecordStore.create({
+        id: publishRecordId,
+        ontologyVersionId: input.ontologyVersionId,
+        publishedBy: input.publishedBy,
+        previousVersionId: currentPublished?.id ?? null,
+        changeRequestIds,
+        publishNote: input.publishNote ?? null,
+        createdAt: timestamp,
+      });
+    };
+
+    const publishRecord = deps.runInPublishTransaction
+      ? await deps.runInPublishTransaction(executePublishMutations)
+      : await executePublishMutations({
+          versionStore: deps.versionStore,
+          changeRequestStore: deps.changeRequestStore,
+          publishRecordStore: deps.publishRecordStore,
+        });
 
     return { publishRecord };
   }

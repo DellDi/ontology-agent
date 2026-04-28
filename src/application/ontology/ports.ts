@@ -31,6 +31,7 @@ export type OntologyVersionStore = {
   findCurrentApproved(): Promise<OntologyVersion | null>;
   findCurrentPublished(): Promise<OntologyVersion | null>;
   listApprovedCandidates?(limit?: number): Promise<OntologyVersion[]>;
+  listRecent?(limit?: number): Promise<OntologyVersion[]>;
   updateStatus(
     id: string,
     status: OntologyVersionStatus,

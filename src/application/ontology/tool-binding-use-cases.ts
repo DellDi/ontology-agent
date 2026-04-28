@@ -121,9 +121,11 @@ export function createOntologyToolBindingUseCases({
       strategy: string;
       tools: ToolSelectionDecision[];
     } | null> {
+      // Story 9.4 AC3：运行时默认只绑定 approved + published 版本的工具。
+      // approved 但未 publish 的候选必须通过 publishVersion 形成发布边界后才参与工具选择。
       const version = input.groundedContext?.ontologyVersionId
         ? await versionStore.findById(input.groundedContext.ontologyVersionId)
-        : await versionStore.findCurrentApproved();
+        : await versionStore.findCurrentPublished();
 
       if (!version) {
         return null;

@@ -64,5 +64,15 @@ export function createPostgresOntologyPublishRecordStore(
 
       return rows[0] ? rowToDomain(rows[0]) : null;
     },
+
+    async listRecent(limit = 20) {
+      const rows = await resolvedDb
+        .select()
+        .from(ontologyPublishRecords)
+        .orderBy(desc(ontologyPublishRecords.createdAt))
+        .limit(limit);
+
+      return rows.map(rowToDomain);
+    },
   };
 }
