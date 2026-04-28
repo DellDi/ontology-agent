@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 
 import { createPostgresDb } from '@/infrastructure/postgres/client';
 import {
-  createRedisClient,
   ensureRedisConnected,
+  getSharedRedisClient,
 } from '@/infrastructure/redis/client';
 import {
   createLogger,
@@ -75,8 +75,8 @@ async function checkPostgres(): Promise<CheckResult> {
 
 async function checkRedis(): Promise<CheckResult> {
   const startedAtMs = Date.now();
-  // P2 / D3: 复用进程级 singleton Redis client，避免探针 churn。
-  const { redis } = createRedisClient();
+  // P2 / D3: 复用进程级 shared Redis client，避免探针 churn。
+  const { redis } = getSharedRedisClient();
   try {
     await withTimeout(
       ensureRedisConnected(redis),

@@ -27,9 +27,23 @@ function buildClient(url: string): RedisClient {
   return { redis };
 }
 
+/**
+ * 创建调用方独占的 Redis client。
+ *
+ * 谁创建谁关闭：适用于 worker 进程、测试、CLI、带超时销毁语义的短生命周期调用。
+ * Web 请求路径如需复用连接，应显式使用 `getSharedRedisClient()`，避免误关共享连接。
+ */
 export function createRedisClient(url = getRedisUrl()): RedisClient {
-  // D3 / P2: 对默认 Redis URL 维护进程级单例，消除每次 health check 创建 + 销毁连接
-  // 的资源 churn；显式传入非默认 URL 的调用方（测试）仍然获得独立实例。
+  return buildClient(url);
+}
+
+/**
+ * 获取进程级共享 Redis client。
+ *
+ * 调用方不得 `quit()` / `destroy()` 该实例；只允许通过 `ensureRedisConnected()` 确保连接。
+ * 共享连接主要用于 Next.js route handler、health check、SSE 等 web 请求路径。
+ */
+export function getSharedRedisClient(url = getRedisUrl()): RedisClient {
   const scope = globalThis as GlobalRedisCache;
   if (url !== scope.__ontologyAgentRedisUrl) {
     scope.__ontologyAgentRedisUrl = url;

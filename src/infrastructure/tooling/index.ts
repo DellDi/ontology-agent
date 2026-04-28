@@ -1,4 +1,5 @@
 import { createAnalysisExecutionUseCases } from '@/application/analysis-execution/use-cases';
+import { createAiRuntimeToolBridgeFromRegistry } from '@/application/ai-runtime/tool-runtime-bridge';
 import { createAuditUseCases } from '@/application/audit/use-cases';
 import {
   createAnalysisToolRegistryUseCases,
@@ -458,5 +459,8 @@ export function createAnalysisToolingServices({
   return {
     toolRegistryUseCases,
     analysisExecutionUseCases,
+    aiRuntimeToolBridge: createAiRuntimeToolBridgeFromRegistry(
+      toolRegistryUseCases,
+    ),
   };
 }

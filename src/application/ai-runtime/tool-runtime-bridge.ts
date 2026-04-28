@@ -12,6 +12,8 @@
  * 任何真正的工具执行、审批或治理，仍应走已有的 application / infrastructure 边界。
  */
 
+import type { AnalysisToolDefinition } from '@/domain/tooling/models';
+
 export type AiRuntimeToolDescriptor = {
   /** 工具的稳定标识，预期与 ontology tool registry 对齐。 */
   toolName: string;
@@ -19,6 +21,10 @@ export type AiRuntimeToolDescriptor = {
   displayName: string;
   /** 面向 UI 的简短说明，用于 action layer / context rail。 */
   description?: string;
+  /** 当前可用性只来自既有 tool registry，不在 runtime bridge 内重新探测。 */
+  status: 'available' | 'unavailable';
+  /** 不可用时的人读原因，来自 tool registry availabilityReason。 */
+  unavailableReason?: string;
   /** 是否需要人工审批。First-Cut 仅保留字段，不承诺审批链路已落地。 */
   requiresApproval?: boolean;
 };
@@ -41,5 +47,21 @@ export function createEmptyAiRuntimeToolBridge(): AiRuntimeToolBridge {
   const tools: readonly AiRuntimeToolDescriptor[] = Object.freeze([]);
   return {
     listTools: () => tools,
+  };
+}
+
+export function createAiRuntimeToolBridgeFromRegistry(input: {
+  listToolDefinitions: () => readonly AnalysisToolDefinition[];
+}): AiRuntimeToolBridge {
+  return {
+    listTools: () =>
+      input.listToolDefinitions().map((tool) => ({
+        toolName: tool.name,
+        displayName: tool.title,
+        description: tool.description,
+        status: tool.availability === 'ready' ? 'available' : 'unavailable',
+        unavailableReason: tool.availabilityReason,
+        requiresApproval: false,
+      })),
   };
 }

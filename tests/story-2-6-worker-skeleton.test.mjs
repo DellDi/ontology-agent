@@ -31,7 +31,7 @@ test('job contract 模型定义了支持的任务类型', async () => {
   assert.match(content, /validateJobPayload/, '应该导出 validateJobPayload 函数');
 });
 
-test('redis-job-queue 实现提交、消费、状态更新和按 ID 读取能力', async () => {
+test('redis-job-queue 实现 at-least-once 提交、消费、状态更新和按 ID 读取能力', async () => {
   const content = await readRepoFile(
     'src/infrastructure/job/redis-job-queue.ts',
   );
@@ -42,8 +42,12 @@ test('redis-job-queue 实现提交、消费、状态更新和按 ID 读取能力
   assert.match(content, /async updateStatus\(/);
   assert.match(content, /async getById\(/);
 
-  assert.match(content, /lPush\(/, '提交任务应推入队列');
-  assert.match(content, /rPop\(/, '消费任务应从队列弹出');
+  assert.match(content, /XGROUP/, '应使用 Redis Streams consumer group');
+  assert.match(content, /XREADGROUP/, '消费任务应通过 consumer group 读取');
+  assert.match(content, /XAUTOCLAIM/, 'worker 崩溃后的 pending job 应可重新声明');
+  assert.match(content, /XACK/, '完成或失败任务后应显式确认 stream entry');
+  assert.match(content, /jobDeadLetterQueue/, '超过重试上限后应进入 dead-letter queue');
+  assert.doesNotMatch(content, /rPop\(/, '不应在消费时直接弹出并丢失任务');
   assert.match(content, /status:\s*'pending'/, '提交后初始状态应为 pending');
   assert.match(content, /status\s*=\s*'processing'/, '消费后状态应更新为 processing');
   assert.match(
@@ -56,6 +60,23 @@ test('redis-job-queue 实现提交、消费、状态更新和按 ID 读取能力
     /const QUEUE_KEY = 'oa:job:queue'/,
     '不应把队列 key 写死为固定 oa 前缀',
   );
+});
+
+test('web 请求路径复用 shared Redis client 且不关闭共享连接', async () => {
+  const redisClient = await readRepoFile('src/infrastructure/redis/client.ts');
+  const streamRoute = await readRepoFile(
+    'src/app/api/analysis/sessions/[sessionId]/stream/route.ts',
+  );
+  const jobRuntime = await readRepoFile('src/infrastructure/job/runtime.ts');
+  const healthRoute = await readRepoFile('src/app/api/health/route.ts');
+
+  assert.match(redisClient, /getSharedRedisClient/);
+  assert.match(streamRoute, /getSharedRedisClient/);
+  assert.match(jobRuntime, /getSharedRedisClient/);
+  assert.match(healthRoute, /getSharedRedisClient/);
+  assert.doesNotMatch(streamRoute, /redis\.quit\(/);
+  assert.doesNotMatch(jobRuntime, /redis\.quit\(/);
+  assert.doesNotMatch(healthRoute, /redis\.quit\(/);
 });
 
 test('job use-cases 对 payload 做校验并提供任务状态流转接口', async () => {

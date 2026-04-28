@@ -100,6 +100,10 @@ test('数据库客户端入口使用 drizzle-orm/node-postgres 且不替换 memo
   assert.match(client, /from 'drizzle-orm\/node-postgres'/);
   assert.match(client, /from 'pg'/);
   assert.match(client, /createPostgresDb/);
+  assert.match(client, /POSTGRES_POOL_MAX/);
+  assert.match(client, /POSTGRES_IDLE_TIMEOUT_MS/);
+  assert.match(client, /POSTGRES_CONNECTION_TIMEOUT_MS/);
+  assert.match(client, /connectionTimeoutMillis/);
   assert.match(
     client,
     /globalThis|singleton|cached/i,
