@@ -1,6 +1,6 @@
 # Story 9.7: 初始化首个可运行本体版本与 Bootstrap 命令
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
