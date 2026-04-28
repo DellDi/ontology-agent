@@ -1,6 +1,6 @@
 # Story 9.3: Ontology Grounding 接入上下文、计划与工具选择
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
