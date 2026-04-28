@@ -90,6 +90,15 @@ jobs:
       - name: Run database migrations
         run: pnpm db:migrate
 
-      - name: Run tests
-        run: node --test tests/story-*.test.mjs
+      - name: Run tests (Postgres + Redis scope)
+        run: |
+          # 排除需要 Next.js 服务器（fetch）、Neo4j、Compose 编排、外部 API 的测试
+          # CI 仅提供 Postgres + Redis，其余服务的测试留给本地全栈验证
+          EXCLUDE='fetch\(|NEO4J|neo4j|compose-baseline|compose-services|container-deployment|bailian-smoke'
+          SKIP_FILES=$(grep -rlE "$EXCLUDE" tests/story-*.test.mjs tests/auth-hardening.test.mjs 2>/dev/null || true)
+          ALL_FILES=$(ls tests/story-*.test.mjs tests/auth-hardening.test.mjs 2>/dev/null)
+          RUNNABLE=$(comm -23 <(echo "$ALL_FILES" | sort) <(echo "$SKIP_FILES" | sort) | tr '\n' ' ')
+          echo "Running $(echo $RUNNABLE | wc -w) test files"
+          echo "$RUNNABLE"
+          node --test $RUNNABLE
         timeout-minutes: 10

@@ -93,7 +93,6 @@ export type OntologyPublishRecord = {
 };
 
 const TERMINAL_STATUSES: ReadonlySet<ChangeRequestStatus> = new Set([
-  'published',
   'superseded',
   'rejected',
 ]);
