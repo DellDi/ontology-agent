@@ -138,8 +138,8 @@ await redis.connect();
 | 命名空间 | 格式 | 用途 |
 |----------|------|------|
 | `rate` | `oa:rate:{userId}:{resource}` | 按用户限流 |
-| `job` | `oa:job:queue` / `oa:job:queue:dlq` | Worker 任务 stream 与 dead-letter queue |
-| `worker` | `oa:worker:{jobId}:{field}` | Worker 任务元数据 |
+| `job` | `oa:job:queue` / `oa:job:queue:dlq` | Worker 任务唤醒 stream 与历史 Redis-only dead-letter queue |
+| `worker` | `oa:worker:{jobId}:{field}` | 历史 Redis-only 任务元数据；新任务事实源在 Postgres |
 | `stream` | `oa:stream:{sessionId}` | 流式状态 / SSE 事件 |
 | `cache` | `oa:cache:{scope}:{key}` | 短时缓存 |
 
@@ -154,23 +154,25 @@ redisKeys.worker('job-456', 'status');     // → "oa:worker:job-456:status"
 
 ### Redis Job Queue 语义
 
-Worker job queue 使用 Redis Streams consumer group，不再使用 `rPop` 直接弹出任务。
+Worker job queue 使用 Postgres-backed durable ledger + Redis Streams consumer group。Postgres 是任务最终事实源；Redis 只保存 `jobId` 唤醒信号，不再保存 canonical job data。
 
-- 提交任务：写入 `oa:worker:{jobId}:data`，并 `XADD` 到 `oa:job:queue`
-- 消费任务：worker 通过 `XREADGROUP` 获取任务，任务进入 pending list
-- 崩溃恢复：未 `XACK` 的 pending job 会在 visibility timeout 后通过 `XAUTOCLAIM` 被其他 worker 重新声明
-- 完成/失败：`completeJob` / `failJob` 会更新 job data 并 `XACK`
-- 超过重试上限：job 标记为 `failed`，并写入 `oa:job:queue:dlq`
+- 提交任务：写入 `platform.jobs`、`platform.job_events` 和 `platform.job_dispatch_outbox`，再向 `oa:job:queue` 发布 `jobId`
+- 消费任务：worker 通过 `XREADGROUP` / `XAUTOCLAIM` 获取 `jobId`，随后必须在 Postgres 原子 claim 成功才会执行 handler
+- 崩溃恢复：Postgres `locked_until` 是 visibility timeout 的权威字段；过期 lease 会被 recovery 重新置为可调度
+- 完成/失败：`completeJob` / `failJob` 先写 Postgres terminal 状态，再 `XACK` 当前 Redis signal
+- 重复信号：若 Redis 重投递已完成、失败或 dead-letter 的 job，worker 只 ack 并忽略，不重复执行
+- 超过重试上限：job 在 `platform.jobs` 标记为 `dead_letter`，并在 `platform.job_events` 记录原因
 
-真实 Redis 回归测试：
+真实回归测试：
 
 ```bash
 pnpm test:real:redis-queue
+pnpm test:real:job-ledger
 ```
 
-该测试会使用唯一 `REDIS_KEY_PREFIX` 隔离 key，只清理本次测试前缀下的数据，不会 `FLUSHDB`。
+这些测试会使用唯一 `REDIS_KEY_PREFIX` / job id 隔离数据，只清理本次测试数据，不会 `FLUSHDB`。Postgres ledger 测试要求先运行 `pnpm db:migrate`。
 
-当前 Redis Streams 提供 at-least-once 分发语义；Redis 进程自身的持久性仍取决于部署配置。生产环境应启用 AOF 或托管 Redis 的持久化能力；若后续要求更强的业务事实保障，应把 job ledger 落到 Postgres，Redis 只保留唤醒和分发职责。
+当前语义是 `at-least-once dispatch + Postgres-authoritative execution state`，不是 exactly-once。业务 handler 仍应以 `job.id` / `executionId` 做幂等边界。
 
 ### 健康检查
 
@@ -323,11 +325,12 @@ Worker 是独立于 web 的后台进程，负责消费 Redis 任务队列中的 
 
 ### 队列机制
 
-使用 Redis List（LPUSH/RPOP）作为简单可靠的任务队列：
+使用 Postgres durable job ledger 作为任务事实源，Redis Streams 只做唤醒/分发：
 
 - Web 侧通过 `JobQueue.submit()` 投递任务
 - Worker 通过 `JobQueue.consume()` 消费任务
-- 任务元数据存储在 `oa:worker:{jobId}:data` key 中
+- 任务元数据、状态、结果、错误、attempt 和 lease 存储在 `platform.jobs`
+- Redis stream entry 只携带 `jobId`
 
 ### 本地运行
 

@@ -21,6 +21,7 @@
     "test:smoke:bailian": "NODE_OPTIONS=--conditions=react-server RUN_BAILIAN_SMOKE_TEST=1 npx tsx --test tests/story-4-1-bailian-smoke.test.mts",
     "test:smoke:neo4j": "NODE_OPTIONS=--conditions=react-server RUN_NEO4J_SMOKE_TEST=1 npx tsx --test tests/story-4-5-neo4j-smoke.test.mjs --no-cache",
     "test:real:redis-queue": "node --test tests/story-2-6-redis-job-queue-real.test.mjs",
+    "test:real:job-ledger": "node --test --test-concurrency=1 tests/story-2-8-postgres-backed-job-ledger.test.mjs tests/story-2-8-postgres-redis-job-dispatch.test.mjs",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",

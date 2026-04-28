@@ -11,7 +11,7 @@ import {
   withCorrelationAsync,
 } from '@/infrastructure/observability';
 import { createRedisClient } from '@/infrastructure/redis/client';
-import { createRedisJobQueue } from '@/infrastructure/job/redis-job-queue';
+import { createPostgresBackedJobQueue } from '@/infrastructure/job/postgres-backed-job-queue';
 import { createJobUseCases } from '@/application/job/use-cases';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
@@ -20,6 +20,7 @@ import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/model
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
+import { createPostgresDb } from '@/infrastructure/postgres/client';
 import { getJobHandler } from './handlers';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
 import { finalizeSuccessfulAnalysisExecution } from './finalize-analysis-execution';
@@ -38,7 +39,11 @@ async function main() {
   await redis.connect();
   workerLogger.info('worker.redis_connected');
 
-  const jobQueue = createRedisJobQueue(redis);
+  const { db } = createPostgresDb();
+  const jobQueue = createPostgresBackedJobQueue({
+    redis,
+    db,
+  });
   const jobUseCases = createJobUseCases({ jobQueue });
   const analysisExecutionStreamUseCases =
     createAnalysisExecutionStreamUseCases({

@@ -1,7 +1,8 @@
 import { createJobUseCases } from '@/application/job/use-cases';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
-import { createRedisJobQueue } from '@/infrastructure/job/redis-job-queue';
+import { createPostgresBackedJobQueue } from '@/infrastructure/job/postgres-backed-job-queue';
+import { createPostgresDb } from '@/infrastructure/postgres/client';
 import {
   ensureRedisConnected,
   getSharedRedisClient,
@@ -19,9 +20,13 @@ export async function withJobUseCases<T>(
 ) {
   const { redis } = getSharedRedisClient();
   await ensureRedisConnected(redis);
+  const { db } = createPostgresDb();
 
   const jobUseCases = createJobUseCases({
-    jobQueue: createRedisJobQueue(redis),
+    jobQueue: createPostgresBackedJobQueue({
+      redis,
+      db,
+    }),
   });
   const analysisExecutionStreamUseCases =
     createAnalysisExecutionStreamUseCases({

@@ -367,11 +367,15 @@ export function getExecutionStatusLabel(status: JobStatus): string {
   switch (status) {
     case 'pending':
       return '等待中';
+    case 'queued':
+      return '已入队';
     case 'processing':
       return '执行中';
     case 'completed':
       return '已完成';
     case 'failed':
       return '已失败';
+    case 'dead_letter':
+      return '已进入死信';
   }
 }

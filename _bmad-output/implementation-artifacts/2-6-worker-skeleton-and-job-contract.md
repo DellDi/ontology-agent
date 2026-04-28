@@ -89,9 +89,9 @@ Claude Opus 4.6
 ### Completion Notes List
 
 - 建立了完整的 job contract 领域模型：JobType、JobStatus、JobPayload、Job、validateJobPayload
-- 当前支持 health-check 任务类型，状态流转 pending → processing → completed/failed
+- 当前支持 health-check 任务类型，状态流转 pending/queued → processing → completed/failed/dead_letter
 - Application 层定义 JobQueue port 和 use-cases（submit/consume/complete/fail/get）
-- Infrastructure 层实现 Redis-backed JobQueue（LPUSH/RPOP 队列 + key-value 存储）
+- Infrastructure 层已新增 Postgres-backed JobQueue：Postgres `platform.jobs` 是任务事实源，Redis Streams 只保存 `jobId` 唤醒信号
 - Worker 独立入口 src/worker/main.ts，轮询 Redis 队列消费任务
 - Handler 注册机制 src/worker/handlers.ts，health-check handler 执行 Redis 健康检查
 - compose.yaml 新增 worker 服务，依赖 Redis healthy
@@ -104,13 +104,23 @@ Claude Opus 4.6
   - `completeJob` / `failJob` 更新 job data 后执行 `XACK`
   - 超过重试上限时写入 `jobDeadLetterQueue`
   - 新增 `tests/story-2-6-redis-job-queue-real.test.mjs` 真实 Redis 回归，使用唯一 `REDIS_KEY_PREFIX` 隔离测试数据
+- 2026-04-28 后续加固：job canonical ledger 迁移到 Postgres：
+  - 新增 `platform.jobs`、`platform.job_events`、`platform.job_dispatch_outbox`
+  - `createPostgresBackedJobQueue` 保持 application `JobQueue` port 稳定，内部组合 Postgres ledger 与 Redis dispatcher
+  - Redis stream message 只携带 `jobId`，不再写入 `oa:worker:{jobId}:data` 作为新任务事实源
+  - terminal duplicate signal 会被 ack 并忽略，避免重复执行 handler
+  - 新增 Story 2.8 真实 Postgres / Redis 回归测试
 
 ### File List
 
 - src/domain/job-contract/models.ts（新增：任务契约领域模型）
 - src/application/job/ports.ts（新增：JobQueue 端口接口）
 - src/application/job/use-cases.ts（新增：任务用例）
-- src/infrastructure/job/redis-job-queue.ts（新增：Redis Streams 队列适配器）
+- src/infrastructure/job/redis-job-queue.ts（保留：历史 Redis Streams 队列适配器）
+- src/infrastructure/job/postgres-job-ledger.ts（新增：Postgres job ledger）
+- src/infrastructure/job/redis-job-dispatcher.ts（新增：Redis jobId signal dispatcher）
+- src/infrastructure/job/postgres-backed-job-queue.ts（新增：Postgres-backed JobQueue adapter）
+- src/infrastructure/postgres/schema/job-ledger.ts（新增：job ledger schema）
 - src/worker/main.ts（新增：Worker 主入口）
 - src/worker/handlers.ts（新增：任务处理器注册）
 - compose.yaml（修改：新增 worker 服务）
@@ -118,9 +128,12 @@ Claude Opus 4.6
 - docs/local-infrastructure.md（修改：新增 Worker 进程文档）
 - tests/story-2-6-worker-skeleton.test.mjs（新增：契约测试）
 - tests/story-2-6-redis-job-queue-real.test.mjs（新增：真实 Redis at-least-once / DLQ 回归测试）
+- tests/story-2-8-postgres-backed-job-ledger.test.mjs（新增：真实 Postgres ledger 回归测试）
+- tests/story-2-8-postgres-redis-job-dispatch.test.mjs（新增：真实 Postgres + Redis 分发回归测试）
 
 ### Change Log
 
 - 2026-03-26: Story 2.6 实现完成 — Worker 骨架 + 最小任务契约 + Redis 队列 + 9 个测试
 - 2026-03-30: 修复 worker queue list key 未接入统一 Redis namespace 契约的问题
 - 2026-04-28: Redis job queue 升级为 Streams consumer group，并补真实 Redis 重投递 / DLQ 回归与运行文档
+- 2026-04-28: job canonical ledger 迁移到 Postgres，Redis 降级为 `jobId` 唤醒/分发信号
