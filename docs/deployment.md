@@ -88,3 +88,22 @@ docker compose up -d
 ```bash
 docker inspect ontology-agent-prod-web-1 --format='{{.State.Health.Status}}'
 ```
+
+## Redis 队列持久性
+
+Worker job queue 使用 Redis Streams consumer group，具备 at-least-once 分发、pending job 重投递和 dead-letter queue 语义。
+
+生产部署要求：
+
+- Redis 必须启用持久化能力，优先使用 AOF 或托管 Redis 的等价持久化配置。
+- 仅依赖默认 RDB snapshot 会在 Redis 崩溃时产生窗口期丢失风险，不应作为生产级 job durability 的最终保障。
+- worker 横向扩展时必须共享同一个 `REDIS_URL` 和 `REDIS_KEY_PREFIX`，consumer name 由进程自动生成。
+- DLQ key 为 `{REDIS_KEY_PREFIX}:job:queue:dlq`，运维排障时应同时查看 job data：`{REDIS_KEY_PREFIX}:worker:{jobId}:data`。
+
+发布前可在目标 Redis 上执行：
+
+```bash
+pnpm test:real:redis-queue
+```
+
+该测试验证未 ack job 的重投递、完成后的 `XACK`、超过重试上限后的 DLQ 写入。它只清理测试专用前缀下的 key。
