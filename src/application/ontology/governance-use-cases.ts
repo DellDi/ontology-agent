@@ -158,6 +158,13 @@ export function createGovernanceUseCases(deps: GovernanceUseCasesDeps) {
       );
     }
 
+    if (version.publishedAt) {
+      throw new OntologyVersionNotReadyForPublishError(
+        input.ontologyVersionId,
+        '该版本已经发布，不能重复发布。',
+      );
+    }
+
     await deps.versionStore.updateStatus(
       input.ontologyVersionId,
       'approved',

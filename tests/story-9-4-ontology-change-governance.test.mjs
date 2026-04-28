@@ -554,7 +554,7 @@ test('AC1 领域模型：状态机 canTransitionTo 验证', async () => {
       rejected_to_submitted: canTransitionTo('rejected', 'submitted'),
       published_to_submitted: canTransitionTo('published', 'submitted'),
       draft_to_approved: canTransitionTo('draft', 'approved'),
-      published_terminal: isTerminalStatus('published'),
+      published_not_terminal: isTerminalStatus('published'),
       rejected_terminal: isTerminalStatus('rejected'),
       superseded_terminal: isTerminalStatus('superseded'),
       draft_not_terminal: isTerminalStatus('draft'),
@@ -571,7 +571,7 @@ test('AC1 领域模型：状态机 canTransitionTo 验证', async () => {
   assert.equal(result.rejected_to_submitted, false, 'rejected -> submitted 应不合法');
   assert.equal(result.published_to_submitted, false, 'published -> submitted 应不合法');
   assert.equal(result.draft_to_approved, false, 'draft -> approved 应不合法（必须先 submitted）');
-  assert.equal(result.published_terminal, true, 'published 应为终态');
+  assert.equal(result.published_not_terminal, false, 'published 不应为终态（可 → superseded）');
   assert.equal(result.rejected_terminal, true, 'rejected 应为终态');
   assert.equal(result.superseded_terminal, true, 'superseded 应为终态');
   assert.equal(result.draft_not_terminal, false, 'draft 不应为终态');
