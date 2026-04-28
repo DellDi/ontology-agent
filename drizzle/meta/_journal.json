@@ -29,6 +29,13 @@
       "when": 1777345564743,
       "tag": "0003_sleepy_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777348000000,
+      "tag": "0004_9-4-ontology-change-governance",
+      "breakpoints": true
     }
   ]
 }

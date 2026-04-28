@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 
 import type { OntologyVersionStore } from '@/application/ontology/ports';
 import type { OntologyVersion, OntologyVersionStatus } from '@/domain/ontology/models';
@@ -66,6 +66,26 @@ export function createPostgresOntologyVersionStore(
           desc(ontologyVersions.publishedAt),
           desc(ontologyVersions.updatedAt),
           desc(ontologyVersions.createdAt),
+          desc(ontologyVersions.id),
+        )
+        .limit(1);
+
+      return rows[0] ? rowToOntologyVersion(rows[0]) : null;
+    },
+
+    async findCurrentPublished() {
+      const rows = await resolvedDb
+        .select()
+        .from(ontologyVersions)
+        .where(
+          and(
+            eq(ontologyVersions.status, 'approved'),
+            isNotNull(ontologyVersions.publishedAt),
+          ),
+        )
+        .orderBy(
+          desc(ontologyVersions.publishedAt),
+          desc(ontologyVersions.updatedAt),
           desc(ontologyVersions.id),
         )
         .limit(1);

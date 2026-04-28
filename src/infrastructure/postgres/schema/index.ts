@@ -36,3 +36,6 @@ export { ontologyCausalityEdges } from './ontology-causality-edges';
 export { ontologyEvidenceTypeDefinitions } from './ontology-evidence-type-definitions';
 export { ontologyGroundedContexts, type DbOntologyGroundedContext } from './ontology-grounded-contexts';
 export { ontologyToolCapabilityBindings, type DbOntologyToolCapabilityBinding } from './ontology-tool-capability-bindings';
+export { ontologyChangeRequests } from './ontology-change-requests';
+export { ontologyApprovalRecords } from './ontology-approval-records';
+export { ontologyPublishRecords } from './ontology-publish-records';
