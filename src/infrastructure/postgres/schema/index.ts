@@ -7,6 +7,13 @@ export { graphSyncRuns } from './graph-sync-runs';
 export { graphSyncCursors } from './graph-sync-cursors';
 export { graphSyncDirtyScopes } from './graph-sync-dirty-scopes';
 export {
+  jobs,
+  jobEvents,
+  jobDispatchOutbox,
+  type DbJob,
+  type DbJobDispatchOutbox,
+} from './job-ledger';
+export {
   erpChargeItems,
   erpOrganizations,
   erpHouses,

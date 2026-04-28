@@ -89,21 +89,28 @@ docker compose up -d
 docker inspect ontology-agent-prod-web-1 --format='{{.State.Health.Status}}'
 ```
 
-## Redis 队列持久性
+## Job Queue 持久性
 
-Worker job queue 使用 Redis Streams consumer group，具备 at-least-once 分发、pending job 重投递和 dead-letter queue 语义。
+Worker job queue 使用 Postgres-backed durable ledger + Redis Streams consumer group。
+
+- Postgres `platform.jobs` 是 job 状态、attempt、lease、结果、错误和 dead-letter 的最终事实源。
+- Redis Streams 只负责唤醒/分发，message 只携带 `jobId`。
+- worker 获取 Redis signal 后必须先在 Postgres claim 成功，才会执行 handler。
+- terminal job 的重复 Redis signal 会被 ack 并忽略，不会重复执行 handler。
 
 生产部署要求：
 
-- Redis 必须启用持久化能力，优先使用 AOF 或托管 Redis 的等价持久化配置。
-- 仅依赖默认 RDB snapshot 会在 Redis 崩溃时产生窗口期丢失风险，不应作为生产级 job durability 的最终保障。
+- 发布前必须先执行 `pnpm db:migrate`，确保 `platform.jobs`、`platform.job_events`、`platform.job_dispatch_outbox` 已存在。
+- Redis 建议继续启用 AOF 或托管 Redis 的等价持久化配置，但 Redis 不再承担 job canonical ledger 职责。
 - worker 横向扩展时必须共享同一个 `REDIS_URL` 和 `REDIS_KEY_PREFIX`，consumer name 由进程自动生成。
-- DLQ key 为 `{REDIS_KEY_PREFIX}:job:queue:dlq`，运维排障时应同时查看 job data：`{REDIS_KEY_PREFIX}:worker:{jobId}:data`。
+- 运维排障应优先查询 Postgres ledger 和 `platform.job_events`，不要再把 `{REDIS_KEY_PREFIX}:worker:{jobId}:data` 当成新任务事实源。
+- 从旧 Redis-only 队列切换时，应先停止旧 worker 并 drain 已在 Redis 中的 in-flight jobs；旧 Redis-only job 没有可靠无损迁移保证。
 
-发布前可在目标 Redis 上执行：
+发布前可在目标环境执行：
 
 ```bash
 pnpm test:real:redis-queue
+pnpm test:real:job-ledger
 ```
 
-该测试验证未 ack job 的重投递、完成后的 `XACK`、超过重试上限后的 DLQ 写入。它只清理测试专用前缀下的 key。
+这些测试验证 Redis Streams 基线、Postgres ledger 状态机、Redis `jobId` signal 分发和 terminal duplicate ack。测试只清理自身测试前缀 / job id 下的数据。

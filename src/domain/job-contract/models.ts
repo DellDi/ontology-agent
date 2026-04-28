@@ -6,9 +6,11 @@ export type JobType = (typeof JOB_TYPES)[number];
 
 export const JOB_STATUSES = [
   'pending',
+  'queued',
   'processing',
   'completed',
   'failed',
+  'dead_letter',
 ] as const;
 
 export type JobStatus = (typeof JOB_STATUSES)[number];
@@ -90,9 +92,11 @@ export function getJobTypeLabel(type: JobType): string {
 
 const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   pending: '等待中',
+  queued: '已入队',
   processing: '处理中',
   completed: '已完成',
   failed: '已失败',
+  dead_letter: '已进入死信',
 };
 
 export function getJobStatusLabel(status: JobStatus): string {
