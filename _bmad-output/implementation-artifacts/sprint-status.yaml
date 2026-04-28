@@ -119,11 +119,11 @@ development_status:
   # - tool selection 已优先消费 ontologyToolBindingUseCases，未命中时才走显式 temporary mitigation fallback。
   # - Review #6 已补 runtime tool-selection 回归测试。
   # - bootstrap 正式 seed package 与 operator CLI 由 Story 9.7 承接。
-  9-3-ontology-grounding-for-context-planning-and-tool-selection: review
-  9-4-ontology-change-request-approval-and-publish-audit: review
+  9-3-ontology-grounding-for-context-planning-and-tool-selection: done
+  9-4-ontology-change-request-approval-and-publish-audit: done
   9-5-ontology-governance-admin-console: ready-for-dev
   9-6-bind-execution-follow-up-and-history-to-ontology-version: ready-for-dev
-  9-7-bootstrap-first-approved-ontology-runtime-package: review
+  9-7-bootstrap-first-approved-ontology-runtime-package: done
   epic-9-retrospective: optional
 
   epic-10: in-progress
