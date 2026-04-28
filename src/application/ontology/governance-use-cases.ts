@@ -148,24 +148,22 @@ export function createGovernanceUseCases(deps: GovernanceUseCasesDeps) {
       );
     }
 
-    const currentPublished = await deps.versionStore.findCurrentApproved();
+    const currentPublished = await deps.versionStore.findCurrentPublished();
     const timestamp = now().toISOString();
 
     if (version.status !== 'approved') {
-      await deps.versionStore.updateStatus(
+      throw new OntologyVersionNotReadyForPublishError(
         input.ontologyVersionId,
-        'approved',
-        timestamp,
-        { publishedAt: timestamp },
-      );
-    } else {
-      await deps.versionStore.updateStatus(
-        input.ontologyVersionId,
-        'approved',
-        timestamp,
-        { publishedAt: timestamp },
+        `版本状态为 "${version.status}"，只有 "approved" 状态的版本才能发布。`,
       );
     }
+
+    await deps.versionStore.updateStatus(
+      input.ontologyVersionId,
+      'approved',
+      timestamp,
+      { publishedAt: timestamp },
+    );
 
     if (currentPublished && currentPublished.id !== input.ontologyVersionId) {
       await deps.versionStore.updateStatus(
