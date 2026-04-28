@@ -114,11 +114,12 @@ development_status:
   epic-9: in-progress
   9-1-minimal-ontology-registry-and-version-model: done
   9-2-govern-metric-variant-factor-and-time-semantics: done
-  # 9.3 spec 自标 in-progress；Review Findings 6 项：
-  # - domain/infra 修正 (#3/#4/#5) 已于 2026-04-17 在本 story 内 fix + 回归测试（commit d1d8df9）。
-  # - 运行时 wiring (#1/#2/#6) 由 Story 10.1 AC6/AC7 吸收。
+  # 9.3 runtime wiring 已于 2026-04-28 收口：
+  # - execute / follow-up replan 已接入 buildGroundedPlanningArtifacts。
+  # - tool selection 已优先消费 ontologyToolBindingUseCases，未命中时才走显式 temporary mitigation fallback。
+  # - Review #6 已补 runtime tool-selection 回归测试。
   # - bootstrap 正式 seed package 与 operator CLI 由 Story 9.7 承接。
-  9-3-ontology-grounding-for-context-planning-and-tool-selection: blocked-on-10-1
+  9-3-ontology-grounding-for-context-planning-and-tool-selection: review
   9-4-ontology-change-request-approval-and-publish-audit: ready-for-dev
   9-5-ontology-governance-admin-console: ready-for-dev
   9-6-bind-execution-follow-up-and-history-to-ontology-version: ready-for-dev

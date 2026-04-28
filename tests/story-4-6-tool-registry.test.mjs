@@ -771,6 +771,66 @@ test('汇总归因步骤回退时仍会带上 llm 结构化分析工具', async 
   );
 });
 
+test('tooling services 暴露 AI runtime tool bridge，并复用既有 tool registry 可用性', async () => {
+  const result = await runTsSnippet(`
+    import toolingModule from './src/infrastructure/tooling/index.ts';
+
+    const { createAnalysisToolingServices } = toolingModule;
+
+    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    delete process.env.CUBE_API_TOKEN;
+    delete process.env.NEO4J_URI;
+    delete process.env.NEO4J_USERNAME;
+    delete process.env.NEO4J_PASSWORD;
+
+    const services = createAnalysisToolingServices({
+      analysisAiUseCases: {
+        async runTask(request) {
+          return {
+            taskType: request.taskType,
+            ok: true,
+            value: {},
+            issues: [],
+            providerResult: { provider: 'openai-compatible', model: 'demo', finishReason: 'stop' },
+          };
+        },
+      },
+      erpReadUseCases: {
+        async listOrganizations() { return []; },
+        async listProjects() { return []; },
+        async listCurrentOwners() { return []; },
+        async listChargeItems() { return []; },
+        async listReceivables() { return []; },
+        async listPayments() { return []; },
+        async listServiceOrders() { return []; },
+      },
+      semanticQueryUseCases: {
+        async runMetricQuery() {
+          return { metric: 'collection-rate', rows: [] };
+        },
+      },
+      graphUseCases: {
+        async expandCandidateFactors() {
+          return { mode: 'skip', factors: [] };
+        },
+      },
+    });
+
+    console.log(JSON.stringify(services.aiRuntimeToolBridge.listTools()));
+  `);
+
+  assert.ok(result.some((tool) => tool.toolName === 'llm.structured-analysis'));
+  assert.ok(result.some((tool) => tool.toolName === 'platform.capability-status'));
+  assert.ok(
+    result.some(
+      (tool) =>
+        tool.toolName === 'cube.semantic-query' &&
+        tool.status === 'unavailable',
+    ),
+    'runtime bridge 应暴露 tool registry 的 degraded 状态',
+  );
+});
+
 test('executeStep 遇到 empty-result 时会保留事件并继续产出阶段结果', async () => {
   const result = await runTsSnippet(`
     import toolingModule from './src/infrastructure/tooling/index.ts';

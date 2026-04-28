@@ -1,6 +1,6 @@
 # Story 9.3: Ontology Grounding 接入上下文、计划与工具选择
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -56,18 +56,18 @@ so that 计划和工具调用建立在统一业务语义之上，而不是自由
 
 ### Review Findings
 
-- [ ] [Review][Patch] **#1** 运行时执行、工作台计划展示与 replan 仍然走 legacy context/buildPlan 主路径，`groundAnalysisContext` 与 `buildPlanFromGroundedContext` 没有接进真实链路，AC1/AC2/AC4 实际未达成 [src/app/api/analysis/sessions/[sessionId]/execute/route.ts:125]
-  - **归属**：Story 10.1 AC7 (runtime wiring) 负责吸收，不在本 story 内关闭
-- [ ] [Review][Patch] **#2** tool selection 运行时仍依赖 `STEP_TOOL_FALLBACKS`、LLM 返回别名和后续正则输入推断，`ToolCapabilityBinding` 仅停留在领域模型层，AC3 未真正落地 [src/application/analysis-execution/use-cases.ts:49]
-  - **归属**：Story 10.1 AC7 (runtime wiring) 负责吸收，不在本 story 内关闭
+- [x] [Review][Patch] **#1** 运行时执行、工作台计划展示与 replan 仍然走 legacy context/buildPlan 主路径，`groundAnalysisContext` 与 `buildPlanFromGroundedContext` 没有接进真实链路，AC1/AC2/AC4 实际未达成 [src/app/api/analysis/sessions/[sessionId]/execute/route.ts:125]
+  - **Fix (2026-04-28)**：`execute` 与 follow-up `replan` route 已接入 `buildGroundedPlanningArtifacts`，统一调用 `groundAnalysisContext` + grounded planner，并持久化 grounded context；普通 factor/time 缺省按 assumption 继续执行，entity/metric/version/permission 仍 fail-loud。
+- [x] [Review][Patch] **#2** tool selection 运行时仍依赖 `STEP_TOOL_FALLBACKS`、LLM 返回别名和后续正则输入推断，`ToolCapabilityBinding` 仅停留在领域模型层，AC3 未真正落地 [src/application/analysis-execution/use-cases.ts:49]
+  - **Fix (2026-04-28)**：`createAnalysisExecutionUseCases` 已优先调用 `ontologyToolBindingUseCases.selectToolsForStep`；`src/infrastructure/tooling/index.ts` 在 `DATABASE_URL` 可用时注入 `createOntologyRuntimeServices().toolBindingUseCases`。`STEP_TOOL_FALLBACKS` 仅保留为 ontology binding 未命中时的显式 `temporary mitigation`。
 - [x] [Review][Patch] **#3** `buildAnalysisPlanFromGroundedContext` 在 timeSemantics 非空但无 success 时会静默沿用 `originalText`，违反 "planner 只消费 grounded definitions" 的约束
   - **Fix (2026-04-17)**：重构 `getOptionalGroundedDefinitionDisplayName`，空列表→ fallback，非空无 success → `InvalidGroundedAnalysisPlanError` [src/domain/analysis-plan/models.ts:286-313]
 - [x] [Review][Patch] **#4** `isGroundingBlocked` 只识别 `ambiguous | failed`，未把 `partial` 视为阻断，导致未完全 grounding 的输入继续进入 planner，违背 fail-loud 规则
   - **Fix (2026-04-17)**：`isGroundingBlocked` 纳入 `partial`；`createOntologyGroundingUseCases` 内部冗余 partial 判断删除 [src/domain/ontology/grounding.ts:167-177, src/application/ontology/grounding.ts:576]
 - [x] [Review][Patch] **#5** bootstrap 缺少事务边界：任一 `bulkCreate` 抛错或返回空（seed 非空）时，version 仍可能被晋升为 `approved`，留下半成品
   - **Fix (2026-04-17)**：bulkCreate + approve 晋升包装在 try/catch；新增完整性校验（seed 非空但 bulkCreate 返回空 → fail-loud）；失败时 version 保留为 draft，抛 `OntologyGroundingError` 带结构化诊断 [src/application/ontology/grounding.ts:773-876]
-- [ ] [Review][Patch] **#6** 测试主要验证"文件存在/文本包含/独立 snippet"，没有验证 execute、follow-up、replan、tool selection 是否真的切到 grounded 主链 [tests/story-9-3-ontology-grounding.test.mjs:42]
-  - **归属**：Story 10.1 AC7 负责新增 runtime integration 测试；本 story 已在 2026-04-17 补充 #3/#4/#5 的回归测试（共 4 项，`isGroundingBlocked partial`/`fail-loud timeSemantics`/`bootstrap rollback`/`bootstrap integrity`）[tests/story-9-3-ontology-grounding.test.mjs:729-980]
+- [x] [Review][Patch] **#6** 测试主要验证"文件存在/文本包含/独立 snippet"，没有验证 execute、follow-up、replan、tool selection 是否真的切到 grounded 主链 [tests/story-9-3-ontology-grounding.test.mjs:42]
+  - **Fix (2026-04-28)**：新增 runtime tool-selection 回归测试，证明 ontology binding 命中时不会再调用 LLM tool-selection；结合既有 execute/replan route 接线，9.3 不再阻塞于 10.1。
 
 ## Dev Notes
 

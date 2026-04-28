@@ -315,6 +315,100 @@ test('AC1 grounding mixed failed/success 必须阻断 planner，而不是以 par
   assert.match(result.message, /grounding/i);
 });
 
+test('Review#2 runtime tool selection 优先消费 ontology binding，命中后不再调用 LLM 选择', async () => {
+  const result = await runTsSnippet(`
+    import analysisExecutionModule from './src/application/analysis-execution/use-cases.ts';
+
+    const { createAnalysisExecutionUseCases } = analysisExecutionModule;
+    let llmCalled = false;
+    let bindingCalled = false;
+
+    const useCases = createAnalysisExecutionUseCases({
+      toolRegistryUseCases: {
+        listToolDefinitions() {
+          return [
+            { name: 'cube.semantic-query', availability: 'ready' },
+            { name: 'platform.capability-status', availability: 'ready' },
+          ];
+        },
+        async invokeTool() {
+          throw new Error('not needed');
+        },
+      },
+      analysisAiUseCases: {
+        async runTask() {
+          llmCalled = true;
+          return {
+            ok: true,
+            value: {
+              strategy: 'LLM fallback should not run',
+              tools: [{ toolName: 'platform.capability-status', objective: 'fallback', confidence: 0.1 }],
+            },
+          };
+        },
+      },
+      ontologyToolBindingUseCases: {
+        async selectToolsForStep(input) {
+          bindingCalled = true;
+          return {
+            strategy: '基于 ontology binding 选择工具（version: 9.3-test）',
+            tools: [{
+              toolName: 'cube.semantic-query',
+              objective: '命中 ontology binding：metric:collection-rate',
+              confidence: 1,
+            }],
+          };
+        },
+      },
+    });
+
+    const selection = await useCases.selectToolsForStep({
+      stepId: 'inspect-metric-change',
+      questionText: '为什么本月 moon 项目的收缴率下降？',
+      planSummary: '检查指标变化',
+      stepTitle: '检查指标变化',
+      stepObjective: '查询治理化指标',
+      context: {
+        userId: 'story-9-3-runtime-user',
+        organizationId: 'org-demo',
+        purpose: 'analysis-execution',
+      },
+      groundedContext: {
+        ontologyVersionId: 'story-9-3-runtime-version',
+        groundingStatus: 'success',
+        entities: [],
+        metrics: [],
+        factors: [],
+        timeSemantics: [],
+        originalMergedContext: {},
+        groundedAt: new Date().toISOString(),
+        groundingStrategy: 'exact-match',
+        diagnostics: {
+          unmatchedEntities: [],
+          unmatchedMetrics: [],
+          unmatchedFactors: [],
+          ambiguousItems: [],
+        },
+      },
+      intentType: 'fee-analysis',
+    });
+
+    console.log(JSON.stringify({
+      selection,
+      llmCalled,
+      bindingCalled,
+    }));
+  `);
+
+  assert.equal(result.bindingCalled, true);
+  assert.equal(result.llmCalled, false, 'ontology binding 命中时不应再调用 LLM tool-selection');
+  assert.match(result.selection.strategy, /ontology binding/);
+  assert.deepEqual(
+    result.selection.tools.map((tool) => tool.toolName),
+    ['cube.semantic-query'],
+  );
+});
+
 // ─── 构建检查 ────────────────────────────────────────────────────────────
 
 test('项目构建通过', async () => {

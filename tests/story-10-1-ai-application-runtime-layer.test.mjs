@@ -159,7 +159,7 @@ const MAPPER_IMPORT = `
   import adapterModule from './src/infrastructure/ai-runtime/vercel-ai-sdk-adapter.ts';
   const { AI_RUNTIME_PART_KINDS } = contractModule;
   const { buildAiRuntimeProjection, mergeAnalysisExecutionStreamEvents } = mapperModule;
-  const { createEmptyAiRuntimeToolBridge } = bridgeModule;
+  const { createEmptyAiRuntimeToolBridge, createAiRuntimeToolBridgeFromRegistry } = bridgeModule;
   const { projectionToUIMessages } = adapterModule;
 `;
 
@@ -523,4 +523,53 @@ test('tool runtime bridge 默认空实现，不提前变成新的治理系统', 
   ]);
   assert.equal(result.toolCount, 0);
   assert.equal(result.stableRef, true);
+});
+
+test('tool runtime bridge 可以从既有 tool registry 暴露运行时工具描述', async () => {
+  const result = await runTsSnippet(`
+    ${MAPPER_IMPORT}
+    const definitions = [
+      {
+        name: 'cube.semantic-query',
+        title: 'Cube 语义查询',
+        description: '读取治理化指标',
+        runtime: 'worker',
+        availability: 'ready',
+        inputSchemaLabel: 'cubeInput',
+        outputSchemaLabel: 'cubeOutput',
+      },
+      {
+        name: 'neo4j.graph-query',
+        title: 'Neo4j 图谱查询',
+        description: '读取图谱候选因素',
+        runtime: 'worker',
+        availability: 'degraded',
+        availabilityReason: 'Neo4j 未配置',
+        inputSchemaLabel: 'neo4jInput',
+        outputSchemaLabel: 'neo4jOutput',
+      },
+    ];
+    const bridge = createAiRuntimeToolBridgeFromRegistry({
+      listToolDefinitions: () => definitions,
+    });
+    console.log(JSON.stringify(bridge.listTools()));
+  `);
+
+  assert.deepEqual(result, [
+    {
+      toolName: 'cube.semantic-query',
+      displayName: 'Cube 语义查询',
+      description: '读取治理化指标',
+      status: 'available',
+      requiresApproval: false,
+    },
+    {
+      toolName: 'neo4j.graph-query',
+      displayName: 'Neo4j 图谱查询',
+      description: '读取图谱候选因素',
+      status: 'unavailable',
+      unavailableReason: 'Neo4j 未配置',
+      requiresApproval: false,
+    },
+  ]);
 });

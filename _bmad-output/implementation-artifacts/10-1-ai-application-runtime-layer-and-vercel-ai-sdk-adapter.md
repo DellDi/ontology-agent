@@ -44,7 +44,7 @@ so that 现有 execution events、result blocks 和 follow-up 历史可以稳定
   - [ ] 完整“从 snapshot + follow-up history + conclusion read model 重建 projection”的最小端到端闭环延后到后续补丁 story（资源冲突风险：与 10.3 projection persistence 有潜在重叠，按推荐顺序先冻结 contract 再落地 resume）。
 
 - [ ] 建立统一 tool runtime bridge 的最小骨架（AC: 2, 4）—— First-Cut 仅锁定接口，空实现
-  - [x] 定义 `AiRuntimeToolBridge` 与 `AiRuntimeToolDescriptor`，并提供 `createEmptyAiRuntimeToolBridge()` 的默认空实现。
+  - [x] 定义 `AiRuntimeToolBridge` 与 `AiRuntimeToolDescriptor`，提供 `createEmptyAiRuntimeToolBridge()` 默认空实现，并通过 `createAiRuntimeToolBridgeFromRegistry()` 接入既有 tool registry descriptor。
   - [x] 在代码注释与 story Dev Agent Record 中明确：本接口不是 ontology registry / execution orchestration / worker 编排层。
   - [ ] 将 bridge 与 `ToolCapabilityBinding` / 9.x tool governance 做真正接线延后到 10.4 / 9.x 对接 story。
 
@@ -263,7 +263,7 @@ GPT-5 Codex
 - ✅ 交付四件最小结果：application 层 runtime contract、execution events → runtime messages mapper、infrastructure 层 Vercel AI SDK adapter、live-shell 改为消费 projection。
 - ✅ foundation parts 按 Primary Narrative Lane 稳定顺序输出：`status-banner → step-timeline → evidence-card* → conclusion-card(可选) → resume-anchor`，并以 story 级测试守住顺序。
 - ✅ `reduceAiRuntimeProjection` 刻意 **不** 实现：reducer 如果从 projection 反推 events，会把 projection 变成第二号事实源；改为 live-shell 仍持有 canonical events 数组 + 纯函数 `mergeAnalysisExecutionStreamEvents`，再由 `useMemo` 触发 projection 全量重算，守住“projection 只读”语义。
-- ✅ `AiRuntimeToolBridge` 只定义接口 + 空实现；明确拒绝把 First-Cut 变成半套 agent framework。
+- ✅ `AiRuntimeToolBridge` 初始只定义接口 + 空实现；2026-04-28 已补最小正式接线：`createAiRuntimeToolBridgeFromRegistry()` 从既有 tool registry 暴露工具 descriptor / availability，`createAnalysisToolingServices()` 返回 `aiRuntimeToolBridge`。该 bridge 仍不执行工具、不审批工具、不替代 ontology governance。
 - ✅ Adapter 使用 `ai@5` 的 `UIMessage<metadata, data-parts>` 形态，所有 part 走 `data-*` 命名空间，metadata 携带 `sessionId / executionId / status / lastSequence / isTerminal`，为后续 10.2 renderer registry 与 client-side `useChat` 迁移预留正式接口，但本 story 不引入 client hook。
 - ⏭️ **延后项（未在 First-Cut 范围）**：
   - AC 7：`createOntologyGroundingUseCases.groundAnalysisContext` / `buildAnalysisPlanFromGroundedContext` / `ToolCapabilityBinding.selectBestToolBinding` 在 execute route handler 的 runtime wiring，以及对应 integration 测试。应作为后续 patch story 推进，与 9.3 review findings 对齐。

@@ -4,7 +4,10 @@ import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-ex
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { createRedisClient } from '@/infrastructure/redis/client';
+import {
+  ensureRedisConnected,
+  getSharedRedisClient,
+} from '@/infrastructure/redis/client';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 type RouteContext = {
@@ -58,10 +61,10 @@ export async function GET(request: Request, { params }: RouteContext) {
   const stream = new ReadableStream({
     async start(controller) {
       let lastSequence = 0;
-      const { redis } = createRedisClient();
+      const { redis } = getSharedRedisClient();
 
       try {
-        await redis.connect();
+        await ensureRedisConnected(redis);
         const analysisExecutionStreamUseCases =
           createAnalysisExecutionStreamUseCases({
             eventStore: createRedisAnalysisExecutionEventStore(redis),
@@ -122,7 +125,6 @@ export async function GET(request: Request, { params }: RouteContext) {
           }),
         );
       } finally {
-        await redis.quit();
         controller.close();
       }
     },

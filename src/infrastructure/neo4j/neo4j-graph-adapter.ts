@@ -31,13 +31,61 @@ type QueryShape = {
   params: Record<string, string>;
 };
 
-function createDriver() {
+type GlobalNeo4jCache = typeof globalThis & {
+  __ontologyAgentNeo4jDriver?: DriverLike;
+  __ontologyAgentNeo4jDriverKey?: string;
+};
+
+function buildDriver() {
   const config = getNeo4jGraphConfig();
 
   return neo4j.driver(
     config.uri,
     neo4j.auth.basic(config.username, config.password),
   );
+}
+
+function getDriverCacheKey() {
+  const config = getNeo4jGraphConfig();
+  return [
+    config.uri,
+    config.username,
+    config.database,
+  ].join('|');
+}
+
+function getSharedDriver() {
+  const cache = globalThis as GlobalNeo4jCache;
+  const cacheKey = getDriverCacheKey();
+
+  if (
+    cache.__ontologyAgentNeo4jDriver &&
+    cache.__ontologyAgentNeo4jDriverKey === cacheKey
+  ) {
+    return cache.__ontologyAgentNeo4jDriver;
+  }
+
+  if (cache.__ontologyAgentNeo4jDriver) {
+    void cache.__ontologyAgentNeo4jDriver.close();
+  }
+
+  cache.__ontologyAgentNeo4jDriver = buildDriver();
+  cache.__ontologyAgentNeo4jDriverKey = cacheKey;
+
+  return cache.__ontologyAgentNeo4jDriver;
+}
+
+export async function closeSharedNeo4jDriver() {
+  const cache = globalThis as GlobalNeo4jCache;
+
+  if (!cache.__ontologyAgentNeo4jDriver) {
+    return;
+  }
+
+  const driver = cache.__ontologyAgentNeo4jDriver;
+  cache.__ontologyAgentNeo4jDriver = undefined;
+  cache.__ontologyAgentNeo4jDriverKey = undefined;
+  await driver.close();
 }
 
 function mapFallbackFactors(
@@ -206,7 +254,7 @@ LIMIT 5
 }
 
 export function createNeo4jGraphAdapter(
-  driverFactory: () => DriverLike = createDriver,
+  driverFactory: () => DriverLike = getSharedDriver,
 ): GraphReadPort & GraphWritePort {
   return {
     async findCandidateFactors(query) {
@@ -231,8 +279,6 @@ export function createNeo4jGraphAdapter(
         throw new Neo4jGraphResponseError(
           error instanceof Error ? error.message : 'Neo4j query failed.',
         );
-      } finally {
-        await driver.close();
       }
     },
 
@@ -258,8 +304,6 @@ export function createNeo4jGraphAdapter(
           ok: false,
           status: 'error' as const,
         };
-      } finally {
-        await driver.close();
       }
     },
 
@@ -304,8 +348,6 @@ export function createNeo4jGraphAdapter(
         throw new Neo4jGraphResponseError(
           error instanceof Error ? error.message : 'Neo4j sync failed.',
         );
-      } finally {
-        await driver.close();
       }
     },
 
@@ -338,8 +380,6 @@ export function createNeo4jGraphAdapter(
         throw new Neo4jGraphResponseError(
           error instanceof Error ? error.message : 'Neo4j scoped cleanup failed.',
         );
-      } finally {
-        await driver.close();
       }
     },
   };

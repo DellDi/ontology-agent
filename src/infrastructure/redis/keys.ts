@@ -9,6 +9,10 @@ export const redisKeys = {
     return prefixed('job', 'queue');
   },
 
+  jobDeadLetterQueue() {
+    return prefixed('job', 'queue', 'dlq');
+  },
+
   rate(userId: string, resource: string) {
     return prefixed('rate', userId, resource);
   },
