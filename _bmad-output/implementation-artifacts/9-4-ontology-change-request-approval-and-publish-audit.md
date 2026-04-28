@@ -1,6 +1,6 @@
 # Story 9.4: 本体变更申请、审批与发布审计
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -19,54 +19,54 @@ so that 口径、关系、计划模板和证据定义具备正式治理与审计
 
 ## Tasks / Subtasks
 
-- [ ] 建立 ontology change governance 的平台表结构（AC: 1, 2, 3, 4）
-  - [ ] 在 `src/infrastructure/postgres/schema/` 下新增或补强至少以下表：
-    - [ ] `platform.ontology_change_requests`
-    - [ ] `platform.ontology_approval_records`
-    - [ ] 如有必要，补充 `platform.ontology_publish_records` 或等价结构
-  - [ ] 明确定义最小状态机，至少覆盖：
-    - [ ] `draft`
-    - [ ] `submitted`
-    - [ ] `approved`
-    - [ ] `rejected`
-    - [ ] `published`
-    - [ ] `superseded`
-  - [ ] 状态模型必须与 `ontology_versions`、各类 definitions 有稳定关联，而不是独立漂浮的工单表。
+- [x] 建立 ontology change governance 的平台表结构（AC: 1, 2, 3, 4）
+  - [x] 在 `src/infrastructure/postgres/schema/` 下新增以下表：
+    - [x] `platform.ontology_change_requests`
+    - [x] `platform.ontology_approval_records`
+    - [x] `platform.ontology_publish_records`
+  - [x] 明确定义最小状态机，覆盖：
+    - [x] `draft`
+    - [x] `submitted`
+    - [x] `approved`
+    - [x] `rejected`
+    - [x] `published`
+    - [x] `superseded`
+  - [x] 状态模型通过 FK 与 `ontology_versions` 关联。
 
-- [ ] 建立 change request / approval / publish 的领域模型与应用层用例（AC: 1, 2, 3）
-  - [ ] 在 `src/domain/ontology/` 下增加变更申请、审批记录、发布记录及生命周期模型。
-  - [ ] 在 `src/application/ontology/` 下建立最小用例，至少覆盖：
-    - [ ] 提交 change request
-    - [ ] 审批 / 驳回
-    - [ ] 发布 approved 版本
-    - [ ] 查询当前待审与已发布记录
-  - [ ] 发布时必须显式更新“当前生效版本”或等价指针，不允许依赖隐式最新版本规则。
+- [x] 建立 change request / approval / publish 的领域模型与应用层用例（AC: 1, 2, 3）
+  - [x] 在 `src/domain/ontology/` 下增加变更申请、审批记录、发布记录及生命周期模型。
+  - [x] 在 `src/application/ontology/` 下建立最小用例，至少覆盖：
+    - [x] 提交 change request
+    - [x] 审批 / 驳回
+    - [x] 发布 approved 版本
+    - [x] 查询当前待审与已发布记录
+  - [x] 发布时必须显式更新“当前生效版本”或等价指针，不允许依赖隐式最新版本规则。
 
-- [ ] 建立兼容与发布约束（AC: 2, 3）
-  - [ ] 为 change request 增加兼容性说明字段或等价结构，明确：
-    - [ ] 向后兼容
-    - [ ] 非兼容变更
-    - [ ] 影响哪些 metrics / factors / plan steps / tool bindings
-  - [ ] 对未 `approved` 或未 `published` 的变更，运行时读取路径必须 fail loud 或明确忽略，不得静默进入默认执行。
-  - [ ] 若当前代码仍需要兼容“直接读 approved definition”的路径，也必须明确 publish 语义的最终权威位置。
+- [x] 建立兼容与发布约束（AC: 2, 3）
+  - [x] 为 change request 增加兼容性说明字段或等价结构，明确：
+    - [x] 向后兼容
+    - [x] 非兼容变更
+    - [x] 影响哪些 metrics / factors / plan steps / tool bindings
+  - [x] 对未 `approved` 或未 `published` 的变更，运行时读取路径必须 fail loud 或明确忽略，不得静默进入默认执行。
+  - [x] 若当前代码仍需要兼容“直接读 approved definition”的路径，也必须明确 publish 语义的最终权威位置。
 
-- [ ] 与授权与审计主线对齐（AC: 4）
-  - [ ] 在 story 设计中明确与 `7.1` 的权限边界对接点，至少区分：
-    - [ ] 提交权限
-    - [ ] 审批权限
-    - [ ] 发布权限
-  - [ ] 在 story 设计中明确与 `7.2` 的审计对接点，至少记录：
-    - [ ] 谁提交
-    - [ ] 谁审批
-    - [ ] 谁发布
-    - [ ] 变更对象和影响范围
-  - [ ] 本 story 不实现管理后台页面，那属于 `9.5`；但必须提供 UI 可消费的稳定服务端契约。
+- [x] 与授权与审计主线对齐（AC: 4）
+  - [x] 在 story 设计中明确与 `7.1` 的权限边界对接点，至少区分：
+    - [x] 提交权限
+    - [x] 审批权限
+    - [x] 发布权限
+  - [x] 在 story 设计中明确与 `7.2` 的审计对接点，至少记录：
+    - [x] 谁提交
+    - [x] 谁审批
+    - [x] 谁发布
+    - [x] 变更对象和影响范围
+  - [x] 本 story 不实现管理后台页面，那属于 `9.5`；但必须提供 UI 可消费的稳定服务端契约。
 
-- [ ] 补齐 story 级验证（AC: 1, 2, 3, 4）
-  - [ ] 验证 change request 的创建、审批、驳回、发布状态流转。
-  - [ ] 验证只有 approved + published 的变更进入默认运行时。
-  - [ ] 验证审计字段和责任归属字段被正确记录。
-  - [ ] 验证当前生效版本的切换不依赖“最新时间戳即生效”这种隐式逻辑。
+- [x] 补齐 story 级验证（AC: 1, 2, 3, 4）
+  - [x] 验证 change request 的创建、审批、驳回、发布状态流转。
+  - [x] 验证只有 approved + published 的变更进入默认运行时。
+  - [x] 验证审计字段和责任归属字段被正确记录。
+  - [x] 验证当前生效版本的切换不依赖“最新时间戳即生效”这种隐式逻辑。
 
 ## Dev Notes
 
@@ -163,3 +163,19 @@ GPT-5 Codex
 ### File List
 
 - _bmad-output/implementation-artifacts/9-4-ontology-change-request-approval-and-publish-audit.md
+- src/domain/ontology/governance.ts
+- src/application/ontology/governance-ports.ts
+- src/application/ontology/governance-use-cases.ts
+- src/infrastructure/postgres/schema/ontology-change-requests.ts
+- src/infrastructure/postgres/schema/ontology-approval-records.ts
+- src/infrastructure/postgres/schema/ontology-publish-records.ts
+- src/infrastructure/postgres/schema/index.ts
+- src/infrastructure/ontology/postgres-ontology-change-request-store.ts
+- src/infrastructure/ontology/postgres-ontology-approval-record-store.ts
+- src/infrastructure/ontology/postgres-ontology-publish-record-store.ts
+- src/infrastructure/ontology/postgres-ontology-version-store.ts
+- src/application/ontology/ports.ts
+- src/domain/audit/models.ts
+- drizzle/0004_9-4-ontology-change-governance.sql
+- drizzle/meta/_journal.json
+- tests/story-9-4-ontology-change-governance.test.mjs

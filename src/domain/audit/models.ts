@@ -2,6 +2,10 @@ export const AUDIT_EVENT_TYPES = [
   'analysis.requested',
   'authorization.denied',
   'tool.invoked',
+  'ontology.change_request.submitted',
+  'ontology.change_request.approved',
+  'ontology.change_request.rejected',
+  'ontology.version.published',
 ] as const;
 
 export const AUDIT_EVENT_RESULTS = ['succeeded', 'failed', 'denied'] as const;
