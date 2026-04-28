@@ -128,6 +128,8 @@ await redis.connect();
 - 客户端读取 `REDIS_URL` 环境变量，缺失时抛出明确错误
 - 创建后需显式调用 `redis.connect()` 建立连接
 - 连接错误通过 `error` 事件监听，不会静默失败
+- Web 请求路径应使用 `getSharedRedisClient()` + `ensureRedisConnected()` 复用进程级连接，调用方不得关闭共享连接
+- 测试、CLI、worker 这类独占生命周期入口继续使用 `createRedisClient()`，谁创建谁关闭
 
 ### Key Namespace 约定
 
@@ -136,6 +138,7 @@ await redis.connect();
 | 命名空间 | 格式 | 用途 |
 |----------|------|------|
 | `rate` | `oa:rate:{userId}:{resource}` | 按用户限流 |
+| `job` | `oa:job:queue` / `oa:job:queue:dlq` | Worker 任务 stream 与 dead-letter queue |
 | `worker` | `oa:worker:{jobId}:{field}` | Worker 任务元数据 |
 | `stream` | `oa:stream:{sessionId}` | 流式状态 / SSE 事件 |
 | `cache` | `oa:cache:{scope}:{key}` | 短时缓存 |
@@ -148,6 +151,26 @@ import { redisKeys } from '@/infrastructure/redis';
 redisKeys.rate('user-123', 'analysis');    // → "oa:rate:user-123:analysis"
 redisKeys.worker('job-456', 'status');     // → "oa:worker:job-456:status"
 ```
+
+### Redis Job Queue 语义
+
+Worker job queue 使用 Redis Streams consumer group，不再使用 `rPop` 直接弹出任务。
+
+- 提交任务：写入 `oa:worker:{jobId}:data`，并 `XADD` 到 `oa:job:queue`
+- 消费任务：worker 通过 `XREADGROUP` 获取任务，任务进入 pending list
+- 崩溃恢复：未 `XACK` 的 pending job 会在 visibility timeout 后通过 `XAUTOCLAIM` 被其他 worker 重新声明
+- 完成/失败：`completeJob` / `failJob` 会更新 job data 并 `XACK`
+- 超过重试上限：job 标记为 `failed`，并写入 `oa:job:queue:dlq`
+
+真实 Redis 回归测试：
+
+```bash
+pnpm test:real:redis-queue
+```
+
+该测试会使用唯一 `REDIS_KEY_PREFIX` 隔离 key，只清理本次测试前缀下的数据，不会 `FLUSHDB`。
+
+当前 Redis Streams 提供 at-least-once 分发语义；Redis 进程自身的持久性仍取决于部署配置。生产环境应启用 AOF 或托管 Redis 的持久化能力；若后续要求更强的业务事实保障，应把 job ledger 落到 Postgres，Redis 只保留唤醒和分发职责。
 
 ### 健康检查
 
