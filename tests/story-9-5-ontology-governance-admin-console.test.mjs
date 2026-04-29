@@ -529,6 +529,112 @@ test('Review P1.1 getCurrentApprovedDefinitions 不应返回 approved 但未 pub
   }
 });
 
+test('Review P1.1 groundAnalysisContext 默认候选只允许 published 版本，不能回退到未发布候选', async () => {
+  const result = await runTsSnippet(`
+    import groundingModule from './src/application/ontology/grounding.ts';
+
+    const { createOntologyGroundingUseCases } = groundingModule;
+
+    const publishedVersion = {
+      id: 'published-version',
+      semver: '1.0.0',
+      displayName: 'Published Runtime Version',
+      status: 'approved',
+      description: null,
+      publishedAt: '2026-04-28T10:00:00.000Z',
+      deprecatedAt: null,
+      retiredAt: null,
+      createdBy: 'test',
+      createdAt: '2026-04-28T09:00:00.000Z',
+      updatedAt: '2026-04-28T10:00:00.000Z',
+    };
+    const unpublishedVersion = {
+      ...publishedVersion,
+      id: 'approved-unpublished-version',
+      semver: '1.1.0-rc',
+      displayName: 'Approved But Unpublished',
+      publishedAt: null,
+      updatedAt: '2026-04-29T09:00:00.000Z',
+    };
+
+    const entityByVersion = {
+      [publishedVersion.id]: [{
+        id: 'entity-published',
+        ontologyVersionId: publishedVersion.id,
+        businessKey: 'project',
+        displayName: '项目',
+        description: null,
+        status: 'approved',
+        synonyms: [],
+        parentBusinessKey: null,
+        metadata: {},
+        createdAt: publishedVersion.createdAt,
+        updatedAt: publishedVersion.updatedAt,
+      }],
+      [unpublishedVersion.id]: [{
+        id: 'entity-unpublished',
+        ontologyVersionId: unpublishedVersion.id,
+        businessKey: 'project',
+        displayName: '项目',
+        description: null,
+        status: 'approved',
+        synonyms: [],
+        parentBusinessKey: null,
+        metadata: {},
+        createdAt: unpublishedVersion.createdAt,
+        updatedAt: unpublishedVersion.updatedAt,
+      }],
+    };
+
+    const useCases = createOntologyGroundingUseCases({
+      versionStore: {
+        async findById(id) {
+          return id === publishedVersion.id
+            ? publishedVersion
+            : id === unpublishedVersion.id
+              ? unpublishedVersion
+              : null;
+        },
+        async findCurrentApproved() { return unpublishedVersion; },
+        async findCurrentPublished() { return publishedVersion; },
+        async listApprovedCandidates() { return [unpublishedVersion, publishedVersion]; },
+      },
+      entityStore: {
+        async findByVersionId(versionId) { return entityByVersion[versionId] ?? []; },
+      },
+      metricStore: { async findByVersionId() { return []; } },
+      factorStore: { async findByVersionId() { return []; } },
+      metricVariantStore: { async findByVersionId() { return []; } },
+      timeSemanticStore: { async findByVersionId() { return []; } },
+    });
+
+    const grounded = await useCases.groundAnalysisContext({
+      sessionId: 'session-review-p1-1',
+      ownerUserId: 'owner-review-p1-1',
+      analysisContext: {
+        targetMetric: { value: '待补充目标指标', confidence: 0 },
+        entity: { value: '项目', confidence: 1 },
+        timeRange: { value: '待补充时间范围', confidence: 0 },
+        comparison: { value: '无', confidence: 0 },
+        constraints: [],
+      },
+    });
+
+    console.log(JSON.stringify({
+      ontologyVersionId: grounded.ontologyVersionId,
+      groundedEntityId: grounded.entities[0]?.canonicalDefinition?.id ?? null,
+    }));
+    process.exit(0);
+  `);
+
+  assert.equal(
+    result.ontologyVersionId,
+    'published-version',
+    '默认 grounding 只能使用已发布版本，不能因为 approved 未发布版本更新更晚就优先命中它',
+  );
+  assert.equal(result.groundedEntityId, 'entity-published');
+});
+
 // ---------------------------------------------------------------------------
 // Review Fix P1.2: publishVersion 事务原子性
 // ---------------------------------------------------------------------------

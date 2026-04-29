@@ -1,6 +1,6 @@
 # Story 9.6: 执行结果、追问与历史绑定本体版本
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
