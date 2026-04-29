@@ -1,6 +1,6 @@
 # Story 9.5: 本体治理后台管理界面
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -63,9 +63,9 @@ so that 知识治理不是停留在数据表和脚本层，而是具备最小可
 
 ### Review Findings
 
-- [ ] [Review][Patch] 默认运行时仍读取 approved 未发布版本，违反“published 才生效”边界 [src/application/ontology/use-cases.ts:115]
-- [ ] [Review][Patch] publishVersion 跨多张治理表更新但没有事务，失败会留下半发布状态 [src/application/ontology/governance-use-cases.ts:168]
-- [ ] [Review][Patch] 变更前后摘要 JSON 解析失败被静默置空，后台会成功创建缺失差异信息的 CR [src/app/api/admin/ontology/change-requests/route.ts:18]
+- [x] [Review][Patch] 默认运行时仍读取 approved 未发布版本，违反“published 才生效”边界 [src/application/ontology/use-cases.ts:115]
+- [x] [Review][Patch] publishVersion 跨多张治理表更新但没有事务，失败会留下半发布状态 [src/application/ontology/governance-use-cases.ts:168]
+- [x] [Review][Patch] 变更前后摘要 JSON 解析失败被静默置空，后台会成功创建缺失差异信息的 CR [src/app/api/admin/ontology/change-requests/route.ts:18]
 
 ## Dev Notes
 
@@ -167,7 +167,7 @@ GPT-5 Codex
   - 在 `src/domain/ontology/governance.ts` 引入 `ONTOLOGY_VIEWER / AUTHOR / APPROVER / PUBLISHER` 角色常量与 capability 解析（PLATFORM_ADMIN 默认全权限），与 `7.1` 授权主线对齐。
   - 写动作通过 `/api/admin/ontology/*` 受控 route handlers 执行：创建变更申请、提交审批、审批/驳回、发布版本，每条路径均通过 `authorizeGovernanceRequest` 鉴权并通过 `auditUseCases.recordEvent` 复用既有 `ontology.change_request.*` / `ontology.version.published` / `authorization.denied` 事件类型，无额外审计协议。
   - 扩展现有 store 端口最小必要方法：`OntologyChangeRequestStore.listRecent`、`OntologyPublishRecordStore.listRecent`、`OntologyVersionStore.listRecent`，对应 postgres 实现。
-  - Story 级集成测试 `tests/story-9-5-ontology-governance-admin-console.test.mjs` 覆盖 capability 解析、loadOverview 读模型、create→submit→approve 闭环、publishVersion 切换 currentPublishedVersion、definitions 投影、列表稳定性、capability gate、审计事件契约共 10 条测试，全部通过。
+  - Story 级集成测试 `tests/story-9-5-ontology-governance-admin-console.test.mjs` 当前覆盖 capability 解析、loadOverview 读模型、create→submit→approve 闭环、publishVersion 切换 currentPublishedVersion、definitions 投影、列表稳定性、capability gate、审计事件契约，以及 review 修复回归（published-only runtime、publish 事务回滚、非法 JSON fail loud）共 15 条测试，全部通过。
   - 与 9.4 既有 `tests/story-9-4-ontology-change-governance.test.mjs` 联跑回归 23/23 通过。
   - `pnpm lint` 通过，`pnpm build` 成功并已注册全部新路由。
 - 设计取舍：

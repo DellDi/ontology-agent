@@ -311,7 +311,7 @@ export function createOntologyGroundingUseCases(
       sessionId: string;
       ownerUserId: string;
       analysisContext: AnalysisContext;
-      preferredVersionId?: string; // 如指定，使用特定版本；否则使用当前 approved 版本
+      preferredVersionId?: string; // 如指定，使用特定版本；否则使用当前 published 版本
       allowFallbackToFreeText?: boolean;
     }): Promise<OntologyGroundedContext> {
       const shouldAllowFallbackToFreeText =
@@ -328,15 +328,17 @@ export function createOntologyGroundingUseCases(
           candidateVersions.push(preferredVersion);
         }
       } else if (typeof deps.versionStore.listApprovedCandidates === 'function') {
-        // D3: 候选版本深度默认限制到 3（当前 approved + 上一版本 + 紧急 rollback 版本）。
-        // 治理正常时首轮即应命中；若发现 3 不够，可结合 P8 新增的 attemptedVersionIds 轨迹评估扩容。
+        // D3: 默认运行时候选只允许来自正式 published 集合；approved 但未 publish
+        // 的候选只能留在治理面，不得进入 grounding 默认路径。
         candidateVersions.push(
-          ...(await deps.versionStore.listApprovedCandidates(3)),
+          ...(await deps.versionStore.listApprovedCandidates(3)).filter((version) =>
+            Boolean(version.publishedAt),
+          ),
         );
       } else {
-        const currentApproved = await deps.versionStore.findCurrentApproved();
-        if (currentApproved) {
-          candidateVersions.push(currentApproved);
+        const currentPublished = await deps.versionStore.findCurrentPublished();
+        if (currentPublished) {
+          candidateVersions.push(currentPublished);
         }
       }
 
@@ -345,7 +347,7 @@ export function createOntologyGroundingUseCases(
           '无法找到可用的 Ontology Version',
           'failed',
           {
-            ontologyVersionId: preferredVersionId ?? 'current-approved',
+            ontologyVersionId: preferredVersionId ?? 'current-published',
             failedItems: [{ type: 'version', text: 'ontology-version', reason: '无可用版本' }],
           },
         );
@@ -587,13 +589,13 @@ export function createOntologyGroundingUseCases(
               attemptedVersionIds: [...attemptedVersionIds],
             },
           );
-          const canTryNextApprovedVersion =
+          const canTryNextPublishedVersion =
             !preferredVersionId &&
             groundingStatus === 'failed' &&
             successCount === 0 &&
             candidateIndex < candidateVersions.length - 1;
 
-          if (canTryNextApprovedVersion) {
+          if (canTryNextPublishedVersion) {
             // P8: 向服务器日志推送过程性告警，便于诊断治理漏洞。
             console.warn(
               '[ontology-grounding] 版本探测回退',
@@ -624,7 +626,7 @@ export function createOntologyGroundingUseCases(
         'Ontology grounding failed: 无法在已发布版本中找到可执行的治理化上下文',
         'failed',
         {
-          ontologyVersionId: candidateVersions[0]?.id ?? preferredVersionId ?? 'current-approved',
+          ontologyVersionId: candidateVersions[0]?.id ?? preferredVersionId ?? 'current-published',
           failedItems: [
             {
               type: 'version',
