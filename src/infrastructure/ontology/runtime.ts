@@ -16,6 +16,7 @@ export function createOntologyRuntimeServices(db?: PostgresDb) {
   const versionStore = createPostgresOntologyVersionStore(resolvedDb);
 
   return {
+    versionStore,
     groundedContextStore: createPostgresGroundedContextStore(resolvedDb),
     groundingUseCases: createOntologyGroundingUseCases({
       versionStore,

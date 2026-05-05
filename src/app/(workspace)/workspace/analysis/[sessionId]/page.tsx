@@ -9,6 +9,7 @@ import {
   buildGroundingBlockedPlanReadModel,
 } from '@/application/ontology/grounded-planning';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
+import { resolveOntologyVersionBindingForDisplay } from '@/domain/ontology/version-binding';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
@@ -89,14 +90,16 @@ function resolveActiveFollowUpId(
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
+const ontologyRuntimeServices = createOntologyRuntimeServices();
 const analysisExecutionPersistenceUseCases =
   createAnalysisExecutionPersistenceUseCases({
     snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
+    ontologyVersionStore: ontologyRuntimeServices.versionStore,
   });
 const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
   followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+  ontologyVersionStore: ontologyRuntimeServices.versionStore,
 });
-const ontologyRuntimeServices = createOntologyRuntimeServices();
 
 export default async function AnalysisSessionPage({
   params,
@@ -322,6 +325,11 @@ export default async function AnalysisSessionPage({
     : executionStreamReadModel
       ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
       : null;
+  const ontologyVersionBindingForDisplay =
+    resolveOntologyVersionBindingForDisplay({
+      snapshotBinding: snapshotForDisplay?.ontologyVersionBinding ?? null,
+      followUpBinding: activeFollowUp?.ontologyVersionBinding ?? null,
+    });
   const latestFollowUpConclusion = activeFollowUp
     ? {
         title: activeFollowUp.referencedConclusionTitle,
@@ -473,11 +481,13 @@ export default async function AnalysisSessionPage({
             ownerUserId={currentUser.userId}
             initialReadModel={executionStreamReadModel}
             initialConclusionReadModel={liveConclusionReadModel}
+            ontologyVersionBinding={ontologyVersionBindingForDisplay}
             planAssumptions={analysisPlanReadModel.assumptions}
           />
         ) : liveConclusionReadModel ? (
           <AnalysisConclusionPanel
             readModel={liveConclusionReadModel}
+            ontologyVersionBinding={ontologyVersionBindingForDisplay}
             planAssumptions={analysisPlanReadModel.assumptions}
           />
         ) : null}

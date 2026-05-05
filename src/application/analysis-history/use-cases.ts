@@ -1,6 +1,10 @@
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
 import type { AnalysisSession } from '@/domain/analysis-session/models';
+import {
+  createOntologyVersionBinding,
+  type OntologyVersionBinding,
+} from '@/domain/ontology/version-binding';
 
 type ContextSummarySource = {
   targetMetric: { value: string };
@@ -16,6 +20,7 @@ export type AnalysisHistoryRoundReadModel = {
   createdAt: string;
   followUpId: string | null;
   executionId: string | null;
+  ontologyVersionBinding: OntologyVersionBinding;
   status: string;
   inputSummary: string[];
   planSummary: string | null;
@@ -54,9 +59,22 @@ function buildRound(input: {
   createdAt: string;
   followUpId: string | null;
   snapshot: AnalysisExecutionSnapshot | null;
+  followUp?: AnalysisSessionFollowUp | null;
   inputSummary: string[];
 }): AnalysisHistoryRoundReadModel {
   const cause = input.snapshot?.conclusionState.causes?.[0] ?? null;
+  const snapshotOntologyVersionId = input.snapshot?.ontologyVersionId ?? null;
+  const followUpBinding = input.followUp?.ontologyVersionBinding ?? null;
+  const ontologyVersionBinding =
+    followUpBinding?.source === 'switched'
+      ? createOntologyVersionBinding(
+          snapshotOntologyVersionId ?? followUpBinding.ontologyVersionId,
+          'switched',
+        )
+      : createOntologyVersionBinding(
+          snapshotOntologyVersionId ?? followUpBinding?.ontologyVersionId,
+          'inherited',
+        );
 
   return {
     id: input.id,
@@ -66,6 +84,7 @@ function buildRound(input: {
     createdAt: input.createdAt,
     followUpId: input.followUpId,
     executionId: input.snapshot?.executionId ?? null,
+    ontologyVersionBinding,
     status: input.snapshot?.status ?? 'pending',
     inputSummary: input.inputSummary,
     planSummary: input.snapshot?.planSnapshot.summary ?? null,
@@ -114,6 +133,7 @@ export function createAnalysisHistoryUseCases() {
           createdAt: input.session.createdAt,
           followUpId: null,
           snapshot: rootSnapshot,
+          followUp: null,
           inputSummary: buildContextSummary(input.sessionContext),
         }),
       ];
@@ -133,6 +153,7 @@ export function createAnalysisHistoryUseCases() {
                 : null) ??
               snapshotByFollowUpId.get(followUp.id) ??
               null,
+            followUp,
             inputSummary: buildContextSummary(followUp.mergedContext),
           }),
         );

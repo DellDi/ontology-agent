@@ -12,6 +12,7 @@ import {
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
+import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
 import { AnalysisConclusionPanel } from './analysis-conclusion-panel';
 import { AnalysisExecutionStreamPanel } from './analysis-execution-stream-panel';
 
@@ -22,6 +23,7 @@ type AnalysisExecutionLiveShellProps = {
   initialReadModel: AnalysisExecutionStreamReadModel;
   initialConclusionReadModel: AnalysisConclusionReadModel | null;
   planAssumptions?: string[];
+  ontologyVersionBinding?: OntologyVersionBinding | null;
 };
 
 // D2: localStorage key 按 user 命名空间隔离，避免多账户同设备互相干扰；
@@ -63,6 +65,7 @@ export function AnalysisExecutionLiveShell({
   initialReadModel,
   initialConclusionReadModel,
   planAssumptions,
+  ontologyVersionBinding,
 }: AnalysisExecutionLiveShellProps) {
   // D2: key 在 ownerUserId 下隔离，不再使用全局 key。
   const processBoardStorageKey = buildProcessBoardStorageKey(ownerUserId);
@@ -195,6 +198,7 @@ export function AnalysisExecutionLiveShell({
       {conclusionReadModel ? (
         <AnalysisConclusionPanel
           readModel={conclusionReadModel}
+          ontologyVersionBinding={ontologyVersionBinding}
           planAssumptions={planAssumptions}
         />
       ) : null}

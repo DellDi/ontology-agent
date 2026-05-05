@@ -2,6 +2,7 @@ import type { AnalysisExecutionPlanSnapshot } from '@/domain/analysis-execution/
 import type { AnalysisExecutionStreamEvent, ExecutionRenderBlock } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { JobStatus } from '@/domain/job-contract/models';
+import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
 
 export type AnalysisExecutionFailurePoint = {
   id: string;
@@ -20,6 +21,8 @@ export type AnalysisExecutionSnapshot = {
   sessionId: string;
   ownerUserId: string;
   followUpId: string | null;
+  ontologyVersionId: string | null;
+  ontologyVersionBinding: OntologyVersionBinding;
   status: JobStatus;
   planSnapshot: AnalysisExecutionPlanSnapshot;
   stepResults: AnalysisExecutionStreamEvent[];

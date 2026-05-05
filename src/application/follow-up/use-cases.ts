@@ -17,6 +17,13 @@ import {
   type AnalysisSession,
   validateQuestionText,
 } from '@/domain/analysis-session/models';
+import {
+  assertOntologyVersionBindingIsPublished,
+  createOntologyVersionBinding,
+  getPlanOntologyVersionId,
+  resolveOntologyVersionBindingSource,
+} from '@/domain/ontology/version-binding';
+import type { OntologyVersionStore } from '@/application/ontology/ports';
 
 import type { AnalysisSessionFollowUpStore } from './ports';
 
@@ -62,9 +69,25 @@ export class InvalidAnalysisFollowUpReplanError extends Error {
 
 export function createAnalysisFollowUpUseCases({
   followUpStore,
+  ontologyVersionStore,
 }: {
   followUpStore: AnalysisSessionFollowUpStore;
+  ontologyVersionStore?: Pick<OntologyVersionStore, 'findById'>;
 }) {
+  async function assertPublishedBinding(
+    binding: AnalysisSessionFollowUp['ontologyVersionBinding'],
+  ) {
+    if (!binding.ontologyVersionId || !ontologyVersionStore) {
+      return;
+    }
+
+    const version = await ontologyVersionStore.findById(binding.ontologyVersionId);
+    assertOntologyVersionBindingIsPublished({
+      ontologyVersionId: binding.ontologyVersionId,
+      version,
+    });
+  }
+
   return {
     async createFollowUp({
       session,
@@ -107,6 +130,15 @@ export function createAnalysisFollowUpUseCases({
         baseFollowUp?.referencedConclusionSummary ??
         latestConclusion?.summary ??
         null;
+      const inheritedOntologyVersionId =
+        baseExecutionSnapshot?.ontologyVersionId ??
+        baseFollowUp?.ontologyVersionId ??
+        latestSnapshot?.ontologyVersionId ??
+        null;
+      const ontologyVersionBinding = createOntologyVersionBinding(
+        inheritedOntologyVersionId,
+        'inherited',
+      );
 
       if (
         !referencedExecutionId ||
@@ -119,6 +151,7 @@ export function createAnalysisFollowUpUseCases({
 
       const normalizedQuestionText = normalizeQuestionText(questionText);
       const timestamp = new Date().toISOString();
+      await assertPublishedBinding(ontologyVersionBinding);
       const followUp: AnalysisSessionFollowUp = {
         id: randomUUID(),
         sessionId: session.id,
@@ -129,6 +162,8 @@ export function createAnalysisFollowUpUseCases({
         referencedConclusionTitle,
         referencedConclusionSummary,
         resultExecutionId: null,
+        ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+        ontologyVersionBinding,
         inheritedContext,
         mergedContext: mergeFollowUpContext({
           inheritedContext,
@@ -282,6 +317,16 @@ export function createAnalysisFollowUpUseCases({
       const updatedAt = new Date().toISOString();
       const planVersion =
         followUp.planVersion === null ? 2 : followUp.planVersion + 1;
+      const nextOntologyVersionId =
+        getPlanOntologyVersionId(nextPlanSnapshot) ?? followUp.ontologyVersionId;
+      const ontologyVersionBinding = createOntologyVersionBinding(
+        nextOntologyVersionId,
+        resolveOntologyVersionBindingSource({
+          previousOntologyVersionId: followUp.ontologyVersionId,
+          nextOntologyVersionId,
+        }),
+      );
+      await assertPublishedBinding(ontologyVersionBinding);
       const updatedFollowUp = await followUpStore.updatePlanState({
         followUpId: followUp.id,
         ownerUserId: followUp.ownerUserId,
@@ -289,6 +334,8 @@ export function createAnalysisFollowUpUseCases({
         currentPlanSnapshot: nextPlanSnapshot,
         previousPlanSnapshot,
         currentPlanDiff: planDiff,
+        ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+        ontologyVersionBinding,
         updatedAt,
       });
 

@@ -25,6 +25,8 @@ export interface AnalysisSessionFollowUpStore {
     currentPlanSnapshot: NonNullable<AnalysisSessionFollowUp['currentPlanSnapshot']>;
     previousPlanSnapshot: NonNullable<AnalysisSessionFollowUp['previousPlanSnapshot']>;
     currentPlanDiff: NonNullable<AnalysisSessionFollowUp['currentPlanDiff']>;
+    ontologyVersionId: AnalysisSessionFollowUp['ontologyVersionId'];
+    ontologyVersionBinding: AnalysisSessionFollowUp['ontologyVersionBinding'];
     updatedAt: string;
   }): Promise<AnalysisSessionFollowUp | null>;
   attachResultExecution(input: {

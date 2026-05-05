@@ -1,6 +1,8 @@
 'use client';
 
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
+import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
+import { formatOntologyVersionBindingBadge } from '@/shared/ontology/version-binding-display';
 
 type AnalysisConclusionPanelProps = {
   readModel: AnalysisConclusionReadModel;
@@ -8,11 +10,13 @@ type AnalysisConclusionPanelProps = {
   // Story 5.1 AC-B 要求 "结果中展示 assumptions"，保证用户在阅读结论时能识别
   // 哪些条件是系统自动补齐的，支撑 auditable 与可靠追问。
   planAssumptions?: string[];
+  ontologyVersionBinding?: OntologyVersionBinding | null;
 };
 
 export function AnalysisConclusionPanel({
   readModel,
   planAssumptions,
+  ontologyVersionBinding,
 }: AnalysisConclusionPanelProps) {
   if (readModel.causes.length === 0) {
     return null;
@@ -34,6 +38,14 @@ export function AnalysisConclusionPanel({
         <span className="rounded-full bg-[color:var(--sky-100)] px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
           {readModel.causes.length} 个候选原因
         </span>
+        {ontologyVersionBinding ? (
+          <span
+            className="rounded-full bg-white px-4 py-2 text-sm font-medium text-[color:var(--ink-600)]"
+            data-testid="analysis-conclusion-ontology-version"
+          >
+            {formatOntologyVersionBindingBadge(ontologyVersionBinding)}
+          </span>
+        ) : null}
       </div>
 
       {hasAssumptions ? (

@@ -36,6 +36,13 @@
       "when": 1777348000000,
       "tag": "0004_9-4-ontology-change-governance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777941643010,
+      "tag": "0005_ancient_xavin",
+      "breakpoints": true
     }
   ]
 }
