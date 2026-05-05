@@ -1,6 +1,6 @@
 # Story 10.2: 建立 Renderer Registry 支持富分析块
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -189,6 +189,12 @@ GPT-5 Codex
 - Regression: `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs` 22/22 pass。
 - Static: `npx tsc --noEmit` pass；`pnpm lint` pass；`pnpm build` pass。
 - Legacy regression attempt: `node --test --test-concurrency=1 tests/story-5-2-execution-stream.test.mjs tests/story-5-3-ranked-conclusions.test.mjs tests/story-5-4-persist-results.test.mjs` 6/12 pass；5 个 failure 仍为 Story 10.1 已记录的 pre-existing `重定向地址应包含 executionId` 断言，另 1 个为长时间 browser-backed run 后的 `UND_ERR_HEADERS_TIMEOUT`。纯 `story-5-3` conclusion/read-model 子测试通过，未发现 10.2 renderBlocks/schema 回归。
+- Review response RED: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 新增 3 条 review regression 后 3/8 fail，分别覆盖默认 registry 非单例、tool-list 英文状态回退、`evidence-card` / `skills-state` 空数组 silent-pass。
+- Review response GREEN: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 8/8 pass。
+- Review response regression: `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs` 25/25 pass；`npx tsc --noEmit` pass；`pnpm lint` pass；`pnpm build` pass。
+- Review follow-up #3 RED: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 新增 app 层 UI renderer registry 约束后 3/10 fail，失败点为缺少 `analysis-interaction-ui-renderer-registry.tsx`、`AnalysisInteractionRenderedBlock` 仍存在 kind 分支。
+- Review follow-up #3 GREEN: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 10/10 pass。
+- Review follow-up #3 regression: `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs` 27/27 pass；`npx tsc --noEmit` pass；`pnpm lint` pass；`pnpm build` pass。
 
 ### Completion Notes List
 
@@ -198,6 +204,12 @@ GPT-5 Codex
 - 新增 `src/application/analysis-interaction/`，正式定义 interaction part schema、workspace/mobile projection、renderer registry、maturity level 与 fallback block。
 - 扩展 `ExecutionRenderBlock` fail-loud 校验，正式支持 `chart` / `graph` / `evidence-card` / `timeline` / `approval-state` / `skills-state`，保留旧 `status` / `kv-list` / `tool-list` / `markdown` / `table`。
 - `AnalysisExecutionStreamPanel` 与 `AnalysisConclusionPanel` 已改为通过 `normalizeExecutionRenderBlock` + `renderAnalysisInteractionPart` + `AnalysisInteractionRenderedBlock` 共享渲染路径；`analysis-execution-display.ts` 未改动，仍聚焦 read model 组装。
+- Review response：采纳并修复 registry 默认实例重复创建问题，`renderAnalysisInteractionPart` 改为复用模块级惰性单例 `getDefaultAnalysisRendererRegistry()`。
+- Review response：采纳并修复 `tool-list` 状态文案回退，新增 `getToolStatusLabel()`，恢复 `completed/failed/running/selected` 的中文展示。
+- Review response：采纳并补强 `evidence-card.evidence` 与 `skills-state.items` 非空校验，避免渲染无语义空卡片。
+- Review response：未采纳“application descriptor 直接返回 React element”的建议；原因是这会让 application 层依赖 React / App Router UI，破坏当前 `domain -> application -> app` 分层。后续如需进一步消除 `AnalysisInteractionRenderedBlock` 内的 kind 分支，应在 app 层建立 UI renderer descriptor，而不是把 React 渲染下沉到 application registry。
+- Review follow-up #3：已按分层正确方案实现 app 层 UI renderer registry；`AnalysisInteractionRenderedBlock` 现在只委托 `getDefaultAnalysisInteractionUiRendererRegistry().render(...)`，不再手写 `block.kind ===` 分支。
+- Review follow-up #3：新增 `analysis-interaction-ui-renderer-registry.tsx`，在 app 层注册 `status` / `kv-list` / `tool-list` / `markdown` / `table` / `chart` / `graph` / `evidence-card` / `timeline` / `approval-state` / `skills-state` / `fallback-block` 的 React renderer descriptor，application registry 继续保持纯数据契约。
 
 ### File List
 
@@ -206,6 +218,7 @@ GPT-5 Codex
 - src/application/analysis-interaction/renderer-registry.ts
 - src/application/analysis-interaction/index.ts
 - src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-rendered-block.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-ui-renderer-registry.tsx
 - tests/story-10-2-renderer-registry.test.mjs
 
 **Modified**
@@ -218,3 +231,5 @@ GPT-5 Codex
 ### Change Log
 
 - 2026-05-05 —— 实现 Story 10.2 renderer registry：统一 interaction part schema、富分析 render block 校验、registry/fallback/project contract、共享 React renderer、stream/conclusion 面板迁移、story 级测试与 lint/build 验证。
+- 2026-05-05 —— 响应代码审查：默认 renderer registry 改为模块级惰性单例；恢复 tool-list 中文状态文案；补 `evidence-card` / `skills-state` 空数组 fail-loud 校验；补 review regression tests 并完成 25/25 10.x 回归、type-check、lint、build。
+- 2026-05-05 —— 响应 review 问题 3：新增 app 层 UI renderer registry，移除 `AnalysisInteractionRenderedBlock` 内的 kind 分支；补 review regression tests 并完成 27/27 10.x 回归、type-check、lint、build。

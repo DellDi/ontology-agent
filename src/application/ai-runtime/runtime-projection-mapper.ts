@@ -348,7 +348,11 @@ export function resolveLiveShellCanonicalEvents(input: {
 export function mergeAnalysisExecutionStreamEvents(
   events: readonly AnalysisExecutionStreamEvent[],
   nextEvent: AnalysisExecutionStreamEvent,
-  context?: { sessionId?: string; executionId?: string },
+  context?: {
+    sessionId?: string;
+    executionId?: string;
+    deduplicateBySequence?: boolean;
+  },
 ): AnalysisExecutionStreamEvent[] {
   if (
     context?.sessionId &&
@@ -372,7 +376,14 @@ export function mergeAnalysisExecutionStreamEvents(
     return [...events];
   }
 
-  if (events.some((event) => event.id === nextEvent.id)) {
+  if (
+    events.some(
+      (event) =>
+        event.id === nextEvent.id ||
+        (context?.deduplicateBySequence &&
+          event.sequence === nextEvent.sequence),
+    )
+  ) {
     return [...events];
   }
 

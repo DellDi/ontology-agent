@@ -3,6 +3,7 @@ export { auditEvents } from './audit-events';
 export { analysisSessions } from './analysis-sessions';
 export { analysisSessionFollowUps } from './analysis-session-follow-ups';
 export { analysisExecutionSnapshots } from './analysis-execution-snapshots';
+export { analysisUiMessageProjections } from './analysis-ui-message-projections';
 export { graphSyncRuns } from './graph-sync-runs';
 export { graphSyncCursors } from './graph-sync-cursors';
 export { graphSyncDirtyScopes } from './graph-sync-dirty-scopes';
