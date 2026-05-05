@@ -133,7 +133,7 @@ development_status:
   10-1-p3-schema-version-and-contract-version-metadata: done
   10-2-renderer-registry-for-rich-analysis-blocks: done
   10-3-ui-message-projection-persistence-and-resume: done
-  10-4-runtime-bridge-for-memory-knowledge-skills-and-tools: ready-for-dev
+  10-4-runtime-bridge-for-memory-knowledge-skills-and-tools: done
   10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema: ready-for-dev
   10-6-collapsible-execution-process-board-and-expert-mode: done
   10-7-epic-10-alignment-sweep: backlog

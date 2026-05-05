@@ -1,6 +1,6 @@
 # Story 10.4: Memory / Knowledge / Skills / Tools 的运行时接入面
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,28 +21,28 @@ so that 后续新增长期记忆、知识库、技能系统和工具市场时，
 
 ## Tasks / Subtasks
 
-- [ ] 定义 runtime bridge 的 domain / application contract（AC: 1, 3, 4, 6, 7, 8）
+- [x] 定义 runtime bridge 的 domain / application contract（AC: 1, 3, 4, 6, 7, 8）
   - 明确定义 capability descriptor、status enum、provenance、ownership、version、availability reason、approval envelope、resume token 等核心类型。
   - 为 `memory`、`knowledge`、`skills`、`tools` 建立统一但不混同的 port 接口，确保每个 surface 都可以独立演进。
   - 明确 bridge 只承接“接入”和“投影”，不承接 ontology registry、知识治理、权限判定、Worker 编排或持久化真相层。
 
-- [ ] 建立 server-side runtime composition layer（AC: 1, 2, 5, 6）
+- [x] 建立 server-side runtime composition layer（AC: 1, 2, 5, 6）
   - 在 infrastructure 层实现 bridge 组装逻辑，把现有 `prompt-registry`、`schema-guardrails`、`tool registry`、`OpenAI-compatible adapter`、`worker`、`follow-up/history` facts 接到统一 runtime 入口。
   - 为 memory provider、MCP resources / prompts、skills registry 和 knowledge retrieval 预留可替换 adapter，优先使用依赖注入和端口组合，而不是 route 内联拼装。
   - 明确每个 adapter 的输入输出契约、错误语义和权限前置条件，防止后续把临时 glue code 误当成正式能力层。
 
-- [ ] 实现 tool approval / governance 接线（AC: 3, 4, 6, 7）
+- [x] 实现 tool approval / governance 接线（AC: 3, 4, 6, 7）
   - 设计 approval request / approval decision / audit event 的统一 envelope，包含 correlation id、actor、target tool / resource、reason、decision、timestamp、source。
   - 将 `approve`、`deny`、`require-confirmation` 设为显式状态，阻止未经批准的敏感 tool / resource 继续执行。
   - 确保 approval 只做治理门禁，不替代授权体系、ontology governance 或 worker orchestration。
 
-- [ ] 为 memory / knowledge / skills / tools 提供可扩展接入点（AC: 1, 2, 6, 8）
+- [x] 为 memory / knowledge / skills / tools 提供可扩展接入点（AC: 1, 2, 6, 8）
   - Memory surface 支持 provider-defined tools、memory provider、custom memory tool 三种接入风格，但实现必须保持 provider-neutral。
   - Knowledge surface 优先面向只读知识资源与检索型 access pattern，可通过 MCP resources 或 read-only retrieval adapter 承接。
   - Skills surface 采用 versioned skill registry / prompt registry 思路，允许按版本和权限范围激活 prompt，但不得把 skills 当成业务事实源。
   - Tools surface 必须复用现有 tool registry 元数据、运行时状态和错误语义，不要为 bridge 再造一套平行工具目录。
 
-- [ ] 补齐 story 级验证（AC: 1, 2, 3, 4, 5, 6, 7, 8）
+- [x] 补齐 story 级验证（AC: 1, 2, 3, 4, 5, 6, 7, 8）
   - 验证每个 capability surface 都能在未配置、配置成功、配置失效、需要确认四类情况下返回稳定且可诊断的结果。
   - 验证 approval 被拒绝后不会触发 downstream tool / resource 调用。
   - 验证 bridge 不会把 execution snapshot、follow-up history、ontology registry 或 knowledge governance 误当成可被 runtime 覆盖的临时状态。
@@ -272,10 +272,43 @@ GPT-5 Codex
 
 ### Debug Log References
 
+- `NODE_OPTIONS=--conditions=react-server node --test --test-concurrency=1 tests/story-10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.test.mjs`
+- `NODE_OPTIONS=--conditions=react-server node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-2-renderer-registry.test.mjs tests/story-10-3-ui-message-projection-persistence-and-resume.test.mjs tests/story-10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.test.mjs`
+- `NODE_OPTIONS=--conditions=react-server node --test --test-concurrency=1 tests/story-4-6-tool-registry.test.mjs`
+- `pnpm lint`
+- `pnpm build`
+- Review fix verification: `NODE_OPTIONS=--conditions=react-server node --test --test-concurrency=1 tests/story-10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.test.mjs`
+- Review fix regression: `NODE_OPTIONS=--conditions=react-server node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-2-renderer-registry.test.mjs tests/story-10-3-ui-message-projection-persistence-and-resume.test.mjs tests/story-10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.test.mjs`
+- Review fix tooling regression: `NODE_OPTIONS=--conditions=react-server node --test --test-concurrency=1 tests/story-4-6-tool-registry.test.mjs`
+- Review fix quality gates: `pnpm lint`, `pnpm build`
+
+### Implementation Plan
+
+- Red: 先新增 `tests/story-10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.test.mjs`，覆盖四类 surface、显式故障状态、approval 阻断、server-only 组合层和 canonical truth 边界。
+- Green: 新增 `domain/runtime` capability contract、`application/runtime` bridge use cases、`infrastructure/runtime` server-only composition adapter，复用现有 tool registry 与 structured prompt registry。
+- Refactor: 清理 lint warning，并回归 Epic 10 runtime / renderer / projection 与 Story 4.6 tooling 测试，确认 bridge 不污染既有执行和工具边界。
+
 ### Completion Notes List
 
 - Story created from approved Epic 10 / Story 10.4 change proposal and current runtime/tooling implementation facts.
 - Scope intentionally limited to runtime bridge contracts, adapters, governance hooks, and tests; canonical ontology / knowledge governance / worker orchestration remain separate systems of record.
+- 实现 runtime capability descriptor、surface status、availability reason、version、provenance、ownership、approval envelope、approval audit event、resume token 与 immutable canonical boundary contract。
+- 建立 `createRuntimeBridgeUseCases()`，支持 memory / knowledge / skills / tools 独立 adapter discovery、显式 unconfigured/degraded/disabled/requires-confirmation 状态，以及 approval 通过前阻断敏感 capability invocation。
+- 建立 server-only `createServerRuntimeBridgeServices()`，复用现有 analysis tool registry 与 structured prompt registry；memory / knowledge 保持 provider-neutral 可插拔端口，未配置时返回可诊断 `unconfigured`。
+- 已验证 approval denied / missing approval 不触发 downstream invocation；bridge 只消费 canonical facts，不覆盖 execution snapshots、follow-up history、ontology registry、knowledge governance 或 worker orchestration。
+- Review follow-ups resolved: invocation capability lookup now skips failed adapters and continues to later providers, approval-denied failures carry `deniedByApproval` and pending approvals use `approval-pending`, and tool invocation adapter now fail-louds on invalid non-`tool:` capability ids.
 
 ### File List
-- {project-root}/_bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md
+- _bmad-output/implementation-artifacts/10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/domain/runtime/models.ts
+- src/application/runtime/ports.ts
+- src/application/runtime/use-cases.ts
+- src/application/runtime/index.ts
+- src/infrastructure/runtime/index.ts
+- tests/story-10-4-runtime-bridge-for-memory-knowledge-skills-and-tools.test.mjs
+
+### Change Log
+
+- 2026-05-05: Implemented Story 10.4 runtime bridge contract, server-only composition layer, approval governance gate, provider-neutral extension ports, and story-level validation.
+- 2026-05-05: Addressed external review findings for multi-adapter invocation fallback, approval-denied/pending diagnostics, and runtime tool capability id guard; promoted story to done after verification.
