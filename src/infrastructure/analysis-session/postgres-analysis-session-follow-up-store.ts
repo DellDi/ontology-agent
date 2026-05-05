@@ -2,6 +2,7 @@ import { asc, and, eq } from 'drizzle-orm';
 
 import type { AnalysisSessionFollowUpStore } from '@/application/follow-up/ports';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
+import { createOntologyVersionBinding } from '@/domain/ontology/version-binding';
 import { createPostgresDb, type PostgresDb } from '@/infrastructure/postgres/client';
 import { analysisSessionFollowUps } from '@/infrastructure/postgres/schema/analysis-session-follow-ups';
 
@@ -18,6 +19,11 @@ function rowToAnalysisSessionFollowUp(
     referencedConclusionTitle: row.referencedConclusionTitle,
     referencedConclusionSummary: row.referencedConclusionSummary,
     resultExecutionId: row.resultExecutionId,
+    ontologyVersionId: row.ontologyVersionId,
+    ontologyVersionBinding: createOntologyVersionBinding(
+      row.ontologyVersionId,
+      row.ontologyVersionBindingSource === 'switched' ? 'switched' : 'inherited',
+    ),
     inheritedContext:
       row.inheritedContext as AnalysisSessionFollowUp['inheritedContext'],
     mergedContext: row.mergedContext as AnalysisSessionFollowUp['mergedContext'],
@@ -40,6 +46,9 @@ export function createPostgresAnalysisSessionFollowUpStore(
 
   return {
     async create(followUp) {
+      const ontologyVersionBinding =
+        followUp.ontologyVersionBinding ??
+        createOntologyVersionBinding(followUp.ontologyVersionId, 'inherited');
       await resolvedDb.insert(analysisSessionFollowUps).values({
         id: followUp.id,
         sessionId: followUp.sessionId,
@@ -50,6 +59,8 @@ export function createPostgresAnalysisSessionFollowUpStore(
         referencedConclusionTitle: followUp.referencedConclusionTitle,
         referencedConclusionSummary: followUp.referencedConclusionSummary,
         resultExecutionId: followUp.resultExecutionId,
+        ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+        ontologyVersionBindingSource: ontologyVersionBinding.source,
         inheritedContext: followUp.inheritedContext,
         mergedContext: followUp.mergedContext,
         planVersion: followUp.planVersion,
@@ -60,7 +71,11 @@ export function createPostgresAnalysisSessionFollowUpStore(
         updatedAt: new Date(followUp.updatedAt),
       });
 
-      return followUp;
+      return {
+        ...followUp,
+        ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+        ontologyVersionBinding,
+      };
     },
 
     async getById({ followUpId, ownerUserId }) {
@@ -161,6 +176,8 @@ export function createPostgresAnalysisSessionFollowUpStore(
       currentPlanSnapshot,
       previousPlanSnapshot,
       currentPlanDiff,
+      ontologyVersionId,
+      ontologyVersionBinding,
       updatedAt,
     }) {
       const rows = await resolvedDb
@@ -170,6 +187,8 @@ export function createPostgresAnalysisSessionFollowUpStore(
           currentPlanSnapshot,
           previousPlanSnapshot,
           currentPlanDiff,
+          ontologyVersionId,
+          ontologyVersionBindingSource: ontologyVersionBinding.source,
           updatedAt: new Date(updatedAt),
         })
         .where(

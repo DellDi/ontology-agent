@@ -20,6 +20,7 @@ import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/model
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
+import { createPostgresOntologyVersionStore } from '@/infrastructure/ontology/postgres-ontology-version-store';
 import { createPostgresDb } from '@/infrastructure/postgres/client';
 import { getJobHandler } from './handlers';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
@@ -52,9 +53,11 @@ async function main() {
   const analysisExecutionPersistenceUseCases =
     createAnalysisExecutionPersistenceUseCases({
       snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
+      ontologyVersionStore: createPostgresOntologyVersionStore(),
     });
   const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
     followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+    ontologyVersionStore: createPostgresOntologyVersionStore(),
   });
 
   let running = true;

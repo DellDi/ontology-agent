@@ -11,6 +11,7 @@ import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-se
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
+import { createPostgresOntologyVersionStore } from '@/infrastructure/ontology/postgres-ontology-version-store';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 type RouteContext = {
@@ -22,10 +23,12 @@ const analysisSessionUseCases = createAnalysisSessionUseCases({
 });
 const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
   followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+  ontologyVersionStore: createPostgresOntologyVersionStore(),
 });
 const analysisExecutionPersistenceUseCases =
   createAnalysisExecutionPersistenceUseCases({
     snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
+    ontologyVersionStore: createPostgresOntologyVersionStore(),
   });
 
 function buildSessionUrl(request: Request, sessionId: string) {

@@ -10,6 +10,7 @@ export const analysisExecutionSnapshots = platformSchema.table(
     sessionId: text('session_id').notNull(),
     ownerUserId: text('owner_user_id').notNull(),
     followUpId: text('follow_up_id'),
+    ontologyVersionId: text('ontology_version_id'),
     status: text('status').notNull(),
     planSnapshot: jsonb('plan_snapshot').notNull(),
     stepResults: jsonb('step_results')
@@ -39,5 +40,8 @@ export const analysisExecutionSnapshots = platformSchema.table(
       table.updatedAt,
     ),
     index('analysis_execution_snapshots_follow_up_id_idx').on(table.followUpId),
+    index('analysis_execution_snapshots_ontology_version_idx').on(
+      table.ontologyVersionId,
+    ),
   ],
 );

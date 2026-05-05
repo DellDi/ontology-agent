@@ -25,10 +25,11 @@ type RouteContext = {
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
+const ontologyRuntimeServices = createOntologyRuntimeServices();
 const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
   followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+  ontologyVersionStore: ontologyRuntimeServices.versionStore,
 });
-const ontologyRuntimeServices = createOntologyRuntimeServices();
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);
@@ -203,6 +204,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       const submissionUseCases = createAnalysisExecutionSubmissionUseCases({
         jobUseCases,
         analysisExecutionStreamUseCases,
+        ontologyVersionStore: ontologyRuntimeServices.versionStore,
       });
 
       return await submissionUseCases.submitExecution({
