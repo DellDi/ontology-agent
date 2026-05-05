@@ -184,9 +184,19 @@ export function createDefaultAnalysisRendererRegistry() {
   );
 }
 
+let defaultAnalysisRendererRegistry: AnalysisRendererRegistry | null = null;
+
+export function getDefaultAnalysisRendererRegistry() {
+  if (!defaultAnalysisRendererRegistry) {
+    defaultAnalysisRendererRegistry = createDefaultAnalysisRendererRegistry();
+  }
+
+  return defaultAnalysisRendererRegistry;
+}
+
 export function renderAnalysisInteractionPart(
   part: AnalysisInteractionPart,
   context: AnalysisRendererContext,
 ): AnalysisRenderedBlock {
-  return createDefaultAnalysisRendererRegistry().render(part, context);
+  return getDefaultAnalysisRendererRegistry().render(part, context);
 }

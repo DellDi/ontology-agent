@@ -11,10 +11,12 @@ import {
 } from '@/application/ai-runtime';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
+import type { AnalysisUiMessageProjectionStreamCursor } from '@/domain/analysis-message-projection/models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
 import { AnalysisConclusionPanel } from './analysis-conclusion-panel';
 import { AnalysisExecutionStreamPanel } from './analysis-execution-stream-panel';
+import { buildAnalysisExecutionStreamUrl } from '../analysis-execution-display';
 
 type AnalysisExecutionLiveShellProps = {
   sessionId: string;
@@ -22,6 +24,9 @@ type AnalysisExecutionLiveShellProps = {
   ownerUserId: string;
   initialReadModel: AnalysisExecutionStreamReadModel;
   initialConclusionReadModel: AnalysisConclusionReadModel | null;
+  initialProjection?: AiRuntimeProjection | null;
+  resumeCursor?: AnalysisUiMessageProjectionStreamCursor | null;
+  enableLiveStream?: boolean;
   planAssumptions?: string[];
   ontologyVersionBinding?: OntologyVersionBinding | null;
 };
@@ -64,6 +69,9 @@ export function AnalysisExecutionLiveShell({
   ownerUserId,
   initialReadModel,
   initialConclusionReadModel,
+  initialProjection,
+  resumeCursor,
+  enableLiveStream = true,
   planAssumptions,
   ontologyVersionBinding,
 }: AnalysisExecutionLiveShellProps) {
@@ -72,6 +80,7 @@ export function AnalysisExecutionLiveShell({
   const [events, setEvents] = useState<AnalysisExecutionStreamEvent[]>(
     initialReadModel.events,
   );
+  const [hasReceivedLiveEvents, setHasReceivedLiveEvents] = useState(false);
 
   // Story 10.1 P0 fix：当父层切换 execution（历史查看 / follow-up 切换等场景）时，
   // 组件实例可能被 React 复用，此时 events state 会残留上一条 execution 的 canonical facts，
@@ -92,6 +101,7 @@ export function AnalysisExecutionLiveShell({
   if (canonicalResolution.didReset) {
     setTrackedExecutionKey(canonicalResolution.trackingKey);
     setEvents(canonicalResolution.events as AnalysisExecutionStreamEvent[]);
+    setHasReceivedLiveEvents(false);
   }
 
   // D1 + P1 fix: 默认态为收起，严格对齐 UX addendum "主画布优先展示阶段结果与结论叙事"。
@@ -101,7 +111,7 @@ export function AnalysisExecutionLiveShell({
   const [hasRestoredOpenState, setHasRestoredOpenState] = useState(false);
 
   // Story 10.1: 交互层只消费 AiRuntimeProjection，不再在组件内手写 conclusion/status 派生逻辑。
-  const projection = useMemo(
+  const rebuiltProjection = useMemo(
     () =>
       buildAiRuntimeProjection({
         sessionId,
@@ -111,6 +121,10 @@ export function AnalysisExecutionLiveShell({
       }),
     [sessionId, executionId, events, initialConclusionReadModel],
   );
+  const projection =
+    initialProjection && !hasReceivedLiveEvents
+      ? initialProjection
+      : rebuiltProjection;
 
   useEffect(() => {
     // 读取 localStorage 必须在挂载后进行，否则 SSR/CSR 初值不一致会导致 hydration mismatch。
@@ -153,12 +167,21 @@ export function AnalysisExecutionLiveShell({
   }, [isProcessBoardOpen]);
 
   useEffect(() => {
+    if (!enableLiveStream) {
+      return;
+    }
+
     const eventSource = new EventSource(
-      `/api/analysis/sessions/${sessionId}/stream?executionId=${executionId}`,
+      buildAnalysisExecutionStreamUrl({
+        sessionId,
+        executionId,
+        resumeCursor,
+      }),
     );
 
     eventSource.onmessage = (message) => {
       const nextEvent = JSON.parse(message.data) as AnalysisExecutionStreamEvent;
+      setHasReceivedLiveEvents(true);
 
       // Story 10.1: 合并交由 runtime layer 的纯函数，不再在组件内手工派生 conclusion。
       // projection 通过 useMemo 从 events 重算，组件只维护 canonical events state。
@@ -166,6 +189,7 @@ export function AnalysisExecutionLiveShell({
         mergeAnalysisExecutionStreamEvents(previousEvents, nextEvent, {
           sessionId,
           executionId,
+          deduplicateBySequence: true,
         }),
       );
 
@@ -184,7 +208,7 @@ export function AnalysisExecutionLiveShell({
     return () => {
       eventSource.close();
     };
-  }, [executionId, sessionId]);
+  }, [enableLiveStream, executionId, resumeCursor, sessionId]);
 
   const statusBanner = resolveStatusBanner(projection);
   const executionStatus = {

@@ -37,12 +37,22 @@ const INTERACTION_IMPORT = `
   const {
     ANALYSIS_INTERACTION_PART_SCHEMA_VERSION,
     createDefaultAnalysisRendererRegistry,
+    getDefaultAnalysisRendererRegistry,
     normalizeExecutionRenderBlock,
     normalizeExecutionRenderBlocks,
     projectAnalysisInteractionPart,
     renderAnalysisInteractionPart,
   } = interactionModule;
   const { validateAnalysisExecutionStreamEvent } = streamModule;
+`;
+
+const UI_RENDERER_IMPORT = `
+  import rendererModule from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-rendered-block.tsx';
+  import uiRegistryModule from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-ui-renderer-registry.tsx';
+  const { getToolStatusLabel } = rendererModule;
+  const {
+    getDefaultAnalysisInteractionUiRendererRegistry,
+  } = uiRegistryModule;
 `;
 
 function source(overrides = {}) {
@@ -263,6 +273,27 @@ test('renderer registry 支持 register/resolve/render/project/fallback，未知
   assert.match(result.unsupportedSurface.payload.reason, /surface not supported/);
 });
 
+test('renderAnalysisInteractionPart 复用模块级默认 registry，避免流式块渲染时重复创建 Map', async () => {
+  const result = await runTsSnippet(`
+    ${INTERACTION_IMPORT}
+    const first = getDefaultAnalysisRendererRegistry();
+    const second = getDefaultAnalysisRendererRegistry();
+    const part = normalizeExecutionRenderBlock({
+      type: 'markdown',
+      title: '推理摘要',
+      content: '同一个默认 registry 应复用。',
+    }, ${JSON.stringify(source())});
+    const rendered = renderAnalysisInteractionPart(part, { surface: 'workspace' });
+    console.log(JSON.stringify({
+      sameReference: first === second,
+      canRender: rendered.kind === 'markdown',
+    }));
+  `);
+
+  assert.equal(result.sameReference, true);
+  assert.equal(result.canRender, true);
+});
+
 test('PC 与 mobile 从同一 canonical part 投影，语义来源一致但密度不同', async () => {
   const result = await runTsSnippet(`
     ${INTERACTION_IMPORT}
@@ -311,4 +342,140 @@ test('工作台流式面板与结论面板不得继续复制页面级 block.type
   assert.match(conclusionPanel, /AnalysisInteractionRenderedBlock/);
   assert.match(streamPanel, /normalizeExecutionRenderBlock/);
   assert.match(conclusionPanel, /normalizeExecutionRenderBlock/);
+});
+
+test('AnalysisInteractionRenderedBlock 只委托 app 层 UI renderer registry，不再手写 kind 分支', async () => {
+  const renderedBlockComponent = await readFile(
+    resolve(
+      projectRoot,
+      'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-rendered-block.tsx',
+    ),
+    'utf8',
+  );
+  const uiRegistry = await readFile(
+    resolve(
+      projectRoot,
+      'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-ui-renderer-registry.tsx',
+    ),
+    'utf8',
+  );
+
+  assert.doesNotMatch(renderedBlockComponent, /block\.kind\s*===/);
+  assert.match(
+    renderedBlockComponent,
+    /getDefaultAnalysisInteractionUiRendererRegistry/,
+  );
+  assert.match(uiRegistry, /createDefaultAnalysisInteractionUiRendererRegistry/);
+  assert.match(uiRegistry, /kind: 'chart'/);
+  assert.match(uiRegistry, /kind: 'fallback-block'/);
+});
+
+test('app 层 UI renderer registry 支持 resolve/render/fallback 并复用默认实例', async () => {
+  const result = await runTsSnippet(`
+    ${UI_RENDERER_IMPORT}
+    const first = getDefaultAnalysisInteractionUiRendererRegistry();
+    const second = getDefaultAnalysisInteractionUiRendererRegistry();
+    const known = first.resolve('chart');
+    const fallback = first.resolve('fallback-block');
+    const rendered = first.render({
+      renderedBlock: {
+        kind: 'chart',
+        surface: 'workspace',
+        title: '趋势',
+        variant: 'chart',
+        source: { sourceType: 'execution-render-block' },
+        payload: {
+          series: [{
+            name: '投诉量',
+            points: [{ label: '周一', value: 12 }],
+          }],
+        },
+        diagnostics: { originalType: 'chart' },
+      },
+      className: 'mt-4',
+    });
+    const unknown = first.render({
+      renderedBlock: {
+        kind: 'unknown-rich-block',
+        surface: 'workspace',
+        title: '未知',
+        variant: 'unknown',
+        source: { sourceType: 'execution-render-block' },
+        payload: { reason: 'test' },
+        diagnostics: { originalType: 'unknown-rich-block' },
+      },
+    });
+    console.log(JSON.stringify({
+      sameReference: first === second,
+      knownKind: known?.kind ?? null,
+      fallbackKind: fallback?.kind ?? null,
+      renderedType: typeof rendered,
+      unknownType: typeof unknown,
+    }));
+  `);
+
+  assert.equal(result.sameReference, true);
+  assert.equal(result.knownKind, 'chart');
+  assert.equal(result.fallbackKind, 'fallback-block');
+  assert.equal(result.renderedType, 'object');
+  assert.equal(result.unknownType, 'object');
+});
+
+test('tool-list renderer 必须把工具状态映射为中文产品文案', async () => {
+  const result = await runTsSnippet(`
+    ${UI_RENDERER_IMPORT}
+    const statuses = ['completed', 'failed', 'running', 'selected'];
+    console.log(JSON.stringify({
+      labels: statuses.map((status) => getToolStatusLabel(status)),
+    }));
+  `);
+
+  assert.deepEqual(result.labels, ['已完成', '已失败', '执行中', '已选择']);
+});
+
+test('evidence-card 与 skills-state 空数组必须 fail loud，避免渲染无语义空卡片', async () => {
+  const result = await runTsSnippet(`
+    ${INTERACTION_IMPORT}
+    const baseEvent = {
+      id: 'evt-empty',
+      sessionId: 'session-10-2',
+      executionId: 'exec-10-2',
+      sequence: 2,
+      kind: 'stage-result',
+      timestamp: '2026-05-05T00:00:00.000Z',
+      renderBlocks: [],
+    };
+    const errors = {};
+    try {
+      validateAnalysisExecutionStreamEvent({
+        ...baseEvent,
+        renderBlocks: [{
+          type: 'evidence-card',
+          title: '空证据',
+          summary: '没有证据项。',
+          evidence: [],
+        }],
+      });
+      errors.evidence = 'SILENT-PASS';
+    } catch (error) {
+      errors.evidence = error.message;
+    }
+    try {
+      validateAnalysisExecutionStreamEvent({
+        ...baseEvent,
+        renderBlocks: [{
+          type: 'skills-state',
+          title: '空 Skills',
+          items: [],
+        }],
+      });
+      errors.skills = 'SILENT-PASS';
+    } catch (error) {
+      errors.skills = error.message;
+    }
+    console.log(JSON.stringify(errors));
+  `);
+
+  assert.match(result.evidence, /evidence-card\.evidence 必须至少包含一个证据项/);
+  assert.match(result.skills, /skills-state\.items 必须至少包含一个 skill 状态/);
 });

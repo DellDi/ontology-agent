@@ -311,12 +311,21 @@ function validateGraphBlock(
 function validateEvidenceCardBlock(
   candidate: Record<string, unknown>,
 ): ExecutionEvidenceCardBlock {
+  const evidence = assertObjectArray(
+    candidate.evidence,
+    'evidence-card.evidence',
+  );
+  if (evidence.length === 0) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'evidence-card.evidence 必须至少包含一个证据项。',
+    );
+  }
+
   return {
     type: 'evidence-card',
     title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
     summary: assertNonEmptyString(candidate.summary, 'evidence-card.summary'),
-    evidence: assertObjectArray(candidate.evidence, 'evidence-card.evidence').map(
-      (item, index) => ({
+    evidence: evidence.map((item, index) => ({
         label: assertNonEmptyString(
           item.label,
           `evidence-card.evidence[${index}].label`,
@@ -325,8 +334,7 @@ function validateEvidenceCardBlock(
           item.summary,
           `evidence-card.evidence[${index}].summary`,
         ),
-      }),
-    ),
+      })),
     confidence:
       candidate.confidence === undefined
         ? undefined
@@ -406,6 +414,11 @@ function validateSkillsStateBlock(
   candidate: Record<string, unknown>,
 ): ExecutionSkillsStateBlock {
   const items = assertObjectArray(candidate.items, 'skills-state.items');
+  if (items.length === 0) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'skills-state.items 必须至少包含一个 skill 状态。',
+    );
+  }
 
   return {
     type: 'skills-state',
