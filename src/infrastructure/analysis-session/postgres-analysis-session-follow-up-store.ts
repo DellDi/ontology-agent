@@ -18,6 +18,9 @@ function rowToAnalysisSessionFollowUp(
     referencedConclusionTitle: row.referencedConclusionTitle,
     referencedConclusionSummary: row.referencedConclusionSummary,
     resultExecutionId: row.resultExecutionId,
+    ontologyVersionId: row.ontologyVersionId,
+    ontologyVersionSource:
+      row.ontologyVersionSource as AnalysisSessionFollowUp['ontologyVersionSource'],
     inheritedContext:
       row.inheritedContext as AnalysisSessionFollowUp['inheritedContext'],
     mergedContext: row.mergedContext as AnalysisSessionFollowUp['mergedContext'],
@@ -50,6 +53,8 @@ export function createPostgresAnalysisSessionFollowUpStore(
         referencedConclusionTitle: followUp.referencedConclusionTitle,
         referencedConclusionSummary: followUp.referencedConclusionSummary,
         resultExecutionId: followUp.resultExecutionId,
+        ontologyVersionId: followUp.ontologyVersionId,
+        ontologyVersionSource: followUp.ontologyVersionSource,
         inheritedContext: followUp.inheritedContext,
         mergedContext: followUp.mergedContext,
         planVersion: followUp.planVersion,
@@ -84,14 +89,28 @@ export function createPostgresAnalysisSessionFollowUpStore(
       followUpId,
       ownerUserId,
       resultExecutionId,
+      ontologyVersionId,
+      ontologyVersionSource,
       updatedAt,
     }) {
+      const updateValues: Partial<
+        typeof analysisSessionFollowUps.$inferInsert
+      > = {
+        resultExecutionId,
+        updatedAt: new Date(updatedAt),
+      };
+
+      if (ontologyVersionId !== undefined) {
+        updateValues.ontologyVersionId = ontologyVersionId;
+      }
+
+      if (ontologyVersionSource !== undefined) {
+        updateValues.ontologyVersionSource = ontologyVersionSource;
+      }
+
       const rows = await resolvedDb
         .update(analysisSessionFollowUps)
-        .set({
-          resultExecutionId,
-          updatedAt: new Date(updatedAt),
-        })
+        .set(updateValues)
         .where(
           and(
             eq(analysisSessionFollowUps.id, followUpId),
@@ -161,6 +180,8 @@ export function createPostgresAnalysisSessionFollowUpStore(
       currentPlanSnapshot,
       previousPlanSnapshot,
       currentPlanDiff,
+      ontologyVersionId,
+      ontologyVersionSource,
       updatedAt,
     }) {
       const rows = await resolvedDb
@@ -170,6 +191,8 @@ export function createPostgresAnalysisSessionFollowUpStore(
           currentPlanSnapshot,
           previousPlanSnapshot,
           currentPlanDiff,
+          ontologyVersionId,
+          ontologyVersionSource,
           updatedAt: new Date(updatedAt),
         })
         .where(

@@ -36,6 +36,13 @@
       "when": 1777348000000,
       "tag": "0004_9-4-ontology-change-governance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777424467965,
+      "tag": "0005_aberrant_lord_tyger",
+      "breakpoints": true
     }
   ]
 }

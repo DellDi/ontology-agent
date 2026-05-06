@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import type { AnalysisContextReadModel } from '@/application/analysis-context/use-cases';
 import { validateContextCorrection } from '@/domain/analysis-context/models';
-import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
+import {
+  resolveOntologyVersionBindingSource,
+  type AnalysisExecutionSnapshot,
+  type OntologyVersionBindingSource,
+} from '@/domain/analysis-execution/persistence-models';
 import type { AnalysisPlan, AnalysisPlanDiff } from '@/domain/analysis-plan/models';
 import {
   analyzeFollowUpContextAdjustment,
@@ -60,6 +64,25 @@ export class InvalidAnalysisFollowUpReplanError extends Error {
   }
 }
 
+function readPlanOntologyVersion(plan: AnalysisPlan | null | undefined) {
+  return plan?._groundedSource && plan._groundedSource.trim().length > 0
+    ? plan._groundedSource.trim()
+    : null;
+}
+
+function resolveInheritedOntologyVersion(input: {
+  baseExecutionSnapshot?: AnalysisExecutionSnapshot | null;
+  baseFollowUp?: AnalysisSessionFollowUp | null;
+  latestSnapshot?: AnalysisExecutionSnapshot | null;
+}) {
+  return (
+    input.baseExecutionSnapshot?.ontologyVersionId ??
+    input.baseFollowUp?.ontologyVersionId ??
+    input.latestSnapshot?.ontologyVersionId ??
+    null
+  );
+}
+
 export function createAnalysisFollowUpUseCases({
   followUpStore,
 }: {
@@ -107,6 +130,11 @@ export function createAnalysisFollowUpUseCases({
         baseFollowUp?.referencedConclusionSummary ??
         latestConclusion?.summary ??
         null;
+      const ontologyVersionId = resolveInheritedOntologyVersion({
+        baseExecutionSnapshot,
+        baseFollowUp,
+        latestSnapshot,
+      });
 
       if (
         !referencedExecutionId ||
@@ -129,6 +157,8 @@ export function createAnalysisFollowUpUseCases({
         referencedConclusionTitle,
         referencedConclusionSummary,
         resultExecutionId: null,
+        ontologyVersionId,
+        ontologyVersionSource: ontologyVersionId ? 'inherited' : 'legacy-unknown',
         inheritedContext,
         mergedContext: mergeFollowUpContext({
           inheritedContext,
@@ -282,6 +312,8 @@ export function createAnalysisFollowUpUseCases({
       const updatedAt = new Date().toISOString();
       const planVersion =
         followUp.planVersion === null ? 2 : followUp.planVersion + 1;
+      const ontologyVersionId =
+        readPlanOntologyVersion(nextPlanSnapshot) ?? followUp.ontologyVersionId;
       const updatedFollowUp = await followUpStore.updatePlanState({
         followUpId: followUp.id,
         ownerUserId: followUp.ownerUserId,
@@ -289,6 +321,11 @@ export function createAnalysisFollowUpUseCases({
         currentPlanSnapshot: nextPlanSnapshot,
         previousPlanSnapshot,
         currentPlanDiff: planDiff,
+        ontologyVersionId,
+        ontologyVersionSource: resolveOntologyVersionBindingSource(
+          followUp.ontologyVersionId,
+          ontologyVersionId,
+        ),
         updatedAt,
       });
 
@@ -305,15 +342,21 @@ export function createAnalysisFollowUpUseCases({
       followUpId,
       ownerUserId,
       executionId,
+      ontologyVersionId,
+      ontologyVersionSource,
     }: {
       followUpId: string;
       ownerUserId: string;
       executionId: string;
+      ontologyVersionId?: string | null;
+      ontologyVersionSource?: OntologyVersionBindingSource;
     }) {
       return await followUpStore.attachResultExecution({
         followUpId,
         ownerUserId,
         resultExecutionId: executionId,
+        ontologyVersionId,
+        ontologyVersionSource,
         updatedAt: new Date().toISOString(),
       });
     },

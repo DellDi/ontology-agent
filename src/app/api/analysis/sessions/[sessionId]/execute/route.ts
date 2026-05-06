@@ -6,6 +6,7 @@ import { createAnalysisExecutionSubmissionUseCases } from '@/application/analysi
 import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
 import { buildGroundedPlanningArtifacts } from '@/application/ontology/grounded-planning';
 import { InvalidAnalysisExecutionPlanError } from '@/domain/analysis-execution/models';
+import { resolveOntologyVersionBindingSource } from '@/domain/analysis-execution/persistence-models';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
@@ -224,6 +225,11 @@ export async function POST(request: Request, { params }: RouteContext) {
         followUpId: followUp.id,
         ownerUserId: authSession.userId,
         executionId: execution.executionId,
+        ontologyVersionId: groundedArtifacts.groundedContext.ontologyVersionId,
+        ontologyVersionSource: resolveOntologyVersionBindingSource(
+          followUp.ontologyVersionId,
+          groundedArtifacts.groundedContext.ontologyVersionId,
+        ),
       });
     }
 

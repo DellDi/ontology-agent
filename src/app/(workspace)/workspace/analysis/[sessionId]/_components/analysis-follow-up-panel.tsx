@@ -30,6 +30,25 @@ type AnalysisFollowUpPanelProps = {
   } | null;
 };
 
+const ONTOLOGY_VERSION_SOURCE_LABELS = {
+  'grounded-context': 'grounded',
+  inherited: 'inherited',
+  switched: 'switched',
+  'legacy-unknown': 'legacy/unknown',
+} as const;
+
+function renderOntologyVersionBadge(followUp: AnalysisSessionFollowUp) {
+  return (
+    <span
+      className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
+      data-testid="follow-up-ontology-version-badge"
+    >
+      ontology {ONTOLOGY_VERSION_SOURCE_LABELS[followUp.ontologyVersionSource]} ·{' '}
+      {followUp.ontologyVersionId ?? 'unknown'}
+    </span>
+  );
+}
+
 function renderContextSummary(context: AnalysisContext) {
   return [
     `指标：${context.targetMetric.value}`,
@@ -317,6 +336,7 @@ function FollowUpCard({
       <p className="mt-3 text-sm text-[color:var(--ink-600)]">
         承接结论：{followUp.referencedConclusionTitle ?? '未命名结论'}
       </p>
+      <div className="mt-3">{renderOntologyVersionBadge(followUp)}</div>
       <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
         {renderContextSummary(followUp.mergedContext).map((item) => (
           <li key={`${followUp.id}-${item}`}>{item}</li>
