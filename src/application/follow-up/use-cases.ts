@@ -2,11 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { AnalysisContextReadModel } from '@/application/analysis-context/use-cases';
 import { validateContextCorrection } from '@/domain/analysis-context/models';
-import {
-  resolveOntologyVersionBindingSource,
-  type AnalysisExecutionSnapshot,
-  type OntologyVersionBindingSource,
-} from '@/domain/analysis-execution/persistence-models';
+import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
 import type { AnalysisPlan, AnalysisPlanDiff } from '@/domain/analysis-plan/models';
 import {
   analyzeFollowUpContextAdjustment,
@@ -26,6 +22,7 @@ import {
   createOntologyVersionBinding,
   getPlanOntologyVersionId,
   resolveOntologyVersionBindingSource,
+  type OntologyVersionBindingSource,
 } from '@/domain/ontology/version-binding';
 import type { OntologyVersionStore } from '@/application/ontology/ports';
 
@@ -71,25 +68,6 @@ export class InvalidAnalysisFollowUpReplanError extends Error {
   }
 }
 
-function readPlanOntologyVersion(plan: AnalysisPlan | null | undefined) {
-  return plan?._groundedSource && plan._groundedSource.trim().length > 0
-    ? plan._groundedSource.trim()
-    : null;
-}
-
-function resolveInheritedOntologyVersion(input: {
-  baseExecutionSnapshot?: AnalysisExecutionSnapshot | null;
-  baseFollowUp?: AnalysisSessionFollowUp | null;
-  latestSnapshot?: AnalysisExecutionSnapshot | null;
-}) {
-  return (
-    input.baseExecutionSnapshot?.ontologyVersionId ??
-    input.baseFollowUp?.ontologyVersionId ??
-    input.latestSnapshot?.ontologyVersionId ??
-    null
-  );
-}
-
 export function createAnalysisFollowUpUseCases({
   followUpStore,
   ontologyVersionStore,
@@ -109,6 +87,24 @@ export function createAnalysisFollowUpUseCases({
       ontologyVersionId: binding.ontologyVersionId,
       version,
     });
+  }
+
+  function createFollowUpPlanOntologyVersionBinding(input: {
+    previousOntologyVersionId: string | null;
+    nextOntologyVersionId: string | null;
+  }) {
+    if (!input.previousOntologyVersionId && input.nextOntologyVersionId) {
+      return createOntologyVersionBinding(input.nextOntologyVersionId, 'switched');
+    }
+
+    const source = resolveOntologyVersionBindingSource({
+      previousOntologyVersionId: input.previousOntologyVersionId,
+      nextOntologyVersionId: input.nextOntologyVersionId,
+    });
+
+    return source === 'legacy/unknown'
+      ? createOntologyVersionBinding(null)
+      : createOntologyVersionBinding(input.nextOntologyVersionId, source);
   }
 
   return {
@@ -342,13 +338,10 @@ export function createAnalysisFollowUpUseCases({
         followUp.planVersion === null ? 2 : followUp.planVersion + 1;
       const nextOntologyVersionId =
         getPlanOntologyVersionId(nextPlanSnapshot) ?? followUp.ontologyVersionId;
-      const ontologyVersionBinding = createOntologyVersionBinding(
+      const ontologyVersionBinding = createFollowUpPlanOntologyVersionBinding({
+        previousOntologyVersionId: followUp.ontologyVersionId,
         nextOntologyVersionId,
-        resolveOntologyVersionBindingSource({
-          previousOntologyVersionId: followUp.ontologyVersionId,
-          nextOntologyVersionId,
-        }),
-      );
+      });
       await assertPublishedBinding(ontologyVersionBinding);
       const updatedFollowUp = await followUpStore.updatePlanState({
         followUpId: followUp.id,
@@ -376,20 +369,20 @@ export function createAnalysisFollowUpUseCases({
       ownerUserId,
       executionId,
       ontologyVersionId,
-      ontologyVersionSource,
+      ontologyVersionBindingSource,
     }: {
       followUpId: string;
       ownerUserId: string;
       executionId: string;
       ontologyVersionId?: string | null;
-      ontologyVersionSource?: OntologyVersionBindingSource;
+      ontologyVersionBindingSource?: OntologyVersionBindingSource;
     }) {
       return await followUpStore.attachResultExecution({
         followUpId,
         ownerUserId,
         resultExecutionId: executionId,
         ontologyVersionId,
-        ontologyVersionSource,
+        ontologyVersionBindingSource,
         updatedAt: new Date().toISOString(),
       });
     },

@@ -2,8 +2,6 @@ import type { AnalysisExecutionPlanSnapshot } from '@/domain/analysis-execution/
 import type {
   AnalysisExecutionFailurePoint,
   AnalysisExecutionSnapshot,
-  OntologyVersionBinding,
-  OntologyVersionBindingSource,
 } from '@/domain/analysis-execution/persistence-models';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
@@ -12,7 +10,9 @@ import {
   assertOntologyVersionBindingIsPublished,
   createOntologyVersionBinding,
   getPlanOntologyVersionId,
+  type OntologyVersionBindingSource,
 } from '@/domain/ontology/version-binding';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 import type { OntologyVersionStore } from '@/application/ontology/ports';
 
 import type { AnalysisExecutionSnapshotStore } from './persistence-ports';
@@ -65,39 +65,19 @@ function buildResultBlocks(
   return [...conclusionReadModel.renderBlocks, ...stageBlocks];
 }
 
-function readGroundedSource(planSnapshot: AnalysisExecutionPlanSnapshot) {
-  const candidate = planSnapshot as AnalysisExecutionPlanSnapshot & {
-    _groundedSource?: unknown;
-  };
-
-  return typeof candidate._groundedSource === 'string' &&
-    candidate._groundedSource.trim().length > 0
-    ? candidate._groundedSource.trim()
-    : null;
-}
-
-function resolveOntologyVersionBinding(input: {
+function resolveExecutionOntologyVersionBinding(input: {
   ontologyVersionId?: string | null;
-  ontologyVersionSource?: OntologyVersionBindingSource;
   groundedContext?: OntologyGroundedContext | null;
   planSnapshot: AnalysisExecutionPlanSnapshot;
-}): OntologyVersionBinding {
+}) {
   const ontologyVersionId =
-    input.ontologyVersionId?.trim() ||
-    input.groundedContext?.ontologyVersionId?.trim() ||
-    readGroundedSource(input.planSnapshot);
+    input.ontologyVersionId ??
+    input.groundedContext?.ontologyVersionId ??
+    getPlanOntologyVersionId(input.planSnapshot);
+  const source: Exclude<OntologyVersionBindingSource, 'legacy/unknown'> =
+    ontologyVersionId ? 'grounded-context' : 'inherited';
 
-  if (!ontologyVersionId) {
-    return {
-      ontologyVersionId: null,
-      source: 'legacy-unknown',
-    };
-  }
-
-  return {
-    ontologyVersionId,
-    source: input.ontologyVersionSource ?? 'grounded-context',
-  };
+  return createOntologyVersionBinding(ontologyVersionId, source);
 }
 
 export function createAnalysisExecutionPersistenceUseCases({
@@ -130,20 +110,12 @@ export function createAnalysisExecutionPersistenceUseCases({
       ontologyVersionId?: string | null;
       status: JobStatus;
       planSnapshot: AnalysisExecutionPlanSnapshot;
-      ontologyVersionId?: string | null;
-      ontologyVersionSource?: OntologyVersionBindingSource;
       groundedContext?: OntologyGroundedContext | null;
       events: AnalysisExecutionStreamEvent[];
       conclusionReadModel: AnalysisConclusionReadModel;
     }) {
       const timestamp = new Date().toISOString();
-      const ontologyVersionId =
-        input.ontologyVersionId ??
-        getPlanOntologyVersionId(input.planSnapshot);
-      const ontologyVersionBinding = createOntologyVersionBinding(
-        ontologyVersionId,
-        'inherited',
-      );
+      const ontologyVersionBinding = resolveExecutionOntologyVersionBinding(input);
       await assertPublishedBinding(ontologyVersionBinding);
       const snapshot: AnalysisExecutionSnapshot = {
         executionId: input.executionId,

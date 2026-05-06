@@ -16,32 +16,6 @@ export type AnalysisExecutionMobileProjection = {
   updatedAt: string;
 };
 
-export type OntologyVersionBindingSource =
-  | 'grounded-context'
-  | 'inherited'
-  | 'switched'
-  | 'legacy-unknown';
-
-export type OntologyVersionBinding = {
-  ontologyVersionId: string | null;
-  source: OntologyVersionBindingSource;
-};
-
-export function resolveOntologyVersionBindingSource(
-  previousVersionId: string | null,
-  nextVersionId: string | null,
-): OntologyVersionBindingSource {
-  if (!nextVersionId) {
-    return 'legacy-unknown';
-  }
-
-  if (!previousVersionId) {
-    return 'grounded-context';
-  }
-
-  return previousVersionId !== nextVersionId ? 'switched' : 'inherited';
-}
-
 export type AnalysisExecutionSnapshot = {
   executionId: string;
   sessionId: string;

@@ -50,6 +50,13 @@
       "when": 1777959642658,
       "tag": "0006_flawless_natasha_romanoff",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778033184391,
+      "tag": "0007_clumsy_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

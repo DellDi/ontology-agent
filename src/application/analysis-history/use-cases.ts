@@ -1,12 +1,9 @@
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
-import type {
-  OntologyVersionBinding,
-  OntologyVersionBindingSource,
-} from '@/domain/analysis-execution/persistence-models';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
 import type { AnalysisSession } from '@/domain/analysis-session/models';
 import {
   createOntologyVersionBinding,
+  resolveOntologyVersionBindingForDisplay,
   type OntologyVersionBinding,
 } from '@/domain/ontology/version-binding';
 
@@ -67,18 +64,12 @@ function buildRound(input: {
   inputSummary: string[];
 }): AnalysisHistoryRoundReadModel {
   const cause = input.snapshot?.conclusionState.causes?.[0] ?? null;
-  const snapshotOntologyVersionId = input.snapshot?.ontologyVersionId ?? null;
-  const followUpBinding = input.followUp?.ontologyVersionBinding ?? null;
   const ontologyVersionBinding =
-    followUpBinding?.source === 'switched'
-      ? createOntologyVersionBinding(
-          snapshotOntologyVersionId ?? followUpBinding.ontologyVersionId,
-          'switched',
-        )
-      : createOntologyVersionBinding(
-          snapshotOntologyVersionId ?? followUpBinding?.ontologyVersionId,
-          'inherited',
-        );
+    resolveOntologyVersionBindingForDisplay({
+      snapshotBinding:
+        input.snapshot?.ontologyVersionBinding ?? createOntologyVersionBinding(null),
+      followUpBinding: input.followUp?.ontologyVersionBinding ?? null,
+    }) ?? createOntologyVersionBinding(null);
 
   return {
     id: input.id,
@@ -101,39 +92,6 @@ function buildRound(input: {
     conclusionSummary: cause?.summary ?? null,
     evidence: cause?.evidence ?? [],
     isLatest: false,
-  };
-}
-
-function normalizeOntologyVersionSource(
-  source: string | null | undefined,
-  hasVersion: boolean,
-): OntologyVersionBindingSource {
-  if (!hasVersion) {
-    return 'legacy-unknown';
-  }
-
-  if (
-    source === 'grounded-context' ||
-    source === 'inherited' ||
-    source === 'switched'
-  ) {
-    return source;
-  }
-
-  return 'grounded-context';
-}
-
-function resolveRoundOntologyVersion(input: {
-  snapshot: AnalysisExecutionSnapshot | null;
-}): OntologyVersionBinding {
-  const ontologyVersionId = input.snapshot?.ontologyVersionId ?? null;
-
-  return {
-    ontologyVersionId,
-    source: normalizeOntologyVersionSource(
-      input.snapshot?.ontologyVersionSource,
-      Boolean(ontologyVersionId),
-    ),
   };
 }
 

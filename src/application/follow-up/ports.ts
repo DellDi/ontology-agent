@@ -34,7 +34,7 @@ export interface AnalysisSessionFollowUpStore {
     ownerUserId: string;
     resultExecutionId: string;
     ontologyVersionId?: AnalysisSessionFollowUp['ontologyVersionId'];
-    ontologyVersionSource?: AnalysisSessionFollowUp['ontologyVersionSource'];
+    ontologyVersionBindingSource?: AnalysisSessionFollowUp['ontologyVersionBinding']['source'];
     updatedAt: string;
   }): Promise<AnalysisSessionFollowUp | null>;
   listBySessionId(input: {

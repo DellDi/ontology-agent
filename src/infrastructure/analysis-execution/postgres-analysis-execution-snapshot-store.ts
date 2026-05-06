@@ -2,9 +2,22 @@ import { desc, eq } from 'drizzle-orm';
 
 import type { AnalysisExecutionSnapshotStore } from '@/application/analysis-execution/persistence-ports';
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
-import { createOntologyVersionBinding } from '@/domain/ontology/version-binding';
+import {
+  createOntologyVersionBinding,
+  normalizeOntologyVersionBindingSource,
+  type OntologyVersionBindingSource,
+} from '@/domain/ontology/version-binding';
 import { createPostgresDb, type PostgresDb } from '@/infrastructure/postgres/client';
 import { analysisExecutionSnapshots } from '@/infrastructure/postgres/schema/analysis-execution-snapshots';
+
+function normalizePersistedBindingSource(
+  source: string | null | undefined,
+  hasVersion: boolean,
+): Exclude<OntologyVersionBindingSource, 'legacy/unknown'> | undefined {
+  const normalized = normalizeOntologyVersionBindingSource(source, hasVersion);
+
+  return normalized === 'legacy/unknown' ? undefined : normalized;
+}
 
 function rowToSnapshot(
   row: typeof analysisExecutionSnapshots.$inferSelect,
@@ -17,7 +30,10 @@ function rowToSnapshot(
     ontologyVersionId: row.ontologyVersionId,
     ontologyVersionBinding: createOntologyVersionBinding(
       row.ontologyVersionId,
-      'inherited',
+      normalizePersistedBindingSource(
+        row.ontologyVersionBindingSource,
+        Boolean(row.ontologyVersionId),
+      ),
     ),
     status: row.status as AnalysisExecutionSnapshot['status'],
     planSnapshot: row.planSnapshot as AnalysisExecutionSnapshot['planSnapshot'],
@@ -51,6 +67,7 @@ export function createPostgresAnalysisExecutionSnapshotStore(
           ownerUserId: snapshot.ownerUserId,
           followUpId: snapshot.followUpId,
           ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+          ontologyVersionBindingSource: ontologyVersionBinding.source,
           status: snapshot.status,
           planSnapshot: snapshot.planSnapshot,
           stepResults: snapshot.stepResults,
@@ -68,6 +85,7 @@ export function createPostgresAnalysisExecutionSnapshotStore(
             planSnapshot: snapshot.planSnapshot,
             followUpId: snapshot.followUpId,
             ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+            ontologyVersionBindingSource: ontologyVersionBinding.source,
             stepResults: snapshot.stepResults,
             conclusionState: snapshot.conclusionState,
             resultBlocks: snapshot.resultBlocks,

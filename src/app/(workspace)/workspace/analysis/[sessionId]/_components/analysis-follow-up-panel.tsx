@@ -4,6 +4,7 @@ import {
   type AnalysisSessionFollowUp,
   type FollowUpContextChangeItem,
 } from '@/domain/analysis-session/follow-up-models';
+import { formatOntologyVersionBindingBadge } from '@/shared/ontology/version-binding-display';
 
 type AnalysisFollowUpPanelProps = {
   sessionId: string;
@@ -30,21 +31,13 @@ type AnalysisFollowUpPanelProps = {
   } | null;
 };
 
-const ONTOLOGY_VERSION_SOURCE_LABELS = {
-  'grounded-context': 'grounded',
-  inherited: 'inherited',
-  switched: 'switched',
-  'legacy-unknown': 'legacy/unknown',
-} as const;
-
 function renderOntologyVersionBadge(followUp: AnalysisSessionFollowUp) {
   return (
     <span
       className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
       data-testid="follow-up-ontology-version-badge"
     >
-      ontology {ONTOLOGY_VERSION_SOURCE_LABELS[followUp.ontologyVersionSource]} ·{' '}
-      {followUp.ontologyVersionId ?? 'unknown'}
+      {formatOntologyVersionBindingBadge(followUp.ontologyVersionBinding)}
     </span>
   );
 }

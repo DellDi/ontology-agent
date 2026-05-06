@@ -11,6 +11,9 @@ export const analysisExecutionSnapshots = platformSchema.table(
     ownerUserId: text('owner_user_id').notNull(),
     followUpId: text('follow_up_id'),
     ontologyVersionId: text('ontology_version_id'),
+    ontologyVersionBindingSource: text('ontology_version_binding_source')
+      .notNull()
+      .default('legacy/unknown'),
     status: text('status').notNull(),
     planSnapshot: jsonb('plan_snapshot').notNull(),
     stepResults: jsonb('step_results')

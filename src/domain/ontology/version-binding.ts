@@ -1,6 +1,7 @@
 import type { OntologyVersion } from './models';
 
 export type OntologyVersionBindingSource =
+  | 'grounded-context'
   | 'inherited'
   | 'switched'
   | 'legacy/unknown';
@@ -21,7 +22,7 @@ export class InvalidOntologyVersionBindingError extends Error {
 
 export function createOntologyVersionBinding(
   ontologyVersionId: string | null | undefined,
-  source?: Extract<OntologyVersionBindingSource, 'inherited' | 'switched'>,
+  source?: Exclude<OntologyVersionBindingSource, 'legacy/unknown'>,
 ): OntologyVersionBinding {
   const normalizedVersionId =
     typeof ontologyVersionId === 'string' && ontologyVersionId.trim().length > 0
@@ -34,10 +35,29 @@ export function createOntologyVersionBinding(
   };
 }
 
+export function normalizeOntologyVersionBindingSource(
+  source: string | null | undefined,
+  hasVersion: boolean,
+): OntologyVersionBindingSource {
+  if (!hasVersion) {
+    return 'legacy/unknown';
+  }
+
+  if (
+    source === 'grounded-context' ||
+    source === 'inherited' ||
+    source === 'switched'
+  ) {
+    return source;
+  }
+
+  return 'grounded-context';
+}
+
 export function resolveOntologyVersionBindingSource(input: {
   previousOntologyVersionId: string | null | undefined;
   nextOntologyVersionId: string | null | undefined;
-}): Extract<OntologyVersionBindingSource, 'inherited' | 'switched'> {
+}): OntologyVersionBindingSource {
   const previous = createOntologyVersionBinding(
     input.previousOntologyVersionId,
   ).ontologyVersionId;
@@ -45,7 +65,15 @@ export function resolveOntologyVersionBindingSource(input: {
     input.nextOntologyVersionId,
   ).ontologyVersionId;
 
-  return next && previous !== next ? 'switched' : 'inherited';
+  if (!next) {
+    return 'legacy/unknown';
+  }
+
+  if (!previous) {
+    return 'grounded-context';
+  }
+
+  return previous !== next ? 'switched' : 'inherited';
 }
 
 export function resolveOntologyVersionBindingForDisplay(input: {
