@@ -14,6 +14,10 @@ export const analysisSessionFollowUps = platformSchema.table(
     referencedConclusionTitle: text('referenced_conclusion_title'),
     referencedConclusionSummary: text('referenced_conclusion_summary'),
     resultExecutionId: text('result_execution_id'),
+    ontologyVersionId: text('ontology_version_id'),
+    ontologyVersionSource: text('ontology_version_source')
+      .notNull()
+      .default('legacy-unknown'),
     inheritedContext: jsonb('inherited_context').notNull(),
     mergedContext: jsonb('merged_context').notNull(),
     createdOrder: bigint('created_order', { mode: 'number' })
@@ -45,6 +49,9 @@ export const analysisSessionFollowUps = platformSchema.table(
     ),
     index('analysis_session_follow_ups_result_execution_idx').on(
       table.resultExecutionId,
+    ),
+    index('analysis_session_follow_ups_ontology_version_idx').on(
+      table.ontologyVersionId,
     ),
     index('analysis_session_follow_ups_created_at_idx').on(table.createdAt),
   ],

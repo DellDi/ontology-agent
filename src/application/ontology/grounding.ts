@@ -327,11 +327,16 @@ export function createOntologyGroundingUseCases(
         if (preferredVersion) {
           candidateVersions.push(preferredVersion);
         }
-      } else if (typeof deps.versionStore.listApprovedCandidates === 'function') {
+      } else if (typeof deps.versionStore.listPublishedCandidates === 'function') {
         // D3: 默认运行时候选只允许来自正式 published 集合；approved 但未 publish
         // 的候选只能留在治理面，不得进入 grounding 默认路径。
         candidateVersions.push(
-          ...(await deps.versionStore.listApprovedCandidates(3)).filter((version) =>
+          ...(await deps.versionStore.listPublishedCandidates(20)),
+        );
+      } else if (typeof deps.versionStore.listApprovedCandidates === 'function') {
+        // Compatibility for in-memory test stores that predate listPublishedCandidates.
+        candidateVersions.push(
+          ...(await deps.versionStore.listApprovedCandidates(20)).filter((version) =>
             Boolean(version.publishedAt),
           ),
         );

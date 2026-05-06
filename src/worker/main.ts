@@ -190,6 +190,7 @@ async function main() {
             followUpId: jobData.followUpId,
             status: 'failed',
             planSnapshot: jobData.plan,
+            groundedContext: jobData.groundedContext,
             events,
             conclusionReadModel,
           });

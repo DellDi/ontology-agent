@@ -25,12 +25,16 @@ export interface AnalysisSessionFollowUpStore {
     currentPlanSnapshot: NonNullable<AnalysisSessionFollowUp['currentPlanSnapshot']>;
     previousPlanSnapshot: NonNullable<AnalysisSessionFollowUp['previousPlanSnapshot']>;
     currentPlanDiff: NonNullable<AnalysisSessionFollowUp['currentPlanDiff']>;
+    ontologyVersionId: AnalysisSessionFollowUp['ontologyVersionId'];
+    ontologyVersionSource: AnalysisSessionFollowUp['ontologyVersionSource'];
     updatedAt: string;
   }): Promise<AnalysisSessionFollowUp | null>;
   attachResultExecution(input: {
     followUpId: string;
     ownerUserId: string;
     resultExecutionId: string;
+    ontologyVersionId?: AnalysisSessionFollowUp['ontologyVersionId'];
+    ontologyVersionSource?: AnalysisSessionFollowUp['ontologyVersionSource'];
     updatedAt: string;
   }): Promise<AnalysisSessionFollowUp | null>;
   listBySessionId(input: {

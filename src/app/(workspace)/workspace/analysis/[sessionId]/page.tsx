@@ -86,6 +86,22 @@ function resolveActiveFollowUpId(
   );
 }
 
+const ONTOLOGY_VERSION_SOURCE_LABELS = {
+  'grounded-context': 'grounded',
+  inherited: 'inherited',
+  switched: 'switched',
+  'legacy-unknown': 'legacy/unknown',
+} as const;
+
+function buildOntologyVersionBadge(input: {
+  ontologyVersionId: string | null;
+  ontologyVersionSource: keyof typeof ONTOLOGY_VERSION_SOURCE_LABELS;
+}) {
+  return `ontology ${
+    ONTOLOGY_VERSION_SOURCE_LABELS[input.ontologyVersionSource]
+  } · ${input.ontologyVersionId ?? 'unknown'}`;
+}
+
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
@@ -322,6 +338,12 @@ export default async function AnalysisSessionPage({
     : executionStreamReadModel
       ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
       : null;
+  const ontologyVersionBadgeText = snapshotForDisplay
+    ? buildOntologyVersionBadge({
+        ontologyVersionId: snapshotForDisplay.ontologyVersionId,
+        ontologyVersionSource: snapshotForDisplay.ontologyVersionSource,
+      })
+    : null;
   const latestFollowUpConclusion = activeFollowUp
     ? {
         title: activeFollowUp.referencedConclusionTitle,
@@ -415,6 +437,14 @@ export default async function AnalysisSessionPage({
             {activeFollowUp ? (
               <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-[color:var(--ink-600)]">
                 当前轮次：追问模式
+              </span>
+            ) : null}
+            {ontologyVersionBadgeText ? (
+              <span
+                className="rounded-full bg-white px-3 py-1 text-sm font-medium text-[color:var(--ink-600)]"
+                data-testid="analysis-ontology-version-badge"
+              >
+                {ontologyVersionBadgeText}
               </span>
             ) : null}
           </div>

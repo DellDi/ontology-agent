@@ -1,6 +1,6 @@
 # Story 9.6: 执行结果、追问与历史绑定本体版本
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -19,33 +19,37 @@ so that 结论来源、历史回放和问题诊断可以追溯到明确的知识
 
 ## Tasks / Subtasks
 
-- [ ] 为 execution snapshot 增加 ontology version 绑定（AC: 1, 4）
-  - [ ] 扩展 `AnalysisExecutionSnapshot` 与对应 Postgres schema，增加 `ontologyVersionId` 或等价稳定引用。
-  - [ ] 在 execution 提交/保存链路中，明确该次执行读取的是哪个当前生效 ontology version。
-  - [ ] 不允许采用“回放时再猜当前版本”的方式补 version；执行时必须显式落库。
+- [x] 为 execution snapshot 增加 ontology version 绑定（AC: 1, 4）
+  - [x] 扩展 `AnalysisExecutionSnapshot` 与对应 Postgres schema，增加 `ontologyVersionId` 或等价稳定引用。
+  - [x] 在 execution 提交/保存链路中，明确该次执行读取的是哪个当前生效 ontology version。
+  - [x] 不允许采用“回放时再猜当前版本”的方式补 version；执行时必须显式落库。
 
-- [ ] 为 follow-up / replan 增加 ontology version 继承语义（AC: 2, 4）
-  - [ ] 扩展 `AnalysisSessionFollowUp` 与对应持久化表，记录该 follow-up 的 ontology version 基线或结果引用。
-  - [ ] 明确 follow-up 创建、context 调整、replan、execute 时的版本规则：
-    - [ ] 继承当前 active grounding / execution 的版本
-    - [ ] 或在明确切换时写出新版本引用
-  - [ ] 不允许 follow-up 在没有版本语义的情况下继续只靠自由文本上下文演进。
+- [x] 为 follow-up / replan 增加 ontology version 继承语义（AC: 2, 4）
+  - [x] 扩展 `AnalysisSessionFollowUp` 与对应持久化表，记录该 follow-up 的 ontology version 基线或结果引用。
+  - [x] 明确 follow-up 创建、context 调整、replan、execute 时的版本规则：
+    - [x] 继承当前 active grounding / execution 的版本
+    - [x] 或在明确切换时写出新版本引用
+  - [x] 不允许 follow-up 在没有版本语义的情况下继续只靠自由文本上下文演进。
 
-- [ ] 在 history / replay / result display 中暴露 ontology version（AC: 3, 4）
-  - [ ] 扩展 history read model 或等价投影，使每一轮分析可识别对应 ontology version。
-  - [ ] 在结果/历史展示中至少提供最小可见版本信息或诊断信息入口，不要求首期做复杂版本 diff UI。
-  - [ ] 对旧历史数据或迁移前记录，需要定义保守兼容策略，而不是静默显示错误版本。
+- [x] 在 history / replay / result display 中暴露 ontology version（AC: 3, 4）
+  - [x] 扩展 history read model 或等价投影，使每一轮分析可识别对应 ontology version。
+  - [x] 在结果/历史展示中至少提供最小可见版本信息或诊断信息入口，不要求首期做复杂版本 diff UI。
+  - [x] 对旧历史数据或迁移前记录，需要定义保守兼容策略，而不是静默显示错误版本。
 
-- [ ] 与 grounding 和治理流转对齐（AC: 1, 2, 3）
-  - [ ] 执行绑定的版本必须来自 `9.4` 发布后的正式生效版本，而不是未发布草稿。
-  - [ ] grounding 结果若已带版本信息，应在 execution / follow-up 中沿用，不重复推断。
-  - [ ] 为后续异常诊断留出版本溯源字段，确保能够回答“这条结论为什么和现在不同”。
+- [x] 与 grounding 和治理流转对齐（AC: 1, 2, 3）
+  - [x] 执行绑定的版本必须来自 `9.4` 发布后的正式生效版本，而不是未发布草稿。
+  - [x] grounding 结果若已带版本信息，应在 execution / follow-up 中沿用，不重复推断。
+  - [x] 为后续异常诊断留出版本溯源字段，确保能够回答“这条结论为什么和现在不同”。
 
-- [ ] 补齐 story 级验证（AC: 1, 2, 3, 4）
-  - [ ] 验证 execution snapshot 正确保存 ontology version。
-  - [ ] 验证 follow-up / replan / history 正确继承或切换版本。
-  - [ ] 验证回放和展示链路可识别版本信息。
-  - [ ] 验证旧数据兼容路径不会伪造错误版本。
+- [x] 补齐 story 级验证（AC: 1, 2, 3, 4）
+  - [x] 验证 execution snapshot 正确保存 ontology version。
+  - [x] 验证 follow-up / replan / history 正确继承或切换版本。
+  - [x] 验证回放和展示链路可识别版本信息。
+  - [x] 验证旧数据兼容路径不会伪造错误版本。
+
+### Review Findings
+
+- [x] [Review][Patch] Grounding published candidates are still selected with a post-limit filter, so more than 100 newer approved-unpublished versions can hide the real published runtime package [src/application/ontology/grounding.ts:335]
 
 ## Dev Notes
 
@@ -141,10 +145,54 @@ GPT-5 Codex
 
 ### Debug Log References
 
+- `node --test --test-concurrency=1 tests/story-9-6-ontology-version-binding.test.mjs`：通过，覆盖 execution snapshot、follow-up/replan、history/UI badge 和 legacy/unknown。
+- `node --test --test-concurrency=1 tests/story-9-6-ontology-version-binding.test.mjs`：review 修正后再次通过，新增覆盖 `null -> real version` 标记为 `grounded-context`。
+- `node --test --test-concurrency=1 tests/story-9-6-ontology-version-binding.test.mjs`：review P2 修正后再次通过，新增覆盖 grounding 使用 store 层 published candidates 查询，不依赖 approved 后过滤窗口。
+- `pnpm lint`：通过。
+- `pnpm exec tsc --noEmit`：通过。
+- `pnpm build`：通过。
+- `pnpm db:migrate`：本地迁移执行成功，验证新列可应用。
+- `node --test --test-concurrency=1 tests/story-5-1-analysis-execution.test.mjs`：未作为 9.6 完成门通过；旧测试当前仍断言已被 Epic 10 自动执行改写的文案/Redis queue 行为。运行中确认 ontology version 阻断已解除，剩余失败与 9.6 版本绑定字段无关。
+
 ### Completion Notes List
 
 - Story created as the runtime fact binding phase for Epic 9, focused on attaching ontology version semantics to existing execution, follow-up, and history facts.
+- execution snapshot 现在持久化 `ontologyVersionId` 与 `ontologyVersionSource`，worker 成功/失败收尾都会从 job 的 grounded context 写入版本事实；旧记录保守标记为 `legacy-unknown`，不会回放时伪造成当前版本。
+- follow-up 创建会继承基准 execution/follow-up 的版本；replan 和 execute 会在版本变化时写出 `switched`，未绑定旧数据维持 `legacy-unknown`。
+- history read model、历史面板、追问面板和结果页最小展示 ontology version badge，按轮次区分 `grounded`、`inherited`、`switched`、`legacy/unknown`，避免整条 follow-up 链被压成单一版本。
+- Review 修正：`null -> real ontology version` 统一标记为 `grounded-context`，并抽到 domain helper 供 follow-up use case 与 execute route 复用；同时修正 history use case 缩进与 follow-up import 噪音。
+- Review P2 修正：grounding 现在优先通过 `listPublishedCandidates` 在 store 层查询 published runtime candidates，Postgres adapter 不再依赖 approved 后过滤窗口。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/9-6-bind-execution-follow-up-and-history-to-ontology-version.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- drizzle/0005_aberrant_lord_tyger.sql
+- drizzle/meta/0005_snapshot.json
+- drizzle/meta/_journal.json
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-follow-up-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-history-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- src/app/api/analysis/sessions/[sessionId]/execute/route.ts
+- src/application/analysis-execution/persistence-use-cases.ts
+- src/application/analysis-history/use-cases.ts
+- src/application/follow-up/ports.ts
+- src/application/follow-up/use-cases.ts
+- src/application/ontology/grounding.ts
+- src/application/ontology/ports.ts
+- src/domain/analysis-execution/persistence-models.ts
+- src/domain/analysis-session/follow-up-models.ts
+- src/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store.ts
+- src/infrastructure/analysis-session/postgres-analysis-session-follow-up-store.ts
+- src/infrastructure/ontology/postgres-ontology-version-store.ts
+- src/infrastructure/postgres/schema/analysis-execution-snapshots.ts
+- src/infrastructure/postgres/schema/analysis-session-follow-ups.ts
+- src/worker/finalize-analysis-execution.ts
+- src/worker/main.ts
+- tests/story-9-6-ontology-version-binding.test.mjs
+
+### Change Log
+
+- 2026-04-29: Implemented ontology version binding for execution snapshots, follow-ups, replan/execute semantics, history/result display badges, Drizzle migration, and story-level guardrail tests.
+- 2026-04-29: Addressed review findings for first-version source semantics, history read-model indentation, and duplicate follow-up imports.
+- 2026-04-29: Addressed review P2 by moving published ontology candidate selection into the store query path and marking Story 9.6 done.

@@ -43,6 +43,7 @@ type CompletionPersistenceUseCases = {
         dependencyIds: string[];
       }[];
     };
+    groundedContext?: import('@/domain/ontology/grounding').OntologyGroundedContext;
     events: import('@/domain/analysis-execution/stream-models').AnalysisExecutionStreamEvent[];
     conclusionReadModel: import('@/domain/analysis-result/models').AnalysisConclusionReadModel;
   }) => Promise<unknown>;
@@ -97,6 +98,7 @@ export async function finalizeSuccessfulAnalysisExecution({
       followUpId: jobData.followUpId,
       status: 'completed',
       planSnapshot: jobData.plan,
+      groundedContext: jobData.groundedContext,
       events,
       conclusionReadModel,
     });

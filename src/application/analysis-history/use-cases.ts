@@ -1,4 +1,8 @@
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
+import type {
+  OntologyVersionBinding,
+  OntologyVersionBindingSource,
+} from '@/domain/analysis-execution/persistence-models';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
 import type { AnalysisSession } from '@/domain/analysis-session/models';
 
@@ -16,6 +20,7 @@ export type AnalysisHistoryRoundReadModel = {
   createdAt: string;
   followUpId: string | null;
   executionId: string | null;
+  ontologyVersion: OntologyVersionBinding;
   status: string;
   inputSummary: string[];
   planSummary: string | null;
@@ -54,9 +59,15 @@ function buildRound(input: {
   createdAt: string;
   followUpId: string | null;
   snapshot: AnalysisExecutionSnapshot | null;
+  ontologyVersion?: OntologyVersionBinding;
   inputSummary: string[];
 }): AnalysisHistoryRoundReadModel {
   const cause = input.snapshot?.conclusionState.causes?.[0] ?? null;
+  const ontologyVersion =
+    input.ontologyVersion ??
+    resolveRoundOntologyVersion({
+      snapshot: input.snapshot,
+    });
 
   return {
     id: input.id,
@@ -66,6 +77,7 @@ function buildRound(input: {
     createdAt: input.createdAt,
     followUpId: input.followUpId,
     executionId: input.snapshot?.executionId ?? null,
+    ontologyVersion,
     status: input.snapshot?.status ?? 'pending',
     inputSummary: input.inputSummary,
     planSummary: input.snapshot?.planSnapshot.summary ?? null,
@@ -78,6 +90,39 @@ function buildRound(input: {
     conclusionSummary: cause?.summary ?? null,
     evidence: cause?.evidence ?? [],
     isLatest: false,
+  };
+}
+
+function normalizeOntologyVersionSource(
+  source: string | null | undefined,
+  hasVersion: boolean,
+): OntologyVersionBindingSource {
+  if (!hasVersion) {
+    return 'legacy-unknown';
+  }
+
+  if (
+    source === 'grounded-context' ||
+    source === 'inherited' ||
+    source === 'switched'
+  ) {
+    return source;
+  }
+
+  return 'grounded-context';
+}
+
+function resolveRoundOntologyVersion(input: {
+  snapshot: AnalysisExecutionSnapshot | null;
+}): OntologyVersionBinding {
+  const ontologyVersionId = input.snapshot?.ontologyVersionId ?? null;
+
+  return {
+    ontologyVersionId,
+    source: normalizeOntologyVersionSource(
+      input.snapshot?.ontologyVersionSource,
+      Boolean(ontologyVersionId),
+    ),
   };
 }
 
@@ -133,6 +178,13 @@ export function createAnalysisHistoryUseCases() {
                 : null) ??
               snapshotByFollowUpId.get(followUp.id) ??
               null,
+            ontologyVersion: {
+              ontologyVersionId: followUp.ontologyVersionId,
+              source: normalizeOntologyVersionSource(
+                followUp.ontologyVersionSource,
+                Boolean(followUp.ontologyVersionId),
+              ),
+            },
             inputSummary: buildContextSummary(followUp.mergedContext),
           }),
         );

@@ -2,10 +2,13 @@ import type { AnalysisExecutionPlanSnapshot } from '@/domain/analysis-execution/
 import type {
   AnalysisExecutionFailurePoint,
   AnalysisExecutionSnapshot,
+  OntologyVersionBinding,
+  OntologyVersionBindingSource,
 } from '@/domain/analysis-execution/persistence-models';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { JobStatus } from '@/domain/job-contract/models';
+import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
 
 import type { AnalysisExecutionSnapshotStore } from './persistence-ports';
 
@@ -57,6 +60,41 @@ function buildResultBlocks(
   return [...conclusionReadModel.renderBlocks, ...stageBlocks];
 }
 
+function readGroundedSource(planSnapshot: AnalysisExecutionPlanSnapshot) {
+  const candidate = planSnapshot as AnalysisExecutionPlanSnapshot & {
+    _groundedSource?: unknown;
+  };
+
+  return typeof candidate._groundedSource === 'string' &&
+    candidate._groundedSource.trim().length > 0
+    ? candidate._groundedSource.trim()
+    : null;
+}
+
+function resolveOntologyVersionBinding(input: {
+  ontologyVersionId?: string | null;
+  ontologyVersionSource?: OntologyVersionBindingSource;
+  groundedContext?: OntologyGroundedContext | null;
+  planSnapshot: AnalysisExecutionPlanSnapshot;
+}): OntologyVersionBinding {
+  const ontologyVersionId =
+    input.ontologyVersionId?.trim() ||
+    input.groundedContext?.ontologyVersionId?.trim() ||
+    readGroundedSource(input.planSnapshot);
+
+  if (!ontologyVersionId) {
+    return {
+      ontologyVersionId: null,
+      source: 'legacy-unknown',
+    };
+  }
+
+  return {
+    ontologyVersionId,
+    source: input.ontologyVersionSource ?? 'grounded-context',
+  };
+}
+
 export function createAnalysisExecutionPersistenceUseCases({
   snapshotStore,
 }: {
@@ -70,15 +108,21 @@ export function createAnalysisExecutionPersistenceUseCases({
       followUpId?: string | null;
       status: JobStatus;
       planSnapshot: AnalysisExecutionPlanSnapshot;
+      ontologyVersionId?: string | null;
+      ontologyVersionSource?: OntologyVersionBindingSource;
+      groundedContext?: OntologyGroundedContext | null;
       events: AnalysisExecutionStreamEvent[];
       conclusionReadModel: AnalysisConclusionReadModel;
     }) {
       const timestamp = new Date().toISOString();
+      const ontologyVersion = resolveOntologyVersionBinding(input);
       const snapshot: AnalysisExecutionSnapshot = {
         executionId: input.executionId,
         sessionId: input.sessionId,
         ownerUserId: input.ownerUserId,
         followUpId: input.followUpId ?? null,
+        ontologyVersionId: ontologyVersion.ontologyVersionId,
+        ontologyVersionSource: ontologyVersion.source,
         status: input.status,
         planSnapshot: input.planSnapshot,
         stepResults: input.events,

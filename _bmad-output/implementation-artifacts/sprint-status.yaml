@@ -122,7 +122,7 @@ development_status:
   9-3-ontology-grounding-for-context-planning-and-tool-selection: done
   9-4-ontology-change-request-approval-and-publish-audit: done
   9-5-ontology-governance-admin-console: done
-  9-6-bind-execution-follow-up-and-history-to-ontology-version: in-progress
+  9-6-bind-execution-follow-up-and-history-to-ontology-version: done
   9-7-bootstrap-first-approved-ontology-runtime-package: done
   epic-9-retrospective: optional
 
