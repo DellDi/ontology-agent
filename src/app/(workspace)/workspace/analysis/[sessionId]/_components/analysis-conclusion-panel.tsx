@@ -1,6 +1,14 @@
 'use client';
 
+import {
+  normalizeExecutionRenderBlock,
+  renderAnalysisInteractionPart,
+} from '@/application/analysis-interaction';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
+import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
+import { formatOntologyVersionBindingBadge } from '@/shared/ontology/version-binding-display';
+
+import { AnalysisInteractionRenderedBlock } from './analysis-interaction-rendered-block';
 
 type AnalysisConclusionPanelProps = {
   readModel: AnalysisConclusionReadModel;
@@ -8,11 +16,13 @@ type AnalysisConclusionPanelProps = {
   // Story 5.1 AC-B 要求 "结果中展示 assumptions"，保证用户在阅读结论时能识别
   // 哪些条件是系统自动补齐的，支撑 auditable 与可靠追问。
   planAssumptions?: string[];
+  ontologyVersionBinding?: OntologyVersionBinding | null;
 };
 
 export function AnalysisConclusionPanel({
   readModel,
   planAssumptions,
+  ontologyVersionBinding,
 }: AnalysisConclusionPanelProps) {
   if (readModel.causes.length === 0) {
     return null;
@@ -34,6 +44,14 @@ export function AnalysisConclusionPanel({
         <span className="rounded-full bg-[color:var(--sky-100)] px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
           {readModel.causes.length} 个候选原因
         </span>
+        {ontologyVersionBinding ? (
+          <span
+            className="rounded-full bg-white px-4 py-2 text-sm font-medium text-[color:var(--ink-600)]"
+            data-testid="analysis-conclusion-ontology-version"
+          >
+            {formatOntologyVersionBindingBadge(ontologyVersionBinding)}
+          </span>
+        ) : null}
       </div>
 
       {hasAssumptions ? (
@@ -97,48 +115,23 @@ export function AnalysisConclusionPanel({
         ))}
       </div>
 
-      {readModel.renderBlocks.map((block, index) =>
-        block.type === 'table' ? (
-          <div
-            key={`${block.title}-${index}`}
-            className="mt-6 rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-5"
-          >
-            <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-              {block.title}
-            </p>
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-left text-sm text-[color:var(--ink-900)]">
-                <thead>
-                  <tr className="border-b border-[color:var(--line-200)] text-[color:var(--ink-600)]">
-                    {block.columns.map((column) => (
-                      <th key={column} className="px-3 py-2 font-medium">
-                        {column}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {block.rows.map((row, rowIndex) => (
-                    <tr
-                      key={`${block.title}-row-${rowIndex}`}
-                      className="border-b border-[color:var(--line-200)] last:border-b-0"
-                    >
-                      {row.map((cell, cellIndex) => (
-                        <td
-                          key={`${block.title}-cell-${rowIndex}-${cellIndex}`}
-                          className="px-3 py-2"
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : null,
-      )}
+      {readModel.renderBlocks.map((block, index) => {
+        const part = normalizeExecutionRenderBlock(block, {
+          sourceType: 'conclusion-read-model',
+          blockIndex: index,
+        });
+        const renderedBlock = renderAnalysisInteractionPart(part, {
+          surface: 'workspace',
+        });
+
+        return (
+          <AnalysisInteractionRenderedBlock
+            className="mt-6 border border-[color:var(--line-200)] bg-white/78"
+            key={part.id}
+            renderedBlock={renderedBlock}
+          />
+        );
+      })}
     </article>
   );
 }

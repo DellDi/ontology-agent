@@ -8,7 +8,12 @@ import type {
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { JobStatus } from '@/domain/job-contract/models';
-import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
+import {
+  assertOntologyVersionBindingIsPublished,
+  createOntologyVersionBinding,
+  getPlanOntologyVersionId,
+} from '@/domain/ontology/version-binding';
+import type { OntologyVersionStore } from '@/application/ontology/ports';
 
 import type { AnalysisExecutionSnapshotStore } from './persistence-ports';
 
@@ -97,15 +102,32 @@ function resolveOntologyVersionBinding(input: {
 
 export function createAnalysisExecutionPersistenceUseCases({
   snapshotStore,
+  ontologyVersionStore,
 }: {
   snapshotStore: AnalysisExecutionSnapshotStore;
+  ontologyVersionStore?: Pick<OntologyVersionStore, 'findById'>;
 }) {
+  async function assertPublishedBinding(
+    binding: AnalysisExecutionSnapshot['ontologyVersionBinding'],
+  ) {
+    if (!binding.ontologyVersionId || !ontologyVersionStore) {
+      return;
+    }
+
+    const version = await ontologyVersionStore.findById(binding.ontologyVersionId);
+    assertOntologyVersionBindingIsPublished({
+      ontologyVersionId: binding.ontologyVersionId,
+      version,
+    });
+  }
+
   return {
     async saveExecutionSnapshot(input: {
       executionId: string;
       sessionId: string;
       ownerUserId: string;
       followUpId?: string | null;
+      ontologyVersionId?: string | null;
       status: JobStatus;
       planSnapshot: AnalysisExecutionPlanSnapshot;
       ontologyVersionId?: string | null;
@@ -115,14 +137,21 @@ export function createAnalysisExecutionPersistenceUseCases({
       conclusionReadModel: AnalysisConclusionReadModel;
     }) {
       const timestamp = new Date().toISOString();
-      const ontologyVersion = resolveOntologyVersionBinding(input);
+      const ontologyVersionId =
+        input.ontologyVersionId ??
+        getPlanOntologyVersionId(input.planSnapshot);
+      const ontologyVersionBinding = createOntologyVersionBinding(
+        ontologyVersionId,
+        'inherited',
+      );
+      await assertPublishedBinding(ontologyVersionBinding);
       const snapshot: AnalysisExecutionSnapshot = {
         executionId: input.executionId,
         sessionId: input.sessionId,
         ownerUserId: input.ownerUserId,
         followUpId: input.followUpId ?? null,
-        ontologyVersionId: ontologyVersion.ontologyVersionId,
-        ontologyVersionSource: ontologyVersion.source,
+        ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+        ontologyVersionBinding,
         status: input.status,
         planSnapshot: input.planSnapshot,
         stepResults: input.events,

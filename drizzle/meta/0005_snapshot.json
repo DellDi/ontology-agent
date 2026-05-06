@@ -1,5 +1,5 @@
 {
-  "id": "ab9bcb0a-300a-46a3-a80f-bdc302887935",
+  "id": "0c9f2045-d0b9-4401-8114-910bbe4a3af0",
   "prevId": "d5681e2c-2f80-4645-8ee7-f0b292b5c90a",
   "version": "7",
   "dialect": "postgresql",
@@ -37,13 +37,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "ontology_version_source": {
-          "name": "ontology_version_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'legacy-unknown'"
         },
         "status": {
           "name": "status",
@@ -243,12 +236,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "ontology_version_source": {
-          "name": "ontology_version_source",
+        "ontology_version_binding_source": {
+          "name": "ontology_version_binding_source",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'legacy-unknown'"
+          "default": "'legacy/unknown'"
         },
         "inherited_context": {
           "name": "inherited_context",

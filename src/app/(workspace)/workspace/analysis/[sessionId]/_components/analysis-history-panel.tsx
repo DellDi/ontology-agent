@@ -1,4 +1,5 @@
 import type { AnalysisHistoryReadModel } from '@/application/analysis-history/use-cases';
+import { formatOntologyVersionBindingBadge } from '@/shared/ontology/version-binding-display';
 
 type AnalysisHistoryPanelProps = {
   sessionId: string;
@@ -109,6 +110,12 @@ export function AnalysisHistoryPanel({
               <p className="mt-2 text-xs text-[color:var(--ink-600)]">
                 {round.conclusionTitle ?? '尚未产出结论'}
               </p>
+              <p
+                className="mt-2 text-xs font-medium text-[color:var(--brand-700)]"
+                data-testid={`history-ontology-version-${round.id}`}
+              >
+                {formatOntologyVersionBindingBadge(round.ontologyVersionBinding)}
+              </p>
             </a>
           ))}
         </div>
@@ -129,7 +136,14 @@ export function AnalysisHistoryPanel({
             <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
               {selectedRound.isLatest ? '最新轮次' : '历史轮次'}
             </span>
-            <OntologyVersionBadge ontologyVersion={selectedRound.ontologyVersion} />
+            <span
+              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
+              data-testid="selected-history-ontology-version"
+            >
+              {formatOntologyVersionBindingBadge(
+                selectedRound.ontologyVersionBinding,
+              )}
+            </span>
           </div>
 
           <div className="mt-4 rounded-3xl bg-white/76 p-4">

@@ -7,7 +7,7 @@ import {
   type AnalysisContextField,
 } from '@/domain/analysis-context/models';
 import type { AnalysisPlan, AnalysisPlanDiff } from '@/domain/analysis-plan/models';
-import type { OntologyVersionBindingSource } from '@/domain/analysis-execution/persistence-models';
+import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
 
 import { normalizeQuestionText } from './models';
 
@@ -22,7 +22,7 @@ export type AnalysisSessionFollowUp = {
   referencedConclusionSummary: string | null;
   resultExecutionId: string | null;
   ontologyVersionId: string | null;
-  ontologyVersionSource: OntologyVersionBindingSource;
+  ontologyVersionBinding: OntologyVersionBinding;
   inheritedContext: AnalysisContext;
   mergedContext: AnalysisContext;
   planVersion: number | null;

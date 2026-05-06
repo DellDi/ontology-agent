@@ -31,6 +31,7 @@ type CompletionPersistenceUseCases = {
     sessionId: string;
     ownerUserId: string;
     followUpId?: string | null;
+    ontologyVersionId?: string | null;
     status: 'completed';
     planSnapshot: {
       mode: 'minimal' | 'multi-step';
@@ -96,6 +97,7 @@ export async function finalizeSuccessfulAnalysisExecution({
       sessionId: jobData.sessionId,
       ownerUserId: jobData.ownerUserId,
       followUpId: jobData.followUpId,
+      ontologyVersionId: jobData.ontologyVersionId ?? null,
       status: 'completed',
       planSnapshot: jobData.plan,
       groundedContext: jobData.groundedContext,

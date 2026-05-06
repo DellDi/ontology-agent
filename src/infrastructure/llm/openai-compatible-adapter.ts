@@ -3,6 +3,7 @@ import 'server-only';
 import type {
   LlmChatCompletionRequest,
   LlmInvocationContext,
+  LlmMessage,
   LlmProviderConfig,
   LlmProviderHealth,
   LlmResponseFormatConfig,
@@ -293,6 +294,28 @@ function mapResponseFormat(
   };
 }
 
+function mapChatCompletionResponseFormat(
+  responseFormat: LlmResponseFormatConfig | undefined,
+) {
+  if (!responseFormat) {
+    return undefined;
+  }
+
+  if (responseFormat.type === 'json_object') {
+    return { type: 'json_object' as const };
+  }
+
+  return {
+    type: 'json_schema' as const,
+    json_schema: {
+      name: responseFormat.name ?? 'structured_output',
+      schema: responseFormat.schema ?? { type: 'object' },
+      description: responseFormat.description,
+      strict: responseFormat.strict ?? true,
+    },
+  };
+}
+
 async function withRedisClient<T>(
   injectedRedis: RedisClientType | undefined,
   timeoutMs: number,
@@ -413,6 +436,7 @@ export function createOpenAiCompatibleLlmProvider({
   async function performChatCompletionRequest(
     request: LlmChatCompletionRequest,
     context: LlmInvocationContext,
+    responseFormat?: LlmResponseFormatConfig,
   ): Promise<JsonRecord> {
     const requestedModel = request.model?.trim() || config.model;
     const fallbackModels = config.fallbackModels.filter(
@@ -428,6 +452,9 @@ export function createOpenAiCompatibleLlmProvider({
             {
               model: resolveProviderModelName(model),
               messages: request.messages,
+              ...(responseFormat
+                ? { response_format: mapChatCompletionResponseFormat(responseFormat) }
+                : {}),
             },
             { timeout: context.timeoutMs ?? config.timeoutMs },
           );
@@ -479,16 +506,46 @@ export function createOpenAiCompatibleLlmProvider({
             windowSeconds: config.rateLimit.windowSeconds,
           });
 
-          const payload = await performResponseRequest(request, context);
+          let payload: JsonRecord;
+          let usedChatFallback = false;
+          try {
+            payload = await performResponseRequest(request, context);
+          } catch (error) {
+            if (!shouldTryFallbackModel(error)) {
+              throw error;
+            }
+            // Provider doesn't support /v1/responses — fall back to chat/completions
+            usedChatFallback = true;
+            const messages: LlmMessage[] = [];
+            if (request.systemPrompt) {
+              messages.push({ role: 'system', content: request.systemPrompt });
+            }
+            messages.push({ role: 'user', content: request.input });
+            payload = await performChatCompletionRequest(
+              { messages, model: request.model },
+              context,
+              request.responseFormat,
+            );
+          }
+
+          const firstChoice =
+            Array.isArray(payload.choices) && payload.choices[0]
+              ? (payload.choices[0] as JsonRecord)
+              : null;
 
           return {
             provider: config.provider,
             model: String(payload.model ?? request.model ?? config.model),
-            text: getResponseText(payload),
+            text: usedChatFallback
+              ? getChatCompletionText(payload)
+              : getResponseText(payload),
             finishReason:
-              typeof payload.finish_reason === 'string'
-                ? payload.finish_reason
-                : null,
+              firstChoice &&
+              typeof firstChoice.finish_reason === 'string'
+                ? firstChoice.finish_reason
+                : typeof payload.finish_reason === 'string'
+                  ? payload.finish_reason
+                  : null,
             raw: payload,
           };
         },

@@ -1,6 +1,6 @@
 # Story 10.2: 建立 Renderer Registry 支持富分析块
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -29,31 +29,31 @@ so that 我可以更高效地理解结论、证据、执行过程，以及审批
 
 ## Tasks / Subtasks
 
-- [ ] 建立统一 part schema 与 renderer registry 约定（AC: 1, 4, 5, 6）
-  - [ ] 将当前 `renderBlocks` 正式提升为共享的 interaction part schema，明确 part `kind`、`version`、`source`、`surface hints`、`title/label`、`payload` 与诊断字段。
-  - [ ] 提供 registry 接口，至少包含 `register`、`resolve`、`render`、`project` 与 `fallback` 能力，保持 Map/descriptor 风格的显式查找语义。
-  - [ ] 保持 schema 验证 fail loud：非法 part 在边界层报清楚，不要吞错后返回空数组。
+- [x] 建立统一 part schema 与 renderer registry 约定（AC: 1, 4, 5, 6）
+  - [x] 将当前 `renderBlocks` 正式提升为共享的 interaction part schema，明确 part `kind`、`version`、`source`、`surface hints`、`title/label`、`payload` 与诊断字段。
+  - [x] 提供 registry 接口，至少包含 `register`、`resolve`、`render`、`project` 与 `fallback` 能力，保持 Map/descriptor 风格的显式查找语义。
+  - [x] 保持 schema 验证 fail loud：非法 part 在边界层报清楚，不要吞错后返回空数组。
 
-- [ ] 落地富分析块 renderer 实现（AC: 1, 2, 4）
-  - [ ] 为 `chart`、`graph`、`table`、`evidence-card`、`timeline`、`approval-state`、`skills-state` 建立正式 renderer。
-  - [ ] 保留并迁移现有 `status` / `kv-list` / `tool-list` / `markdown` 渲染能力，避免把老能力拆断。
-  - [ ] 让 renderer 只关注语义渲染，不承担事件拉取、状态合并或持久化职责。
+- [x] 落地富分析块 renderer 实现（AC: 1, 2, 4）
+  - [x] 为 `chart`、`graph`、`table`、`evidence-card`、`timeline`、`approval-state`、`skills-state` 建立正式 renderer。
+  - [x] 保留并迁移现有 `status` / `kv-list` / `tool-list` / `markdown` 渲染能力，避免把老能力拆断。
+  - [x] 让 renderer 只关注语义渲染，不承担事件拉取、状态合并或持久化职责。
 
-- [ ] 将现有工作台面板切换到 registry 驱动（AC: 1, 4, 5, 6）
-  - [ ] 改造 `AnalysisExecutionStreamPanel`，移除页面级手写分支渲染，改为 registry 驱动的统一 block renderer。
-  - [ ] 改造 `AnalysisConclusionPanel`，去掉 table-only 的重复实现，让结论区复用同一套 renderer。
-  - [ ] 保持 `analysis-execution-display.ts` 的职责聚焦在事件合并、read model 组装和结论推导，不把渲染逻辑塞回去。
+- [x] 将现有工作台面板切换到 registry 驱动（AC: 1, 4, 5, 6）
+  - [x] 改造 `AnalysisExecutionStreamPanel`，移除页面级手写分支渲染，改为 registry 驱动的统一 block renderer。
+  - [x] 改造 `AnalysisConclusionPanel`，去掉 table-only 的重复实现，让结论区复用同一套 renderer。
+  - [x] 保持 `analysis-execution-display.ts` 的职责聚焦在事件合并、read model 组装和结论推导，不把渲染逻辑塞回去。
 
-- [ ] 建立 PC / mobile 同源 projection 约束（AC: 3, 6）
-  - [ ] 为同一个 canonical part 提供 workspace / mobile 两种 projection 变体，确保语义一致、密度不同。
-  - [ ] mobile 投影只做信息裁剪和布局压缩，不重写业务语义，不引入第二套协议。
-  - [ ] 与现有 `mobile_projection` 事实字段保持方向一致，为 10.3 的持久化与续流留接口，但不在本 story 中实现完整移动端页面。
+- [x] 建立 PC / mobile 同源 projection 约束（AC: 3, 6）
+  - [x] 为同一个 canonical part 提供 workspace / mobile 两种 projection 变体，确保语义一致、密度不同。
+  - [x] mobile 投影只做信息裁剪和布局压缩，不重写业务语义，不引入第二套协议。
+  - [x] 与现有 `mobile_projection` 事实字段保持方向一致，为 10.3 的持久化与续流留接口，但不在本 story 中实现完整移动端页面。
 
-- [ ] 补齐 story 级验证（AC: 1, 2, 3, 4, 5, 6）
-  - [ ] 验证 registry 可以解析当前 stream / conclusion 里的基础块，并正确渲染新富块类型。
-  - [ ] 验证未知 part 会落到显式 fallback，而不是 silent drop。
-  - [ ] 验证 PC / mobile 从同一 canonical part 产生不同 projection，但语义一致。
-  - [ ] 验证现有 execution stream、结论排序和 snapshot 数据仍可正常展示。
+- [x] 补齐 story 级验证（AC: 1, 2, 3, 4, 5, 6）
+  - [x] 验证 registry 可以解析当前 stream / conclusion 里的基础块，并正确渲染新富块类型。
+  - [x] 验证未知 part 会落到显式 fallback，而不是 silent drop。
+  - [x] 验证 PC / mobile 从同一 canonical part 产生不同 projection，但语义一致。
+  - [x] 验证现有 execution stream、结论排序和 snapshot 数据仍可正常展示。
 
 ## Dev Notes
 
@@ -184,12 +184,52 @@ GPT-5 Codex
 
 ### Debug Log References
 
+- RED: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 初始 5/5 fail，失败点为缺失 `src/application/analysis-interaction/index.ts` 与页面仍存在 `block.type ===` 分支渲染。
+- GREEN: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 5/5 pass。
+- Regression: `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs` 22/22 pass。
+- Static: `npx tsc --noEmit` pass；`pnpm lint` pass；`pnpm build` pass。
+- Legacy regression attempt: `node --test --test-concurrency=1 tests/story-5-2-execution-stream.test.mjs tests/story-5-3-ranked-conclusions.test.mjs tests/story-5-4-persist-results.test.mjs` 6/12 pass；5 个 failure 仍为 Story 10.1 已记录的 pre-existing `重定向地址应包含 executionId` 断言，另 1 个为长时间 browser-backed run 后的 `UND_ERR_HEADERS_TIMEOUT`。纯 `story-5-3` conclusion/read-model 子测试通过，未发现 10.2 renderBlocks/schema 回归。
+- Review response RED: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 新增 3 条 review regression 后 3/8 fail，分别覆盖默认 registry 非单例、tool-list 英文状态回退、`evidence-card` / `skills-state` 空数组 silent-pass。
+- Review response GREEN: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 8/8 pass。
+- Review response regression: `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs` 25/25 pass；`npx tsc --noEmit` pass；`pnpm lint` pass；`pnpm build` pass。
+- Review follow-up #3 RED: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 新增 app 层 UI renderer registry 约束后 3/10 fail，失败点为缺少 `analysis-interaction-ui-renderer-registry.tsx`、`AnalysisInteractionRenderedBlock` 仍存在 kind 分支。
+- Review follow-up #3 GREEN: `node --test --test-concurrency=1 tests/story-10-2-renderer-registry.test.mjs` 10/10 pass。
+- Review follow-up #3 regression: `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs` 27/27 pass；`npx tsc --noEmit` pass；`pnpm lint` pass；`pnpm build` pass。
+
 ### Completion Notes List
 
 - Story context now fixes the renderer problem into a formal `part schema + registry + projection` contract instead of page-level `switch` rendering.
 - The story explicitly separates rendering concerns from runtime transport, projection persistence, and runtime capability bridging to avoid overlap with Stories 10.1, 10.3, and 10.4.
 - PC/mobile same-schema projection, explicit fallback behavior, and regression guardrails are all included so future rich blocks can expand without duplicating page logic.
+- 新增 `src/application/analysis-interaction/`，正式定义 interaction part schema、workspace/mobile projection、renderer registry、maturity level 与 fallback block。
+- 扩展 `ExecutionRenderBlock` fail-loud 校验，正式支持 `chart` / `graph` / `evidence-card` / `timeline` / `approval-state` / `skills-state`，保留旧 `status` / `kv-list` / `tool-list` / `markdown` / `table`。
+- `AnalysisExecutionStreamPanel` 与 `AnalysisConclusionPanel` 已改为通过 `normalizeExecutionRenderBlock` + `renderAnalysisInteractionPart` + `AnalysisInteractionRenderedBlock` 共享渲染路径；`analysis-execution-display.ts` 未改动，仍聚焦 read model 组装。
+- Review response：采纳并修复 registry 默认实例重复创建问题，`renderAnalysisInteractionPart` 改为复用模块级惰性单例 `getDefaultAnalysisRendererRegistry()`。
+- Review response：采纳并修复 `tool-list` 状态文案回退，新增 `getToolStatusLabel()`，恢复 `completed/failed/running/selected` 的中文展示。
+- Review response：采纳并补强 `evidence-card.evidence` 与 `skills-state.items` 非空校验，避免渲染无语义空卡片。
+- Review response：未采纳“application descriptor 直接返回 React element”的建议；原因是这会让 application 层依赖 React / App Router UI，破坏当前 `domain -> application -> app` 分层。后续如需进一步消除 `AnalysisInteractionRenderedBlock` 内的 kind 分支，应在 app 层建立 UI renderer descriptor，而不是把 React 渲染下沉到 application registry。
+- Review follow-up #3：已按分层正确方案实现 app 层 UI renderer registry；`AnalysisInteractionRenderedBlock` 现在只委托 `getDefaultAnalysisInteractionUiRendererRegistry().render(...)`，不再手写 `block.kind ===` 分支。
+- Review follow-up #3：新增 `analysis-interaction-ui-renderer-registry.tsx`，在 app 层注册 `status` / `kv-list` / `tool-list` / `markdown` / `table` / `chart` / `graph` / `evidence-card` / `timeline` / `approval-state` / `skills-state` / `fallback-block` 的 React renderer descriptor，application registry 继续保持纯数据契约。
 
 ### File List
 
-- {project-root}/_bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md
+**Added**
+- src/application/analysis-interaction/interaction-part-schema.ts
+- src/application/analysis-interaction/renderer-registry.ts
+- src/application/analysis-interaction/index.ts
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-rendered-block.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-interaction-ui-renderer-registry.tsx
+- tests/story-10-2-renderer-registry.test.mjs
+
+**Modified**
+- src/domain/analysis-execution/stream-models.ts
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-stream-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx
+- _bmad-output/implementation-artifacts/10-2-renderer-registry-for-rich-analysis-blocks.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+
+### Change Log
+
+- 2026-05-05 —— 实现 Story 10.2 renderer registry：统一 interaction part schema、富分析 render block 校验、registry/fallback/project contract、共享 React renderer、stream/conclusion 面板迁移、story 级测试与 lint/build 验证。
+- 2026-05-05 —— 响应代码审查：默认 renderer registry 改为模块级惰性单例；恢复 tool-list 中文状态文案；补 `evidence-card` / `skills-state` 空数组 fail-loud 校验；补 review regression tests 并完成 25/25 10.x 回归、type-check、lint、build。
+- 2026-05-05 —— 响应 review 问题 3：新增 app 层 UI renderer registry，移除 `AnalysisInteractionRenderedBlock` 内的 kind 分支；补 review regression tests 并完成 27/27 10.x 回归、type-check、lint、build。

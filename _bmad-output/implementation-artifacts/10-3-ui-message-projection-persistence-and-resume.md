@@ -1,6 +1,6 @@
 # Story 10.3: 会话、追问与历史的 UI Message Projection 持久化与续流
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -21,22 +21,26 @@ so that 用户刷新页面、重新进入历史会话或中断后恢复时，交
 
 ## Tasks / Subtasks
 
-- [ ] 建立 UI message projection 领域与存储契约（AC: 1, 3, 4, 6）
-  - [ ] 定义独立于 AI SDK 的 projection read/write model，至少包含 session / execution / follow-up / history round 绑定、projection version、stream cursor、message tree 与恢复元数据。
-  - [ ] 在 `src/domain` 与 `src/application` 中新增 projection 端口与 use case，确保 projection 只承担 UI 恢复职责，不承载业务事实。
-  - [ ] 在 `src/infrastructure/postgres/schema/` 新增 projection 表与 migration，并补齐 owner/session 索引。
-- [ ] 将 projection 接入会话加载与续流路径（AC: 1, 2, 4, 5）
-  - [ ] 在 analysis session 页面初始加载时先读取 projection，再决定是否需要从 canonical truth 回填或继续 live stream。
-  - [ ] 让 `analysis-execution-live-shell` 支持 projection hydrate + resume 流程，而不是只依赖第一次挂载时的本地 state。
-  - [ ] 为 resume 场景补齐 cursor 去重逻辑，保证 reconnect 后不会重复渲染已确认 message / part。
-- [ ] 将 history round switching 与 projection 绑定（AC: 2, 4）
-  - [ ] 当 `historyRoundId` / `followUpId` 改变时，按轮次加载对应 projection 或重建对应 projection。
-  - [ ] 保证历史轮次切换是只读的，不会把当前轮次的 UI message 状态写回到其他轮次。
-- [ ] 覆盖恢复、续流与回退测试（AC: 1, 3, 5, 6）
-  - [ ] 验证刷新 / 重新进入会话后可以恢复 UI message projection。
-  - [ ] 验证 projection 缺失或过期时会从 canonical truth 重建，而不是静默失败。
-  - [ ] 验证 resume 流不会重复应用 message / part。
-  - [ ] 验证 owner-only 访问与历史轮次隔离。
+- [x] 建立 UI message projection 领域与存储契约（AC: 1, 3, 4, 6）
+  - [x] 定义独立于 AI SDK 的 projection read/write model，至少包含 session / execution / follow-up / history round 绑定、projection version、stream cursor、message tree 与恢复元数据。
+  - [x] 在 `src/domain` 与 `src/application` 中新增 projection 端口与 use case，确保 projection 只承担 UI 恢复职责，不承载业务事实。
+  - [x] 在 `src/infrastructure/postgres/schema/` 新增 projection 表与 migration，并补齐 owner/session 索引。
+- [x] 将 projection 接入会话加载与续流路径（AC: 1, 2, 4, 5）
+  - [x] 在 analysis session 页面初始加载时先读取 projection，再决定是否需要从 canonical truth 回填或继续 live stream。
+  - [x] 让 `analysis-execution-live-shell` 支持 projection hydrate + resume 流程，而不是只依赖第一次挂载时的本地 state。
+  - [x] 为 resume 场景补齐 cursor 去重逻辑，保证 reconnect 后不会重复渲染已确认 message / part。
+- [x] 将 history round switching 与 projection 绑定（AC: 2, 4）
+  - [x] 当 `historyRoundId` / `followUpId` 改变时，按轮次加载对应 projection 或重建对应 projection。
+  - [x] 保证历史轮次切换是只读的，不会把当前轮次的 UI message 状态写回到其他轮次。
+- [x] 覆盖恢复、续流与回退测试（AC: 1, 3, 5, 6）
+  - [x] 验证刷新 / 重新进入会话后可以恢复 UI message projection。
+  - [x] 验证 projection 缺失或过期时会从 canonical truth 重建，而不是静默失败。
+  - [x] 验证 resume 流不会重复应用 message / part。
+  - [x] 验证 owner-only 访问与历史轮次隔离。
+- [x] Review Follow-ups (AI)
+  - [x] 恢复普通 follow-up 视图中 `activeFollowUp.currentPlanSnapshot` 优先于 snapshot plan 的展示语义；history replay 仍优先展示选中历史快照 plan。
+  - [x] 在 stream route 前显式校验 `executionId` 属于当前 owner/session 的 snapshot 或 live job，不再用空 SSE 流表达非法 execution。
+  - [x] 将 sequence 去重收敛为 `deduplicateBySequence` 显式 resume 选项，默认 merge 契约恢复为仅按 event id 去重。
 
 ## Dev Notes
 
@@ -160,13 +164,59 @@ GPT-5 Codex
 ### Debug Log References
 
 - Story drafted from approved Epic 10 runtime decision, existing snapshot/follow-up schema, and current stream/history implementation touchpoints.
+- `node --test --test-concurrency=1 tests/story-10-3-ui-message-projection-persistence-and-resume.test.mjs`
+- `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs`
+- `pnpm exec tsc --noEmit --pretty false`
+- `pnpm lint`
+- `pnpm db:generate`
+- `pnpm db:migrate`
+- `pnpm build`
+- `node --test --test-concurrency=1 tests/story-6-4-preserve-multi-round-history.test.mjs` was attempted but interrupted after the test seed child process did not exit; no assertion failure was emitted before interruption.
+- Review follow-up verification: `node --test --test-concurrency=1 tests/story-10-3-ui-message-projection-persistence-and-resume.test.mjs`
+- Review follow-up regression: `node --test --test-concurrency=1 tests/story-10-1-ai-application-runtime-layer.test.mjs tests/story-10-1-p1-foundation-parts-stable-id-strategy.test.mjs tests/story-10-1-p2-slot-lane-placement.test.mjs tests/story-10-1-p3-schema-version.test.mjs tests/story-10-2-renderer-registry.test.mjs`
+- Review follow-up verification: `pnpm exec tsc --noEmit --pretty false`
+- Review follow-up verification: `pnpm lint`
+- Review follow-up verification: `pnpm build`
+
+### Implementation Plan
+
+- Add a projection model and application use case that treats persisted UI messages as a resumable cache with strict owner/session/execution/round scope checks.
+- Persist projection records in Postgres with explicit projection, part schema, contract, cursor, message tree, recovery metadata, and owner/session indexes.
+- Hydrate analysis pages server-side from projection first, rebuild from canonical execution events/snapshots when projection is missing, stale, or damaged, and pass cursor state into the live shell.
+- Keep history replay read-only by selecting the target round projection and disabling live stream writes for explicit `historyRoundId` views.
 
 ### Completion Notes List
 
-- Story 10.3 now fixes the boundary that UI projection is resumable state, not canonical truth.
-- The story explicitly covers round switching isolation, resume cursor de-duplication, owner/session isolation, and canonical-truth rebuild when projection is stale or damaged.
-- Persistence, hydrate, and resume responsibilities are positioned on the server-side application boundary rather than page-local state.
+- Added `analysis-message-projection` domain/application/infrastructure layers for UI message projection persistence, hydrate, canonical rebuild, owner/session scope enforcement, cursor handling, and damaged projection validation.
+- Added Postgres table `platform.analysis_ui_message_projections` plus Drizzle migration/meta updates and Postgres store adapter.
+- Integrated server-side projection hydrate into the analysis session page and wired `AnalysisExecutionLiveShell` to use hydrated projection state plus cursor-aware SSE resume.
+- Bound explicit `historyRoundId` selection to the corresponding projection/snapshot and disabled live stream for history replay so current-round UI state is not written into historical rounds.
+- Added story tests for persisted hydrate, version mismatch rebuild, damaged message tree rebuild, owner/round isolation, cursor filtering, sequence de-duplication, schema/store exposure, history selection, and resume stream URL construction.
+- Addressed review follow-ups: restored follow-up plan display priority outside history replay, added explicit stream execution ownership validation, and made sequence de-duplication opt-in for resume paths.
 
 ### File List
 
 - {project-root}/_bmad-output/implementation-artifacts/10-3-ui-message-projection-persistence-and-resume.md
+- {project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml
+- {project-root}/drizzle/0006_flawless_natasha_romanoff.sql
+- {project-root}/drizzle/meta/0006_snapshot.json
+- {project-root}/drizzle/meta/_journal.json
+- {project-root}/src/domain/analysis-message-projection/models.ts
+- {project-root}/src/application/analysis-message-projection/index.ts
+- {project-root}/src/application/analysis-message-projection/ports.ts
+- {project-root}/src/application/analysis-message-projection/use-cases.ts
+- {project-root}/src/application/analysis-execution/stream-use-cases.ts
+- {project-root}/src/infrastructure/analysis-message-projection/postgres-analysis-ui-message-projection-store.ts
+- {project-root}/src/infrastructure/postgres/schema/analysis-ui-message-projections.ts
+- {project-root}/src/infrastructure/postgres/schema/index.ts
+- {project-root}/src/application/ai-runtime/runtime-projection-mapper.ts
+- {project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/analysis-execution-display.ts
+- {project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
+- {project-root}/src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx
+- {project-root}/src/app/api/analysis/sessions/[sessionId]/stream/route.ts
+- {project-root}/tests/story-10-3-ui-message-projection-persistence-and-resume.test.mjs
+
+### Change Log
+
+- 2026-05-05: Implemented Story 10.3 UI message projection persistence, hydrate, resume cursor, and history round binding; status moved to review.
+- 2026-05-05: Addressed review follow-ups for follow-up plan priority, explicit stream execution ownership validation, and resume-only sequence de-duplication; status moved to done.

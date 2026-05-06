@@ -2,6 +2,7 @@ import { desc, eq } from 'drizzle-orm';
 
 import type { AnalysisExecutionSnapshotStore } from '@/application/analysis-execution/persistence-ports';
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
+import { createOntologyVersionBinding } from '@/domain/ontology/version-binding';
 import { createPostgresDb, type PostgresDb } from '@/infrastructure/postgres/client';
 import { analysisExecutionSnapshots } from '@/infrastructure/postgres/schema/analysis-execution-snapshots';
 
@@ -14,8 +15,10 @@ function rowToSnapshot(
     ownerUserId: row.ownerUserId,
     followUpId: row.followUpId,
     ontologyVersionId: row.ontologyVersionId,
-    ontologyVersionSource:
-      row.ontologyVersionSource as AnalysisExecutionSnapshot['ontologyVersionSource'],
+    ontologyVersionBinding: createOntologyVersionBinding(
+      row.ontologyVersionId,
+      'inherited',
+    ),
     status: row.status as AnalysisExecutionSnapshot['status'],
     planSnapshot: row.planSnapshot as AnalysisExecutionSnapshot['planSnapshot'],
     stepResults: row.stepResults as AnalysisExecutionSnapshot['stepResults'],
@@ -37,6 +40,9 @@ export function createPostgresAnalysisExecutionSnapshotStore(
 
   return {
     async save(snapshot) {
+      const ontologyVersionBinding =
+        snapshot.ontologyVersionBinding ??
+        createOntologyVersionBinding(snapshot.ontologyVersionId, 'inherited');
       await resolvedDb
         .insert(analysisExecutionSnapshots)
         .values({
@@ -44,8 +50,7 @@ export function createPostgresAnalysisExecutionSnapshotStore(
           sessionId: snapshot.sessionId,
           ownerUserId: snapshot.ownerUserId,
           followUpId: snapshot.followUpId,
-          ontologyVersionId: snapshot.ontologyVersionId,
-          ontologyVersionSource: snapshot.ontologyVersionSource,
+          ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
           status: snapshot.status,
           planSnapshot: snapshot.planSnapshot,
           stepResults: snapshot.stepResults,
@@ -62,8 +67,7 @@ export function createPostgresAnalysisExecutionSnapshotStore(
             status: snapshot.status,
             planSnapshot: snapshot.planSnapshot,
             followUpId: snapshot.followUpId,
-            ontologyVersionId: snapshot.ontologyVersionId,
-            ontologyVersionSource: snapshot.ontologyVersionSource,
+            ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
             stepResults: snapshot.stepResults,
             conclusionState: snapshot.conclusionState,
             resultBlocks: snapshot.resultBlocks,
@@ -73,7 +77,11 @@ export function createPostgresAnalysisExecutionSnapshotStore(
           },
         });
 
-      return snapshot;
+      return {
+        ...snapshot,
+        ontologyVersionId: ontologyVersionBinding.ontologyVersionId,
+        ontologyVersionBinding,
+      };
     },
 
     async getLatestBySessionId(sessionId) {
