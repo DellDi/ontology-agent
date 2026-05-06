@@ -6,7 +6,12 @@ import {
   validateAnalysisExecutionPlanSnapshot,
 } from '@/domain/analysis-execution/models';
 import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
+import {
+  assertOntologyVersionBindingIsPublished,
+  getPlanOntologyVersionId,
+} from '@/domain/ontology/version-binding';
 import type { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
+import type { OntologyVersionStore } from '@/application/ontology/ports';
 
 type JobUseCases = {
   submitJob: (submission: {
@@ -28,12 +33,23 @@ export type SubmittedAnalysisExecution = {
 export function createAnalysisExecutionSubmissionUseCases({
   jobUseCases,
   analysisExecutionStreamUseCases,
+  ontologyVersionStore,
 }: {
   jobUseCases: JobUseCases;
   analysisExecutionStreamUseCases?: ReturnType<
     typeof createAnalysisExecutionStreamUseCases
   >;
+  ontologyVersionStore?: Pick<OntologyVersionStore, 'findById'>;
 }) {
+  async function assertPublishedOntologyVersion(ontologyVersionId?: string) {
+    if (!ontologyVersionId || !ontologyVersionStore) {
+      return;
+    }
+
+    const version = await ontologyVersionStore.findById(ontologyVersionId);
+    assertOntologyVersionBindingIsPublished({ ontologyVersionId, version });
+  }
+
   return {
     async submitExecution({
       session,
@@ -57,6 +73,11 @@ export function createAnalysisExecutionSubmissionUseCases({
     }): Promise<SubmittedAnalysisExecution> {
       const executablePlan = validateAnalysisExecutionPlanSnapshot(plan);
       const submittedAt = new Date().toISOString();
+      const ontologyVersionId =
+        groundedContext?.ontologyVersionId ??
+        getPlanOntologyVersionId(executablePlan) ??
+        undefined;
+      await assertPublishedOntologyVersion(ontologyVersionId);
       const job = await jobUseCases.submitJob({
         id: executionId,
         type: 'analysis-execution',
@@ -70,6 +91,7 @@ export function createAnalysisExecutionSubmissionUseCases({
           questionText: questionText ?? session.questionText,
           context,
           groundedContext,
+          ontologyVersionId,
           submittedAt,
           plan: executablePlan,
           originCorrelationId,

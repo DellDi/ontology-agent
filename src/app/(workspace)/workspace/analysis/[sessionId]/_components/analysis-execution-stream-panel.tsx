@@ -1,6 +1,12 @@
 'use client';
 
+import {
+  normalizeExecutionRenderBlock,
+  renderAnalysisInteractionPart,
+} from '@/application/analysis-interaction';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
+
+import { AnalysisInteractionRenderedBlock } from './analysis-interaction-rendered-block';
 
 type AnalysisExecutionStreamPanelProps = {
   events: AnalysisExecutionStreamEvent[];
@@ -36,19 +42,6 @@ function getEventStatusClassName(event: AnalysisExecutionStreamEvent) {
   }
 
   return 'bg-sky-100 text-[color:var(--brand-700)]';
-}
-
-function getBlockToneClassName(tone: 'neutral' | 'info' | 'success' | 'error') {
-  switch (tone) {
-    case 'success':
-      return 'bg-emerald-50';
-    case 'error':
-      return 'bg-rose-50';
-    case 'info':
-      return 'bg-sky-50';
-    default:
-      return 'bg-[color:var(--sky-50)]/80';
-  }
 }
 
 function parseProgressText(value: string) {
@@ -264,129 +257,24 @@ export function AnalysisExecutionStreamPanel({
               </div>
 
               {event.renderBlocks.map((block, index) => {
-                if (block.type === 'status') {
-                  return (
-                    <div
-                      className={`mt-4 rounded-2xl p-4 ${getBlockToneClassName(block.tone)}`}
-                      key={`${event.id}-status-${index}`}
-                    >
-                      <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-                        {block.title}
-                      </p>
-                      <p className="mt-2 text-sm font-medium text-[color:var(--ink-900)]">
-                        {block.value}
-                      </p>
-                    </div>
-                  );
-                }
-
-                if (block.type === 'kv-list') {
-                  return (
-                    <div
-                      className="mt-4 rounded-2xl bg-[color:var(--sky-50)]/80 p-4"
-                      key={`${event.id}-kv-${index}`}
-                    >
-                      <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-                        {block.title}
-                      </p>
-                      <dl className="mt-3 grid gap-2 md:grid-cols-2">
-                        {block.items.map((item) => (
-                          <div key={`${event.id}-${item.label}`}>
-                            <dt className="text-xs text-[color:var(--ink-600)]">
-                              {item.label}
-                            </dt>
-                            <dd className="mt-1 text-sm text-[color:var(--ink-900)]">
-                              {item.value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  );
-                }
-
-                if (block.type === 'tool-list') {
-                  return (
-                    <div
-                      className="mt-4 rounded-2xl bg-[color:var(--sky-50)]/80 p-4"
-                      key={`${event.id}-tools-${index}`}
-                    >
-                      <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-                        工具调用
-                      </p>
-                      <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
-                        {block.items.map((item) => (
-                          <li key={`${event.id}-${item.toolName}-${item.objective}`}>
-                            {item.toolName} · {item.objective} ·{' '}
-                            {item.status === 'completed'
-                              ? '已完成'
-                              : item.status === 'failed'
-                                ? '已失败'
-                                : item.status === 'running'
-                                  ? '执行中'
-                                  : '已选择'}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                }
-
-                if (block.type === 'table') {
-                  return (
-                    <div
-                      className="mt-4 rounded-2xl bg-[color:var(--sky-50)]/80 p-4"
-                      key={`${event.id}-table-${index}`}
-                    >
-                      <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-                        {block.title}
-                      </p>
-                      <div className="mt-3 overflow-x-auto">
-                        <table className="min-w-full text-left text-sm text-[color:var(--ink-900)]">
-                          <thead>
-                            <tr className="border-b border-[color:var(--line-200)] text-[color:var(--ink-600)]">
-                              {block.columns.map((column) => (
-                                <th className="px-3 py-2 font-medium" key={column}>
-                                  {column}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {block.rows.map((row, rowIndex) => (
-                              <tr
-                                className="border-b border-[color:var(--line-200)] last:border-b-0"
-                                key={`${event.id}-row-${rowIndex}`}
-                              >
-                                {row.map((cell, cellIndex) => (
-                                  <td
-                                    className="px-3 py-2"
-                                    key={`${event.id}-cell-${rowIndex}-${cellIndex}`}
-                                  >
-                                    {cell}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                }
+                const part = normalizeExecutionRenderBlock(block, {
+                  sourceType: 'execution-render-block',
+                  sessionId: event.sessionId,
+                  executionId: event.executionId,
+                  eventId: event.id,
+                  sequence: event.sequence,
+                  blockIndex: index,
+                });
+                const renderedBlock = renderAnalysisInteractionPart(part, {
+                  surface: 'workspace',
+                });
 
                 return (
-                  <div
-                    className="mt-4 rounded-2xl bg-[color:var(--sky-50)]/80 p-4"
-                    key={`${event.id}-markdown-${index}`}
-                  >
-                    <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-                      {block.title === '阶段说明' ? '推理摘要' : block.title}
-                    </p>
-                    <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">
-                      {block.content}
-                    </p>
-                  </div>
+                  <AnalysisInteractionRenderedBlock
+                    className="mt-4"
+                    key={part.id}
+                    renderedBlock={renderedBlock}
+                  />
                 );
               })}
             </section>

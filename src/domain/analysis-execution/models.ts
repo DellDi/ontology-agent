@@ -1,6 +1,7 @@
 import type { AnalysisContext } from '@/domain/analysis-context/models';
 import type { AnalysisPlan } from '@/domain/analysis-plan/models';
 import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
+import { getPlanOntologyVersionId } from '@/domain/ontology/version-binding';
 
 export type AnalysisExecutionPlanSnapshot = AnalysisPlan;
 
@@ -14,6 +15,7 @@ export type AnalysisExecutionJobData = {
   questionText: string;
   context?: AnalysisContext;
   groundedContext?: OntologyGroundedContext;
+  ontologyVersionId?: string;
   submittedAt: string;
   plan: AnalysisExecutionPlanSnapshot;
   // Story 7.4 D2: 承载 web 端发起执行时的 correlation id，
@@ -118,6 +120,15 @@ export function validateAnalysisExecutionJobData(
       ? null
       : assertNonEmptyString(candidate.followUpId, 'followUpId');
 
+  const plan = validateAnalysisExecutionPlanSnapshot(
+    candidate.plan as AnalysisExecutionPlanSnapshot,
+  );
+  const ontologyVersionId =
+    typeof candidate.ontologyVersionId === 'string' &&
+    candidate.ontologyVersionId.trim().length > 0
+      ? candidate.ontologyVersionId.trim()
+      : getPlanOntologyVersionId(plan) ?? undefined;
+
   return {
     sessionId: assertNonEmptyString(candidate.sessionId, 'sessionId'),
     ownerUserId: assertNonEmptyString(candidate.ownerUserId, 'ownerUserId'),
@@ -137,10 +148,9 @@ export function validateAnalysisExecutionJobData(
       candidate.groundedContext && typeof candidate.groundedContext === 'object'
         ? (candidate.groundedContext as OntologyGroundedContext)
         : undefined,
+    ontologyVersionId,
     submittedAt: assertNonEmptyString(candidate.submittedAt, 'submittedAt'),
-    plan: validateAnalysisExecutionPlanSnapshot(
-      candidate.plan as AnalysisExecutionPlanSnapshot,
-    ),
+    plan,
     originCorrelationId:
       typeof candidate.originCorrelationId === 'string' &&
       candidate.originCorrelationId.trim().length > 0

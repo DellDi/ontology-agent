@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { validateAnalysisExecutionJobData } from '@/domain/analysis-execution/models';
 import {
   getExecutionStatusLabel,
   getExecutionStatusTone,
   type AnalysisExecutionStreamEvent,
 } from '@/domain/analysis-execution/stream-models';
+import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
+import type { Job } from '@/domain/job-contract/models';
 
 import type { AnalysisExecutionEventStore } from './stream-ports';
 
@@ -15,6 +18,54 @@ export type AnalysisExecutionStreamReadModel = {
   hasEvents: boolean;
   events: AnalysisExecutionStreamEvent[];
 };
+
+export type AnalysisExecutionStreamAccessResolution =
+  | { allowed: true; source: 'snapshot' | 'job' }
+  | { allowed: false; status: 404; reason: string };
+
+export function resolveAnalysisExecutionStreamAccess(input: {
+  sessionId: string;
+  ownerUserId: string;
+  executionId: string;
+  snapshot: Pick<
+    AnalysisExecutionSnapshot,
+    'sessionId' | 'ownerUserId' | 'executionId'
+  > | null;
+  job: Pick<Job, 'id' | 'type' | 'data'> | null;
+}): AnalysisExecutionStreamAccessResolution {
+  if (
+    input.snapshot &&
+    input.snapshot.sessionId === input.sessionId &&
+    input.snapshot.ownerUserId === input.ownerUserId &&
+    input.snapshot.executionId === input.executionId
+  ) {
+    return { allowed: true, source: 'snapshot' };
+  }
+
+  if (input.job?.id === input.executionId && input.job.type === 'analysis-execution') {
+    try {
+      const jobData = validateAnalysisExecutionJobData(input.job.data);
+      if (
+        jobData.sessionId === input.sessionId &&
+        jobData.ownerUserId === input.ownerUserId
+      ) {
+        return { allowed: true, source: 'job' };
+      }
+    } catch {
+      return {
+        allowed: false,
+        status: 404,
+        reason: 'execution job data is invalid',
+      };
+    }
+  }
+
+  return {
+    allowed: false,
+    status: 404,
+    reason: 'execution does not belong to session',
+  };
+}
 
 export function createAnalysisExecutionStreamUseCases({
   eventStore,

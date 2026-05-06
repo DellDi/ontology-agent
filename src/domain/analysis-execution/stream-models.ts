@@ -14,6 +14,12 @@ export const EXECUTION_RENDER_BLOCK_TYPES = [
   'tool-list',
   'markdown',
   'table',
+  'chart',
+  'graph',
+  'evidence-card',
+  'timeline',
+  'approval-state',
+  'skills-state',
 ] as const;
 
 export type ExecutionRenderBlockType =
@@ -55,12 +61,74 @@ export type ExecutionTableBlock = {
   rows: string[][];
 };
 
+export type ExecutionChartBlock = {
+  type: 'chart';
+  title: string;
+  chartType: 'bar' | 'line' | 'pie' | 'metric';
+  series: {
+    name: string;
+    points: { label: string; value: number }[];
+  }[];
+  unit?: string;
+};
+
+export type ExecutionGraphBlock = {
+  type: 'graph';
+  title: string;
+  nodes: { id: string; label: string; kind?: string }[];
+  edges: { source: string; target: string; label?: string }[];
+};
+
+export type ExecutionEvidenceCardBlock = {
+  type: 'evidence-card';
+  title: string;
+  summary: string;
+  evidence: { label: string; summary: string }[];
+  confidence?: number;
+};
+
+export type ExecutionTimelineBlock = {
+  type: 'timeline';
+  title: string;
+  items: {
+    id: string;
+    title: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    timestamp?: string;
+    summary?: string;
+  }[];
+};
+
+export type ExecutionApprovalStateBlock = {
+  type: 'approval-state';
+  title: string;
+  state: 'not-required' | 'pending' | 'approved' | 'rejected';
+  owner?: string;
+  reason?: string;
+};
+
+export type ExecutionSkillsStateBlock = {
+  type: 'skills-state';
+  title: string;
+  items: {
+    skillName: string;
+    status: 'ready' | 'running' | 'completed' | 'failed' | 'blocked';
+    summary?: string;
+  }[];
+};
+
 export type ExecutionRenderBlock =
   | ExecutionStatusRenderBlock
   | ExecutionKeyValueBlock
   | ExecutionToolListBlock
   | ExecutionMarkdownBlock
-  | ExecutionTableBlock;
+  | ExecutionTableBlock
+  | ExecutionChartBlock
+  | ExecutionGraphBlock
+  | ExecutionEvidenceCardBlock
+  | ExecutionTimelineBlock
+  | ExecutionApprovalStateBlock
+  | ExecutionSkillsStateBlock;
 
 export type ExecutionStepSnapshot = {
   id: string;
@@ -116,6 +184,274 @@ function isStringMatrix(value: unknown): value is string[][] {
     Array.isArray(value) &&
     value.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === 'string'))
   );
+}
+
+function assertOptionalString(value: unknown, fieldName: string) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  return assertNonEmptyString(value, fieldName);
+}
+
+function assertFiniteNumber(value: unknown, fieldName: string) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      `${fieldName} 必须是有限数字。`,
+    );
+  }
+
+  return value;
+}
+
+function assertObjectArray(value: unknown, fieldName: string) {
+  if (!Array.isArray(value)) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      `${fieldName} 必须是数组。`,
+    );
+  }
+
+  return value.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new InvalidAnalysisExecutionStreamEventError(
+        `${fieldName}[${index}] 必须是对象。`,
+      );
+    }
+
+    return item as Record<string, unknown>;
+  });
+}
+
+function validateChartBlock(
+  candidate: Record<string, unknown>,
+): ExecutionChartBlock {
+  const chartType =
+    candidate.chartType === 'bar' ||
+    candidate.chartType === 'line' ||
+    candidate.chartType === 'pie' ||
+    candidate.chartType === 'metric'
+      ? candidate.chartType
+      : null;
+
+  if (!chartType) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'chart.chartType 必须是 bar / line / pie / metric。',
+    );
+  }
+
+  const series = assertObjectArray(candidate.series, 'chart.series');
+  if (series.length === 0) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'chart.series 必须至少包含一个序列。',
+    );
+  }
+
+  return {
+    type: 'chart',
+    title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+    chartType,
+    series: series.map((entry, index) => {
+      const points = assertObjectArray(
+        entry.points,
+        `chart.series[${index}].points`,
+      );
+      if (points.length === 0) {
+        throw new InvalidAnalysisExecutionStreamEventError(
+          `chart.series[${index}].points 必须至少包含一个点。`,
+        );
+      }
+
+      return {
+        name: assertNonEmptyString(
+          entry.name,
+          `chart.series[${index}].name`,
+        ),
+        points: points.map((point, pointIndex) => ({
+          label: assertNonEmptyString(
+            point.label,
+            `chart.series[${index}].points[${pointIndex}].label`,
+          ),
+          value: assertFiniteNumber(
+            point.value,
+            `chart.series[${index}].points[${pointIndex}].value`,
+          ),
+        })),
+      };
+    }),
+    unit: assertOptionalString(candidate.unit, 'chart.unit'),
+  };
+}
+
+function validateGraphBlock(
+  candidate: Record<string, unknown>,
+): ExecutionGraphBlock {
+  const nodes = assertObjectArray(candidate.nodes, 'graph.nodes');
+  if (nodes.length === 0) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'graph.nodes 必须至少包含一个节点。',
+    );
+  }
+
+  return {
+    type: 'graph',
+    title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+    nodes: nodes.map((node, index) => ({
+      id: assertNonEmptyString(node.id, `graph.nodes[${index}].id`),
+      label: assertNonEmptyString(node.label, `graph.nodes[${index}].label`),
+      kind: assertOptionalString(node.kind, `graph.nodes[${index}].kind`),
+    })),
+    edges: assertObjectArray(candidate.edges, 'graph.edges').map((edge, index) => ({
+      source: assertNonEmptyString(edge.source, `graph.edges[${index}].source`),
+      target: assertNonEmptyString(edge.target, `graph.edges[${index}].target`),
+      label: assertOptionalString(edge.label, `graph.edges[${index}].label`),
+    })),
+  };
+}
+
+function validateEvidenceCardBlock(
+  candidate: Record<string, unknown>,
+): ExecutionEvidenceCardBlock {
+  const evidence = assertObjectArray(
+    candidate.evidence,
+    'evidence-card.evidence',
+  );
+  if (evidence.length === 0) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'evidence-card.evidence 必须至少包含一个证据项。',
+    );
+  }
+
+  return {
+    type: 'evidence-card',
+    title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+    summary: assertNonEmptyString(candidate.summary, 'evidence-card.summary'),
+    evidence: evidence.map((item, index) => ({
+        label: assertNonEmptyString(
+          item.label,
+          `evidence-card.evidence[${index}].label`,
+        ),
+        summary: assertNonEmptyString(
+          item.summary,
+          `evidence-card.evidence[${index}].summary`,
+        ),
+      })),
+    confidence:
+      candidate.confidence === undefined
+        ? undefined
+        : assertFiniteNumber(candidate.confidence, 'evidence-card.confidence'),
+  };
+}
+
+function validateTimelineBlock(
+  candidate: Record<string, unknown>,
+): ExecutionTimelineBlock {
+  const items = assertObjectArray(candidate.items, 'timeline.items');
+  if (items.length === 0) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'timeline.items 必须至少包含一个节点。',
+    );
+  }
+
+  return {
+    type: 'timeline',
+    title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+    items: items.map((item, index) => {
+      const status =
+        item.status === 'pending' ||
+        item.status === 'running' ||
+        item.status === 'completed' ||
+        item.status === 'failed'
+          ? item.status
+          : 'pending';
+
+      return {
+        id: assertNonEmptyString(item.id, `timeline.items[${index}].id`),
+        title: assertNonEmptyString(
+          item.title,
+          `timeline.items[${index}].title`,
+        ),
+        status,
+        timestamp: assertOptionalString(
+          item.timestamp,
+          `timeline.items[${index}].timestamp`,
+        ),
+        summary: assertOptionalString(
+          item.summary,
+          `timeline.items[${index}].summary`,
+        ),
+      };
+    }),
+  };
+}
+
+function validateApprovalStateBlock(
+  candidate: Record<string, unknown>,
+): ExecutionApprovalStateBlock {
+  const state =
+    candidate.state === 'not-required' ||
+    candidate.state === 'pending' ||
+    candidate.state === 'approved' ||
+    candidate.state === 'rejected'
+      ? candidate.state
+      : null;
+
+  if (!state) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'approval-state.state 必须是 not-required / pending / approved / rejected。',
+    );
+  }
+
+  return {
+    type: 'approval-state',
+    title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+    state,
+    owner: assertOptionalString(candidate.owner, 'approval-state.owner'),
+    reason: assertOptionalString(candidate.reason, 'approval-state.reason'),
+  };
+}
+
+function validateSkillsStateBlock(
+  candidate: Record<string, unknown>,
+): ExecutionSkillsStateBlock {
+  const items = assertObjectArray(candidate.items, 'skills-state.items');
+  if (items.length === 0) {
+    throw new InvalidAnalysisExecutionStreamEventError(
+      'skills-state.items 必须至少包含一个 skill 状态。',
+    );
+  }
+
+  return {
+    type: 'skills-state',
+    title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+    items: items.map((item, index) => {
+      const status =
+        item.status === 'ready' ||
+        item.status === 'running' ||
+        item.status === 'completed' ||
+        item.status === 'failed' ||
+        item.status === 'blocked'
+          ? item.status
+          : null;
+
+      if (!status) {
+        throw new InvalidAnalysisExecutionStreamEventError(
+          `skills-state.items[${index}].status 必须是 ready / running / completed / failed / blocked。`,
+        );
+      }
+
+      return {
+        skillName: assertNonEmptyString(
+          item.skillName,
+          `skills-state.items[${index}].skillName`,
+        ),
+        status,
+        summary: assertOptionalString(
+          item.summary,
+          `skills-state.items[${index}].summary`,
+        ),
+      };
+    }),
+  };
 }
 
 function validateRenderBlock(
@@ -239,6 +575,18 @@ function validateRenderBlock(
         columns: candidate.columns,
         rows: candidate.rows,
       };
+    case 'chart':
+      return validateChartBlock(candidate);
+    case 'graph':
+      return validateGraphBlock(candidate);
+    case 'evidence-card':
+      return validateEvidenceCardBlock(candidate);
+    case 'timeline':
+      return validateTimelineBlock(candidate);
+    case 'approval-state':
+      return validateApprovalStateBlock(candidate);
+    case 'skills-state':
+      return validateSkillsStateBlock(candidate);
     default:
       throw new InvalidAnalysisExecutionStreamEventError(
         `不支持的 render block 类型: ${String(candidate.type)}。`,

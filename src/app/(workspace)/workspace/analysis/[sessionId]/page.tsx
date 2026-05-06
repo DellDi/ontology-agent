@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
+import { createAnalysisUiMessageProjectionUseCases } from '@/application/analysis-message-projection/use-cases';
 import { analysisHistoryUseCases } from '@/application/analysis-history/use-cases';
 import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
 import {
@@ -9,9 +10,11 @@ import {
   buildGroundingBlockedPlanReadModel,
 } from '@/application/ontology/grounded-planning';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
+import { resolveOntologyVersionBindingForDisplay } from '@/domain/ontology/version-binding';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
+import { createPostgresAnalysisUiMessageProjectionStore } from '@/infrastructure/analysis-message-projection/postgres-analysis-ui-message-projection-store';
 import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
@@ -33,6 +36,8 @@ import {
   buildExecutionStreamReadModelFromSnapshot,
   getSessionScopedExecutionJob,
   getSessionScopedExecutionSnapshot,
+  resolvePlanSnapshotForDisplay,
+  resolveExecutionProjectionDisplaySelection,
 } from './analysis-execution-display';
 
 type AnalysisSessionPageProps = {
@@ -105,14 +110,20 @@ function buildOntologyVersionBadge(input: {
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
+const ontologyRuntimeServices = createOntologyRuntimeServices();
 const analysisExecutionPersistenceUseCases =
   createAnalysisExecutionPersistenceUseCases({
     snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
+    ontologyVersionStore: ontologyRuntimeServices.versionStore,
+  });
+const analysisUiMessageProjectionUseCases =
+  createAnalysisUiMessageProjectionUseCases({
+    projectionStore: createPostgresAnalysisUiMessageProjectionStore(),
   });
 const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
   followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+  ontologyVersionStore: ontologyRuntimeServices.versionStore,
 });
-const ontologyRuntimeServices = createOntologyRuntimeServices();
 
 export default async function AnalysisSessionPage({
   params,
@@ -196,6 +207,13 @@ export default async function AnalysisSessionPage({
     ownerUserId: currentUser.userId,
   });
   const activeFollowUp = resolveActiveFollowUpId(followUpId, followUps);
+  const historyReadModel = analysisHistoryUseCases.buildHistoryReadModel({
+    session: analysisSession,
+    sessionContext: contextReadModel.context,
+    followUps,
+    snapshots: sessionSnapshots,
+    selectedRoundId: historyRoundId || null,
+  });
   const planContextReadModel = activeFollowUp
     ? {
         sessionId: analysisSession.id,
@@ -278,16 +296,23 @@ export default async function AnalysisSessionPage({
     sessionScopedRequestedExecutionSnapshot?.executionId ??
     requestedExecutionRuntime.requestedExecutionJob?.executionId ??
     '';
-  const snapshotForDisplay =
-    sessionScopedRequestedExecutionSnapshot ??
-    (!requestedExecutionIdForDisplay ? latestExecutionSnapshot : null);
-  const planSnapshotForDisplay =
-    sessionScopedRequestedExecutionSnapshot?.planSnapshot ??
-    requestedExecutionRuntime.requestedExecutionJob?.planSnapshot ??
-    (activeFollowUp
-      ? activeFollowUp.currentPlanSnapshot
-      : snapshotForDisplay?.planSnapshot) ??
-    null;
+  const projectionDisplaySelection = resolveExecutionProjectionDisplaySelection({
+    requestedExecutionIdForDisplay,
+    sessionScopedRequestedExecutionSnapshot,
+    latestExecutionSnapshot,
+    sessionSnapshots,
+    selectedHistoryRound: historyRoundId
+      ? historyReadModel.selectedRound
+      : null,
+  });
+  const snapshotForDisplay = projectionDisplaySelection.snapshotForDisplay;
+  const planSnapshotForDisplay = resolvePlanSnapshotForDisplay({
+    sessionScopedRequestedExecutionSnapshot,
+    requestedExecutionJob: requestedExecutionRuntime.requestedExecutionJob,
+    activeFollowUpPlanSnapshot: activeFollowUp?.currentPlanSnapshot ?? null,
+    snapshotForDisplay,
+    isHistoryReplay: projectionDisplaySelection.isHistoryReplay,
+  });
   let groundedPlanPreviewError: Error | null = null;
   let groundedPlanPreviewSnapshot = planSnapshotForDisplay;
 
@@ -319,8 +344,7 @@ export default async function AnalysisSessionPage({
     : buildGroundingBlockedPlanReadModel(
         groundedPlanPreviewError ?? new Error('治理化计划预览生成失败。'),
       );
-  const resolvedExecutionId =
-    requestedExecutionIdForDisplay || snapshotForDisplay?.executionId || '';
+  const resolvedExecutionId = projectionDisplaySelection.resolvedExecutionId;
   const executionStreamReadModel = sessionScopedRequestedExecutionSnapshot
     ? buildExecutionStreamReadModelFromSnapshot(
         sessionScopedRequestedExecutionSnapshot,
@@ -338,12 +362,25 @@ export default async function AnalysisSessionPage({
     : executionStreamReadModel
       ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
       : null;
-  const ontologyVersionBadgeText = snapshotForDisplay
-    ? buildOntologyVersionBadge({
-        ontologyVersionId: snapshotForDisplay.ontologyVersionId,
-        ontologyVersionSource: snapshotForDisplay.ontologyVersionSource,
-      })
-    : null;
+  const projectionHydration =
+    resolvedExecutionId && executionStreamReadModel
+      ? await analysisUiMessageProjectionUseCases.hydrateProjection({
+          ownerUserId: currentUser.userId,
+          sessionId: analysisSession.id,
+          executionId: resolvedExecutionId,
+          followUpId: projectionDisplaySelection.followUpIdForProjection,
+          historyRoundId: projectionDisplaySelection.historyRoundIdForProjection,
+          canonical: {
+            events: executionStreamReadModel.events,
+            fallbackConclusion: liveConclusionReadModel,
+          },
+        })
+      : null;
+  const ontologyVersionBindingForDisplay =
+    resolveOntologyVersionBindingForDisplay({
+      snapshotBinding: snapshotForDisplay?.ontologyVersionBinding ?? null,
+      followUpBinding: activeFollowUp?.ontologyVersionBinding ?? null,
+    });
   const latestFollowUpConclusion = activeFollowUp
     ? {
         title: activeFollowUp.referencedConclusionTitle,
@@ -392,13 +429,6 @@ export default async function AnalysisSessionPage({
           message: '已根据纠正后的上下文重生成后续计划。',
         }
       : null;
-  const historyReadModel = analysisHistoryUseCases.buildHistoryReadModel({
-    session: analysisSession,
-    sessionContext: contextReadModel.context,
-    followUps,
-    snapshots: sessionSnapshots,
-    selectedRoundId: historyRoundId || null,
-  });
   const hasSessionExecution = Boolean(latestExecutionSnapshot);
   const hasActiveFollowUpExecution = Boolean(activeFollowUp?.resultExecutionId);
   const shouldAutoExecuteBase =
@@ -503,11 +533,16 @@ export default async function AnalysisSessionPage({
             ownerUserId={currentUser.userId}
             initialReadModel={executionStreamReadModel}
             initialConclusionReadModel={liveConclusionReadModel}
+            initialProjection={projectionHydration?.projection ?? null}
+            resumeCursor={projectionHydration?.resumeCursor ?? null}
+            enableLiveStream={projectionDisplaySelection.enableLiveStream}
+            ontologyVersionBinding={ontologyVersionBindingForDisplay}
             planAssumptions={analysisPlanReadModel.assumptions}
           />
         ) : liveConclusionReadModel ? (
           <AnalysisConclusionPanel
             readModel={liveConclusionReadModel}
+            ontologyVersionBinding={ontologyVersionBindingForDisplay}
             planAssumptions={analysisPlanReadModel.assumptions}
           />
         ) : null}

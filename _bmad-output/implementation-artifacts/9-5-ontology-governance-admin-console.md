@@ -174,6 +174,10 @@ GPT-5 Codex
   - 首期未做富 schema 编辑器；所有 definition 级变更只能从 Change Request 详情页发起或经已有 use case 写入（与 Story 9.4 / 9.7 边界一致）。
   - 审批/发布按钮的可见性由 `capabilities` + 当前 CR/version 状态共同决定；无权限时显式提示而不是隐藏页面，避免“静默降级”。
   - 路由层 `authorizeGovernanceRequest` 在拒绝时会写入 `authorization.denied` 审计事件，不静默吞掉未授权访问。
+- Review 收口（2026-05-05）：
+  - 三项 review patch 已完成并在 story 文件中标记为 resolved：运行时只读取 approved + published 版本；`publishVersion` 多表写入已进入单事务；change request JSON 摘要解析失败改为 fail loud。
+  - 当前主干验证通过：`pnpm lint`、`pnpm exec tsc --noEmit`、`pnpm build`。
+  - 在隔离临时数据库 `ontology_agent_status_check` 中联跑 `tests/story-9-4-ontology-change-governance.test.mjs` 与 `tests/story-9-5-ontology-governance-admin-console.test.mjs`，结果 27/27 通过。默认本地库曾因历史测试数据含 `publishedAt=2099-01-01` 的 `test-gov-runtime-*` 记录出现假红，已确认为测试数据污染，不作为代码失败结论。
 
 ### File List
 
@@ -205,3 +209,4 @@ GPT-5 Codex
 ### Change Log
 
 - 2026-04-28 完成 Story 9.5 实现：建立 ontology 治理最小管理面（Overview/Definitions/Change Requests/Publish History），通过 admin use cases 与受控 route handlers 与 9.4 治理内核对接，沿用 7.1/7.2 授权与审计主线。新增 ontology governance 角色族与 capability 判定。Story 级集成测试 10 条全部通过；9.4 联合回归 23/23 通过；lint + build 通过。
+- 2026-05-05 收口 Story 9.5 review：三项 Review Findings 标记完成，story 状态由 review 切换为 done；sprint-status 同步更新为 done。

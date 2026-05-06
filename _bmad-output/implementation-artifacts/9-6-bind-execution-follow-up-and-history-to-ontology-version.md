@@ -49,7 +49,40 @@ so that 结论来源、历史回放和问题诊断可以追溯到明确的知识
 
 ### Review Findings
 
-- [x] [Review][Patch] Grounding published candidates are still selected with a post-limit filter, so more than 100 newer approved-unpublished versions can hide the real published runtime package [src/application/ontology/grounding.ts:335]
+> Review by: bmad-code-review (2026-05-05) — 三层评审（Blind / Edge Case / Acceptance Auditor）合并后的结果。Decision-needed 必须先解决，再处理 patch。Defer 已记录为后续工作项。
+
+#### Decision-Needed
+
+- [x] [Review][Decision] Conclusion / live-shell badge 永远显示 `inherited`，无法呈现 `switched` — 已采用路线 2：`page.tsx` 通过 `resolveOntologyVersionBindingForDisplay` 合并 snapshot version id 与 active follow-up binding source，结果/直播面板与 history-panel 同源显示 `switched`。
+- [x] [Review][Decision] `switched` 判定遗漏「legacy → 真实版本」过渡 — 已采用选项 B：`resolveOntologyVersionBindingSource` 将 `null -> 非 null` 视为 `switched`，明确标记该轮起进入治理化版本。
+- [x] [Review][Decision] 缺少 runtime 防线确认绑定的版本是 `published` — 已采用选项 A：submission、snapshot persistence、follow-up create/replan 均接入 ontology version store 守卫；未发布草稿/approved-but-unpublished 版本 fail loud，历史可继续引用已发布后 deprecated 的版本。
+
+#### Patch
+
+- [x] [Review][Patch] Story 文件未同步实现状态 [_bmad-output/implementation-artifacts/9-6-bind-execution-follow-up-and-history-to-ontology-version.md:3] — 已同步 Status、Tasks/Subtasks、Review Findings、File List、Completion Notes 与 sprint-status。
+- [x] [Review][Patch] Badge 在 `legacy/unknown` 时呈现冗余 [src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-history-panel.tsx:85-89] — 已新增 `formatOntologyVersionBindingBadge`，history / conclusion 两处统一渲染：legacy/unknown 显示 `Ontology 旧版本 / 未知`，其他来源保留 `Ontology {source}：{id}`。
+
+#### Defer
+
+- [x] [Review][Defer] `getPlanOntologyVersionId` 直读 `plan._groundedSource` 私有/transitional 字段 [src/domain/ontology/version-binding.ts:31] — deferred, pre-existing；该字段在 `domain/ontology/grounding.ts:264` 注释为 `_transitional: true`，未来重命名或下沉为正式 contract 时本绑定会静默退化为 legacy/unknown。建议后续提供 `OntologyGroundedPlan` 正式契约 + 单测保护。
+- [x] [Review][Defer] 迁移 `0005_ancient_xavin.sql` 的两个 index 非 `CONCURRENTLY` 创建 [drizzle/0005_ancient_xavin.sql:4-5] — deferred, pre-existing；当前规模可接受，生产数据放大后短暂阻写需切 concurrent migration 模板。
+- [x] [Review][Defer] PG 集成测试缺 DB 不可达守卫 [tests/story-9-6-ontology-version-binding.test.mts:347-421] — deferred, pre-existing；hardcode `127.0.0.1:55432` fallback、无 skip 守卫；与仓库其它 story-pg 测试一致，CI 形态统一改造时再加 `before` 守卫。
+- [x] [Review][Defer] 本 commit 顺手关闭 9-5 review（轻度 scope creep）[_bmad-output/implementation-artifacts/9-5-ontology-governance-admin-console.md:1-4] — deferred, pre-existing；不影响代码本身，建议 git commit 时拆为 `9.5 review close` + `9.6 implementation` 两个 commit。
+- [x] [Review][Defer] history `buildRound` 在 switched 场景下 snapshot vs followUp version 可能分叉 [src/application/analysis-history/use-cases.ts:329-340] — deferred, pre-existing；优先用 snapshot 的 versionId、fallback followUp，并发编辑下 badge 可能展示 snapshot id 但携带 followUp source 标签，低概率诊断歧义。
+
+#### Dismissed (noise)
+
+- `validateAnalysisExecutionJobData` 中 plan 校验顺序前移：行为等价。
+- `submission-use-cases.ts` 末尾 `?? undefined` 形式约束：纯样式。
+
+#### AC 对账
+
+| AC | 结论 | 备注 |
+|----|------|------|
+| AC1 执行落库版本 | ✅ 实现 | 但 Decision #3：缺 published 守卫 |
+| AC2 follow-up / replan 继承或切换 | ⚠ 部分 | Decision #2：legacy→real 不算 switched |
+| AC3 历史 / 结果可见版本 | ⚠ 部分 | Decision #1：conclusion panel 不能显示 switched |
+| AC4 不另造事实模型 | ✅ 干净 | 沿用 snapshot/follow-up 两张表 + 现有读模型 |
 
 ## Dev Notes
 
@@ -157,42 +190,49 @@ GPT-5 Codex
 ### Completion Notes List
 
 - Story created as the runtime fact binding phase for Epic 9, focused on attaching ontology version semantics to existing execution, follow-up, and history facts.
-- execution snapshot 现在持久化 `ontologyVersionId` 与 `ontologyVersionSource`，worker 成功/失败收尾都会从 job 的 grounded context 写入版本事实；旧记录保守标记为 `legacy-unknown`，不会回放时伪造成当前版本。
-- follow-up 创建会继承基准 execution/follow-up 的版本；replan 和 execute 会在版本变化时写出 `switched`，未绑定旧数据维持 `legacy-unknown`。
-- history read model、历史面板、追问面板和结果页最小展示 ontology version badge，按轮次区分 `grounded`、`inherited`、`switched`、`legacy/unknown`，避免整条 follow-up 链被压成单一版本。
-- Review 修正：`null -> real ontology version` 统一标记为 `grounded-context`，并抽到 domain helper 供 follow-up use case 与 execute route 复用；同时修正 history use case 缩进与 follow-up import 噪音。
-- Review P2 修正：grounding 现在优先通过 `listPublishedCandidates` 在 store 层查询 published runtime candidates，Postgres adapter 不再依赖 approved 后过滤窗口。
+- 实现完成（2026-05-05）：
+  - `analysis_execution_snapshots` 与 `analysis_session_follow_ups` 增加 `ontology_version_id` 事实字段；follow-up 额外保存 `ontology_version_binding_source`，旧数据以 `legacy/unknown` 显式呈现。
+  - execution submission、worker finalize、snapshot persistence、follow-up create/replan、history read model、workspace conclusion/history UI 全链路接入 `OntologyVersionBinding`。
+  - `resolveOntologyVersionBindingForDisplay` 让当前 follow-up 的 `switched` source 能正确投影到 conclusion/live-shell，同时保留 snapshot 上的执行版本 id。
+  - `resolveOntologyVersionBindingSource` 将 `legacy/unknown -> governed version` 标记为 `switched`，避免从无版本进入治理版本时被误显示为 inherited。
+  - runtime 写入边界新增 published-only 守卫：未发布版本 fail loud；已发布后 deprecated 的历史版本允许继续被旧执行/历史引用。
+  - `formatOntologyVersionBindingBadge` 统一 history / conclusion badge 文案，避免 `legacy/unknown` 重复展示。
+  - Story 回归 `tests/story-9-6-ontology-version-binding.test.mts` 覆盖 execution snapshot、follow-up 继承/切换、history/replay、Postgres 持久化、review D1/D2/D3/P2，共 11 条通过。
 
 ### File List
 
 - _bmad-output/implementation-artifacts/9-6-bind-execution-follow-up-and-history-to-ontology-version.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
-- drizzle/0005_aberrant_lord_tyger.sql
+- drizzle/0005_ancient_xavin.sql
 - drizzle/meta/0005_snapshot.json
 - drizzle/meta/_journal.json
-- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-follow-up-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx
+- src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx
 - src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-history-panel.tsx
 - src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx
 - src/app/api/analysis/sessions/[sessionId]/execute/route.ts
+- src/app/api/analysis/sessions/[sessionId]/follow-ups/route.ts
+- src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/context/route.ts
+- src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/replan/route.ts
 - src/application/analysis-execution/persistence-use-cases.ts
+- src/application/analysis-execution/submission-use-cases.ts
 - src/application/analysis-history/use-cases.ts
 - src/application/follow-up/ports.ts
 - src/application/follow-up/use-cases.ts
-- src/application/ontology/grounding.ts
-- src/application/ontology/ports.ts
+- src/domain/analysis-execution/models.ts
 - src/domain/analysis-execution/persistence-models.ts
 - src/domain/analysis-session/follow-up-models.ts
+- src/domain/ontology/version-binding.ts
 - src/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store.ts
 - src/infrastructure/analysis-session/postgres-analysis-session-follow-up-store.ts
-- src/infrastructure/ontology/postgres-ontology-version-store.ts
+- src/infrastructure/ontology/runtime.ts
 - src/infrastructure/postgres/schema/analysis-execution-snapshots.ts
 - src/infrastructure/postgres/schema/analysis-session-follow-ups.ts
+- src/shared/ontology/version-binding-display.ts
 - src/worker/finalize-analysis-execution.ts
 - src/worker/main.ts
-- tests/story-9-6-ontology-version-binding.test.mjs
+- tests/story-9-6-ontology-version-binding.test.mts
 
 ### Change Log
 
-- 2026-04-29: Implemented ontology version binding for execution snapshots, follow-ups, replan/execute semantics, history/result display badges, Drizzle migration, and story-level guardrail tests.
-- 2026-04-29: Addressed review findings for first-version source semantics, history read-model indentation, and duplicate follow-up imports.
-- 2026-04-29: Addressed review P2 by moving published ontology candidate selection into the store query path and marking Story 9.6 done.
+- 2026-05-05 完成 Story 9.6：execution snapshot、follow-up、history 与 result display 已绑定 ontology version；review D1/D2/D3/P1/P2 全部收口；`npx tsx --tsconfig tsconfig.json --test tests/story-9-6-ontology-version-binding.test.mts` 11/11 通过，`pnpm exec tsc --noEmit` 通过。

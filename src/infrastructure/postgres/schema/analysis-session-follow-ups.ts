@@ -15,9 +15,9 @@ export const analysisSessionFollowUps = platformSchema.table(
     referencedConclusionSummary: text('referenced_conclusion_summary'),
     resultExecutionId: text('result_execution_id'),
     ontologyVersionId: text('ontology_version_id'),
-    ontologyVersionSource: text('ontology_version_source')
+    ontologyVersionBindingSource: text('ontology_version_binding_source')
       .notNull()
-      .default('legacy-unknown'),
+      .default('legacy/unknown'),
     inheritedContext: jsonb('inherited_context').notNull(),
     mergedContext: jsonb('merged_context').notNull(),
     createdOrder: bigint('created_order', { mode: 'number' })

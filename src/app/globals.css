@@ -68,7 +68,7 @@ a {
 
 .glass-panel {
   border: 1px solid rgb(220 231 245 / 92%);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   background: linear-gradient(180deg, rgb(255 255 255 / 78%) 0%, var(--glass) 100%);
   box-shadow: var(--shadow-soft), var(--shadow-glow);
   backdrop-filter: blur(16px);
@@ -76,7 +76,7 @@ a {
 
 .hero-panel {
   border: 1px solid rgb(184 215 255 / 90%);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   background:
     linear-gradient(135deg, rgb(255 255 255 / 88%) 0%, rgb(219 235 255 / 74%) 100%),
     linear-gradient(180deg, rgb(255 255 255 / 18%) 0%, rgb(255 255 255 / 0%) 100%);

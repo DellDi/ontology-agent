@@ -2,6 +2,9 @@ import type { ReactNode } from 'react';
 
 import { getWorkspaceSessionState } from '@/infrastructure/session/server-auth';
 
+import { ShellLayout } from '../_components/shell-layout';
+import { WORKSPACE_MENU } from '../_components/shell-menu-config';
+
 type WorkspaceLayoutProps = {
   children: ReactNode;
 };
@@ -45,49 +48,12 @@ export default async function WorkspaceLayout({
   }
 
   return (
-    <main className="min-h-screen px-6 py-8 lg:px-10">
-      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="glass-panel space-y-6 p-6">
-          <div>
-            <p className="text-xs font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
-              Secure Session
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
-              {session.displayName}
-            </h1>
-            <p className="mt-1 text-sm text-[color:var(--ink-600)]">
-              用户标识：{session.userId}
-            </p>
-          </div>
-
-          <div className="space-y-3 text-sm text-[color:var(--ink-600)]">
-            <div className="rounded-3xl bg-white/75 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
-                组织
-              </p>
-              <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
-                {session.scope.organizationId}
-              </p>
-            </div>
-            <div className="rounded-3xl bg-white/75 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
-                项目范围
-              </p>
-              <p className="mt-2 text-base text-[color:var(--ink-900)]">
-                {session.scope.projectIds.join(', ') || '未配置'}
-              </p>
-            </div>
-          </div>
-
-          <form action="/api/auth/logout" method="post">
-            <button className="secondary-button w-full" type="submit">
-              退出当前会话
-            </button>
-          </form>
-        </aside>
-
-        <section>{children}</section>
-      </div>
-    </main>
+    <ShellLayout
+      menuItems={WORKSPACE_MENU}
+      userDisplayName={session.displayName}
+      userId={session.userId}
+    >
+      {children}
+    </ShellLayout>
   );
 }

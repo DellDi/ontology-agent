@@ -24,18 +24,20 @@ type RouteContext = {
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
+const ontologyRuntimeServices = createOntologyRuntimeServices();
 const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
   followUpStore: createPostgresAnalysisSessionFollowUpStore(),
+  ontologyVersionStore: ontologyRuntimeServices.versionStore,
 });
 const analysisExecutionPersistenceUseCases =
   createAnalysisExecutionPersistenceUseCases({
     snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
+    ontologyVersionStore: ontologyRuntimeServices.versionStore,
   });
 const analysisPlanningUseCases = createAnalysisPlanningUseCases();
 const factorExpansionUseCases = createFactorExpansionUseCases({
   graphUseCases,
 });
-const ontologyRuntimeServices = createOntologyRuntimeServices();
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);

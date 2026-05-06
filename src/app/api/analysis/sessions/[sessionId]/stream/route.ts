@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 
-import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
+import {
+  createAnalysisExecutionStreamUseCases,
+  resolveAnalysisExecutionStreamAccess,
+} from '@/application/analysis-execution/stream-use-cases';
+import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
+import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
+import { withJobUseCases } from '@/infrastructure/job/runtime';
 import {
   ensureRedisConnected,
   getSharedRedisClient,
@@ -17,6 +23,10 @@ type RouteContext = {
 const analysisSessionUseCases = createAnalysisSessionUseCases({
   analysisSessionStore: createPostgresAnalysisSessionStore(),
 });
+const analysisExecutionPersistenceUseCases =
+  createAnalysisExecutionPersistenceUseCases({
+    snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
+  });
 
 const encoder = new TextEncoder();
 
@@ -26,6 +36,20 @@ function toSseChunk(data: unknown) {
 
 function sleep(durationMs: number) {
   return new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+
+function parseAfterSequence(value: string | null) {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || String(parsed) !== value) {
+    throw new Error('afterSequence 必须是非负整数。');
+  }
+
+  return parsed;
 }
 
 export async function GET(request: Request, { params }: RouteContext) {
@@ -58,9 +82,47 @@ export async function GET(request: Request, { params }: RouteContext) {
     );
   }
 
+  let afterSequence = 0;
+  try {
+    afterSequence = parseAfterSequence(url.searchParams.get('afterSequence'));
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : 'afterSequence 参数无效。',
+      },
+      { status: 400 },
+    );
+  }
+
+  const requestedExecutionSnapshot =
+    await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+      executionId,
+      ownerUserId: authSession.userId,
+    });
+  const requestedExecutionJob = requestedExecutionSnapshot
+    ? null
+    : await withJobUseCases(async ({ jobUseCases }) =>
+        jobUseCases.getJob(executionId),
+      );
+  const streamAccess = resolveAnalysisExecutionStreamAccess({
+    sessionId,
+    ownerUserId: authSession.userId,
+    executionId,
+    snapshot: requestedExecutionSnapshot,
+    job: requestedExecutionJob,
+  });
+
+  if (!streamAccess.allowed) {
+    return NextResponse.json(
+      { error: '执行不存在或无权访问。' },
+      { status: streamAccess.status },
+    );
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
-      let lastSequence = 0;
+      let lastSequence = afterSequence;
       const { redis } = getSharedRedisClient();
 
       try {
