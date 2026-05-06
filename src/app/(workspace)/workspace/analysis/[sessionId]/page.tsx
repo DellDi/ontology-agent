@@ -39,6 +39,7 @@ import {
   resolvePlanSnapshotForDisplay,
   resolveExecutionProjectionDisplaySelection,
 } from './analysis-execution-display';
+import { formatOntologyVersionBindingBadge } from '@/shared/ontology/version-binding-display';
 
 type AnalysisSessionPageProps = {
   params: Promise<{
@@ -89,22 +90,6 @@ function resolveActiveFollowUpId(
     followUps.at(-1) ??
     null
   );
-}
-
-const ONTOLOGY_VERSION_SOURCE_LABELS = {
-  'grounded-context': 'grounded',
-  inherited: 'inherited',
-  switched: 'switched',
-  'legacy-unknown': 'legacy/unknown',
-} as const;
-
-function buildOntologyVersionBadge(input: {
-  ontologyVersionId: string | null;
-  ontologyVersionSource: keyof typeof ONTOLOGY_VERSION_SOURCE_LABELS;
-}) {
-  return `ontology ${
-    ONTOLOGY_VERSION_SOURCE_LABELS[input.ontologyVersionSource]
-  } · ${input.ontologyVersionId ?? 'unknown'}`;
 }
 
 const analysisSessionUseCases = createAnalysisSessionUseCases({
@@ -381,6 +366,9 @@ export default async function AnalysisSessionPage({
       snapshotBinding: snapshotForDisplay?.ontologyVersionBinding ?? null,
       followUpBinding: activeFollowUp?.ontologyVersionBinding ?? null,
     });
+  const ontologyVersionBadgeText = ontologyVersionBindingForDisplay
+    ? formatOntologyVersionBindingBadge(ontologyVersionBindingForDisplay)
+    : null;
   const latestFollowUpConclusion = activeFollowUp
     ? {
         title: activeFollowUp.referencedConclusionTitle,

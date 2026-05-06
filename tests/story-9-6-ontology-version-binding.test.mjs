@@ -45,7 +45,9 @@ function buildSnapshot(id, ontologyVersionId = 'ontology-v1') {
     followUpId: null,
     status: 'completed',
     ontologyVersionId,
-    ontologyVersionSource: ontologyVersionId ? 'grounded-context' : 'legacy-unknown',
+    ontologyVersionBinding: ontologyVersionId
+      ? { ontologyVersionId, source: 'grounded-context' }
+      : { ontologyVersionId: null, source: 'legacy/unknown' },
     planSnapshot: {
       mode: 'minimal',
       summary: '分析计划',
@@ -134,12 +136,12 @@ test('AC1 execution snapshot 保存时从 groundedContext 绑定 ontology versio
     });
     console.log(JSON.stringify({
       ontologyVersionId: savedSnapshot?.ontologyVersionId ?? null,
-      ontologyVersionSource: savedSnapshot?.ontologyVersionSource ?? null,
+      ontologyVersionBindingSource: savedSnapshot?.ontologyVersionBinding?.source ?? null,
     }));
   `, { reactServer: false });
 
   assert.equal(result.ontologyVersionId, 'ontology-v1');
-  assert.equal(result.ontologyVersionSource, 'grounded-context');
+  assert.equal(result.ontologyVersionBindingSource, 'grounded-context');
 });
 
 test('AC2 follow-up 创建继承基准 execution 的 ontology version，重规划跨版本时标记 switched', async () => {
@@ -165,7 +167,7 @@ test('AC2 follow-up 创建继承基准 execution 的 ontology version，重规�
             previousPlanSnapshot: input.previousPlanSnapshot,
             currentPlanDiff: input.currentPlanDiff,
             ontologyVersionId: input.ontologyVersionId,
-            ontologyVersionSource: input.ontologyVersionSource,
+            ontologyVersionBinding: input.ontologyVersionBinding,
             updatedAt: input.updatedAt,
           };
           return storedFollowUp;
@@ -215,9 +217,9 @@ test('AC2 follow-up 创建继承基准 execution 的 ontology version，重规�
     });
     console.log(JSON.stringify({
       createdVersion: followUp.ontologyVersionId ?? null,
-      createdSource: followUp.ontologyVersionSource ?? null,
+      createdSource: followUp.ontologyVersionBinding?.source ?? null,
       replannedVersion: updated.ontologyVersionId ?? null,
-      replannedSource: updated.ontologyVersionSource ?? null,
+      replannedSource: updated.ontologyVersionBinding?.source ?? null,
     }));
   `, { reactServer: false });
 
@@ -229,20 +231,32 @@ test('AC2 follow-up 创建继承基准 execution 的 ontology version，重规�
 
 test('AC2 首次从 legacy/unknown 获得真实版本时标记 grounded-context', async () => {
   const result = await runTsSnippet(`
-    import persistenceModelsModule from './src/domain/analysis-execution/persistence-models.ts';
+    import persistenceModelsModule from './src/domain/ontology/version-binding.ts';
     const { resolveOntologyVersionBindingSource } = persistenceModelsModule;
     console.log(JSON.stringify({
-      nullToReal: resolveOntologyVersionBindingSource(null, 'ontology-v1'),
-      sameVersion: resolveOntologyVersionBindingSource('ontology-v1', 'ontology-v1'),
-      switched: resolveOntologyVersionBindingSource('ontology-v1', 'ontology-v2'),
-      missing: resolveOntologyVersionBindingSource('ontology-v1', null),
+      nullToReal: resolveOntologyVersionBindingSource({
+        previousOntologyVersionId: null,
+        nextOntologyVersionId: 'ontology-v1',
+      }),
+      sameVersion: resolveOntologyVersionBindingSource({
+        previousOntologyVersionId: 'ontology-v1',
+        nextOntologyVersionId: 'ontology-v1',
+      }),
+      switched: resolveOntologyVersionBindingSource({
+        previousOntologyVersionId: 'ontology-v1',
+        nextOntologyVersionId: 'ontology-v2',
+      }),
+      missing: resolveOntologyVersionBindingSource({
+        previousOntologyVersionId: 'ontology-v1',
+        nextOntologyVersionId: null,
+      }),
     }));
   `, { reactServer: false });
 
   assert.equal(result.nullToReal, 'grounded-context');
   assert.equal(result.sameVersion, 'inherited');
   assert.equal(result.switched, 'switched');
-  assert.equal(result.missing, 'legacy-unknown');
+  assert.equal(result.missing, 'legacy/unknown');
 });
 
 test('Review P2 grounding 从 store 层查询 published candidates，不依赖 approved 后过滤窗口', async () => {
@@ -367,7 +381,10 @@ test('AC3 history read model 与展示能按轮次暴露 inherited / switched / 
         inheritedContext: baseContext,
         mergedContext: baseContext,
         ontologyVersionId: 'ontology-v1',
-        ontologyVersionSource: 'inherited',
+        ontologyVersionBinding: {
+          ontologyVersionId: 'ontology-v1',
+          source: 'inherited',
+        },
         planVersion: null,
         currentPlanSnapshot: null,
         previousPlanSnapshot: null,
@@ -388,7 +405,10 @@ test('AC3 history read model 与展示能按轮次暴露 inherited / switched / 
         inheritedContext: baseContext,
         mergedContext: baseContext,
         ontologyVersionId: 'ontology-v2',
-        ontologyVersionSource: 'switched',
+        ontologyVersionBinding: {
+          ontologyVersionId: 'ontology-v2',
+          source: 'switched',
+        },
         planVersion: 2,
         currentPlanSnapshot: null,
         previousPlanSnapshot: null,
@@ -411,8 +431,8 @@ test('AC3 history read model 与展示能按轮次暴露 inherited / switched / 
       }),
     );
     console.log(JSON.stringify({
-      roundVersions: readModel.rounds.map((round) => round.ontologyVersion),
-      hasLegacyBadge: html.includes('legacy/unknown'),
+      roundVersions: readModel.rounds.map((round) => round.ontologyVersionBinding),
+      hasLegacyBadge: html.includes('旧版本 / 未知'),
       hasInheritedBadge: html.includes('inherited'),
       hasSwitchedBadge: html.includes('switched'),
       hasVersionId: html.includes('ontology-v2'),
@@ -421,7 +441,7 @@ test('AC3 history read model 与展示能按轮次暴露 inherited / switched / 
 
   assert.deepEqual(
     result.roundVersions.map((version) => version?.source),
-    ['legacy-unknown', 'inherited', 'switched'],
+    ['legacy/unknown', 'inherited', 'switched'],
   );
   assert.equal(result.hasLegacyBadge, true);
   assert.equal(result.hasInheritedBadge, true);

@@ -86,7 +86,7 @@ function buildSnapshot(input?: {
     followUpId: input?.followUpId ?? null,
     ontologyVersionId,
     ontologyVersionBinding: ontologyVersionId
-      ? { ontologyVersionId, source: 'inherited' as const }
+      ? { ontologyVersionId, source: 'grounded-context' as const }
       : { ontologyVersionId: null, source: 'legacy/unknown' as const },
     status: 'completed' as const,
     planSnapshot: buildPlan(ontologyVersionId ?? 'legacy-plan-source'),
@@ -142,7 +142,7 @@ test('Story 9.6 AC1 | saveExecutionSnapshot writes execution-time ontology versi
   assert.equal(snapshot.ontologyVersionId, 'published-ontology-v1');
   assert.deepEqual(snapshot.ontologyVersionBinding, {
     ontologyVersionId: 'published-ontology-v1',
-    source: 'inherited',
+    source: 'grounded-context',
   });
   assert.ok(savedSnapshot);
   assert.equal(savedSnapshot['ontologyVersionId'], 'published-ontology-v1');
@@ -181,7 +181,7 @@ test('Story 9.6 AC1 | snapshot falls back to plan _groundedSource, not current o
   });
 
   assert.equal(snapshot.ontologyVersionId, 'plan-grounded-v2');
-  assert.equal(snapshot.ontologyVersionBinding.source, 'inherited');
+  assert.equal(snapshot.ontologyVersionBinding.source, 'grounded-context');
 });
 
 test('Story 9.6 AC2 | follow-up inherits ontology version from referenced execution snapshot', async () => {
@@ -548,7 +548,7 @@ test('Story 9.6 AC3 | history rounds expose ontology version badge metadata and 
 
   assert.deepEqual(history.rounds[0].ontologyVersionBinding, {
     ontologyVersionId: 'published-ontology-v1',
-    source: 'inherited',
+    source: 'grounded-context',
   });
   assert.deepEqual(history.rounds[1].ontologyVersionBinding, {
     ontologyVersionId: 'published-ontology-v2',
@@ -621,7 +621,7 @@ test('Story 9.6 AC1+AC2 | Postgres stores persist ontology version binding field
     assert.equal(rootSnapshot?.ontologyVersionId, 'pg-ontology-v1');
     assert.deepEqual(rootSnapshot?.ontologyVersionBinding, {
       ontologyVersionId: 'pg-ontology-v1',
-      source: 'inherited',
+      source: 'grounded-context',
     });
     assert.deepEqual(legacySnapshot?.ontologyVersionBinding, {
       ontologyVersionId: null,

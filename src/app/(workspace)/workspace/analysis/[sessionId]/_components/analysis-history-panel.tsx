@@ -7,34 +7,6 @@ type AnalysisHistoryPanelProps = {
   readModel: AnalysisHistoryReadModel;
 };
 
-const ONTOLOGY_VERSION_SOURCE_LABELS = {
-  'grounded-context': 'grounded',
-  inherited: 'inherited',
-  switched: 'switched',
-  'legacy-unknown': 'legacy/unknown',
-} as const;
-
-function OntologyVersionBadge({
-  ontologyVersion,
-}: {
-  ontologyVersion: AnalysisHistoryReadModel['rounds'][number]['ontologyVersion'];
-}) {
-  return (
-    <span
-      className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
-      data-testid="ontology-version-badge"
-      title={
-        ontologyVersion.ontologyVersionId
-          ? `Ontology version ${ontologyVersion.ontologyVersionId}`
-          : '迁移前历史记录未绑定 ontology version'
-      }
-    >
-      ontology {ONTOLOGY_VERSION_SOURCE_LABELS[ontologyVersion.source]} ·{' '}
-      {ontologyVersion.ontologyVersionId ?? 'unknown'}
-    </span>
-  );
-}
-
 function buildHistoryHref({
   sessionId,
   roundId,
@@ -100,9 +72,6 @@ export function AnalysisHistoryPanel({
                 <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
                   {round.isLatest ? '最新结论' : '历史结论'}
                 </span>
-              </div>
-              <div className="mt-2">
-                <OntologyVersionBadge ontologyVersion={round.ontologyVersion} />
               </div>
               <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
                 {round.questionText}

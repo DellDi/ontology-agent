@@ -1,0 +1,1 @@
+ALTER TABLE "platform"."analysis_execution_snapshots" ADD COLUMN "ontology_version_binding_source" text DEFAULT 'legacy/unknown' NOT NULL;
