@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-25
-last_updated: 2026-05-05
+last_updated: 2026-05-10
 project: ontology-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -134,7 +134,7 @@ development_status:
   10-2-renderer-registry-for-rich-analysis-blocks: done
   10-3-ui-message-projection-persistence-and-resume: done
   10-4-runtime-bridge-for-memory-knowledge-skills-and-tools: done
-  10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema: ready-for-dev
+  10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema: review
   10-6-collapsible-execution-process-board-and-expert-mode: done
   10-7-epic-10-alignment-sweep: backlog
   epic-10-retrospective: optional
