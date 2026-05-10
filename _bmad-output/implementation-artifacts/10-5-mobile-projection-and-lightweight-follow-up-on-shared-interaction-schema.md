@@ -1,6 +1,6 @@
 # Story 10.5: 移动端摘要投影、续流与轻量追问接入同源交互 schema
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -20,23 +20,23 @@ so that 移动端结果查看、续流和轻量追问都能沿用同源交互层
 
 ## Tasks / Subtasks
 
-- [ ] 建立共享 interaction schema 的移动端 projection contract（AC: 1, 2, 5）
-  - [ ] 明确定义 `summaryProjection`、`resumeProjection` 和 `followUpProjection` 的最小字段集合。
-  - [ ] 复用同源 render block / message part schema，不新增 mobile-only 消息协议。
-  - [ ] 为 mobile projection 设定 version boundary，避免和 PC 端各自演化成两套事实源。
-- [ ] 新增 mobile 结果页与 resume 入口（AC: 2, 3, 5）
-  - [ ] 建立移动端专用 route 或 route group，作为受限投影消费层，而不是把 PC 页面做响应式缩小。
-  - [ ] 在结果页展示摘要卡、状态、最近更新时间、最小历史上下文和可恢复入口。
-  - [ ] 保持服务端权限、scope 与会话身份校验，不允许浏览器端自行拼装会话真相。
-- [ ] 接入 mobile 轻量追问与边界控制（AC: 4, 5）
-  - [ ] 复用既有 follow-up / iteration / resume 逻辑，将轻量输入附着到原 session。
-  - [ ] 对复杂编辑、计划重组、长链路编排、工具态干预等请求做明确拦截或引导到 PC。
-  - [ ] 确保移动端不会生成新的并行会话或独立消息协议分支。
-- [ ] 覆盖 projection、resume 与边界回归测试（AC: 1, 2, 3, 4, 5）
-  - [ ] 验证 PC 与 mobile 消费同源 schema，但输出不同投影。
-  - [ ] 验证重新进入会话时能恢复到正确的可继续状态。
-  - [ ] 验证轻量追问写回原会话，复杂输入被引导到 PC。
-  - [ ] 验证 scope 过滤与只读边界不会被 mobile projection 旁路。
+- [x] 建立共享 interaction schema 的移动端 projection contract（AC: 1, 2, 5）
+  - [x] 明确定义 `summaryProjection`、`resumeProjection` 和 `followUpProjection` 的最小字段集合。
+  - [x] 复用同源 render block / message part schema，不新增 mobile-only 消息协议。
+  - [x] 为 mobile projection 设定 version boundary，避免和 PC 端各自演化成两套事实源。
+- [x] 新增 mobile 结果页与 resume 入口（AC: 2, 3, 5）
+  - [x] 建立移动端专用 route 或 route group，作为受限投影消费层，而不是把 PC 页面做响应式缩小。
+  - [x] 在结果页展示摘要卡、状态、最近更新时间、最小历史上下文和可恢复入口。
+  - [x] 保持服务端权限、scope 与会话身份校验，不允许浏览器端自行拼装会话真相。
+- [x] 接入 mobile 轻量追问与边界控制（AC: 4, 5）
+  - [x] 复用既有 follow-up / iteration / resume 逻辑，将轻量输入附着到原 session。
+  - [x] 对复杂编辑、计划重组、长链路编排、工具态干预等请求做明确拦截或引导到 PC。
+  - [x] 确保移动端不会生成新的并行会话或独立消息协议分支。
+- [x] 覆盖 projection、resume 与边界回归测试（AC: 1, 2, 3, 4, 5）
+  - [x] 验证 PC 与 mobile 消费同源 schema，但输出不同投影。
+  - [x] 验证重新进入会话时能恢复到正确的可继续状态。
+  - [x] 验证轻量追问写回原会话，复杂输入被引导到 PC。
+  - [x] 验证 scope 过滤与只读边界不会被 mobile projection 旁路。
 
 ## Dev Notes
 
@@ -148,13 +148,32 @@ GPT-5 Codex
 ### Debug Log References
 
 - Story drafted against approved Epic 10 runtime strategy, existing mobile follow-up semantics, and current multi-round history boundaries.
+- 2026-05-10: Red/green for mobile projection contract via `tests/story-10-5-mobile-projection-and-lightweight-follow-up.test.mjs`.
+- 2026-05-10: Validation passed for `node --test --test-concurrency=1 tests/story-10-5-mobile-projection-and-lightweight-follow-up.test.mjs`.
+- 2026-05-10: Related Epic 10 regression passed for Story 10.1/10.2/10.3/10.5 tests, 33/33 passing.
+- 2026-05-10: `pnpm lint` and `pnpm build` passed.
+- 2026-05-10: Full suite attempt `NODE_OPTIONS=--conditions=react-server node --import tsx --test --test-concurrency=1 tests/*.test.mjs tests/*.test.mts` was interrupted after unrelated existing failures in early story / external integration paths; Story 10.5 and related 10.x regression remained green.
 
 ### Completion Notes List
 
 - Story 10.5 now locks mobile into a same-schema projection consumer instead of a parallel protocol owner.
 - The mobile scope is intentionally limited to summary, resume, lightweight follow-up, and permission-safe viewing, with explicit PC handoff for complex planning and tool-heavy flows.
 - Resume, projection, and follow-up semantics are aligned with Stories 8.1, 8.3, 6.4, and planned Story 10.3 so mobile does not drift from canonical session history.
+- Implemented application-level mobile projection contract in `src/application/mobile-analysis`, including `summaryProjection`, `resumeProjection`, `followUpProjection`, version metadata, runtime part whitelist, mobile render block whitelist, and server-side owner/scope assertions.
+- Added a dedicated `/mobile/analysis/[sessionId]` result surface that hydrates shared UI message projection, displays mobile-only summary/evidence/resume/history/follow-up controls, and keeps PC plan editing out of the mobile page.
+- Added `/api/mobile/analysis/sessions/[sessionId]/follow-ups` to enforce server-side lightweight follow-up boundaries before reusing the existing follow-up use case against the original session.
+- Covered same-schema PC/mobile projection divergence, resume anchor/cursor recovery, lightweight follow-up PC handoff, and owner/scope guardrails in Story 10.5 regression tests.
 
 ### File List
 
 - {project-root}/_bmad-output/implementation-artifacts/10-5-mobile-projection-and-lightweight-follow-up-on-shared-interaction-schema.md
+- {project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml
+- {project-root}/src/app/(mobile)/mobile/analysis/[sessionId]/page.tsx
+- {project-root}/src/app/api/mobile/analysis/sessions/[sessionId]/follow-ups/route.ts
+- {project-root}/src/application/mobile-analysis/index.ts
+- {project-root}/src/application/mobile-analysis/use-cases.ts
+- {project-root}/tests/story-10-5-mobile-projection-and-lightweight-follow-up.test.mjs
+
+### Change Log
+
+- 2026-05-10: Implemented Story 10.5 mobile projection, mobile result route, lightweight follow-up boundary route, and regression coverage; moved story to review.
