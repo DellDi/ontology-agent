@@ -227,6 +227,12 @@ export function createAnalysisExecutionStreamUseCases({
             content: input.message,
           },
         ],
+        metadata: {
+          processBoardProgress: {
+            processed: input.processedStepCount,
+            total: input.totalStepCount,
+          },
+        },
       };
     },
   };

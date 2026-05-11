@@ -251,6 +251,7 @@ pnpm create next-app@latest ontology-agent --ts --app
   - 必须写入并回传 `assumption trace`，保证可解释与可审计。
 - `fail loud` 原则不变，但“是否阻断”由风险级别决定，而不是把所有缺省都当作阻断项。
 - 代码权威源：`src/application/ontology/grounded-planning.ts` 的 `HARD_BLOCKING_ISSUE_TYPES`。新增或调整 issue type 时必须同步修改本段与该常量。
+- 领域模型约定：下划线 = 运行时只读标注（runtime annotation）。例如 `AnalysisPlan._groundedSource / _groundingStatus / _executionAssumptions` 属于运行时派生元数据，不作为用户可编辑输入字段。
 
 ### 前端架构
 

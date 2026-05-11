@@ -1,4 +1,9 @@
-import type { ExecutionRenderBlock } from '@/domain/analysis-execution/stream-models';
+import type {
+  AnalysisExecutionStreamEvent,
+  ExecutionRenderBlock,
+  ExecutionRenderBlockType,
+} from '@/domain/analysis-execution/stream-models';
+import { EXECUTION_RENDER_BLOCK_TYPES } from '@/domain/analysis-execution/stream-models';
 
 export const ANALYSIS_INTERACTION_PART_SCHEMA_VERSION = 1 as const;
 
@@ -7,15 +12,18 @@ export type AnalysisInteractionSurface =
   (typeof ANALYSIS_INTERACTION_SURFACES)[number];
 
 export const ANALYSIS_INTERACTION_PART_KINDS = [
+  'process-board',
   'status',
   'kv-list',
   'tool-list',
   'markdown',
+  'reasoning-summary',
   'table',
   'chart',
   'graph',
   'evidence-card',
   'timeline',
+  'assumption-card',
   'approval-state',
   'skills-state',
 ] as const;
@@ -85,6 +93,12 @@ function assertString(value: unknown, fieldName: string) {
   return value.trim();
 }
 
+function isKnownExecutionRenderBlockType(
+  kind: string,
+): kind is ExecutionRenderBlockType {
+  return EXECUTION_RENDER_BLOCK_TYPES.includes(kind as ExecutionRenderBlockType);
+}
+
 function isKnownPartKind(kind: string): kind is AnalysisInteractionPartKind {
   return ANALYSIS_INTERACTION_PART_KINDS.includes(
     kind as AnalysisInteractionPartKind,
@@ -113,6 +127,37 @@ function stripUndefinedPayload(payload: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined),
   );
+}
+
+function buildPart(input: {
+  kind: AnalysisInteractionPartKind;
+  source: AnalysisInteractionPartSource;
+  surfaceHints?: AnalysisInteractionSurface[];
+  title?: string;
+  label?: string;
+  payload: Record<string, unknown>;
+  diagnostics?: AnalysisInteractionPartDiagnostics;
+}): AnalysisInteractionPart {
+  return {
+    id: buildPartId(input.kind, input.source),
+    kind: input.kind,
+    version: ANALYSIS_INTERACTION_PART_SCHEMA_VERSION,
+    source: input.source,
+    surfaceHints: {
+      supportedSurfaces: input.surfaceHints ?? ['workspace', 'mobile'],
+    },
+    projection: {
+      surface: 'workspace',
+      density: 'full',
+    },
+    title: input.title,
+    label: input.label ?? input.title,
+    payload: input.payload,
+    diagnostics: input.diagnostics ?? {
+      originalType: input.kind,
+      originalSource: input.source,
+    },
+  };
 }
 
 function payloadFromRenderBlock(block: ExecutionRenderBlock) {
@@ -163,16 +208,143 @@ function payloadFromRenderBlock(block: ExecutionRenderBlock) {
   }
 }
 
+function resolveNormalizedKind(input: {
+  rawType: ExecutionRenderBlockType;
+  title?: string;
+}): AnalysisInteractionPartKind {
+  if (
+    input.rawType === 'markdown' &&
+    (input.title === '阶段说明' || input.title === '推理摘要')
+  ) {
+    return 'reasoning-summary';
+  }
+
+  return input.rawType;
+}
+
+type ProcessBoardStepStatus = 'running' | 'completed' | 'failed';
+
+type ProcessBoardStepItem = {
+  id: string;
+  order: number;
+  title: string;
+  status: ProcessBoardStepStatus;
+};
+
+type ProcessBoardProgress = {
+  processed: number;
+  total: number;
+  percent: number;
+  label: string;
+};
+
+function buildStepProgressItems(
+  events: readonly AnalysisExecutionStreamEvent[],
+): ProcessBoardStepItem[] {
+  const stepById = new Map<string, ProcessBoardStepItem>();
+
+  events.forEach((event) => {
+    if (!event.step) {
+      return;
+    }
+
+    const previous = stepById.get(event.step.id);
+    const nextItem: ProcessBoardStepItem = {
+      id: event.step.id,
+      order: event.step.order,
+      title: event.step.title,
+      status: event.step.status,
+    };
+
+    if (!previous) {
+      stepById.set(event.step.id, nextItem);
+      return;
+    }
+
+    const previousPriority =
+      previous.status === 'failed' ? 3 : previous.status === 'completed' ? 2 : 1;
+    const nextPriority =
+      nextItem.status === 'failed' ? 3 : nextItem.status === 'completed' ? 2 : 1;
+
+    if (nextPriority >= previousPriority) {
+      stepById.set(event.step.id, nextItem);
+    }
+  });
+
+  return [...stepById.values()].sort((left, right) => left.order - right.order);
+}
+
+function isProcessBoardProgress(value: unknown): value is {
+  processed: number;
+  total: number;
+} {
+  return !!value
+    && typeof value === 'object'
+    && typeof (value as { processed?: unknown }).processed === 'number'
+    && Number.isFinite((value as { processed: number }).processed)
+    && typeof (value as { total?: unknown }).total === 'number'
+    && Number.isFinite((value as { total: number }).total);
+}
+
+function resolveLatestStructuredProcessBoardProgress(
+  events: readonly AnalysisExecutionStreamEvent[],
+) {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    const metadata =
+      event.metadata && typeof event.metadata === 'object' && !Array.isArray(event.metadata)
+        ? (event.metadata as Record<string, unknown>)
+        : null;
+    const progress = metadata?.processBoardProgress;
+
+    if (isProcessBoardProgress(progress) && progress.total > 0) {
+      return {
+        processed: Math.max(0, Math.min(progress.processed, progress.total)),
+        total: progress.total,
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildProcessBoardProgress(input: {
+  events: readonly AnalysisExecutionStreamEvent[];
+  steps: readonly ProcessBoardStepItem[];
+}): ProcessBoardProgress {
+  const structured = resolveLatestStructuredProcessBoardProgress(input.events);
+  const total = structured?.total ?? input.steps.length;
+  const processed =
+    structured?.processed
+    ?? input.steps.filter((step) => step.status === 'completed').length;
+
+  if (total <= 0) {
+    return {
+      processed: 0,
+      total: 0,
+      percent: 0,
+      label: '正在初始化执行流程',
+    };
+  }
+
+  return {
+    processed,
+    total,
+    percent: Math.min(100, Math.round((processed / total) * 100)),
+    label: `已完成 ${processed}/${total} 步`,
+  };
+}
+
 export function normalizeExecutionRenderBlock(
   block: ExecutionRenderBlock | unknown,
   source: AnalysisInteractionPartSource,
 ): AnalysisInteractionPart {
   const candidate = assertObject(block, 'renderBlock');
-  const kind = assertString(candidate.type, 'renderBlock.type');
+  const rawType = assertString(candidate.type, 'renderBlock.type');
 
-  if (!isKnownPartKind(kind)) {
+  if (!isKnownExecutionRenderBlockType(rawType)) {
     throw new InvalidAnalysisInteractionPartError(
-      `不支持的 interaction part 类型: ${kind}。`,
+      `不支持的 execution render block 类型: ${rawType}。`,
     );
   }
 
@@ -181,27 +353,27 @@ export function normalizeExecutionRenderBlock(
     typeof candidate.title === 'string' && candidate.title.trim()
       ? candidate.title.trim()
       : undefined;
-
-  return {
-    id: buildPartId(kind, source),
-    kind,
-    version: ANALYSIS_INTERACTION_PART_SCHEMA_VERSION,
-    source,
-    surfaceHints: {
-      supportedSurfaces: ['workspace', 'mobile'],
-    },
-    projection: {
-      surface: 'workspace',
-      density: 'full',
-    },
+  const kind = resolveNormalizedKind({
+    rawType,
     title,
-    label: title,
+  });
+
+  if (!isKnownPartKind(kind)) {
+    throw new InvalidAnalysisInteractionPartError(
+      `不支持的 interaction part 类型: ${kind}。`,
+    );
+  }
+
+  return buildPart({
+    kind,
+    source,
+    title,
     payload: payloadFromRenderBlock(typedBlock),
     diagnostics: {
-      originalType: kind,
+      originalType: rawType,
       originalSource: source,
     },
-  };
+  });
 }
 
 export function normalizeExecutionRenderBlocks(
@@ -232,9 +404,17 @@ function projectPayload(
 
   switch (part.kind) {
     case 'markdown':
+    case 'reasoning-summary':
       return {
         ...part.payload,
         content: truncateText(part.payload.content, 80),
+      };
+    case 'process-board':
+      return {
+        ...part.payload,
+        steps: Array.isArray(part.payload.steps)
+          ? part.payload.steps.slice(0, 3)
+          : part.payload.steps,
       };
     case 'table':
       return {
@@ -274,6 +454,13 @@ function projectPayload(
           ? part.payload.items.slice(0, 3)
           : part.payload.items,
       };
+    case 'assumption-card':
+      return {
+        ...part.payload,
+        assumptions: Array.isArray(part.payload.assumptions)
+          ? part.payload.assumptions.slice(0, 2)
+          : part.payload.assumptions,
+      };
     case 'skills-state':
       return {
         ...part.payload,
@@ -284,6 +471,70 @@ function projectPayload(
     default:
       return part.payload;
   }
+}
+
+export function buildProcessBoardPart(input: {
+  sessionId: string;
+  executionId: string;
+  events: readonly AnalysisExecutionStreamEvent[];
+}): AnalysisInteractionPart {
+  const steps = buildStepProgressItems(input.events);
+  const progress = buildProcessBoardProgress({
+    events: input.events,
+    steps,
+  });
+  const lastSequence = input.events.at(-1)?.sequence ?? 0;
+
+  return buildPart({
+    kind: 'process-board',
+    source: {
+      sourceType: 'runtime-foundation-part',
+      sessionId: input.sessionId,
+      executionId: input.executionId,
+      eventId: 'process-board',
+      sequence: lastSequence,
+      blockIndex: 0,
+    },
+    surfaceHints: ['workspace'],
+    title: '执行流程看板',
+    payload: {
+      progress,
+      steps,
+      eventCount: input.events.length,
+      emptyMessage: '正在等待执行事件，请保持当前页面打开。',
+    },
+  });
+}
+
+export function buildAssumptionCardPart(input: {
+  assumptions: string[];
+  title?: string;
+  note?: string;
+  testId?: string;
+  source?: AnalysisInteractionPartSource;
+}): AnalysisInteractionPart {
+  if (!Array.isArray(input.assumptions) || input.assumptions.length === 0) {
+    throw new InvalidAnalysisInteractionPartError(
+      'assumption-card 至少需要一条 assumption。',
+    );
+  }
+
+  const source = input.source ?? {
+    sourceType: 'runtime-foundation-part',
+    eventId: 'assumption-card',
+    blockIndex: 0,
+  };
+
+  return buildPart({
+    kind: 'assumption-card',
+    source,
+    title: input.title ?? '自动执行假设',
+    payload: stripUndefinedPayload({
+      assumptions: input.assumptions,
+      note: input.note,
+      testId: input.testId,
+    }),
+  });
 }
 
 export function projectAnalysisInteractionPart(

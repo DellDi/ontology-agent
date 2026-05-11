@@ -33,10 +33,20 @@ type AnalysisExecutionLiveShellProps = {
 
 // D2: localStorage key 按 user 命名空间隔离，避免多账户同设备互相干扰；
 // 同时保留 v2 版本号，前缀 v1 的旧 key 适时废弃。
-const PROCESS_BOARD_STORAGE_KEY_PREFIX = 'analysis-process-board-open-v2';
+export const PROCESS_BOARD_STORAGE_KEY_PREFIX = 'analysis-process-board-open-v2';
 
-function buildProcessBoardStorageKey(ownerUserId: string) {
+export function buildProcessBoardStorageKey(ownerUserId: string) {
   return `${PROCESS_BOARD_STORAGE_KEY_PREFIX}:${ownerUserId}`;
+}
+
+export function shouldRestoreProcessBoardOpenState(
+  persistedValue: string | null,
+) {
+  return persistedValue === '1';
+}
+
+export function shouldCloseProcessBoardOnKeydown(key: string) {
+  return key === 'Escape';
 }
 
 function resolveStatusBanner(projection: AiRuntimeProjection) {
@@ -132,7 +142,7 @@ export function AnalysisExecutionLiveShell({
     // 此处的 one-shot setState 仅会触发一次额外渲染，不构成 cascading renders。
     const persisted = window.localStorage.getItem(processBoardStorageKey);
     // D1: 默认收起；仅当用户显式展开过（persisted === '1'）才恢复为展开。
-    if (persisted === '1') {
+    if (shouldRestoreProcessBoardOpenState(persisted)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsProcessBoardOpen(true);
     }
@@ -157,7 +167,7 @@ export function AnalysisExecutionLiveShell({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (shouldCloseProcessBoardOnKeydown(event.key)) {
         setIsProcessBoardOpen(false);
       }
     };

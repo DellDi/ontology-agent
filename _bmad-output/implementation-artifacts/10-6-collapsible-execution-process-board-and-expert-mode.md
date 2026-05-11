@@ -53,7 +53,7 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 - [x] [Review][Decision] **D1 默认态与 UX 规范冲突** — 决策为 **(a) 默认收起**，严格对齐 UX addendum；已落地：`useState(false)` + localStorage 中 `'1'` 时才恢复为展开 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx:57-80`
 - [x] [Review][Decision] **D2 localStorage key 维度** — 决策为 **(b) 按 user**；已落地：key 升级为 `analysis-process-board-open-v2:${ownerUserId}`，旧全局 key 自然废弃，多账户同设备不再互相干扰 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx:24-30, 66`
 - [x] [Review][Decision] **D3 多版本容错深度** — 决策为 **(a) 降到 3**；已落地：`listApprovedCandidates(3)`，最坏 DB round-trip 从 100 降到 15；后续根据 `attemptedVersionIds` 轨迹观察按需上调 `@src/application/ontology/grounding.ts:330-335`
-- [x] [Review][Decision] **D4 reasoning-summary / assumption-card renderer 归属** — 决策为 **(a) 归入 Story 10.2**；本 story 暂时以通用 `kv-list` / amber 警示卡承载 assumption 显示，待 10.2 renderer-registry 落地后再统一升级为 `assumption-card` / `reasoning-summary`
+- [x] [Review][Decision] **D4 reasoning-summary / assumption-card renderer 归属** — 决策为 **(a) 归入 Story 10.2**；本 story 暂时以通用 `kv-list` / amber 警示卡承载 assumption 显示，已于 `2026-05-12 / Story 10.7` 在正式 `renderer-registry` 中收口为 `reasoning-summary / assumption-card / process-board`
 - [x] [Review][Decision] **D5 Assumption 在 ConclusionPanel 的展示位** — 决策为 **(a) 在 Conclusion 投影**；已落地：Conclusion 面板新增 amber 警示卡，包含纪偏引导文案；P12 随之闭环 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx:39-56`
 
 #### Patch（明确可修，按严重度排序）
@@ -66,14 +66,15 @@ so that 我不需要先手工补齐所有条件就能看到分析结果，同时
 - [x] [Review][Patch][🟠 Med] **P6 自动提交无失败保护** — 已修复：服务端 `shouldAutoExecute` 已涉及 `executionError` 拦截；用户 F5 场景在客户端增加 `sessionStorage` 级 scope 去重作为双保险，防止同一浏览器 session 内反复自动提交；用户可通过"手动执行"按钮显式重试 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:21-46`
 - [x] [Review][Patch][🟠 Med] **P7 double-submit 可访问性** — 已修复：合并双 form 为单 form，自动触发与手动提交共享同一元素与同一 action，根源性消除 double-submit 歧义与 不合理的 sr-only 提交按钮 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:55-67`
 - [x] [Review][Patch][🟠 Med] **P8 多版本探测无 observability** — 已修复：`attemptedVersionIds` 轨迹写入异常 details；回退到下一版本前新增 `console.warn` 输出步进信息（版本 id、尝试序列、status、failed/ambiguous type），完成 diagnosable 补全 `@src/application/ontology/grounding.ts:322-323, 583-611, 625-636`
-- [x] [Review][Patch][🟠 Med] **P9 `_executionAssumptions` 下划线私有字段** — 转为 **deferred**：domain 层既有 `_groundedSource` / `_groundingStatus` 同类约定，单改会破坏一致性；该项已追加到 `deferred-work.md`，建议在 Epic 10 retrospective 统一决策（整体去下划线 OR 将下划线约定写入 domain 规范）
+- [x] [Review][Patch][🟠 Med] **P9 `_executionAssumptions` 下划线私有字段** — `2026-04-17` 先转为 deferred；已于 `2026-05-12 / Story 10.7` 完成统一决策：保留下划线约定，并通过 `ANALYSIS_PLAN_RUNTIME_ANNOTATION_FIELDS` + `architecture.md` 明确写入“下划线 = 运行时只读标注（runtime annotation）”
 - [x] [Review][Patch][🟡 Low] **P10 architecture.md 与代码不对齐** — 已修复：Blocking 列新增 `version`，issue type 一一列出（entity/metric/version/permission 归为 "严重语义歧义"，time/factor 归为 non-blocking），并声明 `HARD_BLOCKING_ISSUE_TYPES` 为代码权威源 `@_bmad-output/planning-artifacts/architecture.md:232-253`
 - [x] [Review][Patch][🟡 Low] **P11 `requestSubmit()` 兼容性** — 已修复：auto-execute-gate 对 `typeof form.requestSubmit === 'function'` 做 feature-detect，缺失时降级到 `form.submit()` `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx:54-58`
 - [x] [Review][Patch][🟡 Low] **P12 ConclusionPanel 未展示 assumptions** — 已修复：ConclusionPanel 新增 `planAssumptions?: string[]` prop，page.tsx 与 LiveShell 同步传入 `analysisPlanReadModel.assumptions`，顶部 amber 卡展示 `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx:5-56`
 
-#### Deferred（预存在，非本次引入）
+#### Deferred（预存在，已于 Story 10.7 收口）
 
-- [x] [Review][Defer] **W1 parseProgressText 依赖 `"N/M"` 硬格式** `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-stream-panel.tsx` — deferred, pre-existing（renderBlock schema 统一收口建议放到 `Story 10.2 renderer-registry`）
+- [x] [Review][Defer] **W1 parseProgressText 依赖 `"N/M"` 硬格式** `@src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-stream-panel.tsx` — 已于 `2026-05-12 / Story 10.7` 收口：进度统一改为 structured `processBoardProgress` metadata + `buildProcessBoardPart()`，不再依赖 `label="进度"` 或 `"N/M"` 字符串解析
+- [x] [Review][Defer] **W2/P9 `_executionAssumptions` 下划线约定** — 已于 `2026-05-12 / Story 10.7` 收口：保留下划线语义，并在 domain / architecture 两侧显式固化为 runtime annotation 规范
 
 ## Dev Notes
 
@@ -144,6 +145,15 @@ D1～D5 全部拍板并落地，P12 一并收掉：
 - Defer：2 / 2 ✅ （W1 + P9）
 
 Story 状态可安全从 `review` 转入 `done`。
+
+### Completion Notes (2026-05-12, alignment sweep)
+
+Story 10.7 已完成对齐清扫，本 story 当时遗留的 runtime / renderer / domain 口子已经全部闭环：
+
+- `D4` 正式落地为 `reasoning-summary / assumption-card / process-board` 三类 interaction part
+- `W1` 从字符串 `parseProgressText()` 升级为 structured `processBoardProgress` metadata
+- `W2/P9` 将 `_executionAssumptions` 纳入正式 runtime annotation 约定
+- `deferred-work.md` 中与 Story 10.6 相关的悬挂项已清零
 
 
 验证命令：

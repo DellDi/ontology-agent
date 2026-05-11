@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  buildAssumptionCardPart,
   normalizeExecutionRenderBlock,
   renderAnalysisInteractionPart,
 } from '@/application/analysis-interaction';
@@ -29,6 +30,24 @@ export function AnalysisConclusionPanel({
   }
 
   const hasAssumptions = (planAssumptions?.length ?? 0) > 0;
+  const assumptionsRenderedBlock = hasAssumptions
+    ? renderAnalysisInteractionPart(
+        buildAssumptionCardPart({
+          assumptions: planAssumptions ?? [],
+          title: '本轮结论所依赖的自动执行假设',
+          note: '若与你的真实意图不一致，可通过追问或「继续追问」纠偏，系统会重规划后再次执行。',
+          testId: 'analysis-conclusion-assumptions',
+          source: {
+            sourceType: 'conclusion-read-model',
+            eventId: 'conclusion-assumptions',
+            blockIndex: -1,
+          },
+        }),
+        {
+          surface: 'workspace',
+        },
+      )
+    : null;
 
   return (
     <article className="glass-panel p-6" data-testid="analysis-conclusion-panel">
@@ -55,22 +74,10 @@ export function AnalysisConclusionPanel({
       </div>
 
       {hasAssumptions ? (
-        <section
-          className="mt-5 rounded-3xl border border-amber-100 bg-amber-50/80 p-4"
-          data-testid="analysis-conclusion-assumptions"
-        >
-          <p className="text-xs font-medium tracking-[0.18em] text-amber-700 uppercase">
-            本轮结论所依赖的自动执行假设
-          </p>
-          <ul className="mt-2 space-y-1 text-sm leading-7 text-amber-900">
-            {planAssumptions?.map((assumption) => (
-              <li key={assumption}>- {assumption}</li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs leading-6 text-amber-700">
-            若与你的真实意图不一致，可通过追问或「继续追问」纠偏，系统会重规划后再次执行。
-          </p>
-        </section>
+        <AnalysisInteractionRenderedBlock
+          className="mt-5"
+          renderedBlock={assumptionsRenderedBlock!}
+        />
       ) : null}
 
       <div className="mt-5 space-y-4">

@@ -1,5 +1,6 @@
 import {
   ANALYSIS_INTERACTION_PART_KINDS,
+  InvalidAnalysisInteractionPartError,
   type AnalysisInteractionPart,
   type AnalysisInteractionPartKind,
   type AnalysisInteractionSurface,
@@ -57,12 +58,15 @@ export type AnalysisRendererRegistry = {
 
 function resolveMaturity(kind: string): AnalysisRendererMaturity {
   if (
+    kind === 'process-board' ||
     kind === 'status' ||
     kind === 'kv-list' ||
     kind === 'tool-list' ||
     kind === 'markdown' ||
+    kind === 'reasoning-summary' ||
     kind === 'table' ||
     kind === 'evidence-card' ||
+    kind === 'assumption-card' ||
     kind === 'timeline'
   ) {
     return 'phase-a';
@@ -95,7 +99,9 @@ function createDescriptor(kind: AnalysisInteractionPartKind): AnalysisRendererDe
   return {
     kind,
     maturity: resolveMaturity(kind),
-    supportedSurfaces: ['workspace', 'mobile'],
+    supportedSurfaces: kind === 'process-board'
+      ? ['workspace']
+      : ['workspace', 'mobile'],
     render: renderBaseBlock,
     project: projectAnalysisInteractionPart,
   };
@@ -165,6 +171,16 @@ export function createAnalysisRendererRegistry(
       const descriptor = byKind.get(part.kind);
       if (!descriptor) {
         return projectAnalysisInteractionPart(part, context);
+      }
+      if (!descriptor.supportedSurfaces.includes(context.surface)) {
+        throw new InvalidAnalysisInteractionPartError(
+          `renderer surface 不支持 ${part.kind} -> ${context.surface} 投影。`,
+        );
+      }
+      if (!part.surfaceHints.supportedSurfaces.includes(context.surface)) {
+        throw new InvalidAnalysisInteractionPartError(
+          `part surface 不支持 ${part.kind} -> ${context.surface} 投影。`,
+        );
       }
       return descriptor.project(part, context);
     },

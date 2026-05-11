@@ -7,6 +7,15 @@ export const ANALYSIS_PLAN_MODES = ['minimal', 'multi-step'] as const;
 
 export type AnalysisPlanMode = (typeof ANALYSIS_PLAN_MODES)[number];
 
+export const ANALYSIS_PLAN_RUNTIME_ANNOTATION_FIELDS = [
+  '_groundedSource',
+  '_groundingStatus',
+  '_executionAssumptions',
+] as const;
+
+export type AnalysisPlanRuntimeAnnotationField =
+  (typeof ANALYSIS_PLAN_RUNTIME_ANNOTATION_FIELDS)[number];
+
 export type AnalysisPlanStep = {
   id: string;
   order: number;
@@ -19,6 +28,8 @@ export type AnalysisPlan = {
   mode: AnalysisPlanMode;
   summary: string;
   steps: AnalysisPlanStep[];
+  // 约定：下划线前缀 = 运行时只读标注（runtime annotation），
+  // 属于 canonical planning facts 的派生元数据，不面向用户直接编辑。
   _groundedSource?: string;
   _groundingStatus?: OntologyGroundedContext['groundingStatus'];
   _executionAssumptions?: string[];

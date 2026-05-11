@@ -248,6 +248,10 @@ export function buildStepResultEvent(input: {
     metadata: {
       processedStepCount: input.processedStepCount,
       totalStepCount: input.totalStepCount,
+      processBoardProgress: {
+        processed: input.processedStepCount,
+        total: input.totalStepCount,
+      },
       toolEvents: input.result.events.length,
       conclusionSummary: structuredConclusion.summary ?? null,
       conclusionText: structuredConclusion.conclusion ?? null,
