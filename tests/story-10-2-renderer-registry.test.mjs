@@ -36,6 +36,7 @@ const INTERACTION_IMPORT = `
   import streamModule from './src/domain/analysis-execution/stream-models.ts';
   const {
     ANALYSIS_INTERACTION_PART_SCHEMA_VERSION,
+    buildProcessBoardPart,
     createDefaultAnalysisRendererRegistry,
     getDefaultAnalysisRendererRegistry,
     normalizeExecutionRenderBlock,
@@ -262,9 +263,9 @@ test('renderer registry 支持 register/resolve/render/project/fallback，未知
   `);
 
   assert.equal(result.resolvedKind, 'markdown');
-  assert.equal(result.rendered.kind, 'markdown');
+  assert.equal(result.rendered.kind, 'reasoning-summary');
   assert.equal(result.rendered.surface, 'workspace');
-  assert.equal(result.projected.kind, 'markdown');
+  assert.equal(result.projected.kind, 'reasoning-summary');
   assert.deepEqual(result.projected.source, result.rendered.source);
   assert.ok(result.projected.payload.content.length <= result.rendered.payload.content.length);
   assert.equal(result.fallbackUnknown.kind, 'fallback-block');
@@ -286,7 +287,7 @@ test('renderAnalysisInteractionPart 复用模块级默认 registry，避免流�
     const rendered = renderAnalysisInteractionPart(part, { surface: 'workspace' });
     console.log(JSON.stringify({
       sameReference: first === second,
-      canRender: rendered.kind === 'markdown',
+      canRender: rendered.kind === 'reasoning-summary',
     }));
   `);
 
@@ -431,6 +432,54 @@ test('tool-list renderer 必须把工具状态映射为中文产品文案', asyn
   `);
 
   assert.deepEqual(result.labels, ['已完成', '已失败', '执行中', '已选择']);
+});
+
+test('阶段说明 markdown 必须提升为 reasoning-summary，且 registry 正式注册 process-board / reasoning-summary / assumption-card', async () => {
+  const result = await runTsSnippet(`
+    ${INTERACTION_IMPORT}
+    const part = normalizeExecutionRenderBlock({
+      type: 'markdown',
+      title: '阶段说明',
+      content: '系统正在基于当前步骤继续推进。',
+    }, ${JSON.stringify(source())});
+    const registry = createDefaultAnalysisRendererRegistry();
+    console.log(JSON.stringify({
+      normalizedKind: part.kind,
+      reasoningSummary: registry.resolve('reasoning-summary')?.kind ?? null,
+      processBoard: registry.resolve('process-board')?.kind ?? null,
+      assumptionCard: registry.resolve('assumption-card')?.kind ?? null,
+    }));
+  `);
+
+  assert.equal(result.normalizedKind, 'reasoning-summary');
+  assert.equal(result.reasoningSummary, 'reasoning-summary');
+  assert.equal(result.processBoard, 'process-board');
+  assert.equal(result.assumptionCard, 'assumption-card');
+});
+
+test('process-board 作为 workspace-only part，误投影到 mobile 时必须 fail loud', async () => {
+  const result = await runTsSnippet(`
+    ${INTERACTION_IMPORT}
+    const registry = createDefaultAnalysisRendererRegistry();
+    const processBoard = buildProcessBoardPart({
+      sessionId: 'session-10-7',
+      executionId: 'exec-10-7',
+      events: [],
+    });
+    let errorMessage = null;
+    try {
+      registry.project(processBoard, { surface: 'mobile' });
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+    console.log(JSON.stringify({
+      supportedSurfaces: registry.resolve('process-board')?.supportedSurfaces ?? [],
+      errorMessage,
+    }));
+  `);
+
+  assert.deepEqual(result.supportedSurfaces, ['workspace']);
+  assert.match(result.errorMessage, /surface 不支持 .*mobile 投影/);
 });
 
 test('evidence-card 与 skills-state 空数组必须 fail loud，避免渲染无语义空卡片', async () => {

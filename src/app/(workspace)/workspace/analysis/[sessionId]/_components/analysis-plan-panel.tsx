@@ -1,4 +1,10 @@
+import {
+  buildAssumptionCardPart,
+  renderAnalysisInteractionPart,
+} from '@/application/analysis-interaction';
 import type { AnalysisPlanReadModel } from '@/application/analysis-planning/use-cases';
+
+import { AnalysisInteractionRenderedBlock } from './analysis-interaction-rendered-block';
 
 type AnalysisPlanPanelProps = {
   sessionId: string;
@@ -13,6 +19,25 @@ export function AnalysisPlanPanel({
   followUpId,
   blockingMessage,
 }: AnalysisPlanPanelProps) {
+  const assumptionsRenderedBlock = readModel.assumptions.length > 0
+    ? renderAnalysisInteractionPart(
+        buildAssumptionCardPart({
+          assumptions: readModel.assumptions,
+          title: '自动执行假设',
+          testId: 'analysis-plan-assumptions',
+          source: {
+            sourceType: 'runtime-foundation-part',
+            sessionId,
+            eventId: 'plan-assumptions',
+            blockIndex: 0,
+          },
+        }),
+        {
+          surface: 'workspace',
+        },
+      )
+    : null;
+
   return (
     <article className="glass-panel p-6" data-testid="analysis-plan-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -34,16 +59,10 @@ export function AnalysisPlanPanel({
       </p>
 
       {readModel.assumptions.length > 0 ? (
-        <section className="mt-4 rounded-3xl border border-amber-100 bg-amber-50/80 p-4">
-          <p className="text-xs font-medium tracking-[0.18em] text-amber-700 uppercase">
-            自动执行假设
-          </p>
-          <ul className="mt-2 space-y-1 text-sm leading-7 text-amber-900">
-            {readModel.assumptions.map((assumption) => (
-              <li key={assumption}>- {assumption}</li>
-            ))}
-          </ul>
-        </section>
+        <AnalysisInteractionRenderedBlock
+          className="mt-4"
+          renderedBlock={assumptionsRenderedBlock!}
+        />
       ) : null}
 
       <div className="mt-5 space-y-4">
