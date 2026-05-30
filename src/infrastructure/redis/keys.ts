@@ -1,7 +1,9 @@
-const APP_PREFIX = process.env.REDIS_KEY_PREFIX ?? 'oa';
+function getAppPrefix() {
+  return process.env.REDIS_KEY_PREFIX ?? 'dip3';
+}
 
 function prefixed(namespace: string, ...parts: string[]) {
-  return `${APP_PREFIX}:${namespace}:${parts.join(':')}`;
+  return `${getAppPrefix()}:${namespace}:${parts.join(':')}`;
 }
 
 export const redisKeys = {

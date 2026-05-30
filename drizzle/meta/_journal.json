@@ -6,56 +6,7 @@
       "idx": 0,
       "version": "7",
       "when": 1775916433521,
-      "tag": "0000_familiar_piledriver",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1775926800000,
-      "tag": "0001_descriptive_comments",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1776011077400,
-      "tag": "0002_9-3-ontology-grounding-tables",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1777345564743,
-      "tag": "0003_sleepy_nighthawk",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1777348000000,
-      "tag": "0004_9-4-ontology-change-governance",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1777941643010,
-      "tag": "0005_ancient_xavin",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1777959642658,
-      "tag": "0006_flawless_natasha_romanoff",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1778033184391,
-      "tag": "0007_clumsy_quentin_quire",
+      "tag": "0000_initial",
       "breakpoints": true
     }
   ]

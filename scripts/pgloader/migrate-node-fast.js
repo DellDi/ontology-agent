@@ -2,8 +2,8 @@ const mysql = require('mysql2/promise');
 const { Client } = require('pg');
 const { performance } = require('perf_hooks');
 
-// 从环境变量获取配置
-const MYSQL_URL = process.env.MYSQL_URL || 'mysql://c0021337-c661-430b-883e-1f2f830b76e4:CpVGdL6KHiGys8P5@jms.new-see.com:33061/newsee-datacenter';
+// 从环境变量获取配置 mysql -u b9d73f86-2233-492d-bfe3-ee7d92e78f1f -gHK1csA1qhRv8inF -h jms.new-see.com -P 33061 
+const MYSQL_URL = process.env.MYSQL_URL || 'mysql://b9d73f86-2233-492d-bfe3-ee7d92e78f1f:gHK1csA1qhRv8inF@jms.new-see.com:33061/newsee-datacenter';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent';
 const PROJECTION_DB = process.env.PROJECTION_DB; // 不设置默认值，使用 MYSQL_URL 中的数据库
 
@@ -19,6 +19,31 @@ const tableNames = [
   'dw_datacenter_house',
 ];
 
+// 列名映射：MySQL列名 -> PostgreSQL列名（null表示跳过该列）
+const columnMappings = {
+  'dw_datacenter_precinct': { 
+    'id': 'record_id', 
+    'serviceWork': null,
+    'zdyScopeOfServices': null,
+    'zdyScopeOfServicesCode': null,
+    'zdyScopeOfServicesName': null,
+    'zdyIsItAKeyProject': null,
+    'zdyProjectType': null,
+    'zdyProjectTypeName': null,
+    'zdyTotalEmployment': null,
+    'zdyTotalNumberOfUsers': null,
+    'zdyBreakfastDiningStandards': null,
+    'zdyLunchMealStandards': null,
+    'zdyDinnerDiningStandards': null,
+  },
+  'dw_datacenter_owner': { 'id': 'record_id' },
+  'dw_datacenter_chargeitem': { 'id': 'record_id' },
+  'dw_datacenter_charge': { 'id': 'record_id', 'DBID': 'db_id' },
+  'dw_datacenter_bill': { 'id': 'record_id', 'DBID': 'db_id' },
+  'dw_datacenter_services': { 'id': 'record_id' },
+  'dw_datacenter_house': { 'id': 'record_id' },
+};
+
 console.log('=== 优化版 Node.js 迁移（批量插入） ===');
 console.log(`源: MySQL (${MYSQL_URL})`);
 console.log(`目标: PostgreSQL (${DATABASE_URL})`);
@@ -29,8 +54,17 @@ console.log('');
 const BATCH_SIZE = 5000;        // 增大读取批次
 const INSERT_BATCH_SIZE = 500;  // 每批插入行数（避免 SQL 过长）
 
-function toSnakeCase(str) {
-  return str.replace(/[A-Z]/g, letter => '_' + letter.toLowerCase());
+function toSnakeCase(str, tableName) {
+  // 先应用列名映射
+  if (tableName && columnMappings[tableName] && columnMappings[tableName].hasOwnProperty(str)) {
+    return columnMappings[tableName][str]; // 可能是映射值或 null
+  }
+  
+  return str
+    .replace(/([a-z])([A-Z])/g, '$1_$2')  // 在小写后的大写字母前加下划线
+    .replace(/([0-9])([A-Z])/g, '$1_$2')  // 在数字后的大写字母前加下划线
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')  // 在连续大写后的第一个小写字母前加下划线
+    .toLowerCase();
 }
 
 function cleanValue(val) {
@@ -58,7 +92,7 @@ async function batchInsert(pgClient, tableName, columnNames, pgColumnNames, rows
     valuesPlaceholders.push('(' + rowPlaceholders.join(', ') + ')');
   }
 
-  const sql = `INSERT INTO erp_staging.${tableName} (${insertColumns}) VALUES ${valuesPlaceholders.join(', ')}`;
+  const sql = `INSERT INTO erp_staging.${tableName} (${insertColumns}) VALUES ${valuesPlaceholders.join(', ')} ON CONFLICT DO NOTHING`;
   await pgClient.query(sql, values);
 }
 
@@ -68,7 +102,15 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
   // 1. 获取表结构
   const [columns] = await mysqlConn.query('SHOW COLUMNS FROM ??', [tableName]);
   const columnNames = columns.map(c => c.Field);
-  const pgColumnNames = columnNames.map(toSnakeCase);
+  const pgColumnNames = columnNames.map(col => toSnakeCase(col, tableName));
+  
+  // 过滤掉映射为 null 的列（跳过的列）
+  const validColumns = columns.filter(c => {
+    const pgName = toSnakeCase(c.Field, tableName);
+    return pgName !== null;
+  });
+  const validColumnNames = validColumns.map(c => c.Field);
+  const validPgColumnNames = validColumnNames.map(col => toSnakeCase(col, tableName));
 
   // 2. 统计行数
   const [[{ count }]] = await mysqlConn.query('SELECT COUNT(*) as count FROM ??', [tableName]);
@@ -78,24 +120,7 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
     return { tableName, count: 0, duration: 0 };
   }
 
-  // 3. 创建表
-  const columnDefs = columns.map(c => {
-    const pgName = toSnakeCase(c.Field);
-    let pgType = 'TEXT';
-    const type = c.Type.toLowerCase();
-    if (type.includes('int')) pgType = 'BIGINT';
-    else if (type.includes('decimal') || type.includes('numeric') || type.includes('float') || type.includes('double')) pgType = 'NUMERIC';
-    else if (type.includes('datetime') || type.includes('timestamp')) pgType = 'TIMESTAMPTZ';
-    else if (type.includes('date')) pgType = 'DATE';
-    else if (type.includes('time')) pgType = 'TIME';
-    else if (type.includes('bool')) pgType = 'BOOLEAN';
-    else if (type.includes('json')) pgType = 'JSONB';
-    else if (type.includes('blob') || type.includes('binary')) pgType = 'BYTEA';
-    return `${pgName} ${pgType}`;
-  }).join(', ');
-
-  await pgClient.query(`CREATE TABLE IF NOT EXISTS erp_staging.${tableName} (${columnDefs})`);
-  await pgClient.query(`TRUNCATE TABLE erp_staging.${tableName}`);
+  // 3. 假设表已存在，不修改表结构
 
   // 4. 分批读取 + 批量插入
   let processed = 0;
@@ -114,7 +139,7 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
     // 当缓冲区达到 INSERT_BATCH_SIZE 时执行批量插入
     while (batchBuffer.length >= INSERT_BATCH_SIZE) {
       const insertBatch = batchBuffer.splice(0, INSERT_BATCH_SIZE);
-      await batchInsert(pgClient, tableName, columnNames, pgColumnNames, insertBatch);
+      await batchInsert(pgClient, tableName, validColumnNames, validPgColumnNames, insertBatch);
     }
 
     processed += rows.length;
@@ -126,7 +151,7 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
 
   // 插入剩余数据
   if (batchBuffer.length > 0) {
-    await batchInsert(pgClient, tableName, columnNames, pgColumnNames, batchBuffer);
+    await batchInsert(pgClient, tableName, validColumnNames, validPgColumnNames, batchBuffer);
     batchBuffer = [];
   }
 

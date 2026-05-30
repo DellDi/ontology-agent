@@ -32,7 +32,7 @@ cp .env.example .env
 - `SESSION_SECRET` 需要在本地 `.env` 中设置为自定义值
 - `LLM_PROVIDER_API_KEY` 只允许存在于服务端环境变量中，不能下沉到浏览器端代码或公开配置
 - `CUBE_API_SECRET` 用于本地 Cube 服务签发 JWT；本地开发建议在复制 `.env.example` 后先设置一个固定值
-- `CUBE_API_TOKEN` 建议通过 `pnpm cube:token` 生成，再写回 `.env`
+- Web / Worker 会基于 `CUBE_API_SECRET` 自动签发 Cube API JWT；本地开发不需要维护额外的 Cube 鉴权环境变量
 
 ## 常用命令
 
@@ -258,30 +258,24 @@ pnpm test:smoke:llm
 - `Finance`：收缴率、应收金额、实收金额
 - `ServiceOrders`：工单总量、投诉量、平均满意度、平均响应时长、平均关闭时长
 
-### 本地 token 生成
+### Cube API 签名
 
-复制 `.env.example` 为 `.env` 并设置 `CUBE_API_SECRET` 后，执行：
+复制 `.env.example` 为 `.env` 并设置 `CUBE_API_SECRET` 后，Web / Worker 会自动签发 Cube API JWT。
 
-```bash
-pnpm cube:token
-```
-
-把输出的 JWT 写回 `.env` 的 `CUBE_API_TOKEN=`。  
-当前 Compose 中的 Cube 仍启用 `CUBEJS_DEV_MODE=true`，这样本地联调不会因为 token 生成步骤遗漏而完全阻塞；但为了让应用与真实请求头保持一致，仍建议显式生成并配置 token。
+当前 Compose 中的 Cube 仍启用 `CUBEJS_DEV_MODE=true`，这样本地联调不会因为外部调试请求缺少鉴权头而完全阻塞；应用侧会始终用 `CUBE_API_SECRET` 自动签发请求头。
 
 ### 最小验证
 
 启动 `cube` 后，可直接验证：
 
 ```bash
-curl -H "Authorization: $(grep '^CUBE_API_TOKEN=' .env | cut -d= -f2-)" \
-  http://127.0.0.1:4000/cubejs-api/v1/meta
+curl http://127.0.0.1:4000/readyz
 ```
 
-如果只是确认服务已启动，`readyz` 也可以直接看：
+如果需要验证应用侧到 Cube 的签名请求，优先通过语义查询链路或对应 story 测试验证，不再维护手工鉴权生成入口。
 
 ```bash
-curl http://127.0.0.1:4000/readyz
+node --test tests/story-4-4-semantic-query.test.mjs
 ```
 
 ## Neo4j 本地图谱
