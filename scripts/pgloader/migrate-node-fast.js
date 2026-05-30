@@ -1,48 +1,33 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-# 优化版 Node.js 迁移 - 使用批量插入
-# mysql -u dbef84fa-75da-4384-bb2d-0ddfb284ec59 -pCvBBEHBla6JHLVvC -h jms.new-see.com -P 33061 
-MYSQL_URL="${MYSQL_URL:-mysql://dbef84fa-75da-4384-bb2d-0ddfb284ec59:pCvBBEHBla6JHLVvC@jms.new-see.com:33061/newsee-datacenter}"
-DATABASE_URL="${DATABASE_URL:-postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent}"
-
-PROJECTION_DB="${PROJECTION_DB:-newsee_datacenter_pgloader_debug_check}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-export MYSQL_URL DATABASE_URL PROJECTION_DB
-
-TABLE_NAMES=(
-  'dw_datacenter_system_user'
-  'dw_datacenter_system_organization'
-  'dw_datacenter_precinct'
-  'dw_datacenter_owner'
-  'dw_datacenter_chargeitem'
-  'dw_datacenter_charge'
-  'dw_datacenter_bill'
-  'dw_datacenter_services'
-  'dw_datacenter_house'
-)
-
-echo "=== 优化版 Node.js 迁移（批量插入） ==="
-echo "源: MySQL ($MYSQL_URL)"
-echo "目标: PostgreSQL ($DATABASE_URL)"
-echo "表数: ${#TABLE_NAMES[@]}"
-echo ""
-
-node -e "
 const mysql = require('mysql2/promise');
 const { Client } = require('pg');
 const { performance } = require('perf_hooks');
 
-const mysqlUrl = new URL('$MYSQL_URL');
-const pgUrl = new URL('$DATABASE_URL');
-const projectionDb = '$PROJECTION_DB';
-const tableNames = $(printf '%s' "${TABLE_NAMES[*]}" | jq -R 'split(" ")' 2>/dev/null || echo '["dw_datacenter_system_user"]');
+// 从环境变量获取配置
+const MYSQL_URL = process.env.MYSQL_URL || 'mysql://c0021337-c661-430b-883e-1f2f830b76e4:CpVGdL6KHiGys8P5@jms.new-see.com:33061/newsee-datacenter';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent';
+const PROJECTION_DB = process.env.PROJECTION_DB; // 不设置默认值，使用 MYSQL_URL 中的数据库
+
+const tableNames = [
+  'dw_datacenter_system_user',
+  'dw_datacenter_system_organization',
+  'dw_datacenter_precinct',
+  'dw_datacenter_owner',
+  'dw_datacenter_chargeitem',
+  'dw_datacenter_charge',
+  'dw_datacenter_bill',
+  'dw_datacenter_services',
+  'dw_datacenter_house',
+];
+
+console.log('=== 优化版 Node.js 迁移（批量插入） ===');
+console.log(`源: MySQL (${MYSQL_URL})`);
+console.log(`目标: PostgreSQL (${DATABASE_URL})`);
+console.log(`表数: ${tableNames.length}`);
+console.log('');
 
 // 性能配置
 const BATCH_SIZE = 5000;        // 增大读取批次
 const INSERT_BATCH_SIZE = 500;  // 每批插入行数（避免 SQL 过长）
-const MAX_WORKERS = 4;          // 并发迁移表数
 
 function toSnakeCase(str) {
   return str.replace(/[A-Z]/g, letter => '_' + letter.toLowerCase());
@@ -68,12 +53,12 @@ async function batchInsert(pgClient, tableName, columnNames, pgColumnNames, rows
     const rowPlaceholders = [];
     for (const col of columnNames) {
       values.push(cleanValue(row[col]));
-      rowPlaceholders.push('\$' + paramIndex++);
+      rowPlaceholders.push('$' + paramIndex++);
     }
     valuesPlaceholders.push('(' + rowPlaceholders.join(', ') + ')');
   }
 
-  const sql = \`INSERT INTO erp_staging.\${tableName} (\${insertColumns}) VALUES \${valuesPlaceholders.join(', ')}\`;
+  const sql = `INSERT INTO erp_staging.${tableName} (${insertColumns}) VALUES ${valuesPlaceholders.join(', ')}`;
   await pgClient.query(sql, values);
 }
 
@@ -87,7 +72,7 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
 
   // 2. 统计行数
   const [[{ count }]] = await mysqlConn.query('SELECT COUNT(*) as count FROM ??', [tableName]);
-  console.log(\`\\n[\${tableName}] 列数: \${columnNames.length}, 行数: \${count}\`);
+  console.log(`\n[${tableName}] 列数: ${columnNames.length}, 行数: ${count}`);
 
   if (count === 0) {
     return { tableName, count: 0, duration: 0 };
@@ -106,11 +91,11 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
     else if (type.includes('bool')) pgType = 'BOOLEAN';
     else if (type.includes('json')) pgType = 'JSONB';
     else if (type.includes('blob') || type.includes('binary')) pgType = 'BYTEA';
-    return \`\${pgName} \${pgType}\`;
+    return `${pgName} ${pgType}`;
   }).join(', ');
 
-  await pgClient.query(\`CREATE TABLE IF NOT EXISTS erp_staging.\${tableName} (\${columnDefs})\`);
-  await pgClient.query(\`TRUNCATE TABLE erp_staging.\${tableName}\`);
+  await pgClient.query(`CREATE TABLE IF NOT EXISTS erp_staging.${tableName} (${columnDefs})`);
+  await pgClient.query(`TRUNCATE TABLE erp_staging.${tableName}`);
 
   // 4. 分批读取 + 批量插入
   let processed = 0;
@@ -135,7 +120,7 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
     processed += rows.length;
     if (processed % 10000 === 0 || processed === count) {
       const percent = ((processed / count) * 100).toFixed(1);
-      process.stdout.write(\`\\r[\${tableName}] \${percent}% (\${processed}/\${count})\`);
+      process.stdout.write(`\r[${tableName}] ${percent}% (${processed}/${count})`);
     }
   }
 
@@ -147,7 +132,7 @@ async function migrateTable(tableName, mysqlConn, pgClient) {
 
   const duration = ((performance.now() - startTime) / 1000).toFixed(2);
   const rps = (count / parseFloat(duration)).toFixed(0);
-  console.log(\`\\n[\${tableName}] 完成: \${count} 行, \${duration}s (\${rps} 行/秒)\`);
+  console.log(`\n[${tableName}] 完成: ${count} 行, ${duration}s (${rps} 行/秒)`);
 
   return { tableName, count, duration: parseFloat(duration), rps: parseInt(rps) };
 }
@@ -156,12 +141,15 @@ async function main() {
   const startTime = performance.now();
 
   // 连接
+  const mysqlUrl = new URL(MYSQL_URL);
+  const pgUrl = new URL(DATABASE_URL);
+
   const mysqlConn = await mysql.createConnection({
     host: mysqlUrl.hostname,
     port: mysqlUrl.port ? Number(mysqlUrl.port) : 3306,
     user: decodeURIComponent(mysqlUrl.username),
     password: decodeURIComponent(mysqlUrl.password),
-    database: projectionDb,
+    database: process.env.PROJECTION_DB || mysqlUrl.pathname.replace(/^\/+/, ''),
   });
 
   const pgClient = new Client({
@@ -176,16 +164,16 @@ async function main() {
   await pgClient.query('CREATE SCHEMA IF NOT EXISTS erp_staging');
 
   console.log('连接成功，开始迁移...');
-  console.log(\`配置: 读取批次=\${BATCH_SIZE}, 插入批次=\${INSERT_BATCH_SIZE}\`);
+  console.log(`配置: 读取批次=${BATCH_SIZE}, 插入批次=${INSERT_BATCH_SIZE}`);
 
-  // 串行迁移（PostgreSQL 单连接并发写入效率不高）
+  // 串行迁移
   const results = [];
   for (const tableName of tableNames) {
     try {
       const result = await migrateTable(tableName, mysqlConn, pgClient);
       results.push(result);
     } catch (err) {
-      console.error(\`[\${tableName}] 错误: \${err.message}\`);
+      console.error(`[${tableName}] 错误: ${err.message}`);
       results.push({ tableName, count: 0, duration: 0, error: err.message });
     }
   }
@@ -197,16 +185,16 @@ async function main() {
   const totalRows = results.reduce((sum, r) => sum + (r.count || 0), 0);
   const avgRps = (totalRows / parseFloat(totalDuration)).toFixed(0);
 
-  console.log('\\n=== 迁移汇总 ===');
-  console.log(\`总表数: \${results.length}\`);
-  console.log(\`总行数: \${totalRows}\`);
-  console.log(\`总耗时: \${totalDuration}s\`);
-  console.log(\`平均速度: \${avgRps} 行/秒\`);
-  console.log('\\n各表详情:');
+  console.log('\n=== 迁移汇总 ===');
+  console.log(`总表数: ${results.length}`);
+  console.log(`总行数: ${totalRows}`);
+  console.log(`总耗时: ${totalDuration}s`);
+  console.log(`平均速度: ${avgRps} 行/秒`);
+  console.log('\n各表详情:');
   results.forEach(r => {
     const status = r.error ? '❌' : '✅';
-    const speed = r.rps ? \` (\${r.rps} 行/秒)\` : '';
-    console.log(\`  \${status} \${r.tableName}: \${r.count} 行 (\${r.duration}s)\${speed}\`);
+    const speed = r.rps ? ` (${r.rps} 行/秒)` : '';
+    console.log(`  ${status} ${r.tableName}: ${r.count} 行 (${r.duration}s)${speed}`);
   });
 }
 
@@ -214,4 +202,3 @@ main().catch(err => {
   console.error('迁移失败:', err);
   process.exit(1);
 });
-"

@@ -229,7 +229,6 @@ export function buildToolInputs(input: {
     'platform.capability-status': {},
     'llm.structured-analysis': {
       taskType: 'conclusion-summary' as const,
-      model: 'bailian/qwen3.6-plus',
       input: {
         questionText: input.questionText,
         evidenceSummary: [

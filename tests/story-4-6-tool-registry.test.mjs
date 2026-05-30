@@ -36,7 +36,7 @@ test('tool registry 定义四类真实工具，并暴露稳定元数据', async 
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
@@ -95,7 +95,7 @@ test('tool registry 会按真实配置将不可用工具标记为 degraded', asy
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = '';
     process.env.NEO4J_URI = '';
     process.env.NEO4J_USERNAME = '';
@@ -178,7 +178,7 @@ test('tool registry 通过真实工具封装返回受控输出，不泄漏底层
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
@@ -254,7 +254,7 @@ test('platform capability tool 会汇总关键能力健康状态', async () => {
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
     process.env.NEO4J_PASSWORD = 'password';
@@ -339,7 +339,7 @@ test('tool registry 会将输入校验失败归一化为 tool-validation-failed'
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
@@ -403,7 +403,7 @@ test('orchestration bridge 会根据工具选择结果调用真实 registry，�
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
@@ -512,7 +512,7 @@ test('tool selection 未命中时会回退到步骤级保守映射', async () =>
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
@@ -583,7 +583,7 @@ test('tool selection 服务抛异常时仍会回退到步骤级保守映射', as
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
@@ -707,7 +707,7 @@ test('汇总归因步骤回退时仍会带上 llm 结构化分析工具', async 
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';
@@ -777,7 +777,7 @@ test('tooling services 暴露 AI runtime tool bridge，并复用既有 tool regi
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     delete process.env.CUBE_API_TOKEN;
     delete process.env.NEO4J_URI;
     delete process.env.NEO4J_USERNAME;
@@ -837,7 +837,7 @@ test('executeStep 遇到 empty-result 时会保留事件并继续产出阶段结
 
     const { createAnalysisToolingServices } = toolingModule;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = 'fake-cube-token';
     process.env.NEO4J_URI = 'bolt://127.0.0.1:7687';
     process.env.NEO4J_USERNAME = 'neo4j';

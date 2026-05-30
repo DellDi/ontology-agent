@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 async function loadInteractionSubjects() {
-  return (await import('@/application/analysis-interaction')) as {
+  return (await import('@/application/analysis-interaction')) as unknown as {
     buildAssumptionCardPart: (input: {
       assumptions: string[];
       title?: string;

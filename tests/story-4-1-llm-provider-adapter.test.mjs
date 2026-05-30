@@ -68,7 +68,7 @@ test('.env.example 包含 LLM provider 所需环境变量', async () => {
 
   for (const envName of [
     'LLM_PROVIDER_BASE_URL',
-    'DASHSCOPE_API_KEY',
+    'LLM_PROVIDER_API_KEY',
     'LLM_PROVIDER_MODEL',
     'LLM_FALLBACK_MODELS',
     'LLM_REQUEST_TIMEOUT_MS',
@@ -119,7 +119,7 @@ test('OpenAI-compatible adapter 仅服务端可用，并通过 openai SDK 调用
     'adapter 应基于 openai SDK 构建 client',
   );
   assert.match(adapter, /new OpenAI\(/, 'adapter 应创建 openai client');
-  assert.match(adapter, /baseURL:\s*config\.baseUrl/, '应将百炼 baseURL 注入 SDK');
+  assert.match(adapter, /baseURL:\s*config\.baseUrl/, '应将 provider baseURL 注入 SDK');
   assert.match(adapter, /apiKey:\s*config\.apiKey/, '应将 API Key 注入 SDK');
   assert.match(adapter, /responses\.create/, '应支持 responses 风格接口');
   assert.match(
@@ -136,7 +136,7 @@ test('LLM config 与错误模型覆盖超时、429、provider 不可用和结构
 
   for (const envName of [
     'LLM_PROVIDER_BASE_URL',
-    'DASHSCOPE_API_KEY',
+    'LLM_PROVIDER_API_KEY',
     'LLM_PROVIDER_MODEL',
     'LLM_FALLBACK_MODELS',
     'LLM_REQUEST_TIMEOUT_MS',
@@ -151,10 +151,38 @@ test('LLM config 与错误模型覆盖超时、429、provider 不可用和结构
   assert.match(errors, /LlmRateLimitExceededError/);
   assert.match(errors, /LlmProviderUnavailableError/);
   assert.match(errors, /LlmProviderResponseError/);
-  assert.match(config, /dashscope\.aliyuncs\.com\/compatible-mode\/v1/);
-  assert.match(config, /bailian\/qwen3\.5-plus/);
-  assert.match(config, /bailian\/kimi-k2\.5/);
+  assert.match(config, /api\.openai\.com\/v1/);
   assert.match(config, /resolveProviderModelName/);
+});
+
+test('LLM config 使用通用密钥变量并规范化完整 provider endpoint', async () => {
+  const result = await runTsSnippet(`
+    const configModule = await import('./src/infrastructure/llm/config.ts');
+    const candidate = 'getLlmProviderConfig' in configModule
+      ? configModule
+      : (configModule.default ?? {});
+
+    process.env.LLM_PROVIDER_BASE_URL = 'https://provider.example/v1/chat/completions';
+    process.env.LLM_PROVIDER_API_KEY = 'provider-key';
+    process.env.OPENAI_API_KEY = 'openai-key';
+    process.env.LLM_PROVIDER_MODEL = 'custom-model';
+    process.env.LLM_FALLBACK_MODELS = '';
+
+    const config = candidate.getLlmProviderConfig();
+    console.log(JSON.stringify({
+      baseUrl: config.baseUrl,
+      apiKey: config.apiKey,
+      model: config.model,
+      fallbackModels: config.fallbackModels,
+      resolvedModel: candidate.resolveProviderModelName('custom-model'),
+    }));
+  `);
+
+  assert.equal(result.baseUrl, 'https://provider.example/v1');
+  assert.equal(result.apiKey, 'provider-key');
+  assert.equal(result.model, 'custom-model');
+  assert.deepEqual(result.fallbackModels, []);
+  assert.equal(result.resolvedModel, 'custom-model');
 });
 
 test('限流实现复用 Redis，并同时绑定 userId 与 organizationId 维度', async () => {
@@ -189,7 +217,7 @@ test('LLM 入口包含健康检查与统一导出', async () => {
   assert.match(adapter, /checkHealth/);
 });
 
-test('OpenAI-compatible adapter 支持按百炼 fallback 模型链依次重试', async () => {
+test('OpenAI-compatible adapter 支持按配置化 fallback 模型链依次重试', async () => {
   const adapter = await readRepoFile(
     'src/infrastructure/llm/openai-compatible-adapter.ts',
   );
@@ -236,8 +264,8 @@ test('健康检查不应只依赖 models.list，而要验证真实模型调用�
   );
   assert.match(
     adapter,
-    /try[\s\S]*models\.list[\s\S]*catch[\s\S]*responses\.create|responses\.create[\s\S]*models\.list/,
-    '健康检查不应把 /models 作为唯一硬依赖',
+    /performResponseRequest[\s\S]*catch[\s\S]*performChatCompletionRequest/,
+    '健康检查不应把 /models 或 /responses 作为唯一硬依赖',
   );
 });
 

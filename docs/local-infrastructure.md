@@ -30,7 +30,7 @@ cp .env.example .env
 - 宿主机 `.env` 中的 `DATABASE_URL` / `REDIS_URL` 默认指向 `127.0.0.1`，便于直接运行 `pnpm db:migrate` 等本地命令
 - `compose.yaml` 会为 `web` 容器显式覆写内部连接地址，使容器内仍通过 `postgres` / `redis` 服务名通信
 - `SESSION_SECRET` 需要在本地 `.env` 中设置为自定义值
-- `DASHSCOPE_API_KEY` 只允许存在于服务端环境变量中，不能下沉到浏览器端代码或公开配置
+- `LLM_PROVIDER_API_KEY` 只允许存在于服务端环境变量中，不能下沉到浏览器端代码或公开配置
 - `CUBE_API_SECRET` 用于本地 Cube 服务签发 JWT；本地开发建议在复制 `.env.example` 后先设置一个固定值
 - `CUBE_API_TOKEN` 建议通过 `pnpm cube:token` 生成，再写回 `.env`
 
@@ -191,26 +191,27 @@ const result = await checkRedisHealth(redis);
 - 当前实现采用 OpenAI-compatible HTTP 接口，默认约定：
   - `POST {LLM_PROVIDER_BASE_URL}/responses`
   - `POST {LLM_PROVIDER_BASE_URL}/chat/completions`
-  - `GET {LLM_PROVIDER_BASE_URL}/models` 作为基础健康检查
+  - `GET {LLM_PROVIDER_BASE_URL}/models` 为可选能力；健康检查以真实模型调用为准，`/responses` 不可用时会尝试 `/chat/completions`
 - Provider 密钥只通过 `LLM_PROVIDER_API_KEY` 在服务端注入。
 
 ### 环境变量
 
 ```bash
-LLM_PROVIDER_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-DASHSCOPE_API_KEY=replace-with-a-real-dashscope-key
-LLM_PROVIDER_MODEL=bailian/kimi-k2.5
-LLM_FALLBACK_MODELS=bailian/qwen3.6-plus,bailian/glm-5,bailian/MiniMax/MiniMax-M2.7
+LLM_PROVIDER_BASE_URL=https://api.openai.com/v1
+LLM_PROVIDER_API_KEY=replace-with-a-real-provider-key
+LLM_PROVIDER_MODEL=replace-with-provider-model
+LLM_FALLBACK_MODELS=
 LLM_REQUEST_TIMEOUT_MS=15000
 LLM_MAX_RETRIES=2
 LLM_RATE_LIMIT_MAX_REQUESTS=20
 LLM_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-- 当前默认主模型：`bailian/kimi-k2.5`
-- 默认第一 fallback：`bailian/qwen3.6-plus`
-- 其它备用：`bailian/glm-5`、`bailian/MiniMax/MiniMax-M2.7`
-- 发送到百炼兼容接口时会自动去掉前缀，例如 `bailian/qwen3.6-plus -> qwen3.5-plus`
+- `LLM_PROVIDER_BASE_URL` 应填写 OpenAI-compatible base URL，例如 `https://api.openai.com/v1` 或私有网关的 `/v1` 根路径。
+- 如果误填完整 endpoint（如 `/chat/completions`、`/responses`、`/models`），配置层会规范化为 base URL。
+- `LLM_PROVIDER_API_KEY` 是统一密钥变量；仅接入 OpenAI 官方 API 时，也可以使用 `OPENAI_API_KEY` 作为兼容别名。
+- `LLM_PROVIDER_MODEL` 必须显式配置，模型名按 provider 实际要求原样传递，不再做厂商前缀改写。
+- `LLM_FALLBACK_MODELS` 可留空；需要多模型兜底时使用逗号分隔。
 
 ### 限流约定
 
@@ -218,18 +219,18 @@ LLM_RATE_LIMIT_WINDOW_SECONDS=60
 - 当前 key 维度为 `userId + organizationId + purpose`，保证“按用户 + 按组织”的服务端节流边界。
 - Provider 返回 `429`、请求超时、结构错误、不可用错误，都应在 adapter 层转成稳定的服务端错误，而不是把原始 provider 报错直接抛给页面层。
 
-### 真实百炼 Smoke Test
+### 真实 LLM Provider Smoke Test
 
-如需验证本地环境变量是否真的能打通百炼兼容接口，可执行：
+如需验证本地环境变量是否真的能打通 OpenAI-compatible provider，可执行：
 
 ```bash
-pnpm test:smoke:bailian
+pnpm test:smoke:llm
 ```
 
 约定：
 
-- 该命令会显式设置 `RUN_BAILIAN_SMOKE_TEST=1`
-- 测试会复用当前 LLM adapter，并对真实百炼配置执行一次健康检查与一次最小文本生成
+- 该命令会显式设置 `RUN_LLM_PROVIDER_SMOKE_TEST=1`
+- 测试会复用当前 LLM adapter，并对真实 provider 配置执行一次健康检查与一次最小文本生成
 - 默认全量回归不会执行这条测试，避免把外部 provider 波动引入日常开发反馈
 
 ## 后续扩展位
