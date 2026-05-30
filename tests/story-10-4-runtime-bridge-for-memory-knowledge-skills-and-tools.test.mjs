@@ -420,7 +420,7 @@ test('Story 10.4 AC2/AC5/AC8 | infrastructure composition reuses prompt registry
     const { createServerRuntimeBridgeServices } = runtimeInfrastructure;
 
     process.env.LLM_PROVIDER_API_KEY = 'fake-key';
-    process.env.CUBE_API_TOKEN = '';
+    process.env.CUBE_API_SECRET = '';
     process.env.NEO4J_URI = '';
     process.env.NEO4J_USERNAME = '';
     process.env.NEO4J_PASSWORD = '';

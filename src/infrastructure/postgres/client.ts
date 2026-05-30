@@ -75,6 +75,11 @@ export function createPostgresDb(
     ...getPoolConfig(),
   });
 
+  // 防止 idle 连接断开时的 error 事件未捕获导致进程退出
+  pool.on('error', (err) => {
+    console.error('[pg-pool] idle client error', err.message);
+  });
+
   const db = drizzle(pool, {
     schema,
   });

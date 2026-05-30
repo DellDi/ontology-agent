@@ -45,7 +45,7 @@ test('.env.example 包含 Cube 所需环境变量', async () => {
 
   for (const envName of [
     'CUBE_API_URL',
-    'CUBE_API_TOKEN',
+    'CUBE_API_SECRET',
     'CUBE_QUERY_TIMEOUT_MS',
   ]) {
     assert.match(envExample, new RegExp(envName), `${envName} 应存在于 .env.example`);
@@ -174,7 +174,7 @@ test('项目口径实收指标会同时使用应收账期和实收日期两个�
   ]);
 });
 
-test('Cube adapter 使用服务端 token 和只读 /v1/load 查询，不让页面层直连 Cube', async () => {
+test('Cube adapter 使用服务端签名请求和只读 /v1/load 查询，不让页面层直连 Cube', async () => {
   const adapter = await readRepoFile(
     'src/infrastructure/cube/cube-semantic-query-adapter.ts',
   );

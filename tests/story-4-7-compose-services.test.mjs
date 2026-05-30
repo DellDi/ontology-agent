@@ -15,8 +15,8 @@ for (const relativePath of [
   'docs/local-infrastructure.md',
   'cube/conf/cube.js',
   'cube/conf/model/Finance.js',
+  'cube/conf/model/FinancePayments.js',
   'cube/conf/model/ServiceOrders.js',
-  'scripts/generate-cube-dev-token.mjs',
 ]) {
   test(`Story 4.7 工件存在：${relativePath}`, async () => {
     await access(path.join(repoRoot, relativePath));
@@ -46,7 +46,6 @@ test('.env.example 对齐 cube 与 neo4j 的真实本地端口和密钥约定', 
     'CUBE_PORT',
     'CUBE_API_URL',
     'CUBE_API_SECRET',
-    'CUBE_API_TOKEN',
     'CUBE_QUERY_TIMEOUT_MS',
     'NEO4J_HTTP_PORT',
     'NEO4J_BOLT_PORT',
@@ -62,16 +61,16 @@ test('.env.example 对齐 cube 与 neo4j 的真实本地端口和密钥约定', 
   assert.match(envExample, /^NEO4J_URI=bolt:\/\/127\.0\.0\.1:7687$/m);
 });
 
-test('本地基础设施文档覆盖 cube 与 neo4j 的启动、日志和 token 生成', async () => {
+test('本地基础设施文档覆盖 cube 与 neo4j 的启动、日志和 Cube API 自动签名', async () => {
   const docs = await readRepoFile('docs/local-infrastructure.md');
 
   for (const phrase of [
     'docker compose up -d postgres redis neo4j cube',
     'docker compose logs -f cube',
     'docker compose logs -f neo4j',
-    'pnpm cube:token',
+    '自动签发 Cube API JWT',
     'pnpm test:smoke:neo4j',
-    'http://127.0.0.1:4000/cubejs-api/v1/meta',
+    'http://127.0.0.1:4000/readyz',
     'bolt://127.0.0.1:7687',
     'http://127.0.0.1:7474',
   ]) {
@@ -79,14 +78,16 @@ test('本地基础设施文档覆盖 cube 与 neo4j 的启动、日志和 token 
   }
 });
 
-test('Cube 本地模型至少提供 Finance 与 ServiceOrders 两个治理主题', async () => {
-  const financeModel = await readRepoFile('cube/conf/model/Finance.js');
+test('Cube 本地模型至少提供 FinanceReceivables、FinancePayments 与 ServiceOrders 治理主题', async () => {
+  const receivablesModel = await readRepoFile('cube/conf/model/Finance.js');
+  const paymentsModel = await readRepoFile('cube/conf/model/FinancePayments.js');
   const serviceOrdersModel = await readRepoFile('cube/conf/model/ServiceOrders.js');
 
-  assert.match(financeModel, /cube\(`Finance`/);
-  assert.match(financeModel, /collectionRate/);
-  assert.match(financeModel, /receivableAmount/);
-  assert.match(financeModel, /paidAmount/);
+  assert.match(receivablesModel, /cube\(`FinanceReceivables`/);
+  assert.match(receivablesModel, /receivableAmount/);
+
+  assert.match(paymentsModel, /cube\(`FinancePayments`/);
+  assert.match(paymentsModel, /paidAmount/);
 
   assert.match(serviceOrdersModel, /cube\(`ServiceOrders`/);
   assert.match(serviceOrdersModel, /averageResponseDurationHours/);
@@ -94,9 +95,10 @@ test('Cube 本地模型至少提供 Finance 与 ServiceOrders 两个治理主题
   assert.match(serviceOrdersModel, /averageSatisfaction/);
 });
 
-test('package.json 提供本地 Cube token 生成脚本', async () => {
+test('package.json 只保留正式基础设施与 smoke test 脚本', async () => {
   const packageJson = await readRepoFile('package.json');
 
-  assert.match(packageJson, /"cube:token"\s*:\s*"node scripts\/generate-cube-dev-token\.mjs"/);
+  assert.match(packageJson, /"graph:sync:bootstrap"/);
+  assert.match(packageJson, /"ontology:bootstrap"/);
   assert.match(packageJson, /"test:smoke:neo4j"\s*:\s*"NODE_OPTIONS=--conditions=react-server RUN_NEO4J_SMOKE_TEST=1 npx tsx --test tests\/story-4-5-neo4j-smoke\.test\.mjs --no-cache"/);
 });
