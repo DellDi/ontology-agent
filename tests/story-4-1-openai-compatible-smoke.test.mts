@@ -5,10 +5,10 @@ import path from 'node:path';
 
 loadLocalEnvFiles(process.cwd());
 
-const shouldRunSmokeTest = process.env.RUN_BAILIAN_SMOKE_TEST === '1';
+const shouldRunSmokeTest = process.env.RUN_LLM_PROVIDER_SMOKE_TEST === '1';
 
 const smokeTestSkipReason =
-  '设置 RUN_BAILIAN_SMOKE_TEST=1 后，才会执行真实百炼 smoke test。';
+  '设置 RUN_LLM_PROVIDER_SMOKE_TEST=1 后，才会执行真实 LLM provider smoke test。';
 
 function loadLocalEnvFiles(cwd: string) {
   for (const filename of ['.env.local', '.env']) {
@@ -19,7 +19,6 @@ function loadLocalEnvFiles(cwd: string) {
     }
 
     const content = readFileSync(absolutePath, 'utf8');
-    console.log('content', content);
     const lines = content.split(/\r?\n/);
 
     for (const line of lines) {
@@ -50,7 +49,7 @@ function loadLocalEnvFiles(cwd: string) {
 function getRequiredEnv(name: string) {
   const value = process.env[name]?.trim();
 
-  assert.ok(value, `${name} 必须存在，才能执行真实百炼 smoke test`);
+  assert.ok(value, `${name} 必须存在，才能执行真实 LLM provider smoke test`);
 
   return value;
 }
@@ -73,13 +72,13 @@ async function getProviderFactory() {
 }
 
 test(
-  'Story 4.1 百炼真实配置 smoke test',
+  'Story 4.1 OpenAI-compatible 真实配置 smoke test',
   {
     skip: shouldRunSmokeTest ? false : smokeTestSkipReason,
     timeout: 30_000,
   },
   async (t) => {
-    getRequiredEnv('DASHSCOPE_API_KEY');
+    getRequiredEnv('LLM_PROVIDER_API_KEY');
     getRequiredEnv('LLM_PROVIDER_BASE_URL');
     getRequiredEnv('LLM_PROVIDER_MODEL');
     const createOpenAiCompatibleLlmProvider = await getProviderFactory();
@@ -116,13 +115,10 @@ test(
         {
           userId: 'smoke-test-user',
           organizationId: 'smoke-test-org',
-          purpose: 'bailian-smoke-test',
+          purpose: 'llm-provider-smoke-test',
           timeoutMs: 20_000,
         },
       );
-
-      console.log('result', result);
-
       assert.match(result.model, /\S+/);
       assert.match(result.text, /SMOKE_OK/i);
       assert.ok(result.raw);

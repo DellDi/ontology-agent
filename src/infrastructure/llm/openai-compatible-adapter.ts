@@ -600,13 +600,34 @@ export function createOpenAiCompatibleLlmProvider({
           // 健康检查仍以真实模型调用是否成功为准。
         }
 
-        await openaiClient.responses.create(
-          {
-            model: resolveProviderModelName(config.model),
-            input: 'health_check',
-          },
-          { timeout: config.timeoutMs },
-        );
+        const context: LlmInvocationContext = {
+          userId: 'llm-health-check',
+          organizationId: 'llm-health-check',
+          purpose: 'llm-provider-health-check',
+          timeoutMs: config.timeoutMs,
+        };
+
+        try {
+          await performResponseRequest(
+            {
+              model: config.model,
+              input: 'health_check',
+            },
+            context,
+          );
+        } catch (error) {
+          if (!shouldTryFallbackModel(error)) {
+            throw error;
+          }
+
+          await performChatCompletionRequest(
+            {
+              model: config.model,
+              messages: [{ role: 'user', content: 'health_check' }],
+            },
+            context,
+          );
+        }
 
         return {
           ok: true,

@@ -419,7 +419,7 @@ test('Story 10.4 AC2/AC5/AC8 | infrastructure composition reuses prompt registry
     const { createAnalysisToolingServices } = toolingModule;
     const { createServerRuntimeBridgeServices } = runtimeInfrastructure;
 
-    process.env.DASHSCOPE_API_KEY = 'fake-key';
+    process.env.LLM_PROVIDER_API_KEY = 'fake-key';
     process.env.CUBE_API_TOKEN = '';
     process.env.NEO4J_URI = '';
     process.env.NEO4J_USERNAME = '';

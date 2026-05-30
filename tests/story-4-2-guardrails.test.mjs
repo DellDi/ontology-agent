@@ -208,7 +208,7 @@ test('Analysis AI use case 会串联 Story 4.1 adapter 与 schema guardrail', as
         async createResponse() {
           return {
             provider: 'openai-compatible',
-            model: 'bailian/kimi-k2.5',
+            model: 'primary-model',
             text: '{"type":"invalid","goal":123}',
             finishReason: 'stop',
             raw: { provider: 'fake' },

@@ -1,13 +1,6 @@
 import type { LlmProviderConfig } from '@/application/llm/models';
 
-const DEFAULT_BAILIAN_BASE_URL =
-  'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const DEFAULT_BAILIAN_MODEL = 'bailian/kimi-k2.5';
-const DEFAULT_BAILIAN_FALLBACK_MODELS = [
-  'bailian/qwen3.6-plus',
-  'bailian/MiniMax/MiniMax-M2.7',
-  'bailian/glm-5',
-] as const;
+const DEFAULT_OPENAI_COMPATIBLE_BASE_URL = 'https://api.openai.com/v1';
 
 function getRequiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -36,11 +29,17 @@ function getPositiveInt(name: string, fallback: number) {
 }
 
 function normalizeBaseUrl(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, '');
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+
+  return trimmed.replace(/\/(?:chat\/completions|responses|models)$/, '');
 }
 
 function getApiKey() {
-  return getRequiredEnv('DASHSCOPE_API_KEY');
+  return (
+    process.env.LLM_PROVIDER_API_KEY?.trim() ||
+    process.env.OPENAI_API_KEY?.trim() ||
+    getRequiredEnv('LLM_PROVIDER_API_KEY')
+  );
 }
 
 function getModelList(name: string, fallback: readonly string[]) {
@@ -57,21 +56,19 @@ function getModelList(name: string, fallback: readonly string[]) {
 }
 
 export function resolveProviderModelName(model: string) {
-  return model.replace(/^bailian\//, '');
+  return model.trim();
 }
 
 export function getLlmProviderConfig(): LlmProviderConfig {
   return {
     provider: 'openai-compatible',
     baseUrl: normalizeBaseUrl(
-      process.env.LLM_PROVIDER_BASE_URL?.trim() || DEFAULT_BAILIAN_BASE_URL,
+      process.env.LLM_PROVIDER_BASE_URL?.trim() ||
+        DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
     ),
     apiKey: getApiKey(),
-    model: process.env.LLM_PROVIDER_MODEL?.trim() || DEFAULT_BAILIAN_MODEL,
-    fallbackModels: getModelList(
-      'LLM_FALLBACK_MODELS',
-      DEFAULT_BAILIAN_FALLBACK_MODELS,
-    ),
+    model: getRequiredEnv('LLM_PROVIDER_MODEL'),
+    fallbackModels: getModelList('LLM_FALLBACK_MODELS', []),
     timeoutMs: getPositiveInt('LLM_REQUEST_TIMEOUT_MS', 15_000),
     maxRetries: getPositiveInt('LLM_MAX_RETRIES', 2),
     rateLimit: {

@@ -181,10 +181,10 @@ ontology-agent/
 | `REDIS_URL` | Redis 连接字符串 | `redis://127.0.0.1:6379` |
 | `SESSION_SECRET` | 会话签名密钥 (必填) | - |
 | `ENABLE_DEV_ERP_AUTH` | 开发联调登录开关 | `1` |
-| `LLM_PROVIDER_BASE_URL` | LLM API 基础 URL | DashScope |
-| `DASHSCOPE_API_KEY` | 阿里云百炼 API Key (必填) | - |
-| `LLM_PROVIDER_MODEL` | 主模型 | `bailian/kimi-k2.5` |
-| `LLM_FALLBACK_MODELS` | 降级模型列表 | 见配置 |
+| `LLM_PROVIDER_BASE_URL` | OpenAI-compatible API 基础 URL | `https://api.openai.com/v1` |
+| `LLM_PROVIDER_API_KEY` | Provider API Key (必填) | - |
+| `LLM_PROVIDER_MODEL` | 主模型 (必填) | - |
+| `LLM_FALLBACK_MODELS` | 降级模型列表，逗号分隔 | 空 |
 | `LLM_REQUEST_TIMEOUT_MS` | 请求超时 | `15000` |
 | `LLM_RATE_LIMIT_MAX_REQUESTS` | 速率限制 | `20/60s` |
 

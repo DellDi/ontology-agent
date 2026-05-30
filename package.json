@@ -18,7 +18,7 @@
     "cube:token": "node scripts/generate-cube-dev-token.mjs",
     "ontology:bootstrap": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/ontology-bootstrap.mts",
     "ontology:bootstrap:status": "NODE_OPTIONS=--conditions=react-server npx tsx --tsconfig tsconfig.json scripts/ontology-bootstrap.mts --status",
-    "test:smoke:bailian": "NODE_OPTIONS=--conditions=react-server RUN_BAILIAN_SMOKE_TEST=1 npx tsx --test tests/story-4-1-bailian-smoke.test.mts",
+    "test:smoke:llm": "node -e \"process.env.RUN_LLM_PROVIDER_SMOKE_TEST='1'; const { spawnSync } = require('node:child_process'); const result = spawnSync(process.execPath, ['--conditions=react-server', '--import', 'tsx', '--test', 'tests/story-4-1-openai-compatible-smoke.test.mts'], { stdio: 'inherit', env: process.env }); process.exit(result.status ?? 1);\"",
     "test:smoke:neo4j": "NODE_OPTIONS=--conditions=react-server RUN_NEO4J_SMOKE_TEST=1 npx tsx --test tests/story-4-5-neo4j-smoke.test.mjs --no-cache",
     "test:real:redis-queue": "node --test tests/story-2-6-redis-job-queue-real.test.mjs",
     "test:real:job-ledger": "node --test --test-concurrency=1 tests/story-2-8-postgres-backed-job-ledger.test.mjs tests/story-2-8-postgres-redis-job-dispatch.test.mjs",
