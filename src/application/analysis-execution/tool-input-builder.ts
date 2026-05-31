@@ -10,6 +10,9 @@ export function resolveSemanticMetricKey(
   questionText: string,
   groundedContext?: OntologyGroundedContext,
 ): SemanticMetricKey {
+  const usesTailArrearsSemantics =
+    /尾欠|历史欠费|跨年未收|历史遗留/.test(metricValue) ||
+    /尾欠|历史欠费|跨年未收|历史遗留/.test(questionText);
   const groundedMetricKey =
     groundedContext?.metrics.find(
       (metric) => metric.status === 'success' && (metric.variant || metric.canonicalDefinition),
@@ -19,12 +22,14 @@ export function resolveSemanticMetricKey(
     )?.canonicalDefinition?.businessKey;
 
   if (groundedMetricKey) {
+    if (groundedMetricKey === 'collection-rate') {
+      return usesTailArrearsSemantics
+        ? 'tail-arrears-collection-rate'
+        : 'project-collection-rate';
+    }
+
     return groundedMetricKey as SemanticMetricKey;
   }
-
-  const usesTailArrearsSemantics =
-    /尾欠|历史欠费|跨年未收|历史遗留/.test(metricValue) ||
-    /尾欠|历史欠费|跨年未收|历史遗留/.test(questionText);
 
   if (/应收/.test(metricValue) || /应收/.test(questionText)) {
     return usesTailArrearsSemantics
@@ -83,7 +88,10 @@ export function resolveDateDimension(metric: SemanticMetricKey) {
 }
 
 function formatDate(value: Date) {
-  return value.toISOString().slice(0, 10);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export function resolveDateRange(
@@ -101,6 +109,18 @@ export function resolveDateRange(
   const resolvedDimension = groundedDimension
     ? (groundedDimension as ReturnType<typeof resolveDateDimension>)
     : resolveDateDimension(metric);
+  const explicitYearMatch = value.match(/^((?:19|20)\d{2})年?$/u);
+
+  if (explicitYearMatch?.[1]) {
+    const year = Number(explicitYearMatch[1]);
+    const from = new Date(year, 0, 1);
+    const to = new Date(year, 11, 31);
+    return {
+      dimension: resolvedDimension,
+      from: formatDate(from),
+      to: formatDate(to),
+    };
+  }
 
   if (/本月/.test(value)) {
     const from = new Date(current.getFullYear(), current.getMonth(), 1);
@@ -140,7 +160,7 @@ export function resolveDateRange(
     };
   }
 
-  if (/今年/.test(value)) {
+  if (/今年|本年/.test(value)) {
     const from = new Date(current.getFullYear(), 0, 1);
     return {
       dimension: resolvedDimension,
@@ -172,6 +192,24 @@ export function resolveErpResource(questionText: string) {
   }
 
   return 'projects' as const;
+}
+
+function resolveProjectNameFilters(context: AnalysisContext) {
+  const projectNames = context.constraints
+    .filter((constraint) => constraint.label === '项目约束')
+    .map((constraint) => constraint.value.trim())
+    .filter((value) => value.length > 0 && value !== '项目');
+
+  if (projectNames.length === 0) {
+    return undefined;
+  }
+
+  return [
+    {
+      dimension: 'project-name' as const,
+      values: [...new Set(projectNames)],
+    },
+  ];
 }
 
 export function buildWorkerAuthSession(input: {
@@ -224,6 +262,7 @@ export function buildToolInputs(input: {
     projectIds: input.projectIds,
     areaIds: input.areaIds,
   });
+  const projectNameFilters = resolveProjectNameFilters(input.context);
 
   return {
     'platform.capability-status': {},
@@ -255,6 +294,7 @@ export function buildToolInputs(input: {
       },
       dateRange: resolveDateRange(metric, input.context, new Date(), input.groundedContext),
       groupBy: input.projectIds.length > 1 ? ['project-name'] : undefined,
+      filters: projectNameFilters,
       limit: 20,
     },
     'neo4j.graph-query': {

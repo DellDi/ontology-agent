@@ -406,7 +406,11 @@ export function createOntologyGroundingUseCases(
           let matchedVariant: OntologyMetricVariant | null = null;
           if (matchedMetric) {
             matchedVariant =
-              activeMetricVariants.find((v) => v.parentMetricDefinitionId === matchedMetric.id) ?? null;
+              activeMetricVariants.find(
+                (v) =>
+                  v.parentMetricDefinitionId === matchedMetric.id ||
+                  v.parentMetricDefinitionId === matchedMetric.businessKey,
+              ) ?? null;
           }
 
           groundedMetrics.push({

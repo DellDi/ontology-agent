@@ -27,7 +27,14 @@ export type Logger = {
 
 type LogRecord = {
   level: LogLevel;
+  /**
+   * 本地排障时间，面向开发终端阅读。固定使用 Asia/Shanghai 24 小时制。
+   */
   time: string;
+  /**
+   * 机器可聚合时间，保持 UTC ISO-8601，方便日志收集系统排序和跨时区关联。
+   */
+  utcTime: string;
   service: string;
   message: string;
   correlationId?: string;
@@ -62,12 +69,26 @@ function safeStringify(value: unknown): string {
       return entry;
     });
   } catch {
+    const now = new Date();
     return JSON.stringify({
       level: 'error',
       message: 'log.serialize_failed',
-      time: new Date().toISOString(),
+      time: formatShanghaiLogTime(now),
+      utcTime: now.toISOString(),
     });
   }
+}
+
+export function formatShanghaiLogTime(date: Date): string {
+  // Asia/Shanghai 当前无夏令时，固定 UTC+08:00。用 UTC getter 避免宿主机时区影响。
+  const shanghai = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const pad = (value: number, size = 2) => String(value).padStart(size, '0');
+
+  return `${shanghai.getUTCFullYear()}-${pad(shanghai.getUTCMonth() + 1)}-${pad(
+    shanghai.getUTCDate(),
+  )} ${pad(shanghai.getUTCHours())}:${pad(shanghai.getUTCMinutes())}:${pad(
+    shanghai.getUTCSeconds(),
+  )}.${pad(shanghai.getUTCMilliseconds(), 3)} +08:00`;
 }
 
 function emit(record: LogRecord): void {
@@ -91,9 +112,11 @@ function composeRecord(
   bindings: LogFields | undefined,
 ): LogRecord {
   const context = getCorrelationContext();
+  const now = new Date();
   return {
     level,
-    time: new Date().toISOString(),
+    time: formatShanghaiLogTime(now),
+    utcTime: now.toISOString(),
     service: detectService(),
     message,
     correlationId: context?.correlationId ?? getCurrentCorrelationId(),

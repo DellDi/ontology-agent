@@ -45,9 +45,11 @@ async function loadSubjects() {
   const {
     isHardBlockingGroundingError,
     buildAutoExecutionAssumptions,
+    formatGroundingErrorForUser,
   } = (await import('@/application/ontology/grounded-planning')) as {
     isHardBlockingGroundingError: (error: unknown) => boolean;
     buildAutoExecutionAssumptions: (error: unknown) => string[];
+    formatGroundingErrorForUser: (error: unknown) => string;
   };
 
   const buildError = (input: {
@@ -64,6 +66,7 @@ async function loadSubjects() {
     buildError,
     isHardBlockingGroundingError,
     buildAutoExecutionAssumptions,
+    formatGroundingErrorForUser,
   };
 }
 
@@ -188,4 +191,22 @@ test('Story 10.6 | 仅 hard-blocking 项时不生成任何假设', async () => {
   });
   const assumptions = buildAutoExecutionAssumptions(error);
   assert.deepEqual(assumptions, []);
+});
+
+test('Story 10.6 | grounding 错误面向用户展示人话，不泄露内部术语', async () => {
+  const { buildError, formatGroundingErrorForUser } = await loadSubjects();
+  const error = buildError({
+    failedItems: [
+      {
+        type: 'entity',
+        text: '丰和园小区本年',
+        reason: '未命中治理实体',
+      },
+    ],
+  });
+  const message = formatGroundingErrorForUser(error);
+
+  assert.match(message, /系统没能确认分析对象/);
+  assert.match(message, /丰和园小区本年/);
+  assert.doesNotMatch(message, /Ontology|grounding|partial|治理化/);
 });
