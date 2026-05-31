@@ -8,6 +8,7 @@ import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-case
 import {
   buildGroundedPlanningArtifacts,
   buildGroundingBlockedPlanReadModel,
+  formatGroundingErrorForUser,
 } from '@/application/ontology/grounded-planning';
 import type { AnalysisSessionFollowUp } from '@/domain/analysis-session/follow-up-models';
 import { resolveOntologyVersionBindingForDisplay } from '@/domain/ontology/version-binding';
@@ -23,11 +24,11 @@ import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
-import { AnalysisConclusionPanel } from './_components/analysis-conclusion-panel';
 import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
 import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
 import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
+import { AnalysisPendingRefreshGate } from './_components/analysis-pending-refresh-gate';
 import { AnalysisAutoExecuteGate } from './_components/analysis-auto-execute-gate';
 import { CandidateFactorPanel } from './_components/candidate-factor-panel';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
@@ -432,122 +433,192 @@ export default async function AnalysisSessionPage({
     !executionError &&
     !groundedPlanPreviewError;
   const shouldAutoExecute = shouldAutoExecuteBase || shouldAutoExecuteAfterReplan;
+  const pendingExecutionBlockerMessage =
+    executionError ||
+    (groundedPlanPreviewError
+      ? formatGroundingErrorForUser(groundedPlanPreviewError)
+      : '');
+  const pendingExecutionHeadline = pendingExecutionBlockerMessage
+    ? '当前问题暂未进入执行'
+    : shouldAutoExecute
+      ? '正在提交执行任务'
+      : '等待执行开始';
+  const shouldRefreshPendingExecution =
+    !executionStreamReadModel &&
+    !pendingExecutionBlockerMessage &&
+    (shouldAutoExecute || Boolean(requestedExecutionIdForDisplay) || !latestExecutionSnapshot);
 
   return (
-    <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="space-y-6">
-        <article className="glass-panel p-6">
-          <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
-            Analysis Session
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
-            {analysisSession.questionText}
-          </h2>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {intent ? (
-              <span
-                className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-sm font-medium text-[color:var(--brand-700)]"
-                data-testid="intent-result"
-              >
-                {getIntentTypeLabel(intent.type)}
-              </span>
-            ) : null}
-            {activeFollowUp ? (
-              <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-[color:var(--ink-600)]">
-                当前轮次：追问模式
-              </span>
-            ) : null}
-            {ontologyVersionBadgeText ? (
-              <span
-                className="rounded-full bg-white px-3 py-1 text-sm font-medium text-[color:var(--ink-600)]"
-                data-testid="analysis-ontology-version-badge"
-              >
-                {ontologyVersionBadgeText}
-              </span>
-            ) : null}
+    <section className="mx-auto w-full max-w-[920px] space-y-6 px-2">
+      {/* 自动执行 gate */}
+      <AnalysisAutoExecuteGate
+        sessionId={analysisSession.id}
+        followUpId={activeFollowUp?.id}
+        enabled={shouldAutoExecute}
+      />
+      <AnalysisPendingRefreshGate enabled={shouldRefreshPendingExecution} />
+
+      {/* 执行提交反馈（轻量 banner） */}
+      {(requestedExecutionIdForDisplay || executionError) ? (
+        <div
+          className="rounded-xl px-4 py-3 text-sm"
+          data-testid="analysis-execution-feedback"
+          style={{
+            backgroundColor: executionError
+              ? 'rgb(255 106 106 / 10%)'
+              : 'rgb(49 185 130 / 10%)',
+            color: executionError
+              ? 'rgb(159 57 57)'
+              : 'rgb(18 96 69)',
+          }}
+        >
+          {executionError ? (
+            <p>{executionError}</p>
+          ) : (
+            <p>执行任务已提交，正在等待处理结果。</p>
+          )}
+        </div>
+      ) : null}
+
+      {/* 主聊天窗口 */}
+      {resolvedExecutionId && executionStreamReadModel ? (
+        <AnalysisExecutionLiveShell
+          sessionId={analysisSession.id}
+          executionId={resolvedExecutionId}
+          ownerUserId={currentUser.userId}
+          initialReadModel={executionStreamReadModel}
+          initialConclusionReadModel={liveConclusionReadModel}
+          initialProjection={projectionHydration?.projection ?? null}
+          resumeCursor={projectionHydration?.resumeCursor ?? null}
+          enableLiveStream={projectionDisplaySelection.enableLiveStream}
+          ontologyVersionBinding={ontologyVersionBindingForDisplay}
+          planAssumptions={analysisPlanReadModel.assumptions}
+          questionText={analysisSession.questionText}
+          intentLabel={intent ? getIntentTypeLabel(intent.type) : undefined}
+          ontologyVersionBadge={ontologyVersionBadgeText ?? undefined}
+          followUpLabel={activeFollowUp ? '追问模式' : undefined}
+          drawerContents={{
+            plan: (
+              <AnalysisPlanPanel
+                sessionId={analysisSession.id}
+                readModel={analysisPlanReadModel}
+                followUpId={activeFollowUp?.id}
+                blockingMessage={
+                  groundedPlanPreviewError
+                    ? formatGroundingErrorForUser(groundedPlanPreviewError)
+                    : undefined
+                }
+              />
+            ),
+            context: (
+              <AnalysisContextPanel
+                sessionId={analysisSession.id}
+                initialReadModel={contextReadModel}
+              />
+            ),
+            history: (
+              <AnalysisHistoryPanel
+                sessionId={analysisSession.id}
+                activeFollowUpId={activeFollowUp?.id}
+                readModel={historyReadModel}
+              />
+            ),
+            candidates: (
+              <CandidateFactorPanel readModel={mergedCandidateFactorReadModel} />
+            ),
+          }}
+        />
+      ) : (
+        /* 无执行时的静态会话展示 */
+        <div
+          className="mx-auto w-full max-w-[860px] space-y-6 px-4"
+          data-testid="analysis-pending-conversation"
+        >
+          <div className="flex justify-end">
+            <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-[color:var(--brand-700)] px-5 py-3.5">
+              <p className="text-base leading-7 text-white">
+                {analysisSession.questionText}
+              </p>
+            </div>
           </div>
-          {intent?.goal ? (
-            <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]" data-testid="intent-goal">
-              {intent.goal}
-            </p>
-          ) : null}
-        </article>
-
-        <AnalysisPlanPanel
-          sessionId={analysisSession.id}
-          readModel={analysisPlanReadModel}
-          followUpId={activeFollowUp?.id}
-          blockingMessage={groundedPlanPreviewError?.message}
-        />
-
-        <AnalysisAutoExecuteGate
-          sessionId={analysisSession.id}
-          followUpId={activeFollowUp?.id}
-          enabled={shouldAutoExecute}
-        />
-
-        {(requestedExecutionIdForDisplay || executionError) ? (
-          <article
-            className="glass-panel p-6"
-            data-testid="analysis-execution-feedback"
-          >
-            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
-              执行提交状态
-            </p>
-            {executionError ? (
-              <div className="status-banner mt-4" data-tone="error">
-                {executionError}
+          <div className="flex justify-start">
+            <div className="w-full max-w-[90%]">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`flex h-2.5 w-2.5 rounded-full ${
+                    pendingExecutionBlockerMessage
+                      ? 'bg-rose-400'
+                      : 'bg-[color:var(--ink-600)]/30'
+                  }`}
+                />
+                <p className="text-sm font-medium text-[color:var(--ink-900)]">
+                  {pendingExecutionHeadline}
+                </p>
               </div>
-            ) : (
-              <>
-                <div className="status-banner mt-4" data-tone="success">
-                  已提交执行
+
+              {pendingExecutionBlockerMessage ? (
+                <div
+                  className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3"
+                  data-testid="analysis-execution-blocked"
+                >
+                  <p className="text-sm font-medium text-rose-900">
+                    自动执行被阻断
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-rose-800">
+                    {pendingExecutionBlockerMessage}
+                  </p>
                 </div>
-                <p className="mt-4 text-sm leading-7 text-[color:var(--ink-600)]">
-                  执行任务已进入后台队列，后续会按当前计划逐步处理。
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-[color:var(--ink-600)]">
+                  如果页面没有自动跳转到执行结果，可以手动提交当前计划。
                 </p>
-                <p className="mt-3 text-sm text-[color:var(--ink-900)]">
-                  Execution ID：{requestedExecutionIdForDisplay}
-                </p>
-              </>
-            )}
-          </article>
-        ) : null}
+              )}
 
-        {resolvedExecutionId && executionStreamReadModel ? (
-          <AnalysisExecutionLiveShell
-            sessionId={analysisSession.id}
-            executionId={resolvedExecutionId}
-            ownerUserId={currentUser.userId}
-            initialReadModel={executionStreamReadModel}
-            initialConclusionReadModel={liveConclusionReadModel}
-            initialProjection={projectionHydration?.projection ?? null}
-            resumeCursor={projectionHydration?.resumeCursor ?? null}
-            enableLiveStream={projectionDisplaySelection.enableLiveStream}
-            ontologyVersionBinding={ontologyVersionBindingForDisplay}
-            planAssumptions={analysisPlanReadModel.assumptions}
-          />
-        ) : liveConclusionReadModel ? (
-          <AnalysisConclusionPanel
-            readModel={liveConclusionReadModel}
-            ontologyVersionBinding={ontologyVersionBindingForDisplay}
-            planAssumptions={analysisPlanReadModel.assumptions}
-          />
-        ) : null}
+              <form
+                action={`/api/analysis/sessions/${analysisSession.id}/execute`}
+                className="mt-4"
+                method="post"
+              >
+                {activeFollowUp?.id ? (
+                  <input name="followUpId" type="hidden" value={activeFollowUp.id} />
+                ) : null}
+                <button
+                  className="secondary-button"
+                  disabled={Boolean(groundedPlanPreviewError)}
+                  type="submit"
+                >
+                  手动执行当前计划
+                </button>
+              </form>
 
-        <details className="glass-panel p-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[color:var(--ink-900)]">
-            上下文修正（可选）
-          </summary>
-          <div className="mt-4">
-            <AnalysisContextPanel
-              sessionId={analysisSession.id}
-              initialReadModel={contextReadModel}
-            />
+              <details
+                className="mt-4 rounded-xl border border-[color:var(--line-200)] bg-white/70 p-4"
+                data-testid="analysis-pending-plan-details"
+              >
+                <summary className="cursor-pointer text-sm font-medium text-[color:var(--ink-700)]">
+                  查看执行计划与阻断原因
+                </summary>
+                <div className="mt-4">
+                  <AnalysisPlanPanel
+                    sessionId={analysisSession.id}
+                    readModel={analysisPlanReadModel}
+                    followUpId={activeFollowUp?.id}
+                    blockingMessage={
+                      groundedPlanPreviewError
+                        ? formatGroundingErrorForUser(groundedPlanPreviewError)
+                        : undefined
+                    }
+                  />
+                </div>
+              </details>
+            </div>
           </div>
-        </details>
+        </div>
+      )}
 
-        {latestFollowUpConclusion ? (
+      {/* 追问面板（inline） */}
+      {latestFollowUpConclusion ? (
+        <div className="mx-auto w-full max-w-[860px] px-4">
           <AnalysisFollowUpPanel
             sessionId={analysisSession.id}
             activeFollowUpId={activeFollowUp?.id}
@@ -560,32 +631,8 @@ export default async function AnalysisSessionPage({
             feedback={followUpFeedback ?? followUpCreationFeedback}
             replanFeedback={followUpReplanFeedback}
           />
-        ) : null}
-
-        <details className="glass-panel p-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[color:var(--ink-900)]">
-            历史回放（可选）
-          </summary>
-          <div className="mt-4">
-            <AnalysisHistoryPanel
-              sessionId={analysisSession.id}
-              activeFollowUpId={activeFollowUp?.id}
-              readModel={historyReadModel}
-            />
-          </div>
-        </details>
-      </div>
-
-      <aside className="space-y-6">
-        <details className="glass-panel p-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[color:var(--ink-900)]">
-            候选因素（可选）
-          </summary>
-          <div className="mt-4">
-            <CandidateFactorPanel readModel={candidateFactorReadModel} />
-          </div>
-        </details>
-      </aside>
+        </div>
+      ) : null}
     </section>
   );
 }
