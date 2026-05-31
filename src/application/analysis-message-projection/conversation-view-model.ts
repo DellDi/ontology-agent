@@ -93,6 +93,64 @@ export type ConversationDiagnostics = {
   otherBlocks: AnalysisRenderedBlock[];
 };
 
+// ---------------------------------------------------------------------------
+// 业务向视图类型（Story 12-3：Conversation View Model V2）
+//
+// 这些类型面向业务用户，用于在聊天界面中呈现"一句话答案 / 指标卡 /
+// 可视化 / 步骤时间线 / 诊断 / 假设"等直观信息，
+// 使业务用户完全不需要理解工程概念（job / worker / execution / tool name）。
+// ---------------------------------------------------------------------------
+
+export type MetricCardTrend = 'up' | 'down' | 'stable';
+
+export type MetricCard = {
+  label: string;
+  value: string;
+  unit?: string;
+  trend?: MetricCardTrend;
+  trendLabel?: string;
+};
+
+export type VisualizationType = 'chart' | 'graph' | 'table';
+
+export type Visualization = {
+  type: VisualizationType;
+  title: string;
+  /** 可渲染数据（与 AnalysisRenderedBlock.payload 对齐） */
+  data: unknown;
+  /** 一行说明，便于业务用户快速理解 */
+  summary?: string;
+};
+
+export type SubStepEntry = {
+  /** 内部工具名（默认隐藏） */
+  toolName: string;
+  /** 业务向目标描述 */
+  objective: string;
+  status: 'running' | 'completed' | 'failed';
+  result?: string;
+};
+
+export type ToolTimelineEntryStatus = 'running' | 'completed' | 'failed';
+
+export type ToolTimelineEntry = {
+  stepId: string;
+  /** 业务语言步骤名（例如"查询物业费数据"） */
+  stepName: string;
+  status: ToolTimelineEntryStatus;
+  /** 人话耗时（例如 "2.3秒"） */
+  duration?: string;
+  /** 可展开详情 */
+  details?: string;
+  subSteps: SubStepEntry[];
+};
+
+export type DiagnosticInfo = {
+  kind: string;
+  label: string;
+  details: string;
+};
+
 export type ConversationAssistantMessage = {
   status: ConversationAssistantStatus;
   /** 一句话人话状态 */
@@ -105,12 +163,55 @@ export type ConversationAssistantMessage = {
   result: ConversationResultSection | null;
   /** 诊断信息（默认隐藏） */
   diagnostics: ConversationDiagnostics;
+
+  // -- Story 12-3 新增：面向业务用户的视图字段 --
+
+  /** 一句话业务答案（来自结论或推理摘要） */
+  primaryAnswer: string;
+  /** 关键指标卡 */
+  metricCards: MetricCard[];
+  /** 图表 / 图形 / 表格 */
+  visualizations: Visualization[];
+  /** 可折叠步骤时间线（业务语言） */
+  toolTimeline: ToolTimelineEntry[];
+  /** 仅在诊断抽屉中展示的信息 */
+  hiddenDiagnostics: DiagnosticInfo[];
+  /** 简化后的假设摘要 */
+  assumptionSummary: string[];
 };
 
 export type AnalysisConversationViewModel = {
   userMessage: ConversationUserMessage;
   assistantMessage: ConversationAssistantMessage;
 };
+
+// ---------------------------------------------------------------------------
+// 翻译层：工程术语 → 业务语言
+// ---------------------------------------------------------------------------
+
+/** 把内部工具名翻译为业务用户可读的名称。 */
+export function translateToolName(toolName: string): string {
+  const translations: Record<string, string> = {
+    'cube.semantic-query': '数据查询',
+    'neo4j.graph-query': '关系分析',
+    'llm.structured-analysis': '智能分析',
+    'erp-read': '业务数据读取',
+    'cube.query': '数据查询',
+    'neo4j.query': '关系分析',
+    'llm.analysis': '智能分析',
+  };
+  return translations[toolName] ?? toolName;
+}
+
+/** 把执行事件 kind 翻译为业务语言标签。 */
+export function translateStepStatus(status: string): string {
+  const translations: Record<string, string> = {
+    'execution-status': '执行状态',
+    'step-lifecycle': '步骤进度',
+    'stage-result': '阶段结果',
+  };
+  return translations[status] ?? status;
+}
 
 // ---------------------------------------------------------------------------
 // 分类规则
@@ -202,14 +303,14 @@ function resolveStatusHeadline(input: {
 }): string {
   switch (input.status) {
     case 'queued':
-      return input.statusBannerMessage ?? '任务已提交，等待 worker 接单';
+      return input.statusBannerMessage ?? '问题已提交，正在准备分析';
     case 'running':
-      if (input.currentStepTitle) return `正在执行：${input.currentStepTitle}`;
-      return input.statusBannerMessage ?? '正在分析中';
+      if (input.currentStepTitle) return `正在${input.currentStepTitle}`;
+      return input.statusBannerMessage ?? '正在为您分析';
     case 'completed':
       return '分析完成';
     case 'failed':
-      return '执行遇到问题';
+      return '分析过程中遇到问题';
     case 'disconnected':
       return '实时连接中断，结果可能仍在后台继续生成';
   }
@@ -406,6 +507,278 @@ function renderStepTimelinePart(
 }
 
 // ---------------------------------------------------------------------------
+// Story 12-3：业务向视图提取
+// ---------------------------------------------------------------------------
+
+/** 从 kv-list 与 metric chart 中提取指标卡。 */
+function extractMetricCards(
+  blocks: readonly AnalysisRenderedBlock[],
+): MetricCard[] {
+  const cards: MetricCard[] = [];
+
+  for (const block of blocks) {
+    if (block.kind === 'kv-list') {
+      const items = Array.isArray(block.payload?.items)
+        ? (block.payload.items as { label: string; value: string }[])
+        : [];
+      for (const item of items) {
+        if (!item.label || !item.value) continue;
+        cards.push({
+          label: item.label,
+          value: item.value,
+        });
+      }
+      continue;
+    }
+
+    // chartType === 'metric' 的 chart 块 → 单张指标卡
+    if (block.kind === 'chart' && block.payload?.chartType === 'metric') {
+      const series = Array.isArray(block.payload.series)
+        ? (block.payload.series as {
+            name: string;
+            points: { label: string; value: number }[];
+          }[])
+        : [];
+      for (const serie of series) {
+        const point = serie.points?.[0];
+        if (!point) continue;
+        cards.push({
+          label: serie.name || block.title || '指标',
+          value: String(point.value),
+          unit: typeof block.payload?.unit === 'string' ? block.payload.unit : undefined,
+        });
+      }
+    }
+  }
+
+  return cards;
+}
+
+/** 从 chart / graph / table 块中提取可视化（metric chart 除外）。 */
+function extractVisualizations(
+  blocks: readonly AnalysisRenderedBlock[],
+): Visualization[] {
+  const visualizations: Visualization[] = [];
+
+  for (const block of blocks) {
+    if (block.kind === 'chart' && block.payload?.chartType !== 'metric') {
+      visualizations.push({
+        type: 'chart',
+        title: block.title || '图表',
+        data: block.payload,
+        summary:
+          typeof block.payload?.summary === 'string'
+            ? block.payload.summary
+            : undefined,
+      });
+      continue;
+    }
+
+    if (block.kind === 'graph') {
+      visualizations.push({
+        type: 'graph',
+        title: block.title || '关系图',
+        data: block.payload,
+        summary:
+          typeof block.payload?.summary === 'string'
+            ? block.payload.summary
+            : undefined,
+      });
+      continue;
+    }
+
+    if (block.kind === 'table') {
+      visualizations.push({
+        type: 'table',
+        title: block.title || '表格',
+        data: block.payload,
+        summary:
+          typeof block.payload?.summary === 'string'
+            ? block.payload.summary
+            : undefined,
+      });
+    }
+  }
+
+  return visualizations;
+}
+
+/** 从 step-timeline part 与 tool-list 事件构建可折叠步骤时间线。 */
+function buildToolTimeline(input: {
+  stepTimelinePart: AiRuntimeStepTimelinePart | null;
+  events: readonly AnalysisExecutionStreamEvent[];
+}): ToolTimelineEntry[] {
+  const { stepTimelinePart, events } = input;
+
+  // 兜底 bucket key：当没有显式 step id 时，tool-list 项归入此桶
+  const FALLBACK_BUCKET = '__unattributed__';
+
+  // 从事件流中重建 step 信息（在无 projection 或 step-timeline part 时也能用）
+  const stepsFromEvents = new Map<
+    string,
+    { id: string; title: string; status: 'running' | 'completed' | 'failed' }
+  >();
+  for (const event of events) {
+    if (event.step?.id) {
+      stepsFromEvents.set(event.step.id, {
+        id: event.step.id,
+        title: event.step.title,
+        status: event.step.status,
+      });
+    }
+  }
+
+  // 优先使用 step-timeline part（包含完整步骤顺序），否则回退到事件中观察到的 step
+  const orderedSteps =
+    stepTimelinePart && stepTimelinePart.steps.length > 0
+      ? stepTimelinePart.steps.map((s) => ({
+          id: s.id,
+          title: s.title,
+          status: s.status,
+        }))
+      : [...stepsFromEvents.values()];
+
+  // 按事件顺序维护"当前 step"指针，把 tool-list items 归到该 step
+  const subStepsByStepId = new Map<string, SubStepEntry[]>();
+  let currentStepId: string | null = orderedSteps[0]?.id ?? null;
+
+  for (const event of events) {
+    if (event.step?.id) {
+      currentStepId = event.step.id;
+    }
+
+    for (const block of event.renderBlocks) {
+      if (block.type !== 'tool-list') continue;
+      const bucketKey = currentStepId ?? FALLBACK_BUCKET;
+      const bucket = subStepsByStepId.get(bucketKey) ?? [];
+      for (const item of block.items) {
+        bucket.push({
+          toolName: item.toolName,
+          objective: item.objective,
+          status: item.status === 'selected' ? 'running' : item.status,
+        });
+      }
+      subStepsByStepId.set(bucketKey, bucket);
+    }
+  }
+
+  // 按 step 顺序输出（来自 part 或来自事件）
+  if (orderedSteps.length > 0) {
+    return orderedSteps.map((step) => ({
+      stepId: step.id,
+      stepName: step.title,
+      status: step.status,
+      subSteps: subStepsByStepId.get(step.id) ?? [],
+    }));
+  }
+
+  // 没有任何 step 信息时，把所有 tool 调用汇总为"分析步骤"
+  const flatSubSteps: SubStepEntry[] = [];
+  for (const bucket of subStepsByStepId.values()) {
+    flatSubSteps.push(...bucket);
+  }
+  if (flatSubSteps.length === 0) return [];
+
+  const overallStatus: ToolTimelineEntryStatus = flatSubSteps.some(
+    (s) => s.status === 'running',
+  )
+    ? 'running'
+    : flatSubSteps.some((s) => s.status === 'failed')
+      ? 'failed'
+      : 'completed';
+
+  return [
+    {
+      stepId: 'summary',
+      stepName: '分析步骤',
+      status: overallStatus,
+      subSteps: flatSubSteps,
+    },
+  ];
+}
+
+/** 从分类后的诊断块构建 DiagnosticInfo 列表（进入诊断抽屉）。 */
+function buildHiddenDiagnostics(input: {
+  processBoardBlocks: AnalysisRenderedBlock[];
+  timelineBlocks: AnalysisRenderedBlock[];
+  renderErrors: AnalysisRenderedBlock[];
+  otherBlocks: AnalysisRenderedBlock[];
+}): DiagnosticInfo[] {
+  const diagnostics: DiagnosticInfo[] = [];
+
+  for (const block of input.processBoardBlocks) {
+    diagnostics.push({
+      kind: block.kind,
+      label: block.title || '流程状态',
+      details:
+        typeof block.payload === 'object' && block.payload !== null
+          ? JSON.stringify(block.payload)
+          : String(block.payload ?? ''),
+    });
+  }
+
+  for (const block of input.timelineBlocks) {
+    diagnostics.push({
+      kind: block.kind,
+      label: block.title || '时间线',
+      details:
+        typeof block.payload === 'object' && block.payload !== null
+          ? JSON.stringify(block.payload)
+          : String(block.payload ?? ''),
+    });
+  }
+
+  for (const block of input.renderErrors) {
+    diagnostics.push({
+      kind: 'render-error',
+      label: block.title || '渲染异常',
+      details:
+        typeof block.payload?.errorMessage === 'string'
+          ? block.payload.errorMessage
+          : '渲染过程中发生异常',
+    });
+  }
+
+  for (const block of input.otherBlocks) {
+    diagnostics.push({
+      kind: block.kind,
+      label: block.title || '其他信息',
+      details:
+        typeof block.payload === 'object' && block.payload !== null
+          ? JSON.stringify(block.payload)
+          : String(block.payload ?? ''),
+    });
+  }
+
+  return diagnostics;
+}
+
+/** 从结论或推理块中抽取一句话业务答案。 */
+function resolvePrimaryAnswer(input: {
+  resultSection: ConversationResultSection | null;
+  conclusionHeadline?: string;
+  conclusionSummary?: string;
+}): string {
+  if (input.conclusionSummary) {
+    return input.conclusionSummary;
+  }
+  if (input.conclusionHeadline) {
+    return input.conclusionHeadline;
+  }
+  if (input.resultSection?.summary) {
+    return input.resultSection.summary;
+  }
+  // 尝试从 reasoning block 提取第一行内容
+  const reasoningBlocks = input.resultSection?.reasoningBlocks ?? [];
+  for (const block of reasoningBlocks) {
+    if (typeof block.payload?.content === 'string' && block.payload.content) {
+      return block.payload.content;
+    }
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
 // 主入口
 // ---------------------------------------------------------------------------
 
@@ -478,6 +851,15 @@ export function buildConversationViewModel(
       status = 'running';
     }
 
+    const fallbackDiagnostics: ConversationDiagnostics = {
+      eventCount: events.length,
+      lastSequence: events.at(-1)?.sequence ?? 0,
+      timelineBlocks: [],
+      processBoardBlocks: [],
+      renderErrors: [],
+      otherBlocks: [],
+    };
+
     return {
       userMessage,
       assistantMessage: {
@@ -485,14 +867,20 @@ export function buildConversationViewModel(
         headline: resolveStatusHeadline({ status }),
         toolActivities: extractToolActivities(events),
         result: null,
-        diagnostics: {
-          eventCount: events.length,
-          lastSequence: events.at(-1)?.sequence ?? 0,
-          timelineBlocks: [],
-          processBoardBlocks: [],
-          renderErrors: [],
-          otherBlocks: [],
-        },
+        diagnostics: fallbackDiagnostics,
+        primaryAnswer: '',
+        metricCards: [],
+        visualizations: [],
+        toolTimeline: buildToolTimeline({ stepTimelinePart: null, events }),
+        hiddenDiagnostics: buildHiddenDiagnostics({
+          processBoardBlocks: fallbackDiagnostics.processBoardBlocks,
+          timelineBlocks: fallbackDiagnostics.timelineBlocks,
+          renderErrors: fallbackDiagnostics.renderErrors,
+          otherBlocks: fallbackDiagnostics.otherBlocks,
+        }),
+        assumptionSummary: input.planAssumptions
+          ? [...input.planAssumptions]
+          : [],
       },
     };
   }
@@ -658,6 +1046,47 @@ export function buildConversationViewModel(
 
   const progressLabel = resolveProgressLabel(events);
 
+  const diagnostics: ConversationDiagnostics = {
+    executionId: projection.executionId,
+    eventCount: events.length,
+    lastSequence: projection.lastSequence,
+    timelineBlocks,
+    processBoardBlocks: diagnosticBlocks,
+    renderErrors: renderErrorBlocks,
+    otherBlocks,
+  };
+
+  // -- Story 12-3：业务向视图字段 --
+  const primaryAnswer = resolvePrimaryAnswer({
+    resultSection: resultSection,
+    conclusionHeadline: resultSection?.headline,
+    conclusionSummary: resultSection?.summary,
+  });
+
+  // 从结果块中收集可用于指标卡与可视化的原始块
+  const allResultBlocks: AnalysisRenderedBlock[] = [
+    ...(resultSection?.blocks ?? []),
+    ...(resultSection?.evidenceBlocks ?? []),
+  ];
+  const metricCards = extractMetricCards(allResultBlocks);
+  const visualizations = extractVisualizations(allResultBlocks);
+
+  const toolTimeline = buildToolTimeline({
+    stepTimelinePart: stepTimeline,
+    events,
+  });
+
+  const hiddenDiagnostics = buildHiddenDiagnostics({
+    processBoardBlocks: diagnostics.processBoardBlocks,
+    timelineBlocks: diagnostics.timelineBlocks,
+    renderErrors: diagnostics.renderErrors,
+    otherBlocks: diagnostics.otherBlocks,
+  });
+
+  const assumptionSummary = input.planAssumptions
+    ? [...input.planAssumptions]
+    : [];
+
   return {
     userMessage,
     assistantMessage: {
@@ -666,15 +1095,13 @@ export function buildConversationViewModel(
       progressLabel,
       toolActivities,
       result: resultSection,
-      diagnostics: {
-        executionId: projection.executionId,
-        eventCount: events.length,
-        lastSequence: projection.lastSequence,
-        timelineBlocks,
-        processBoardBlocks: diagnosticBlocks,
-        renderErrors: renderErrorBlocks,
-        otherBlocks,
-      },
+      diagnostics,
+      primaryAnswer,
+      metricCards,
+      visualizations,
+      toolTimeline,
+      hiddenDiagnostics,
+      assumptionSummary,
     },
   };
 }
