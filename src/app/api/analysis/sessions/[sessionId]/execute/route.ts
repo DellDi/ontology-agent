@@ -102,9 +102,17 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const followUpId = await readOptionalFollowUpId(request);
 
-  // Story 12-4: 尝试 LLM 结构化抽取，成功则用其结果初始化上下文；
-  // 失败时自动降级到规则抽取（由 use-cases 层处理），不阻断执行。
-  let llmExtractedContext = analysisSession.savedContext;
+  // Story 12-4 fix: LLM 抽取必须在主链路真正生效
+  // 1. 先用 savedContext 初始化（确保 context store 有 version 1）
+  // 2. 再尝试 LLM 抽取，用 replaceInitialContextIfUnmodified 替换
+  // 3. 如果 LLM 失败，记录 audit event，用规则抽取继续
+  await analysisContextUseCases.initializeContext({
+    sessionId: analysisSession.id,
+    ownerUserId: authSession.userId,
+    questionText: analysisSession.questionText,
+    initialContext: analysisSession.savedContext,
+  });
+
   try {
     const erpReadUseCases = createErpReadUseCases({
       erpReadPort: createPostgresErpReadRepository(),
@@ -119,17 +127,31 @@ export async function POST(request: Request, { params }: RouteContext) {
       questionText: analysisSession.questionText,
       projectNames,
     });
-    llmExtractedContext = extractionResult.context;
-  } catch {
-    // LLM 抽取完全失败，使用规则抽取的 savedContext 继续
-  }
 
-  await analysisContextUseCases.initializeContext({
-    sessionId: analysisSession.id,
-    ownerUserId: authSession.userId,
-    questionText: analysisSession.questionText,
-    initialContext: llmExtractedContext,
-  });
+    // 用 LLM 抽取结果替换初始上下文（仅在用户未手动修正时）
+    await analysisContextUseCases.replaceInitialContextIfUnmodified({
+      sessionId: analysisSession.id,
+      ownerUserId: authSession.userId,
+      questionText: analysisSession.questionText,
+      newContext: extractionResult.context,
+    });
+  } catch (error) {
+    // LLM 抽取失败，记录 audit event，用规则抽取的 savedContext 继续
+    await auditUseCases.recordEvent({
+      userId: authSession.userId,
+      organizationId: authSession.scope.organizationId,
+      sessionId,
+      eventType: 'tool.invoked',
+      eventResult: 'failed',
+      eventSource: 'route-handler',
+      payload: {
+        tool: 'llm.context-extraction',
+        reason: error instanceof Error ? error.message : 'LLM 抽取失败',
+        fallback: 'rule-based-extraction',
+        message: '智能理解服务不可用，已使用基础规则继续',
+      },
+    });
+  }
 
   const [intent, contextReadModel, followUp] = await Promise.all([
     analysisIntentUseCases.getIntentBySessionId(analysisSession.id),

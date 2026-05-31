@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { AnalysisSessionStore } from '@/application/analysis-session/ports';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 import { buildToolInputs } from '@/application/analysis-execution/tool-input-builder';
+import type { ToolExecutionEventEmitter } from '@/application/analysis-execution/use-cases';
 import {
   recognizeIntentFromQuestion,
   type AnalysisIntentType,
@@ -73,6 +74,7 @@ type AnalysisExecutionUseCases = {
     };
     toolInputsByName: Partial<Record<AnalysisToolName, unknown>>;
     groundedContext?: import('@/domain/ontology/grounding').OntologyGroundedContext;
+    eventEmitter?: ToolExecutionEventEmitter;
   }) => Promise<OrchestrationStepExecutionResult>;
 };
 
@@ -139,6 +141,76 @@ export function createAnalysisExecutionJobHandler(
 
       const stepStartedAt = Date.now();
 
+      // Story 12 fix: 创建实时事件发射器，在工具调用过程中发布事件
+      const eventEmitter = {
+        async onToolStarted(input: {
+          toolName: string;
+          toolLabel: string;
+          startedAt: number;
+        }) {
+          const toolLabel = translateToolName(input.toolName);
+          await streamUseCases.publishEvent(
+            buildToolStartedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: { name: input.toolName, label: toolLabel },
+            }),
+          );
+        },
+        async onToolCompleted(input: {
+          toolName: string;
+          toolLabel: string;
+          startedAt: number;
+          finishedAt: number;
+          output?: unknown;
+        }) {
+          const toolLabel = translateToolName(input.toolName);
+          const durationMs = input.finishedAt - input.startedAt;
+          await streamUseCases.publishEvent(
+            buildToolCompletedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: {
+                name: input.toolName,
+                label: toolLabel,
+                output:
+                  input.output &&
+                  typeof input.output === 'object' &&
+                  !Array.isArray(input.output)
+                    ? (input.output as Record<string, unknown>)
+                    : undefined,
+                durationMs,
+              },
+            }),
+          );
+        },
+        async onToolFailed(input: {
+          toolName: string;
+          toolLabel: string;
+          startedAt: number;
+          finishedAt: number;
+          error: string;
+        }) {
+          const toolLabel = translateToolName(input.toolName);
+          const durationMs = input.finishedAt - input.startedAt;
+          await streamUseCases.publishEvent(
+            buildToolFailedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: {
+                name: input.toolName,
+                label: toolLabel,
+                error: input.error,
+                durationMs,
+              },
+            }),
+          );
+        },
+      };
+
       const result = await dependencies.analysisExecutionUseCases.executeStep({
         stepId: step.id,
         stepTitle: step.title,
@@ -172,62 +244,10 @@ export function createAnalysisExecutionJobHandler(
           planSummary: jobData.plan.summary,
         }),
         groundedContext: jobData.groundedContext,
+        eventEmitter,
       });
 
       const stepDurationMs = Date.now() - stepStartedAt;
-
-      // Story 12-5: 为每个工具调用发布细粒度事件
-      for (const toolEvent of result.events) {
-        const toolLabel = translateToolName(toolEvent.toolName);
-        const toolDurationMs = computeDurationMs(
-          toolEvent.startedAt,
-          toolEvent.finishedAt,
-        );
-
-        await streamUseCases.publishEvent(
-          buildToolStartedEvent({
-            sessionId: jobData.sessionId,
-            executionId: job.id,
-            step,
-            tool: { name: toolEvent.toolName, label: toolLabel },
-          }),
-        );
-
-        if (toolEvent.ok) {
-          await streamUseCases.publishEvent(
-            buildToolCompletedEvent({
-              sessionId: jobData.sessionId,
-              executionId: job.id,
-              step,
-              tool: {
-                name: toolEvent.toolName,
-                label: toolLabel,
-                output:
-                  toolEvent.output &&
-                  typeof toolEvent.output === 'object' &&
-                  !Array.isArray(toolEvent.output)
-                    ? (toolEvent.output as Record<string, unknown>)
-                    : undefined,
-                durationMs: toolDurationMs,
-              },
-            }),
-          );
-        } else {
-          await streamUseCases.publishEvent(
-            buildToolFailedEvent({
-              sessionId: jobData.sessionId,
-              executionId: job.id,
-              step,
-              tool: {
-                name: toolEvent.toolName,
-                label: toolLabel,
-                error: toolEvent.error.message,
-                durationMs: toolDurationMs,
-              },
-            }),
-          );
-        }
-      }
 
       // Story 12-5: step-completed 事件
       await streamUseCases.publishEvent(

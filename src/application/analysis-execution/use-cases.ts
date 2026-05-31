@@ -11,6 +11,33 @@ import type {
 } from '@/domain/tooling/models';
 import { summarizeToolEvent } from '@/shared/tooling/tool-event-presentation';
 
+/**
+ * Story 12 fix: 工具执行事件发射器接口
+ * 用于在工具调用过程中实时发布事件，而不是事后回放。
+ * 这个接口定义在 application 层，具体实现由 worker 层注入。
+ */
+export type ToolExecutionEventEmitter = {
+  onToolStarted: (input: {
+    toolName: AnalysisToolName;
+    toolLabel: string;
+    startedAt: number;
+  }) => Promise<void>;
+  onToolCompleted: (input: {
+    toolName: AnalysisToolName;
+    toolLabel: string;
+    startedAt: number;
+    finishedAt: number;
+    output?: unknown;
+  }) => Promise<void>;
+  onToolFailed: (input: {
+    toolName: AnalysisToolName;
+    toolLabel: string;
+    startedAt: number;
+    finishedAt: number;
+    error: string;
+  }) => Promise<void>;
+};
+
 type ToolRegistryUseCases = {
   listToolDefinitions: () => {
     name: AnalysisToolName;
@@ -289,6 +316,7 @@ export function createAnalysisExecutionUseCases({
       toolInputsByName,
       groundedContext,
       intentType,
+      eventEmitter,
     }: {
       stepId: string;
       stepTitle?: string;
@@ -300,6 +328,7 @@ export function createAnalysisExecutionUseCases({
       toolInputsByName: Partial<Record<AnalysisToolName, unknown>>;
       groundedContext?: OntologyGroundedContext;
       intentType?: AnalysisIntentType;
+      eventEmitter?: ToolExecutionEventEmitter;
     }): Promise<OrchestrationStepExecutionResult> {
       const selection = await this.selectToolsForStep({
         stepId,
@@ -331,6 +360,16 @@ export function createAnalysisExecutionUseCases({
       }
 
       for (const tool of selection.tools) {
+        // Story 12 fix: 在工具调用前发布 started 事件
+        const startedAt = Date.now();
+        if (eventEmitter) {
+          await eventEmitter.onToolStarted({
+            toolName: tool.toolName,
+            toolLabel: tool.objective,
+            startedAt,
+          });
+        }
+
         const event = await toolRegistryUseCases.invokeTool({
           toolName: tool.toolName,
           input:
@@ -342,6 +381,29 @@ export function createAnalysisExecutionUseCases({
               : toolInputsByName[tool.toolName],
           context: invocationContext,
         });
+
+        const finishedAt = Date.now();
+
+        // Story 12 fix: 在工具调用后发布 completed/failed 事件
+        if (eventEmitter) {
+          if (event.ok) {
+            await eventEmitter.onToolCompleted({
+              toolName: tool.toolName,
+              toolLabel: tool.objective,
+              startedAt,
+              finishedAt,
+              output: event.output,
+            });
+          } else if (event.error.code !== 'tool-empty-result') {
+            await eventEmitter.onToolFailed({
+              toolName: tool.toolName,
+              toolLabel: tool.objective,
+              startedAt,
+              finishedAt,
+              error: event.error.message,
+            });
+          }
+        }
 
         events.push(event);
 
