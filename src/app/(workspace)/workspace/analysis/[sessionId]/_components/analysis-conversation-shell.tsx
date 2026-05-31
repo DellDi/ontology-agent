@@ -17,6 +17,7 @@ import type {
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
 import { AnalysisStepTimeline } from './analysis-step-timeline';
+import { translateToolName } from '@/application/analysis-message-projection/tool-name-translations';
 
 // ---------------------------------------------------------------------------
 // 工具活动状态条
@@ -66,7 +67,7 @@ function AnalysisToolActivityStrip({
             className={`h-1.5 w-1.5 rounded-full ${getToolActivityStatusDotClass(activity.status)}`}
           />
           <span className="font-medium text-[color:var(--ink-900)]">
-            {activity.toolName}
+            {translateToolName(activity.toolName)}
           </span>
           <span className="text-[color:var(--ink-600)]/70">·</span>
           <span>{getToolActivityStatusLabel(activity.status)}</span>
