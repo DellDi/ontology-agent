@@ -1,6 +1,7 @@
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createErpReadUseCases } from '@/application/erp-read/use-cases';
 import { createWorkspaceHomeModel } from '@/application/workspace/home';
+import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresErpReadRepository } from '@/infrastructure/erp/postgres-erp-read-repository';
 import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
@@ -28,6 +29,7 @@ const analysisSessionUseCases = createAnalysisSessionUseCases({
 const erpReadUseCases = createErpReadUseCases({
   erpReadPort: createPostgresErpReadRepository(),
 });
+const snapshotStore = createPostgresAnalysisExecutionSnapshotStore();
 
 export default async function WorkspacePage({
   searchParams,
@@ -45,6 +47,18 @@ export default async function WorkspacePage({
     session,
   );
   const scopedProjects = await erpReadUseCases.listProjects(session);
+
+  // 并行获取每条历史会话的最新执行快照
+  const snapshotEntries = await Promise.all(
+    historySessions.map(async (historySession) => {
+      const snapshot = await snapshotStore.getLatestBySessionId(
+        historySession.id,
+      );
+      return [historySession.id, snapshot] as const;
+    }),
+  );
+  const latestSnapshots = new Map(snapshotEntries);
+
   const model = createWorkspaceHomeModel(
     session,
     historySessions,
@@ -52,6 +66,7 @@ export default async function WorkspacePage({
       id: project.id,
       name: project.name,
     })),
+    latestSnapshots,
   );
 
   return (

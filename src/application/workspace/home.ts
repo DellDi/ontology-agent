@@ -1,8 +1,8 @@
 import {
   createAnalysisSessionTitle,
-  getAnalysisSessionStatusLabel,
   type AnalysisSession,
 } from '@/domain/analysis-session/models';
+import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
 import {
   SUPPORTED_ANALYSIS_TOPICS,
   UNSUPPORTED_ANALYSIS_AREAS,
@@ -25,6 +25,11 @@ export type WorkspaceHomeModel = {
     id: string;
     title: string;
     statusLabel: string;
+    statusTone: 'neutral' | 'info' | 'success' | 'error';
+    derivedStatus: 'pending' | 'running' | 'completed' | 'failed';
+    latestExecutionId?: string;
+    summaryMetric?: string;
+    failureMessage?: string;
     updatedAtLabel: string;
     href: string;
   }>;
@@ -52,10 +57,80 @@ export type WorkspaceHomeModel = {
   canCreateAnalysis: boolean;
 };
 
+export type DerivedSessionStatus = {
+  derivedStatus: 'pending' | 'running' | 'completed' | 'failed';
+  statusLabel: string;
+  statusTone: 'neutral' | 'info' | 'success' | 'error';
+  summaryMetric?: string;
+  failureMessage?: string;
+  latestExecutionId?: string;
+};
+
+/**
+ * 从执行快照派生首页会话状态。
+ * 纯函数：无快照时回退到 pending，有快照时按 JobStatus 映射。
+ */
+export function deriveSessionStatus(
+  snapshot: AnalysisExecutionSnapshot | null,
+): DerivedSessionStatus {
+  if (!snapshot) {
+    return {
+      derivedStatus: 'pending',
+      statusLabel: '待执行',
+      statusTone: 'neutral',
+    };
+  }
+
+  const topCause = snapshot.conclusionState?.causes?.[0];
+  const summaryMetric = topCause
+    ? `主因: ${topCause.title}`
+    : undefined;
+
+  const failureMessage =
+    snapshot.failurePoint?.title ?? undefined;
+
+  switch (snapshot.status) {
+    case 'completed':
+      return {
+        derivedStatus: 'completed',
+        statusLabel: '已完成',
+        statusTone: 'success',
+        summaryMetric,
+        latestExecutionId: snapshot.executionId,
+      };
+    case 'failed':
+    case 'dead_letter':
+      return {
+        derivedStatus: 'failed',
+        statusLabel: '失败',
+        statusTone: 'error',
+        failureMessage,
+        latestExecutionId: snapshot.executionId,
+      };
+    case 'processing':
+    case 'queued':
+      return {
+        derivedStatus: 'running',
+        statusLabel: '分析中',
+        statusTone: 'info',
+        latestExecutionId: snapshot.executionId,
+      };
+    case 'pending':
+    default:
+      return {
+        derivedStatus: 'pending',
+        statusLabel: '待执行',
+        statusTone: 'neutral',
+        latestExecutionId: snapshot.executionId,
+      };
+  }
+}
+
 export function createWorkspaceHomeModel(
   session: AuthSession,
   historySessions: AnalysisSession[],
   scopedProjects: Pick<ErpProject, 'id' | 'name'>[] = [],
+  latestSnapshots: Map<string, AnalysisExecutionSnapshot | null> = new Map(),
 ): WorkspaceHomeModel {
   const scopeSummary = formatScopeSummary(session);
   const hasTargets = hasScopedTargets(session);
@@ -84,13 +159,23 @@ export function createWorkspaceHomeModel(
         status: 'ready',
       },
     ],
-    historyItems: historySessions.map((analysisSession) => ({
-      id: analysisSession.id,
-      title: createAnalysisSessionTitle(analysisSession.questionText),
-      statusLabel: getAnalysisSessionStatusLabel(analysisSession.status),
-      updatedAtLabel: formatHistoryTimestamp(analysisSession.updatedAt),
-      href: `/workspace/analysis/${analysisSession.id}`,
-    })),
+    historyItems: historySessions.map((analysisSession) => {
+      const snapshot = latestSnapshots.get(analysisSession.id) ?? null;
+      const derived = deriveSessionStatus(snapshot);
+
+      return {
+        id: analysisSession.id,
+        title: createAnalysisSessionTitle(analysisSession.questionText),
+        statusLabel: derived.statusLabel,
+        statusTone: derived.statusTone,
+        derivedStatus: derived.derivedStatus,
+        latestExecutionId: derived.latestExecutionId,
+        summaryMetric: derived.summaryMetric,
+        failureMessage: derived.failureMessage,
+        updatedAtLabel: formatHistoryTimestamp(analysisSession.updatedAt),
+        href: `/workspace/analysis/${analysisSession.id}`,
+      };
+    }),
     historyEmptyState:
       historySessions.length === 0
         ? {
@@ -123,3 +208,10 @@ function formatHistoryTimestamp(timestamp: string) {
     timeStyle: 'short',
   }).format(new Date(timestamp));
 }
+
+const workspaceHomeModule = {
+  createWorkspaceHomeModel,
+  deriveSessionStatus,
+};
+
+export default workspaceHomeModule;
