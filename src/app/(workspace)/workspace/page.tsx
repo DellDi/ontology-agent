@@ -85,14 +85,18 @@ export default async function WorkspacePage({
               sessionId: historySession.id,
             });
             if (events.length > 0) {
-              // 取最后一个事件的 status 作为当前状态
-              const lastEvent = events[events.length - 1];
-              if (lastEvent.status) {
+              // 倒序查找最后一个 execution-status 事件的 status
+              // 因为只有 execution-status 事件才有可靠的顶层 status 字段
+              // (step-started/tool-started 等事件没有 status)
+              const lastStatusEvent = [...events]
+                .reverse()
+                .find((e) => e.kind === 'execution-status' && e.status);
+              if (lastStatusEvent && lastStatusEvent.status) {
                 // 构造一个最小 snapshot 用于状态派生
                 return [
                   historySession.id,
                   {
-                    status: lastEvent.status,
+                    status: lastStatusEvent.status,
                     failurePoint: null,
                     conclusionState: null,
                     mobileProjection: null,

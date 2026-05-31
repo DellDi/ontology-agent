@@ -119,6 +119,68 @@ export function createAnalysisContextUseCases(
       return versionedContext;
     },
 
+    /**
+     * 仅在用户未手动修正过上下文时（version === 1），用更精确的 context 替换初始版本。
+     * 用于 LLM 抽取结果覆盖规则抽取的 savedContext。
+     *
+     * 返回：
+     * - replaced=true: 成功替换了 version 1
+     * - replaced=false: 用户已修正过（version > 1），保持不动
+     */
+    async replaceInitialContextIfUnmodified({
+      sessionId,
+      ownerUserId,
+      questionText,
+      newContext,
+    }: {
+      sessionId: string;
+      ownerUserId: string;
+      questionText: string;
+      newContext: AnalysisContext;
+    }): Promise<{ replaced: boolean; context: VersionedAnalysisContext }> {
+      if (!store) {
+        throw new ContextCorrectionError('上下文存储未配置。');
+      }
+
+      const existing = await store.getLatest(sessionId);
+
+      if (!existing) {
+        // 没有上下文，直接初始化
+        const versionedContext: VersionedAnalysisContext = {
+          sessionId,
+          ownerUserId,
+          version: 1,
+          context: newContext,
+          originalQuestionText: questionText,
+          createdAt: new Date().toISOString(),
+        };
+        await store.save(versionedContext);
+        return { replaced: true, context: versionedContext };
+      }
+
+      if (existing.version > 1) {
+        // 用户已手动修正过，不覆盖
+        return { replaced: false, context: existing };
+      }
+
+      if (existing.ownerUserId !== ownerUserId) {
+        throw new ContextCorrectionError('无权修改此会话的上下文。');
+      }
+
+      // version === 1 且用户未修正，替换为 LLM 抽取结果
+      const replaced: VersionedAnalysisContext = {
+        sessionId,
+        ownerUserId,
+        version: 2,
+        context: newContext,
+        originalQuestionText: questionText,
+        createdAt: new Date().toISOString(),
+      };
+
+      await store.save(replaced);
+      return { replaced: true, context: replaced };
+    },
+
     async correctContext({
       sessionId,
       ownerUserId,
