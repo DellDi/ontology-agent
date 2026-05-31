@@ -533,6 +533,42 @@ export function createAnalysisInteractionUiRendererRegistry(
   return registry;
 }
 
+function renderRenderErrorBlock({
+  renderedBlock,
+  className = '',
+}: AnalysisInteractionUiRenderInput) {
+  return (
+    <div
+      className={`${className} rounded-2xl border border-rose-200 bg-rose-50/80 p-4`}
+      data-testid="analysis-render-error"
+    >
+      {renderTitle(renderedBlock, '渲染异常')}
+      <p className="mt-2 text-sm leading-7 text-rose-900">
+        Block 类型：{getString(renderedBlock.payload.originalBlockType, 'unknown')}
+      </p>
+      <p className="mt-1 text-xs text-rose-700">
+        {getString(renderedBlock.payload.errorMessage, '未知错误')}
+      </p>
+    </div>
+  );
+}
+
+function renderConclusionSummaryBlock({
+  renderedBlock,
+  className = '',
+}: AnalysisInteractionUiRenderInput) {
+  // conclusion-summary 由 AnalysisConversationShell 的 ConclusionSummaryBlock 专用渲染，
+  // 此处提供 registry 兜底，避免通过 registry.render 调用时 fallback。
+  return (
+    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+      {renderTitle(renderedBlock, '分析结论')}
+      <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">
+        {getString(renderedBlock.payload.summary)}
+      </p>
+    </div>
+  );
+}
+
 export function createDefaultAnalysisInteractionUiRendererRegistry() {
   return createAnalysisInteractionUiRendererRegistry([
     { kind: 'process-board', render: renderProcessBoardBlock },
@@ -549,6 +585,8 @@ export function createDefaultAnalysisInteractionUiRendererRegistry() {
     { kind: 'assumption-card', render: renderAssumptionCardBlock },
     { kind: 'approval-state', render: renderApprovalStateBlock },
     { kind: 'skills-state', render: renderSkillsStateBlock },
+    { kind: 'render-error', render: renderRenderErrorBlock },
+    { kind: 'conclusion-summary', render: renderConclusionSummaryBlock },
     { kind: 'fallback-block', render: renderFallbackBlock },
   ]);
 }
