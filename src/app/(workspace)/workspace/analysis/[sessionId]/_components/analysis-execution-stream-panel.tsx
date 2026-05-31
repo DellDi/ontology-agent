@@ -102,7 +102,7 @@ export function AnalysisExecutionStreamPanel({
                 </span>
               </div>
 
-              {event.renderBlocks.map((block, index) => {
+              {(event.renderBlocks ?? []).map((block, index) => {
                 const part = normalizeExecutionRenderBlock(block, {
                   sourceType: 'execution-render-block',
                   sessionId: event.sessionId,

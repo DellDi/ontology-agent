@@ -26,7 +26,7 @@ export type AnalysisConclusionReadModel = {
 function extractEvidence(event: AnalysisExecutionStreamEvent) {
   const evidence: AnalysisConclusionEvidence[] = [];
 
-  for (const block of event.renderBlocks) {
+  for (const block of event.renderBlocks ?? []) {
     if (block.type === 'kv-list') {
       evidence.push(
         ...block.items
@@ -130,12 +130,12 @@ function scoreConclusionEvent(event: AnalysisExecutionStreamEvent) {
     score -= 40;
   }
 
-  if (event.renderBlocks.some((block) => block.type === 'table')) {
+  if ((event.renderBlocks ?? []).some((block) => block.type === 'table')) {
     score += 20;
   }
 
   if (
-    event.renderBlocks.some(
+    (event.renderBlocks ?? []).some(
       (block) =>
         block.type === 'markdown' && block.title === '结构化分析摘要',
     )

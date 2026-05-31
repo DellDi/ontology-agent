@@ -81,7 +81,8 @@ export function createAnalysisExecutionStreamUseCases({
       message?: string;
       step?: AnalysisExecutionStreamEvent['step'];
       stage?: AnalysisExecutionStreamEvent['stage'];
-      renderBlocks: AnalysisExecutionStreamEvent['renderBlocks'];
+      tool?: AnalysisExecutionStreamEvent['tool'];
+      renderBlocks?: AnalysisExecutionStreamEvent['renderBlocks'];
       metadata?: Record<string, unknown>;
     }) {
       return await eventStore.append(input);
