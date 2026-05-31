@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { AnalysisSessionStore } from '@/application/analysis-session/ports';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 import { buildToolInputs } from '@/application/analysis-execution/tool-input-builder';
+import type { ToolExecutionEventEmitter } from '@/application/analysis-execution/use-cases';
 import {
   recognizeIntentFromQuestion,
   type AnalysisIntentType,
@@ -18,9 +19,15 @@ import { checkRedisHealth } from '@/infrastructure/redis/health';
 import type { RedisClientType } from 'redis';
 
 import {
+  buildStepCompletedEvent,
   buildStepResultEvent,
   buildStepRunningEvent,
+  buildStepStartedEvent,
+  buildToolCompletedEvent,
+  buildToolFailedEvent,
+  buildToolStartedEvent,
 } from './analysis-execution-renderer';
+import { translateToolName } from '@/application/analysis-message-projection/tool-name-translations';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
 
 export type JobHandler = (
@@ -37,7 +44,8 @@ type AnalysisExecutionStreamPublisher = {
     message?: string;
     step?: AnalysisExecutionStreamEvent['step'];
     stage?: AnalysisExecutionStreamEvent['stage'];
-    renderBlocks: AnalysisExecutionStreamEvent['renderBlocks'];
+    tool?: AnalysisExecutionStreamEvent['tool'];
+    renderBlocks?: AnalysisExecutionStreamEvent['renderBlocks'];
     metadata?: Record<string, unknown>;
   }) => Promise<unknown>;
 };
@@ -65,6 +73,7 @@ type AnalysisExecutionUseCases = {
     };
     toolInputsByName: Partial<Record<AnalysisToolName, unknown>>;
     groundedContext?: import('@/domain/ontology/grounding').OntologyGroundedContext;
+    eventEmitter?: ToolExecutionEventEmitter;
   }) => Promise<OrchestrationStepExecutionResult>;
 };
 
@@ -112,6 +121,15 @@ export function createAnalysisExecutionJobHandler(
     const inferredIntentType = recognizeIntentFromQuestion(jobData.questionText).type;
 
     for (const step of jobData.plan.steps) {
+      // Story 12-5: 细粒度 step-started 事件（先于既有 step-lifecycle）
+      await streamUseCases.publishEvent(
+        buildStepStartedEvent({
+          sessionId: jobData.sessionId,
+          executionId: job.id,
+          step,
+        }),
+      );
+
       await streamUseCases.publishEvent(
         buildStepRunningEvent({
           sessionId: jobData.sessionId,
@@ -119,6 +137,78 @@ export function createAnalysisExecutionJobHandler(
           step,
         }),
       );
+
+      const stepStartedAt = Date.now();
+
+      // Story 12 fix: 创建实时事件发射器，在工具调用过程中发布事件
+      const eventEmitter = {
+        async onToolStarted(input: {
+          toolName: string;
+          toolLabel: string;
+          startedAt: number;
+        }) {
+          const toolLabel = translateToolName(input.toolName);
+          await streamUseCases.publishEvent(
+            buildToolStartedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: { name: input.toolName, label: toolLabel },
+            }),
+          );
+        },
+        async onToolCompleted(input: {
+          toolName: string;
+          toolLabel: string;
+          startedAt: number;
+          finishedAt: number;
+          output?: unknown;
+        }) {
+          const toolLabel = translateToolName(input.toolName);
+          const durationMs = input.finishedAt - input.startedAt;
+          await streamUseCases.publishEvent(
+            buildToolCompletedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: {
+                name: input.toolName,
+                label: toolLabel,
+                output:
+                  input.output &&
+                  typeof input.output === 'object' &&
+                  !Array.isArray(input.output)
+                    ? (input.output as Record<string, unknown>)
+                    : undefined,
+                durationMs,
+              },
+            }),
+          );
+        },
+        async onToolFailed(input: {
+          toolName: string;
+          toolLabel: string;
+          startedAt: number;
+          finishedAt: number;
+          error: string;
+        }) {
+          const toolLabel = translateToolName(input.toolName);
+          const durationMs = input.finishedAt - input.startedAt;
+          await streamUseCases.publishEvent(
+            buildToolFailedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: {
+                name: input.toolName,
+                label: toolLabel,
+                error: input.error,
+                durationMs,
+              },
+            }),
+          );
+        },
+      };
 
       const result = await dependencies.analysisExecutionUseCases.executeStep({
         stepId: step.id,
@@ -153,7 +243,26 @@ export function createAnalysisExecutionJobHandler(
           planSummary: jobData.plan.summary,
         }),
         groundedContext: jobData.groundedContext,
+        eventEmitter,
       });
+
+      const stepDurationMs = Date.now() - stepStartedAt;
+
+      // Story 12-5: step-completed 事件
+      await streamUseCases.publishEvent(
+        buildStepCompletedEvent({
+          sessionId: jobData.sessionId,
+          executionId: job.id,
+          step: {
+            id: step.id,
+            order: step.order,
+            title: step.title,
+            status: result.status === 'completed' ? 'completed' : 'failed',
+          },
+          durationMs: stepDurationMs,
+          toolCount: result.events.length,
+        }),
+      );
 
       const nextProcessedCount =
         result.status === 'completed'

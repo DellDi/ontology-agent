@@ -17,6 +17,9 @@ import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
+import { getLlmContextExtractionUseCases } from '@/infrastructure/analysis-context-extraction';
+import { createPostgresErpReadRepository } from '@/infrastructure/erp/postgres-erp-read-repository';
+import { createErpReadUseCases } from '@/application/erp-read/use-cases';
 import { auditUseCases } from '@/infrastructure/audit';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
 import { getCurrentCorrelationId } from '@/infrastructure/observability';
@@ -99,12 +102,80 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const followUpId = await readOptionalFollowUpId(request);
 
+  // Story 12-4 fix: LLM 抽取必须在主链路真正生效
+  // 1. 先用 savedContext 初始化（确保 context store 有 version 1）
+  // 2. 再尝试 LLM 抽取，用 replaceInitialContextIfUnmodified 替换
+  // 3. 如果 LLM 失败，记录 audit event，用规则抽取继续
   await analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
     ownerUserId: authSession.userId,
     questionText: analysisSession.questionText,
     initialContext: analysisSession.savedContext,
   });
+
+  try {
+    const erpReadUseCases = createErpReadUseCases({
+      erpReadPort: createPostgresErpReadRepository(),
+    });
+    const scopedProjects = await erpReadUseCases.listProjects(authSession);
+    const projectNames = scopedProjects
+      .filter((p) => authSession.scope.projectIds.includes(p.id))
+      .map((p) => p.name);
+
+    const extractionUseCases = getLlmContextExtractionUseCases();
+    const extractionResult = await extractionUseCases.extractContext({
+      questionText: analysisSession.questionText,
+      projectNames,
+    });
+
+    if (extractionResult.source !== 'llm') {
+      // LLM 抽取失败，extractContext 内部已 catch 并降级到规则抽取。
+      // 记录 audit event 用于可观测性，但不替换 context version ——
+      // 保留 version 1 (savedContext)，避免系统 fallback 被误认为用户修正。
+      const llmIssue = extractionResult.issues.find(
+        (issue) => issue.field === 'llm' && issue.severity === 'error',
+      );
+      await auditUseCases.recordEvent({
+        userId: authSession.userId,
+        organizationId: authSession.scope.organizationId,
+        sessionId,
+        eventType: 'tool.invoked',
+        eventResult: 'failed',
+        eventSource: 'route-handler',
+        payload: {
+          tool: 'llm.context-extraction',
+          source: extractionResult.source,
+          reason: llmIssue?.message ?? 'LLM 抽取降级到规则引擎',
+          fallback: 'rule-based-extraction',
+          message: '智能理解服务不可用，已使用基础规则继续',
+        },
+      });
+    } else {
+      // LLM 成功：用抽取结果替换初始上下文（仅在用户未手动修正时）
+      await analysisContextUseCases.replaceInitialContextIfUnmodified({
+        sessionId: analysisSession.id,
+        ownerUserId: authSession.userId,
+        questionText: analysisSession.questionText,
+        newContext: extractionResult.context,
+      });
+    }
+  } catch (error) {
+    // 抽取流程本身抛出未预期异常（非 extractContext 内部降级），记录 audit event
+    await auditUseCases.recordEvent({
+      userId: authSession.userId,
+      organizationId: authSession.scope.organizationId,
+      sessionId,
+      eventType: 'tool.invoked',
+      eventResult: 'failed',
+      eventSource: 'route-handler',
+      payload: {
+        tool: 'llm.context-extraction',
+        reason: error instanceof Error ? error.message : '抽取流程异常',
+        fallback: 'rule-based-extraction',
+        message: '智能理解服务不可用，已使用基础规则继续',
+      },
+    });
+  }
 
   const [intent, contextReadModel, followUp] = await Promise.all([
     analysisIntentUseCases.getIntentBySessionId(analysisSession.id),
