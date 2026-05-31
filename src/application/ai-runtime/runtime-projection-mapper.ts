@@ -138,7 +138,8 @@ function buildEvidenceCardParts(
 ): AiRuntimeEvidenceCardPart[] {
   const parts: AiRuntimeEvidenceCardPart[] = [];
   for (const event of events) {
-    if (event.renderBlocks.length === 0) continue;
+    const blocks = event.renderBlocks ?? [];
+    if (blocks.length === 0) continue;
     const title =
       event.step?.title ?? event.stage?.label ?? event.message ?? undefined;
     parts.push({
@@ -151,7 +152,7 @@ function buildEvidenceCardParts(
       sourceEventId: event.id,
       sequence: event.sequence,
       title,
-      blocks: event.renderBlocks,
+      blocks,
     });
   }
   return parts;

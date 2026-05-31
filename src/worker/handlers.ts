@@ -18,9 +18,16 @@ import { checkRedisHealth } from '@/infrastructure/redis/health';
 import type { RedisClientType } from 'redis';
 
 import {
+  buildStepCompletedEvent,
   buildStepResultEvent,
   buildStepRunningEvent,
+  buildStepStartedEvent,
+  buildToolCompletedEvent,
+  buildToolFailedEvent,
+  buildToolStartedEvent,
+  computeDurationMs,
 } from './analysis-execution-renderer';
+import { translateToolName } from '@/application/analysis-message-projection/tool-name-translations';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
 
 export type JobHandler = (
@@ -37,7 +44,8 @@ type AnalysisExecutionStreamPublisher = {
     message?: string;
     step?: AnalysisExecutionStreamEvent['step'];
     stage?: AnalysisExecutionStreamEvent['stage'];
-    renderBlocks: AnalysisExecutionStreamEvent['renderBlocks'];
+    tool?: AnalysisExecutionStreamEvent['tool'];
+    renderBlocks?: AnalysisExecutionStreamEvent['renderBlocks'];
     metadata?: Record<string, unknown>;
   }) => Promise<unknown>;
 };
@@ -112,6 +120,15 @@ export function createAnalysisExecutionJobHandler(
     const inferredIntentType = recognizeIntentFromQuestion(jobData.questionText).type;
 
     for (const step of jobData.plan.steps) {
+      // Story 12-5: 细粒度 step-started 事件（先于既有 step-lifecycle）
+      await streamUseCases.publishEvent(
+        buildStepStartedEvent({
+          sessionId: jobData.sessionId,
+          executionId: job.id,
+          step,
+        }),
+      );
+
       await streamUseCases.publishEvent(
         buildStepRunningEvent({
           sessionId: jobData.sessionId,
@@ -119,6 +136,8 @@ export function createAnalysisExecutionJobHandler(
           step,
         }),
       );
+
+      const stepStartedAt = Date.now();
 
       const result = await dependencies.analysisExecutionUseCases.executeStep({
         stepId: step.id,
@@ -154,6 +173,77 @@ export function createAnalysisExecutionJobHandler(
         }),
         groundedContext: jobData.groundedContext,
       });
+
+      const stepDurationMs = Date.now() - stepStartedAt;
+
+      // Story 12-5: 为每个工具调用发布细粒度事件
+      for (const toolEvent of result.events) {
+        const toolLabel = translateToolName(toolEvent.toolName);
+        const toolDurationMs = computeDurationMs(
+          toolEvent.startedAt,
+          toolEvent.finishedAt,
+        );
+
+        await streamUseCases.publishEvent(
+          buildToolStartedEvent({
+            sessionId: jobData.sessionId,
+            executionId: job.id,
+            step,
+            tool: { name: toolEvent.toolName, label: toolLabel },
+          }),
+        );
+
+        if (toolEvent.ok) {
+          await streamUseCases.publishEvent(
+            buildToolCompletedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: {
+                name: toolEvent.toolName,
+                label: toolLabel,
+                output:
+                  toolEvent.output &&
+                  typeof toolEvent.output === 'object' &&
+                  !Array.isArray(toolEvent.output)
+                    ? (toolEvent.output as Record<string, unknown>)
+                    : undefined,
+                durationMs: toolDurationMs,
+              },
+            }),
+          );
+        } else {
+          await streamUseCases.publishEvent(
+            buildToolFailedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step,
+              tool: {
+                name: toolEvent.toolName,
+                label: toolLabel,
+                error: toolEvent.error.message,
+                durationMs: toolDurationMs,
+              },
+            }),
+          );
+        }
+      }
+
+      // Story 12-5: step-completed 事件
+      await streamUseCases.publishEvent(
+        buildStepCompletedEvent({
+          sessionId: jobData.sessionId,
+          executionId: job.id,
+          step: {
+            id: step.id,
+            order: step.order,
+            title: step.title,
+            status: result.status === 'completed' ? 'completed' : 'failed',
+          },
+          durationMs: stepDurationMs,
+          toolCount: result.events.length,
+        }),
+      );
 
       const nextProcessedCount =
         result.status === 'completed'

@@ -31,6 +31,7 @@ export function createRedisAnalysisExecutionEventStore(
         message: input.message,
         step: input.step,
         stage: input.stage,
+        tool: input.tool,
         renderBlocks: input.renderBlocks,
         metadata: input.metadata,
       });

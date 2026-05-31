@@ -24,7 +24,7 @@ export function buildToolStatus(
 
 export function buildToolOutputBlocks(
   event: AnalysisToolInvocationResult,
-): AnalysisExecutionStreamEvent['renderBlocks'] {
+): NonNullable<AnalysisExecutionStreamEvent['renderBlocks']> {
   return buildToolRenderBlocks(event);
 }
 
@@ -36,8 +36,8 @@ export function buildResultBlocks(input: {
   result: OrchestrationStepExecutionResult;
   processedStepCount: number;
   totalStepCount: number;
-}): AnalysisExecutionStreamEvent['renderBlocks'] {
-  const blocks: AnalysisExecutionStreamEvent['renderBlocks'] = [
+}): NonNullable<AnalysisExecutionStreamEvent['renderBlocks']> {
+  const blocks: NonNullable<AnalysisExecutionStreamEvent['renderBlocks']> = [
     {
       type: 'status',
       title: '阶段状态',
@@ -157,7 +157,8 @@ type AnalysisExecutionStreamPublisher = {
     message?: string;
     step?: AnalysisExecutionStreamEvent['step'];
     stage?: AnalysisExecutionStreamEvent['stage'];
-    renderBlocks: AnalysisExecutionStreamEvent['renderBlocks'];
+    tool?: AnalysisExecutionStreamEvent['tool'];
+    renderBlocks?: AnalysisExecutionStreamEvent['renderBlocks'];
     metadata?: Record<string, unknown>;
   }) => Promise<unknown>;
 };
@@ -259,4 +260,149 @@ export function buildStepResultEvent(input: {
       conclusionEvidence: structuredConclusion.evidence ?? [],
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Story 12-5: 细粒度实时事件构建器
+// ---------------------------------------------------------------------------
+
+export function buildStepStartedEvent(input: {
+  sessionId: string;
+  executionId: string;
+  step: { id: string; order: number; title: string };
+}): Parameters<AnalysisExecutionStreamPublisher['publishEvent']>[0] {
+  return {
+    sessionId: input.sessionId,
+    executionId: input.executionId,
+    kind: 'step-started' as const,
+    message: `开始执行步骤 ${input.step.order}: ${input.step.title}`,
+    step: {
+      id: input.step.id,
+      order: input.step.order,
+      title: input.step.title,
+      status: 'running' as const,
+    },
+  };
+}
+
+export function buildToolStartedEvent(input: {
+  sessionId: string;
+  executionId: string;
+  step: { id: string; order: number; title: string };
+  tool: { name: string; label: string; input?: Record<string, unknown> };
+}): Parameters<AnalysisExecutionStreamPublisher['publishEvent']>[0] {
+  return {
+    sessionId: input.sessionId,
+    executionId: input.executionId,
+    kind: 'tool-started' as const,
+    message: `正在调用 ${input.tool.label}`,
+    step: {
+      id: input.step.id,
+      order: input.step.order,
+      title: input.step.title,
+      status: 'running' as const,
+    },
+    tool: {
+      name: input.tool.name,
+      label: input.tool.label,
+      input: input.tool.input,
+    },
+  };
+}
+
+export function buildToolCompletedEvent(input: {
+  sessionId: string;
+  executionId: string;
+  step: { id: string; order: number; title: string };
+  tool: {
+    name: string;
+    label: string;
+    output?: Record<string, unknown>;
+    durationMs: number;
+  };
+}): Parameters<AnalysisExecutionStreamPublisher['publishEvent']>[0] {
+  return {
+    sessionId: input.sessionId,
+    executionId: input.executionId,
+    kind: 'tool-completed' as const,
+    message: `${input.tool.label} 完成 (${input.tool.durationMs}ms)`,
+    step: {
+      id: input.step.id,
+      order: input.step.order,
+      title: input.step.title,
+      status: 'running' as const,
+    },
+    tool: {
+      name: input.tool.name,
+      label: input.tool.label,
+      output: input.tool.output,
+      durationMs: input.tool.durationMs,
+    },
+  };
+}
+
+export function buildToolFailedEvent(input: {
+  sessionId: string;
+  executionId: string;
+  step: { id: string; order: number; title: string };
+  tool: { name: string; label: string; error: string; durationMs: number };
+}): Parameters<AnalysisExecutionStreamPublisher['publishEvent']>[0] {
+  return {
+    sessionId: input.sessionId,
+    executionId: input.executionId,
+    kind: 'tool-failed' as const,
+    message: `${input.tool.label} 失败: ${input.tool.error}`,
+    step: {
+      id: input.step.id,
+      order: input.step.order,
+      title: input.step.title,
+      status: 'running' as const,
+    },
+    tool: {
+      name: input.tool.name,
+      label: input.tool.label,
+      error: input.tool.error,
+      durationMs: input.tool.durationMs,
+    },
+  };
+}
+
+export function buildStepCompletedEvent(input: {
+  sessionId: string;
+  executionId: string;
+  step: {
+    id: string;
+    order: number;
+    title: string;
+    status: 'completed' | 'failed';
+  };
+  durationMs: number;
+  toolCount: number;
+}): Parameters<AnalysisExecutionStreamPublisher['publishEvent']>[0] {
+  const statusLabel = input.step.status === 'completed' ? '完成' : '失败';
+  return {
+    sessionId: input.sessionId,
+    executionId: input.executionId,
+    kind: 'step-completed' as const,
+    message: `步骤 ${input.step.order} ${statusLabel} (${input.durationMs}ms, ${input.toolCount} 个工具)`,
+    step: {
+      id: input.step.id,
+      order: input.step.order,
+      title: input.step.title,
+      status: input.step.status,
+      durationMs: input.durationMs,
+      toolCount: input.toolCount,
+    },
+  };
+}
+
+/** Story 12-5: 计算两个 ISO 时间戳之间的毫秒差。 */
+export function computeDurationMs(
+  startedAt: string,
+  finishedAt: string,
+): number {
+  const start = Date.parse(startedAt);
+  const finish = Date.parse(finishedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(finish)) return 0;
+  return Math.max(0, finish - start);
 }

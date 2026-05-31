@@ -60,7 +60,7 @@ function buildResultBlocks(
   conclusionReadModel: AnalysisConclusionReadModel,
   events: AnalysisExecutionStreamEvent[],
 ) {
-  const stageBlocks = events.flatMap((event) => event.renderBlocks);
+  const stageBlocks = events.flatMap((event) => event.renderBlocks ?? []);
 
   return [...conclusionReadModel.renderBlocks, ...stageBlocks];
 }

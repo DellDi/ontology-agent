@@ -58,10 +58,48 @@ function SubStepStatusIndicator({ status }: { status: SubStepEntry['status'] }) 
 }
 
 // ---------------------------------------------------------------------------
+// JSON 详情（工具输入/输出）
+// ---------------------------------------------------------------------------
+
+function JsonDetail({
+  label,
+  value,
+}: {
+  label: string;
+  value: Record<string, unknown>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const keys = Object.keys(value);
+  if (keys.length === 0) return null;
+
+  return (
+    <div className="mt-1">
+      <button
+        className="text-[10px] text-[color:var(--ink-600)]/60 hover:text-[color:var(--brand-700)]"
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded((prev) => !prev);
+        }}
+        type="button"
+      >
+        {expanded ? '收起' : `查看${label}`}
+      </button>
+      {expanded ? (
+        <pre className="mt-1 max-h-48 overflow-auto rounded bg-[color:var(--ink-900)]/5 p-2 text-[10px] leading-4 text-[color:var(--ink-600)]">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 子步骤（展开后可见）
 // ---------------------------------------------------------------------------
 
 function SubStepRow({ subStep }: { subStep: SubStepEntry }) {
+  const displayName = subStep.toolLabel || translateToolName(subStep.toolName);
+
   return (
     <li className="flex items-start gap-2 text-xs text-[color:var(--ink-600)]">
       <span className="mt-1.5">
@@ -70,15 +108,35 @@ function SubStepRow({ subStep }: { subStep: SubStepEntry }) {
       <div className="flex-1">
         <p className="leading-6">
           <span className="font-medium text-[color:var(--ink-900)]">
-            {translateToolName(subStep.toolName)}
+            {displayName}
           </span>
-          <span className="mx-1 text-[color:var(--ink-600)]/60">·</span>
-          <span>{subStep.objective}</span>
+          {subStep.objective && subStep.objective !== displayName ? (
+            <>
+              <span className="mx-1 text-[color:var(--ink-600)]/60">·</span>
+              <span>{subStep.objective}</span>
+            </>
+          ) : null}
+          {subStep.duration ? (
+            <span className="ml-2 text-[11px] text-[color:var(--ink-600)]/70">
+              {subStep.duration}
+            </span>
+          ) : null}
         </p>
         {subStep.result ? (
           <p className="mt-0.5 text-[11px] leading-5 text-[color:var(--ink-600)]/80">
             {subStep.result}
           </p>
+        ) : null}
+        {subStep.error ? (
+          <p className="mt-0.5 text-[11px] leading-5 text-rose-500">
+            {subStep.error}
+          </p>
+        ) : null}
+        {subStep.input ? (
+          <JsonDetail label="输入" value={subStep.input} />
+        ) : null}
+        {subStep.output ? (
+          <JsonDetail label="输出" value={subStep.output} />
         ) : null}
       </div>
     </li>

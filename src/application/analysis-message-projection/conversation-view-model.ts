@@ -24,6 +24,10 @@ import {
   renderAnalysisInteractionPart,
 } from '@/application/analysis-interaction';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
+import { translateToolName } from './tool-name-translations';
+
+// Re-export so existing imports (e.g. analysis-step-timeline.tsx) keep working.
+export { translateToolName } from './tool-name-translations';
 
 // ---------------------------------------------------------------------------
 // 类型定义
@@ -125,10 +129,20 @@ export type Visualization = {
 export type SubStepEntry = {
   /** 内部工具名（默认隐藏） */
   toolName: string;
+  /** 业务向工具标签（例如"数据查询"） */
+  toolLabel?: string;
   /** 业务向目标描述 */
   objective: string;
   status: 'running' | 'completed' | 'failed';
   result?: string;
+  /** 耗时（人话格式，例如"1.2秒"） */
+  duration?: string;
+  /** 工具输入参数（展开可见） */
+  input?: Record<string, unknown>;
+  /** 工具输出结果（展开可见） */
+  output?: Record<string, unknown>;
+  /** 错误信息 */
+  error?: string;
 };
 
 export type ToolTimelineEntryStatus = 'running' | 'completed' | 'failed';
@@ -189,26 +203,17 @@ export type AnalysisConversationViewModel = {
 // 翻译层：工程术语 → 业务语言
 // ---------------------------------------------------------------------------
 
-/** 把内部工具名翻译为业务用户可读的名称。 */
-export function translateToolName(toolName: string): string {
-  const translations: Record<string, string> = {
-    'cube.semantic-query': '数据查询',
-    'neo4j.graph-query': '关系分析',
-    'llm.structured-analysis': '智能分析',
-    'erp-read': '业务数据读取',
-    'cube.query': '数据查询',
-    'neo4j.query': '关系分析',
-    'llm.analysis': '智能分析',
-  };
-  return translations[toolName] ?? toolName;
-}
-
 /** 把执行事件 kind 翻译为业务语言标签。 */
 export function translateStepStatus(status: string): string {
   const translations: Record<string, string> = {
     'execution-status': '执行状态',
     'step-lifecycle': '步骤进度',
     'stage-result': '阶段结果',
+    'step-started': '步骤开始',
+    'tool-started': '工具调用中',
+    'tool-completed': '工具完成',
+    'tool-failed': '工具失败',
+    'step-completed': '步骤完成',
   };
   return translations[status] ?? status;
 }
@@ -328,7 +333,7 @@ function extractToolActivities(
   const byKey = new Map<string, ToolActivitySummary>();
 
   for (const event of events) {
-    for (const block of event.renderBlocks) {
+    for (const block of event.renderBlocks ?? []) {
       if (block.type !== 'tool-list') continue;
 
       for (const item of block.items) {
@@ -603,7 +608,16 @@ function extractVisualizations(
   return visualizations;
 }
 
-/** 从 step-timeline part 与 tool-list 事件构建可折叠步骤时间线。 */
+/** Story 12-5: 把毫秒数格式化为人话耗时。 */
+export function formatDurationMs(durationMs: number): string {
+  if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
+  if (durationMs < 60_000) return `${(durationMs / 1000).toFixed(1)}秒`;
+  const minutes = Math.floor(durationMs / 60_000);
+  const seconds = Math.round((durationMs % 60_000) / 1000);
+  return `${minutes}分${seconds}秒`;
+}
+
+/** 从 step-timeline part 与事件流（含 Story 12-5 新事件）构建可折叠步骤时间线。 */
 function buildToolTimeline(input: {
   stepTimelinePart: AiRuntimeStepTimelinePart | null;
   events: readonly AnalysisExecutionStreamEvent[];
@@ -613,69 +627,171 @@ function buildToolTimeline(input: {
   // 兜底 bucket key：当没有显式 step id 时，tool-list 项归入此桶
   const FALLBACK_BUCKET = '__unattributed__';
 
-  // 从事件流中重建 step 信息（在无 projection 或 step-timeline part 时也能用）
-  const stepsFromEvents = new Map<
-    string,
-    { id: string; title: string; status: 'running' | 'completed' | 'failed' }
-  >();
-  for (const event of events) {
-    if (event.step?.id) {
-      stepsFromEvents.set(event.step.id, {
-        id: event.step.id,
-        title: event.step.title,
-        status: event.step.status,
-      });
+  // 按 id 维护步骤条目（保留首次出现顺序）
+  const stepEntries = new Map<string, ToolTimelineEntry>();
+  const stepOrder: string[] = [];
+
+  const ensureStepEntry = (
+    stepId: string,
+    stepName: string,
+    status: ToolTimelineEntryStatus,
+  ): ToolTimelineEntry => {
+    let entry = stepEntries.get(stepId);
+    if (!entry) {
+      entry = { stepId, stepName, status, subSteps: [] };
+      stepEntries.set(stepId, entry);
+      stepOrder.push(stepId);
+    } else {
+      entry.stepName = stepName || entry.stepName;
+    }
+    return entry;
+  };
+
+  // 从 step-timeline part 预填步骤顺序（最权威）
+  if (stepTimelinePart && stepTimelinePart.steps.length > 0) {
+    for (const step of stepTimelinePart.steps) {
+      ensureStepEntry(step.id, step.title, step.status);
     }
   }
 
-  // 优先使用 step-timeline part（包含完整步骤顺序），否则回退到事件中观察到的 step
-  const orderedSteps =
-    stepTimelinePart && stepTimelinePart.steps.length > 0
-      ? stepTimelinePart.steps.map((s) => ({
-          id: s.id,
-          title: s.title,
-          status: s.status,
-        }))
-      : [...stepsFromEvents.values()];
-
-  // 按事件顺序维护"当前 step"指针，把 tool-list items 归到该 step
-  const subStepsByStepId = new Map<string, SubStepEntry[]>();
-  let currentStepId: string | null = orderedSteps[0]?.id ?? null;
+  // 按事件顺序维护"当前 step"指针
+  let currentStepId: string | null = stepOrder[0] ?? null;
 
   for (const event of events) {
-    if (event.step?.id) {
-      currentStepId = event.step.id;
+    const stepId = event.step?.id;
+    if (stepId) {
+      currentStepId = stepId;
     }
 
-    for (const block of event.renderBlocks) {
-      if (block.type !== 'tool-list') continue;
-      const bucketKey = currentStepId ?? FALLBACK_BUCKET;
-      const bucket = subStepsByStepId.get(bucketKey) ?? [];
-      for (const item of block.items) {
-        bucket.push({
-          toolName: item.toolName,
-          objective: item.objective,
-          status: item.status === 'selected' ? 'running' : item.status,
-        });
+    switch (event.kind) {
+      // -- Story 12-5: 细粒度实时事件 --
+      case 'step-started': {
+        if (!event.step) break;
+        const entry = ensureStepEntry(
+          event.step.id,
+          event.step.title,
+          'running',
+        );
+        entry.status = 'running';
+        currentStepId = event.step.id;
+        break;
       }
-      subStepsByStepId.set(bucketKey, bucket);
+
+      case 'tool-started': {
+        if (!event.tool) break;
+        const bucketKey = currentStepId ?? FALLBACK_BUCKET;
+        const entry = ensureStepEntry(
+          bucketKey,
+          event.step?.title ?? '分析步骤',
+          'running',
+        );
+        entry.subSteps.push({
+          toolName: event.tool.name,
+          toolLabel: event.tool.label,
+          objective: event.tool.label,
+          status: 'running',
+          input: event.tool.input,
+        });
+        break;
+      }
+
+      case 'tool-completed': {
+        if (!event.tool) break;
+        const bucketKey = currentStepId ?? FALLBACK_BUCKET;
+        const entry = stepEntries.get(bucketKey);
+        if (!entry) break;
+        // 找到最后一个同名且状态为 running 的子步骤
+        const subStep = [...entry.subSteps]
+          .reverse()
+          .find(
+            (s) => s.toolName === event.tool!.name && s.status === 'running',
+          );
+        if (subStep) {
+          subStep.status = 'completed';
+          subStep.output = event.tool.output;
+          if (typeof event.tool.durationMs === 'number') {
+            subStep.duration = formatDurationMs(event.tool.durationMs);
+          }
+        }
+        break;
+      }
+
+      case 'tool-failed': {
+        if (!event.tool) break;
+        const bucketKey = currentStepId ?? FALLBACK_BUCKET;
+        const entry = stepEntries.get(bucketKey);
+        if (!entry) break;
+        const subStep = [...entry.subSteps]
+          .reverse()
+          .find(
+            (s) => s.toolName === event.tool!.name && s.status === 'running',
+          );
+        if (subStep) {
+          subStep.status = 'failed';
+          subStep.error = event.tool.error;
+          if (typeof event.tool.durationMs === 'number') {
+            subStep.duration = formatDurationMs(event.tool.durationMs);
+          }
+        }
+        break;
+      }
+
+      case 'step-completed': {
+        if (!event.step) break;
+        const entry = stepEntries.get(event.step.id);
+        if (!entry) break;
+        entry.status = event.step.status;
+        if (typeof event.step.durationMs === 'number') {
+          entry.duration = formatDurationMs(event.step.durationMs);
+        }
+        if (typeof event.step.toolCount === 'number') {
+          entry.details = `${event.step.toolCount} 个工具调用`;
+        }
+        break;
+      }
+
+      // -- 既有事件兼容 --
+      case 'step-lifecycle':
+      case 'stage-result':
+      default: {
+        if (event.step) {
+          ensureStepEntry(event.step.id, event.step.title, event.step.status);
+        }
+
+        const renderBlocks = event.renderBlocks ?? [];
+        for (const block of renderBlocks) {
+          if (block.type !== 'tool-list') continue;
+          const bucketKey = currentStepId ?? FALLBACK_BUCKET;
+          const entry = ensureStepEntry(
+            bucketKey,
+            event.step?.title ?? '分析步骤',
+            event.step?.status ?? 'running',
+          );
+          for (const item of block.items) {
+            entry.subSteps.push({
+              toolName: item.toolName,
+              toolLabel: translateToolName(item.toolName),
+              objective: item.objective,
+              status: item.status === 'selected' ? 'running' : item.status,
+            });
+          }
+        }
+        break;
+      }
     }
   }
 
-  // 按 step 顺序输出（来自 part 或来自事件）
-  if (orderedSteps.length > 0) {
-    return orderedSteps.map((step) => ({
-      stepId: step.id,
-      stepName: step.title,
-      status: step.status,
-      subSteps: subStepsByStepId.get(step.id) ?? [],
-    }));
+  // 按插入顺序输出
+  if (stepOrder.length > 0) {
+    return stepOrder
+      .map((id) => stepEntries.get(id))
+      .filter((entry): entry is ToolTimelineEntry => entry !== undefined);
   }
 
-  // 没有任何 step 信息时，把所有 tool 调用汇总为"分析步骤"
+  // 没有任何 step 信息时，把所有 sub-steps 汇总为"分析步骤"
   const flatSubSteps: SubStepEntry[] = [];
-  for (const bucket of subStepsByStepId.values()) {
-    flatSubSteps.push(...bucket);
+  for (const entry of stepEntries.values()) {
+    flatSubSteps.push(...entry.subSteps);
   }
   if (flatSubSteps.length === 0) return [];
 
