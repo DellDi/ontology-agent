@@ -128,15 +128,39 @@ export async function POST(request: Request, { params }: RouteContext) {
       projectNames,
     });
 
-    // 用 LLM 抽取结果替换初始上下文（仅在用户未手动修正时）
-    await analysisContextUseCases.replaceInitialContextIfUnmodified({
-      sessionId: analysisSession.id,
-      ownerUserId: authSession.userId,
-      questionText: analysisSession.questionText,
-      newContext: extractionResult.context,
-    });
+    if (extractionResult.source !== 'llm') {
+      // LLM 抽取失败，extractContext 内部已 catch 并降级到规则抽取。
+      // 记录 audit event 用于可观测性，但不替换 context version ——
+      // 保留 version 1 (savedContext)，避免系统 fallback 被误认为用户修正。
+      const llmIssue = extractionResult.issues.find(
+        (issue) => issue.field === 'llm' && issue.severity === 'error',
+      );
+      await auditUseCases.recordEvent({
+        userId: authSession.userId,
+        organizationId: authSession.scope.organizationId,
+        sessionId,
+        eventType: 'tool.invoked',
+        eventResult: 'failed',
+        eventSource: 'route-handler',
+        payload: {
+          tool: 'llm.context-extraction',
+          source: extractionResult.source,
+          reason: llmIssue?.message ?? 'LLM 抽取降级到规则引擎',
+          fallback: 'rule-based-extraction',
+          message: '智能理解服务不可用，已使用基础规则继续',
+        },
+      });
+    } else {
+      // LLM 成功：用抽取结果替换初始上下文（仅在用户未手动修正时）
+      await analysisContextUseCases.replaceInitialContextIfUnmodified({
+        sessionId: analysisSession.id,
+        ownerUserId: authSession.userId,
+        questionText: analysisSession.questionText,
+        newContext: extractionResult.context,
+      });
+    }
   } catch (error) {
-    // LLM 抽取失败，记录 audit event，用规则抽取的 savedContext 继续
+    // 抽取流程本身抛出未预期异常（非 extractContext 内部降级），记录 audit event
     await auditUseCases.recordEvent({
       userId: authSession.userId,
       organizationId: authSession.scope.organizationId,
@@ -146,7 +170,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       eventSource: 'route-handler',
       payload: {
         tool: 'llm.context-extraction',
-        reason: error instanceof Error ? error.message : 'LLM 抽取失败',
+        reason: error instanceof Error ? error.message : '抽取流程异常',
         fallback: 'rule-based-extraction',
         message: '智能理解服务不可用，已使用基础规则继续',
       },

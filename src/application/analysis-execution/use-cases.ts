@@ -361,13 +361,25 @@ export function createAnalysisExecutionUseCases({
 
       for (const tool of selection.tools) {
         // Story 12 fix: 在工具调用前发布 started 事件
+        // 事件发布是可观测链路，失败时记录诊断但不阻断工具执行（主链路）
         const startedAt = Date.now();
         if (eventEmitter) {
-          await eventEmitter.onToolStarted({
-            toolName: tool.toolName,
-            toolLabel: tool.objective,
-            startedAt,
-          });
+          try {
+            await eventEmitter.onToolStarted({
+              toolName: tool.toolName,
+              toolLabel: tool.objective,
+              startedAt,
+            });
+          } catch (emitError) {
+            console.error(
+              `[diagnostic] eventEmitter.onToolStarted failed`,
+              {
+                toolName: tool.toolName,
+                correlationId: invocationContext.correlationId,
+                error: emitError instanceof Error ? emitError.message : String(emitError),
+              },
+            );
+          }
         }
 
         const event = await toolRegistryUseCases.invokeTool({
@@ -386,22 +398,33 @@ export function createAnalysisExecutionUseCases({
 
         // Story 12 fix: 在工具调用后发布 completed/failed 事件
         if (eventEmitter) {
-          if (event.ok) {
-            await eventEmitter.onToolCompleted({
-              toolName: tool.toolName,
-              toolLabel: tool.objective,
-              startedAt,
-              finishedAt,
-              output: event.output,
-            });
-          } else if (event.error.code !== 'tool-empty-result') {
-            await eventEmitter.onToolFailed({
-              toolName: tool.toolName,
-              toolLabel: tool.objective,
-              startedAt,
-              finishedAt,
-              error: event.error.message,
-            });
+          try {
+            if (event.ok) {
+              await eventEmitter.onToolCompleted({
+                toolName: tool.toolName,
+                toolLabel: tool.objective,
+                startedAt,
+                finishedAt,
+                output: event.output,
+              });
+            } else if (event.error.code !== 'tool-empty-result') {
+              await eventEmitter.onToolFailed({
+                toolName: tool.toolName,
+                toolLabel: tool.objective,
+                startedAt,
+                finishedAt,
+                error: event.error.message,
+              });
+            }
+          } catch (emitError) {
+            console.error(
+              `[diagnostic] eventEmitter.onTool${event.ok ? 'Completed' : 'Failed'} failed`,
+              {
+                toolName: tool.toolName,
+                correlationId: invocationContext.correlationId,
+                error: emitError instanceof Error ? emitError.message : String(emitError),
+              },
+            );
           }
         }
 
