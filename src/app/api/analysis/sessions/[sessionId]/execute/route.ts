@@ -17,6 +17,9 @@ import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
+import { getLlmContextExtractionUseCases } from '@/infrastructure/analysis-context-extraction';
+import { createPostgresErpReadRepository } from '@/infrastructure/erp/postgres-erp-read-repository';
+import { createErpReadUseCases } from '@/application/erp-read/use-cases';
 import { auditUseCases } from '@/infrastructure/audit';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
 import { getCurrentCorrelationId } from '@/infrastructure/observability';
@@ -99,11 +102,33 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const followUpId = await readOptionalFollowUpId(request);
 
+  // Story 12-4: 尝试 LLM 结构化抽取，成功则用其结果初始化上下文；
+  // 失败时自动降级到规则抽取（由 use-cases 层处理），不阻断执行。
+  let llmExtractedContext = analysisSession.savedContext;
+  try {
+    const erpReadUseCases = createErpReadUseCases({
+      erpReadPort: createPostgresErpReadRepository(),
+    });
+    const scopedProjects = await erpReadUseCases.listProjects(authSession);
+    const projectNames = scopedProjects
+      .filter((p) => authSession.scope.projectIds.includes(p.id))
+      .map((p) => p.name);
+
+    const extractionUseCases = getLlmContextExtractionUseCases();
+    const extractionResult = await extractionUseCases.extractContext({
+      questionText: analysisSession.questionText,
+      projectNames,
+    });
+    llmExtractedContext = extractionResult.context;
+  } catch {
+    // LLM 抽取完全失败，使用规则抽取的 savedContext 继续
+  }
+
   await analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
     ownerUserId: authSession.userId,
     questionText: analysisSession.questionText,
-    initialContext: analysisSession.savedContext,
+    initialContext: llmExtractedContext,
   });
 
   const [intent, contextReadModel, followUp] = await Promise.all([

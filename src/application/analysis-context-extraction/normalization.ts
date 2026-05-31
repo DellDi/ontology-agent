@@ -65,7 +65,12 @@ function matchEntity(
   value: string,
   kind: string,
   projectNames: string[] | undefined,
-): { state: AnalysisContextFieldState; note?: string; constraintLabel: string } {
+): {
+  state: AnalysisContextFieldState;
+  note?: string;
+  constraintLabel: string;
+  normalizedValue: string;
+} {
   const constraintLabel =
     ENTITY_KIND_CONSTRAINT_LABEL[kind] ?? '实体约束';
   const trimmed = value.trim();
@@ -76,20 +81,28 @@ function matchEntity(
         state: 'uncertain',
         note: '缺少项目列表，无法确认实体是否有效。',
         constraintLabel,
+        normalizedValue: trimmed,
       };
     }
-    return { state: 'confirmed', constraintLabel };
+    return { state: 'confirmed', constraintLabel, normalizedValue: trimmed };
   }
 
-  const hit = projectNames.some((name) => {
+  const matchedName = projectNames.find((name) => {
     const n = name.trim();
     return n === trimmed || trimmed.includes(n) || n.includes(trimmed);
   });
-  if (hit) return { state: 'confirmed', constraintLabel };
+  if (matchedName) {
+    return {
+      state: 'confirmed',
+      constraintLabel,
+      normalizedValue: matchedName.trim(),
+    };
+  }
   return {
     state: 'uncertain',
     note: `实体「${trimmed}」未在已知项目列表中匹配到。`,
     constraintLabel,
+    normalizedValue: trimmed,
   };
 }
 
@@ -129,30 +142,40 @@ export function normalizeLlmExtractionOutput(
     note: metricMatch.note,
   };
 
-  // 实体
+  // 实体 — 用匹配到的项目标准名归一化，确保 Cube 按 project-name 精确过滤时命中
   const entityMatch = matchEntity(
     output.entity.value,
     output.entity.kind,
     context.projectNames,
   );
+  const normalizedEntityValue = entityMatch.normalizedValue;
   const entity = {
     label: '实体对象',
-    value: output.entity.value,
+    value: normalizedEntityValue,
     state: entityMatch.state,
     note: entityMatch.note,
   };
-  if (output.entity.value) {
+  if (normalizedEntityValue) {
     constraints.push({
       label: entityMatch.constraintLabel,
-      value: output.entity.value,
+      value: normalizedEntityValue,
     });
   }
 
-  // 时间范围
+  // 时间范围 — 优先使用本模块的标准化结果（"2026年" 格式），
+  // 因为执行侧 resolveDateDimension 只识别 "2026年/今年/本年/本月" 等模式，
+  // 不识别 LLM 可能输出的 "2026-01-01 to 2026-12-31" 日期区间格式。
   const rawTimeValue = output.timeRange.value;
   const computedNormalized = normalizeTimeValue(rawTimeValue, currentYear);
+  const llmNormalized = output.timeRange.normalized;
+  const isLlmDateRange =
+    llmNormalized && /\d{4}-\d{2}-\d{2}\s+to\s+\d{4}-\d{2}-\d{2}/.test(llmNormalized);
   const finalNormalized =
-    output.timeRange.normalized ?? computedNormalized;
+    computedNormalized !== rawTimeValue
+      ? computedNormalized
+      : isLlmDateRange
+        ? computedNormalized
+        : (llmNormalized ?? computedNormalized);
   const timeRange = {
     label: '时间范围',
     value: finalNormalized,

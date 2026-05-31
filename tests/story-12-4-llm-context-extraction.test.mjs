@@ -347,7 +347,7 @@ test('Story 12.4 | 自动猜测决策：高置信度 → execute', async () => {
   assert.ok(typeof result.reason === 'string' && result.reason.length > 0);
 });
 
-test('Story 12.4 | 自动猜测决策：中置信度 → execute-with-confirmation（附带 summary）', async () => {
+test('Story 12.4 | 自动猜测决策：中置信度 → execute-with-assumptions（附带 summary + assumptions）', async () => {
   const result = await runTsSnippet(`
     import strategyModule from './src/application/analysis-context-extraction/auto-guess-strategy.ts';
     const { resolveAutoGuessDecision } = strategyModule;
@@ -361,7 +361,7 @@ test('Story 12.4 | 自动猜测决策：中置信度 → execute-with-confirmati
       },
       source: 'llm',
       confidence: 0.55,
-      assumptions: [],
+      assumptions: ['假设为物业费收缴率'],
       needsClarification: false,
       issues: [],
     };
@@ -369,26 +369,27 @@ test('Story 12.4 | 自动猜测决策：中置信度 → execute-with-confirmati
     console.log(JSON.stringify(d));
   `);
 
-  assert.equal(result.action, 'execute-with-confirmation');
+  assert.equal(result.action, 'execute-with-assumptions');
   assert.ok(typeof result.summary === 'string' && result.summary.length > 0, 'summary 不能为空');
   assert.ok(result.summary.includes('收缴率'), 'summary 应包含指标名');
+  assert.ok(Array.isArray(result.assumptions) && result.assumptions.length > 0);
 });
 
-test('Story 12.4 | 自动猜测决策：低置信度 → block', async () => {
+test('Story 12.4 | 自动猜测决策：低置信度 → execute-with-assumptions（始终执行）', async () => {
   const result = await runTsSnippet(`
     import strategyModule from './src/application/analysis-context-extraction/auto-guess-strategy.ts';
     const { resolveAutoGuessDecision } = strategyModule;
     const mockResult = {
       context: {
-        targetMetric: { label: '目标指标', value: '待补充', state: 'missing' },
-        entity: { label: '实体对象', value: '待补充', state: 'missing' },
-        timeRange: { label: '时间范围', value: '待补充', state: 'missing' },
-        comparison: { label: '比较方式', value: '待补充', state: 'missing' },
+        targetMetric: { label: '目标指标', value: '收缴率', state: 'confirmed' },
+        entity: { label: '实体对象', value: '某项目', state: 'confirmed' },
+        timeRange: { label: '时间范围', value: '2026年', state: 'confirmed' },
+        comparison: { label: '比较方式', value: '无需比较', state: 'confirmed' },
         constraints: [],
       },
       source: 'llm',
       confidence: 0.2,
-      assumptions: [],
+      assumptions: ['假设为本年数据'],
       needsClarification: false,
       issues: [],
     };
@@ -396,11 +397,13 @@ test('Story 12.4 | 自动猜测决策：低置信度 → block', async () => {
     console.log(JSON.stringify(d));
   `);
 
-  assert.equal(result.action, 'block');
+  assert.equal(result.action, 'execute-with-assumptions');
   assert.ok(typeof result.reason === 'string' && result.reason.length > 0);
+  assert.ok(typeof result.summary === 'string' && result.summary.length > 0);
+  assert.ok(Array.isArray(result.assumptions));
 });
 
-test('Story 12.4 | 自动猜测决策：needsClarification=true 时强制 block（即使置信度高）', async () => {
+test('Story 12.4 | 自动猜测决策：needsClarification=true 时仍执行但展示假设', async () => {
   const result = await runTsSnippet(`
     import strategyModule from './src/application/analysis-context-extraction/auto-guess-strategy.ts';
     const { resolveAutoGuessDecision } = strategyModule;
@@ -414,7 +417,7 @@ test('Story 12.4 | 自动猜测决策：needsClarification=true 时强制 block�
       },
       source: 'llm',
       confidence: 0.9,
-      assumptions: [],
+      assumptions: ['假设用户关注整体收缴率'],
       needsClarification: true,
       issues: [],
     };
@@ -422,8 +425,9 @@ test('Story 12.4 | 自动猜测决策：needsClarification=true 时强制 block�
     console.log(JSON.stringify(d));
   `);
 
-  assert.equal(result.action, 'block');
+  assert.equal(result.action, 'execute-with-assumptions');
   assert.ok(result.reason.includes('澄清'), 'reason 应提及"澄清"');
+  assert.ok(typeof result.summary === 'string' && result.summary.length > 0);
 });
 
 test('Story 12.4 | LLM 失败时回退到规则抽取（source=rule-fallback）', async () => {

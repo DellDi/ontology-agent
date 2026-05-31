@@ -75,8 +75,9 @@ export async function finalizeSuccessfulAnalysisExecution({
 }) {
   const jobData = getValidatedAnalysisExecutionJobData(job);
 
-  await jobUseCases.completeJob(job.id, result);
-
+  // Story 12 fix: 先保存 snapshot + 发布完成事件，再标记 job 完成。
+  // 如果 snapshot 保存失败，job 不应被标记为 completed，
+  // 否则首页只读 snapshot 时会永久显示"待执行"。
   try {
     await analysisExecutionStreamUseCases.publishExecutionStatus({
       sessionId: jobData.sessionId,
@@ -112,16 +113,16 @@ export async function finalizeSuccessfulAnalysisExecution({
         executionId: job.id,
       });
     }
-
-    return {
-      postCompletionError: null,
-    };
   } catch (error) {
-    return {
-      postCompletionError:
-        error instanceof Error ? error.message : '完成态副作用执行失败。',
-    };
+    // snapshot 保存失败时不标记 job 完成，让错误向上冒泡由 main.ts 处理
+    throw error;
   }
+
+  await jobUseCases.completeJob(job.id, result);
+
+  return {
+    postCompletionError: null,
+  };
 }
 
 const finalizeAnalysisExecutionModule = {

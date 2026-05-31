@@ -52,9 +52,9 @@ export function createContextExtractionUseCases({
         field: 'llm',
         message:
           error instanceof Error
-            ? error.message
-            : 'LLM 抽取失败，回退到规则抽取。',
-        severity: 'warning',
+            ? `智能理解服务不可用：${error.message}`
+            : '智能理解服务不可用。',
+        severity: 'error',
       });
     }
 

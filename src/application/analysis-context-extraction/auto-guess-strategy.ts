@@ -1,17 +1,20 @@
 import type { ContextExtractionResult } from './use-cases';
 
 /**
- * 自动猜测决策：
+ * 自动猜测决策（产品方向：始终执行 + 展示假设 + 允许修正）：
  * - execute：置信度充足，直接执行
- * - execute-with-confirmation：中等置信度，执行前展示抽取摘要供用户确认
- * - block：置信度过低或需澄清，阻止执行并说明原因
+ * - execute-with-assumptions：置信度不足但仍执行，显式展示系统理解供用户修正
  */
 export type AutoGuessDecision =
   | { action: 'execute'; reason: string }
-  | { action: 'execute-with-confirmation'; reason: string; summary: string }
-  | { action: 'block'; reason: string };
+  | {
+      action: 'execute-with-assumptions';
+      reason: string;
+      summary: string;
+      assumptions: string[];
+    };
 
-function buildConfirmationSummary(result: ContextExtractionResult): string {
+function buildAssumptionSummary(result: ContextExtractionResult): string {
   const parts: string[] = [];
   const { context } = result;
   if (context.targetMetric.value && context.targetMetric.state !== 'missing') {
@@ -23,47 +26,39 @@ function buildConfirmationSummary(result: ContextExtractionResult): string {
   if (context.timeRange.value && context.timeRange.state !== 'missing') {
     parts.push(`时间：${context.timeRange.value}`);
   }
-  if (context.comparison.value && context.comparison.state !== 'missing') {
+  if (
+    context.comparison.value &&
+    context.comparison.state !== 'missing' &&
+    context.comparison.value !== '无需比较'
+  ) {
     parts.push(`比较：${context.comparison.value}`);
   }
-  return parts.join('；') || '上下文信息不足，请补充。';
+  return parts.join('；') || '系统未能识别足够的分析上下文。';
 }
 
 /**
- * 根据抽取结果决定是否可以自动执行分析：
- * - needsClarification=true → 强制 block
- * - confidence ≥ 0.7 → execute
- * - confidence ≥ 0.4 → execute-with-confirmation（附带抽取摘要）
- * - confidence < 0.4 → block
+ * 根据抽取结果决定执行策略。
+ *
+ * 产品方向："自动猜测，带假设可修正" — 始终执行分析，
+ * 置信度不足时在主界面轻量展示系统理解，并提供"修改理解"入口。
  */
 export function resolveAutoGuessDecision(
   result: ContextExtractionResult,
 ): AutoGuessDecision {
-  if (result.needsClarification) {
-    return {
-      action: 'block',
-      reason: 'LLM 标记需要澄清，请先与用户确认分析上下文。',
-    };
-  }
-
-  if (result.confidence >= 0.7) {
+  if (result.confidence >= 0.7 && !result.needsClarification) {
     return {
       action: 'execute',
       reason: `整体置信度 ${result.confidence.toFixed(2)} ≥ 0.7，可直接执行。`,
     };
   }
 
-  if (result.confidence >= 0.4) {
-    const summary = buildConfirmationSummary(result);
-    return {
-      action: 'execute-with-confirmation',
-      reason: `整体置信度 ${result.confidence.toFixed(2)} 介于 0.4–0.7 之间，建议向用户确认。`,
-      summary,
-    };
-  }
-
+  const summary = buildAssumptionSummary(result);
   return {
-    action: 'block',
-    reason: `整体置信度 ${result.confidence.toFixed(2)} < 0.4，无法可靠执行。`,
+    action: 'execute-with-assumptions',
+    reason: result.needsClarification
+      ? 'LLM 标记需要澄清，但仍以最佳猜测执行并展示假设。'
+      : `整体置信度 ${result.confidence.toFixed(2)} < 0.7，以最佳猜测执行并展示假设。`,
+    summary,
+    assumptions: result.assumptions,
   };
 }
