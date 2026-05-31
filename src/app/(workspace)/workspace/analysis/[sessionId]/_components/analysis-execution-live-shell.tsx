@@ -37,6 +37,8 @@ type AnalysisExecutionLiveShellProps = {
   followUpLabel?: string;
   /** 详情抽屉内容（由 page 级 server component 预渲染） */
   drawerContents?: Record<string, ReactNode>;
+  /** 对话区底部追加内容（如追问输入框） */
+  children?: ReactNode;
 };
 
 // 向后兼容：process board 相关纯函数保留导出，供 story-10-7 回归测试使用。
@@ -70,6 +72,7 @@ export function AnalysisExecutionLiveShell({
   ontologyVersionBadge,
   followUpLabel,
   drawerContents = {},
+  children,
 }: AnalysisExecutionLiveShellProps) {
   const [events, setEvents] = useState<AnalysisExecutionStreamEvent[]>(
     initialReadModel.events,
@@ -211,6 +214,8 @@ export function AnalysisExecutionLiveShell({
     <AnalysisConversationShell
       viewModel={conversationViewModel}
       drawerContents={mergedDrawerContents}
-    />
+    >
+      {children}
+    </AnalysisConversationShell>
   );
 }

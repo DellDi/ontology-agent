@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type AnalysisAutoExecuteGateProps = {
   sessionId: string;
@@ -59,22 +59,41 @@ export function AnalysisAutoExecuteGate({
   followUpId,
   enabled,
 }: AnalysisAutoExecuteGateProps) {
-  // P7 fix: 合并原先的双 form 结构为单 form，消除 double-submit 歧义与可访问性隐患。
-  // 自动触发通过 ref.requestSubmit() 完成；手动触发仍由按钮的原生 submit 完成。
   const submitFormRef = useRef<HTMLFormElement | null>(null);
   const lastSubmittedScopeRef = useRef<string | null>(null);
+  // 仅在事件处理器和 effect 回调中访问 ref，不在渲染期间读取。
+  const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // submissionStatus 仅在表单提交（事件处理器）时设置为 'submitted'，
+  // 3 秒后由 setTimeout 回调重置为 null。preparing 状态由 enabled 派生。
+  const [submissionStatus, setSubmissionStatus] = useState<'submitted' | null>(
+    null,
+  );
   const executionScopeKey = buildAnalysisAutoExecuteScopeKey(
     sessionId,
     followUpId,
   );
-  // P6 fix: 使用 sessionStorage 做 F5 级别的去重，防止刷新/返回时反复自动提交。
-  // 服务端 shouldAutoExecute 已基于 executionError 做第一道拦截；本处是客户端双保险。
-  // 用户可通过"立即手动执行"按钮显式重试，或关闭浏览器标签（session 级 key 会失效）。
   const autoAttemptStorageKey =
     buildAnalysisAutoExecuteAttemptStorageKey(executionScopeKey);
 
+  const markSubmitted = () => {
+    if (submitTimerRef.current !== null) {
+      clearTimeout(submitTimerRef.current);
+    }
+    setSubmissionStatus('submitted');
+    submitTimerRef.current = setTimeout(() => {
+      submitTimerRef.current = null;
+      setSubmissionStatus(null);
+    }, 3000);
+  };
+
+  // 组件卸载时清理定时器。
+  useEffect(() => () => {
+    if (submitTimerRef.current !== null) {
+      clearTimeout(submitTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
-    // P6: 已在本浏览器 session 内提交过该 scope，跳过自动触发；用户仍可手动点击。
     let sessionAttemptedValue: string | null = null;
     try {
       sessionAttemptedValue = window.sessionStorage.getItem(autoAttemptStorageKey);
@@ -105,7 +124,6 @@ export function AnalysisAutoExecuteGate({
       // 存储失败忽略，不影响正常提交。
     }
 
-    // P11 partial: 对缺失 requestSubmit 的旧浏览器（Safari < 16、老 iOS）降级到 form.submit()。
     const formElement = submitFormRef.current;
     if (!formElement) {
       return;
@@ -114,32 +132,47 @@ export function AnalysisAutoExecuteGate({
     submitAnalysisAutoExecuteForm(formElement);
   }, [autoAttemptStorageKey, enabled, executionScopeKey]);
 
-  if (!enabled) {
+  // 显示逻辑：
+  // - enabled=true → 显示"正在准备分析…"（preparing 由 enabled 派生）
+  // - submissionStatus='submitted' → 显示"已开始分析"（3 秒后自动隐藏）
+  // - enabled=false 且未处于 submitted 过渡期 → 不渲染
+  if (!enabled && submissionStatus === null) {
     return null;
   }
 
-  return (
-    <article className="status-banner" data-testid="analysis-auto-execution-gate" data-tone="info">
-      <p className="font-medium text-[color:var(--ink-900)]">
-        系统正在自动发起执行，默认以不中断方式推进主链。
-      </p>
-      <p className="mt-2 text-sm text-[color:var(--ink-600)]">
-        如果你希望立即手动触发，也可以点击下方按钮。
-      </p>
+  const isPreparing = enabled && submissionStatus !== 'submitted';
+  const statusText = isPreparing ? '正在准备分析…' : '已开始分析';
 
+  return (
+    <>
       <form
         action={`/api/analysis/sessions/${sessionId}/execute`}
-        className="mt-3"
         method="post"
         ref={submitFormRef}
+        onSubmit={markSubmitted}
+        style={{ display: 'none' }}
       >
         {followUpId ? (
           <input name="followUpId" type="hidden" value={followUpId} />
         ) : null}
-        <button className="secondary-button" type="submit">
-          立即手动执行
-        </button>
       </form>
-    </article>
+
+      <div
+        className="flex items-center gap-2 text-xs text-[color:var(--ink-600)]"
+        data-testid="analysis-auto-execution-gate"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--brand-500)] animate-pulse" />
+        <span>{statusText}</span>
+        {isPreparing ? (
+          <button
+            className="text-[color:var(--brand-700)] underline"
+            onClick={() => submitFormRef.current?.requestSubmit()}
+            type="button"
+          >
+            手动执行
+          </button>
+        ) : null}
+      </div>
+    </>
   );
 }
