@@ -10,10 +10,13 @@ import {
 import type {
   AnalysisConversationViewModel,
   ConversationAssistantStatus,
+  MetricCard,
   ToolActivitySummary,
+  Visualization,
 } from '@/application/analysis-message-projection/conversation-view-model';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
+import { AnalysisStepTimeline } from './analysis-step-timeline';
 
 // ---------------------------------------------------------------------------
 // 工具活动状态条
@@ -231,6 +234,108 @@ function getStatusIcon(status: ConversationAssistantStatus) {
 }
 
 // ---------------------------------------------------------------------------
+// Story 12-3：业务向视图组件（primaryAnswer / metricCards / visualizations）
+// ---------------------------------------------------------------------------
+
+function MetricTrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
+  switch (trend) {
+    case 'up':
+      return <span aria-hidden className="text-emerald-500">↑</span>;
+    case 'down':
+      return <span aria-hidden className="text-rose-500">↓</span>;
+    case 'stable':
+      return <span aria-hidden className="text-[color:var(--ink-600)]">→</span>;
+  }
+}
+
+function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
+  if (cards.length === 0) return null;
+
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {cards.map((card, index) => (
+        <div
+          key={`${card.label}-${index}`}
+          className="rounded-xl border border-[color:var(--line-200)] bg-white px-4 py-3 shadow-sm"
+        >
+          <p className="text-xs text-[color:var(--ink-600)]">{card.label}</p>
+          <p className="mt-1 flex items-baseline gap-1.5 text-2xl font-semibold text-[color:var(--ink-900)]">
+            <span>{card.value}</span>
+            {card.unit ? (
+              <span className="text-sm font-normal text-[color:var(--ink-600)]">
+                {card.unit}
+              </span>
+            ) : null}
+          </p>
+          {card.trend ? (
+            <p className="mt-1 flex items-center gap-1 text-xs text-[color:var(--ink-600)]">
+              <MetricTrendIcon trend={card.trend} />
+              {card.trendLabel ? <span>{card.trendLabel}</span> : null}
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VisualizationBlock({
+  visualization,
+  registry,
+}: {
+  visualization: Visualization;
+  registry: ReturnType<typeof getDefaultAnalysisInteractionUiRendererRegistry>;
+}) {
+  // 把 Visualization 转化为可被 registry 渲染的 AnalysisRenderedBlock 形态
+  const block: AnalysisRenderedBlock = {
+    kind:
+      visualization.type === 'chart'
+        ? 'chart'
+        : visualization.type === 'graph'
+          ? 'graph'
+          : 'table',
+    surface: 'workspace',
+    title: visualization.title,
+    label: visualization.title,
+    variant:
+      visualization.type === 'chart'
+        ? 'chart'
+        : visualization.type === 'graph'
+          ? 'graph'
+          : 'table',
+    source: { sourceType: 'runtime-foundation-part' },
+    payload: (visualization.data as Record<string, unknown>) ?? {},
+    diagnostics: { originalType: visualization.type },
+  };
+
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h4 className="text-sm font-medium text-[color:var(--ink-900)]">
+          {visualization.title}
+        </h4>
+      </div>
+      {registry.render({ renderedBlock: block })}
+      {visualization.summary ? (
+        <p className="mt-2 text-xs leading-5 text-[color:var(--ink-600)]">
+          {visualization.summary}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function PrimaryAnswerBlock({ answer }: { answer: string }) {
+  if (!answer) return null;
+
+  return (
+    <div className="mt-3 rounded-xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-[color:var(--line-200)]">
+      <p className="text-base leading-7 text-[color:var(--ink-900)]">{answer}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 用户消息
 // ---------------------------------------------------------------------------
 
@@ -277,6 +382,10 @@ function AnalysisAssistantMessage({
   toolActivities,
   result,
   diagnostics,
+  primaryAnswer,
+  metricCards,
+  visualizations,
+  toolTimeline,
   onOpenDetail,
 }: {
   status: ConversationAssistantStatus;
@@ -285,6 +394,10 @@ function AnalysisAssistantMessage({
   toolActivities: ToolActivitySummary[];
   result: AnalysisConversationViewModel['assistantMessage']['result'];
   diagnostics: AnalysisConversationViewModel['assistantMessage']['diagnostics'];
+  primaryAnswer: string;
+  metricCards: MetricCard[];
+  visualizations: Visualization[];
+  toolTimeline: AnalysisConversationViewModel['assistantMessage']['toolTimeline'];
   onOpenDetail: (drawer: DetailDrawerType) => void;
 }) {
   const hasDiagnostics =
@@ -311,21 +424,45 @@ function AnalysisAssistantMessage({
           ) : null}
         </div>
 
-        {/* 工具活动状态条 */}
-        {status === 'running' ? (
+        {/* 一句话业务答案 */}
+        {status === 'completed' || primaryAnswer ? (
+          <PrimaryAnswerBlock answer={primaryAnswer} />
+        ) : null}
+
+        {/* 指标卡网格 */}
+        <MetricCardsGrid cards={metricCards} />
+
+        {/* 可视化（图表 / 关系图 / 表格） */}
+        {visualizations.map((viz, index) => (
+          <VisualizationBlock
+            key={`${viz.type}-${viz.title}-${index}`}
+            visualization={viz}
+            registry={registry}
+          />
+        ))}
+
+        {/* 可折叠步骤时间线（替代线性工具活动条） */}
+        {status === 'running' || toolTimeline.length > 0 ? (
+          <AnalysisStepTimeline entries={toolTimeline} />
+        ) : null}
+
+        {/* 工具活动状态条（保留为降级展示） */}
+        {status === 'running' && toolTimeline.length === 0 ? (
           <AnalysisToolActivityStrip activities={toolActivities} />
         ) : null}
 
-        {/* 结果区域 */}
+        {/* 结果区域（结论详情 / 证据 / 推理 / 假设） */}
         {result ? (
           <div className="mt-5">
-            {/* 主结果块 */}
-            {result.blocks.map((block, index) => (
-              <AnalysisResultBlockRenderer
-                key={`result-${block.kind}-${index}`}
-                block={block}
-              />
-            ))}
+            {/* 主结果块（跳过已在指标卡 / 可视化中呈现的块） */}
+            {result.blocks
+              .filter((block) => !isBlockAlreadyVisualized(block, metricCards, visualizations))
+              .map((block, index) => (
+                <AnalysisResultBlockRenderer
+                  key={`result-${block.kind}-${index}`}
+                  block={block}
+                />
+              ))}
 
             {/* 证据摘要 */}
             {result.evidenceBlocks.length > 0 ? (
@@ -366,14 +503,14 @@ function AnalysisAssistantMessage({
         {status === 'failed' ? (
           <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
             <p className="text-sm text-rose-900">
-              执行过程中遇到问题，请查看执行日志了解详情。
+              分析过程中遇到问题，请查看详细信息了解原因。
             </p>
             <button
               className="mt-2 text-xs font-medium text-rose-700 underline underline-offset-2 hover:text-rose-900"
               onClick={() => onOpenDetail('execution-log')}
               type="button"
             >
-              查看执行日志
+              查看详细信息
             </button>
           </div>
         ) : null}
@@ -387,42 +524,42 @@ function AnalysisAssistantMessage({
           </div>
         ) : null}
 
-        {/* 底部诊断入口 */}
+        {/* 底部信息入口（业务语言，不暴露工程术语） */}
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
-            onClick={() => onOpenDetail('execution-log')}
-            type="button"
-          >
-            执行日志
-          </button>
           <button
             className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('plan')}
             type="button"
           >
-            计划
+            分析计划
           </button>
           <button
             className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('context')}
             type="button"
           >
-            上下文
+            背景信息
           </button>
           <button
             className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('history')}
             type="button"
           >
-            历史
+            历史问答
           </button>
           <button
             className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('candidates')}
             type="button"
           >
-            候选因素
+            可能原因
+          </button>
+          <button
+            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
+            onClick={() => onOpenDetail('execution-log')}
+            type="button"
+          >
+            详细信息
           </button>
           {hasDiagnostics ? (
             <button
@@ -439,6 +576,40 @@ function AnalysisAssistantMessage({
   );
 }
 
+/**
+ * 判断某个 result block 是否已经在指标卡 / 可视化中呈现，
+ * 避免在主结果区重复展示。
+ */
+function isBlockAlreadyVisualized(
+  block: AnalysisRenderedBlock,
+  metricCards: MetricCard[],
+  visualizations: Visualization[],
+): boolean {
+  // kv-list 已提取为 metricCards 时，跳过
+  if (block.kind === 'kv-list' && metricCards.length > 0) return true;
+  // metric chart 已提取为 metricCards 时，跳过
+  if (
+    block.kind === 'chart' &&
+    block.payload?.chartType === 'metric' &&
+    metricCards.length > 0
+  ) {
+    return true;
+  }
+  // 非 metric chart / graph / table 已提取为 visualizations 时，跳过
+  if (
+    (block.kind === 'chart' ||
+      block.kind === 'graph' ||
+      block.kind === 'table') &&
+    visualizations.length > 0
+  ) {
+    const titleMatch = visualizations.some(
+      (viz) => viz.title === block.title,
+    );
+    if (titleMatch) return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // 详情抽屉
 // ---------------------------------------------------------------------------
@@ -453,11 +624,11 @@ export type DetailDrawerType =
   | null;
 
 const DRAWER_LABELS: Record<string, string> = {
-  'execution-log': '执行日志',
-  plan: '执行计划',
-  context: '上下文',
-  history: '历史回放',
-  candidates: '候选因素',
+  'execution-log': '详细信息',
+  plan: '分析计划',
+  context: '背景信息',
+  history: '历史问答',
+  candidates: '可能原因',
   diagnostics: '诊断信息',
 };
 
@@ -556,6 +727,10 @@ export function AnalysisConversationShell({
           toolActivities={viewModel.assistantMessage.toolActivities}
           result={viewModel.assistantMessage.result}
           diagnostics={viewModel.assistantMessage.diagnostics}
+          primaryAnswer={viewModel.assistantMessage.primaryAnswer}
+          metricCards={viewModel.assistantMessage.metricCards}
+          visualizations={viewModel.assistantMessage.visualizations}
+          toolTimeline={viewModel.assistantMessage.toolTimeline}
           onOpenDetail={handleOpenDetail}
         />
 
