@@ -26,6 +26,7 @@ import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
 import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
 import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
+import { AnalysisFollowUpInput } from './_components/analysis-follow-up-input';
 import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
 import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
 import { AnalysisPendingRefreshGate } from './_components/analysis-pending-refresh-gate';
@@ -447,6 +448,26 @@ export default async function AnalysisSessionPage({
     !executionStreamReadModel &&
     !pendingExecutionBlockerMessage &&
     (shouldAutoExecute || Boolean(requestedExecutionIdForDisplay) || !latestExecutionSnapshot);
+  const followUpInputBlock = latestFollowUpConclusion ? (
+    <AnalysisFollowUpInput
+      sessionId={analysisSession.id}
+      activeFollowUpId={activeFollowUp?.id}
+      drawerContent={
+        <AnalysisFollowUpPanel
+          sessionId={analysisSession.id}
+          activeFollowUpId={activeFollowUp?.id}
+          latestConclusionTitle={latestFollowUpConclusion.title}
+          latestConclusionSummary={latestFollowUpConclusion.summary}
+          inheritedContext={followUpInheritedContext}
+          followUps={followUps}
+          adjustmentDraft={followUpAdjustmentDraft}
+          conflictItems={followUpConflictItems}
+          feedback={followUpFeedback ?? followUpCreationFeedback}
+          replanFeedback={followUpReplanFeedback}
+        />
+      }
+    />
+  ) : null;
 
   return (
     <section className="mx-auto w-full max-w-[920px] space-y-6 px-2">
@@ -527,7 +548,9 @@ export default async function AnalysisSessionPage({
               <CandidateFactorPanel readModel={mergedCandidateFactorReadModel} />
             ),
           }}
-        />
+        >
+          {followUpInputBlock}
+        </AnalysisExecutionLiveShell>
       ) : (
         /* 无执行时的静态会话展示 */
         <div
@@ -613,26 +636,11 @@ export default async function AnalysisSessionPage({
               </details>
             </div>
           </div>
+
+          {followUpInputBlock}
         </div>
       )}
 
-      {/* 追问面板（inline） */}
-      {latestFollowUpConclusion ? (
-        <div className="mx-auto w-full max-w-[860px] px-4">
-          <AnalysisFollowUpPanel
-            sessionId={analysisSession.id}
-            activeFollowUpId={activeFollowUp?.id}
-            latestConclusionTitle={latestFollowUpConclusion.title}
-            latestConclusionSummary={latestFollowUpConclusion.summary}
-            inheritedContext={followUpInheritedContext}
-            followUps={followUps}
-            adjustmentDraft={followUpAdjustmentDraft}
-            conflictItems={followUpConflictItems}
-            feedback={followUpFeedback ?? followUpCreationFeedback}
-            replanFeedback={followUpReplanFeedback}
-          />
-        </div>
-      ) : null}
     </section>
   );
 }
