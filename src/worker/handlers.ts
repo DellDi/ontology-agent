@@ -26,7 +26,6 @@ import {
   buildToolCompletedEvent,
   buildToolFailedEvent,
   buildToolStartedEvent,
-  computeDurationMs,
 } from './analysis-execution-renderer';
 import { translateToolName } from '@/application/analysis-message-projection/tool-name-translations';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
