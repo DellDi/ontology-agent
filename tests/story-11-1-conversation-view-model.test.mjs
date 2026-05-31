@@ -97,7 +97,7 @@ test('AC2 | 无事件无 projection 时助手状态为 queued', async () => {
   `);
 
   assert.equal(result.status, 'queued');
-  assert.equal(result.headline, '任务已提交，等待 worker 接单');
+  assert.equal(result.headline, '问题已提交，正在准备分析');
 });
 
 test('AC2 | projection completed 时助手状态为 completed', async () => {
@@ -139,7 +139,7 @@ test('AC2 | projection failed 时助手状态为 failed', async () => {
   `);
 
   assert.equal(result.status, 'failed');
-  assert.equal(result.headline, '执行遇到问题');
+  assert.equal(result.headline, '分析过程中遇到问题');
 });
 
 test('AC2 | 连接中断时助手状态为 disconnected', async () => {

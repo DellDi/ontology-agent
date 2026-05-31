@@ -1,12 +1,34 @@
 import Link from 'next/link';
 
 import type { WorkspaceHomeModel } from '@/application/workspace/home';
-import { ProjectScopeDialog } from './project-scope-dialog';
+import { ScopePopover } from './scope-popover';
 
 type WorkspaceHomeShellProps = {
   model: WorkspaceHomeModel;
   creationError?: string;
   draftQuestion?: string;
+};
+
+const STATUS_TONE_STYLES: Record<
+  'neutral' | 'info' | 'success' | 'error',
+  { backgroundColor: string; color: string }
+> = {
+  success: {
+    backgroundColor: 'rgb(49 185 130 / 12%)',
+    color: 'rgb(18 96 69)',
+  },
+  error: {
+    backgroundColor: 'rgb(220 66 66 / 12%)',
+    color: 'rgb(153 27 27)',
+  },
+  info: {
+    backgroundColor: 'rgb(59 130 246 / 12%)',
+    color: 'rgb(30 64 175)',
+  },
+  neutral: {
+    backgroundColor: 'rgb(148 163 184 / 16%)',
+    color: 'rgb(71 85 105)',
+  },
 };
 
 export function WorkspaceHomeShell({
@@ -31,8 +53,18 @@ export function WorkspaceHomeShell({
             </p>
           </div>
 
-          <div className="rounded-full border border-[color:var(--line-200)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)]">
-            {model.boundaryMessage}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-full border border-[color:var(--line-200)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)]">
+              {model.boundaryMessage}
+            </div>
+            <ScopePopover
+              organization={model.scopeSummary.organization}
+              projectScopeSummary={model.projectScopeSummary}
+              projectDisplayNames={model.projectDisplayNames}
+              roles={model.scopeSummary.roles}
+              boundaryGuidance={model.boundaryGuidance}
+              emptyState={model.emptyState}
+            />
           </div>
         </div>
       </article>
@@ -81,7 +113,7 @@ export function WorkspaceHomeShell({
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-[color:var(--ink-600)]">
-                问题将作为会话起点保留，后续分析能力会围绕这条原始问题继续展开。
+                问题将作为会话起点保留，后续分析能力会围绕着这条原始问题继续展开。
               </p>
               <button className="primary-button" type="submit">
                 创建分析会话
@@ -141,31 +173,33 @@ export function WorkspaceHomeShell({
         ))}
       </article>
 
-      <article className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_360px]">
-        <div className="glass-panel p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
-                历史会话
-              </p>
-              <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
-                延续你最近的问题上下文
-              </h3>
-            </div>
+      <article className="glass-panel p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+              历史会话
+            </p>
+            <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
+              延续你最近的问题上下文
+            </h3>
           </div>
+        </div>
 
-          {model.historyEmptyState ? (
-            <div className="mt-5 status-banner" data-tone="info">
-              <p className="font-semibold text-[color:var(--ink-900)]">
-                {model.historyEmptyState.title}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-                {model.historyEmptyState.description}
-              </p>
-            </div>
-          ) : (
-            <div className="mt-5 grid gap-4">
-              {model.historyItems.map((item) => (
+        {model.historyEmptyState ? (
+          <div className="mt-5 status-banner" data-tone="info">
+            <p className="font-semibold text-[color:var(--ink-900)]">
+              {model.historyEmptyState.title}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+              {model.historyEmptyState.description}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-4">
+            {model.historyItems.map((item) => {
+              const toneStyle = STATUS_TONE_STYLES[item.statusTone];
+
+              return (
                 <Link
                   key={item.id}
                   href={item.href}
@@ -175,10 +209,26 @@ export function WorkspaceHomeShell({
                     <h4 className="text-lg font-semibold text-[color:var(--ink-900)]">
                       {item.title}
                     </h4>
-                    <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+                    <span
+                      className="rounded-full px-3 py-1 text-xs font-medium"
+                      style={toneStyle}
+                    >
                       {item.statusLabel}
                     </span>
                   </div>
+
+                  {item.summaryMetric ? (
+                    <p className="mt-2 text-sm text-[color:var(--ink-600)]">
+                      {item.summaryMetric}
+                    </p>
+                  ) : null}
+
+                  {item.failureMessage ? (
+                    <p className="mt-2 text-sm text-[color:rgb(153,27,27)]">
+                      失败原因: {item.failureMessage}
+                    </p>
+                  ) : null}
+
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[color:var(--ink-600)]">
                     <span>最近更新时间</span>
                     <span className="font-medium text-[color:var(--ink-900)]">
@@ -186,87 +236,10 @@ export function WorkspaceHomeShell({
                     </span>
                   </div>
                 </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <aside className="glass-panel space-y-5 p-6">
-          <div>
-            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
-              当前权限范围
-            </p>
-            <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
-              你当前可见的组织与作用域
-            </h3>
+              );
+            })}
           </div>
-
-          <div className="space-y-3">
-            <div className="rounded-3xl bg-white/76 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
-                组织
-              </p>
-              <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
-                {model.scopeSummary.organization}
-              </p>
-            </div>
-            <div className="rounded-3xl bg-white/76 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
-                项目
-              </p>
-              <ProjectScopeDialog
-                summary={model.projectScopeSummary}
-                projects={model.projectDisplayNames}
-              />
-            </div>
-            <div className="rounded-3xl bg-white/76 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
-                角色
-              </p>
-              <p className="mt-2 text-base text-[color:var(--ink-900)]">
-                {model.scopeSummary.roles}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-[color:var(--line-200)] bg-white/76 p-5">
-            <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-              范围说明
-            </p>
-            <div className="mt-4 space-y-4">
-              <div>
-                <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
-                  支持范围
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-                  {model.boundaryGuidance.supported.join('、')}等物业分析主题。
-                </p>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
-                  不支持范围
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-                  {model.boundaryGuidance.unsupported.join('、')}等业务能力。
-                </p>
-              </div>
-              <p className="rounded-2xl bg-[color:var(--sky-50)] px-4 py-3 text-sm leading-6 text-[color:var(--ink-700)]">
-                {model.boundaryGuidance.note}
-              </p>
-            </div>
-          </div>
-
-          {model.emptyState ? (
-            <div className="status-banner" data-tone="info">
-              <p className="font-semibold text-[color:var(--ink-900)]">
-                {model.emptyState.title}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-                {model.emptyState.description}
-              </p>
-            </div>
-          ) : null}
-        </aside>
+        )}
       </article>
     </section>
   );

@@ -3,7 +3,7 @@ import type { AnalysisToolInvocationResult } from '@/domain/tooling/models';
 
 type ToolEventPresentation = {
   summary: string | null;
-  renderBlocks: AnalysisExecutionStreamEvent['renderBlocks'];
+  renderBlocks: NonNullable<AnalysisExecutionStreamEvent['renderBlocks']>;
 };
 
 function buildFailurePresentation(
@@ -235,6 +235,6 @@ export function summarizeToolEvent(
 
 export function buildToolRenderBlocks(
   event: AnalysisToolInvocationResult,
-): AnalysisExecutionStreamEvent['renderBlocks'] {
+): NonNullable<AnalysisExecutionStreamEvent['renderBlocks']> {
   return presentToolEvent(event).renderBlocks;
 }

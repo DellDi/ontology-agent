@@ -4,6 +4,11 @@ export const EXECUTION_EVENT_KINDS = [
   'execution-status',
   'step-lifecycle',
   'stage-result',
+  'step-started',
+  'tool-started',
+  'tool-completed',
+  'tool-failed',
+  'step-completed',
 ] as const;
 
 export type ExecutionEventKind = (typeof EXECUTION_EVENT_KINDS)[number];
@@ -135,12 +140,43 @@ export type ExecutionStepSnapshot = {
   order: number;
   title: string;
   status: 'running' | 'completed' | 'failed';
+  durationMs?: number;
+  toolCount?: number;
 };
 
 export type ExecutionStageSnapshot = {
   key: string;
   label: string;
   status: 'running' | 'completed' | 'failed';
+};
+
+export type ExecutionToolSnapshot = {
+  name: string;
+  label: string;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  error?: string;
+  durationMs?: number;
+};
+
+/** Story 12-5: tool-level execution event payload. */
+export type ToolExecutionEvent = {
+  toolName: string;
+  toolLabel: string;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  durationMs?: number;
+  error?: string;
+};
+
+/** Story 12-5: step-level execution event payload. */
+export type StepExecutionEvent = {
+  stepId: string;
+  stepName: string;
+  stepOrder: number;
+  status: 'running' | 'completed' | 'failed';
+  durationMs?: number;
+  toolCount?: number;
 };
 
 export type AnalysisExecutionStreamEvent = {
@@ -154,7 +190,8 @@ export type AnalysisExecutionStreamEvent = {
   message?: string;
   step?: ExecutionStepSnapshot;
   stage?: ExecutionStageSnapshot;
-  renderBlocks: ExecutionRenderBlock[];
+  tool?: ExecutionToolSnapshot;
+  renderBlocks?: ExecutionRenderBlock[];
   metadata?: Record<string, unknown>;
 };
 
@@ -612,11 +649,26 @@ export function validateAnalysisExecutionStreamEvent(
     );
   }
 
-  if (!Array.isArray(candidate.renderBlocks)) {
+  const rawRenderBlocks = candidate.renderBlocks;
+  if (rawRenderBlocks !== undefined && !Array.isArray(rawRenderBlocks)) {
     throw new InvalidAnalysisExecutionStreamEventError(
       'renderBlocks 必须是数组。',
     );
   }
+
+  const stepCandidate =
+    candidate.step &&
+    typeof candidate.step === 'object' &&
+    !Array.isArray(candidate.step)
+      ? (candidate.step as Record<string, unknown>)
+      : null;
+
+  const toolCandidate =
+    candidate.tool &&
+    typeof candidate.tool === 'object' &&
+    !Array.isArray(candidate.tool)
+      ? (candidate.tool as Record<string, unknown>)
+      : null;
 
   return {
     id: assertNonEmptyString(candidate.id, 'id'),
@@ -637,32 +689,30 @@ export function validateAnalysisExecutionStreamEvent(
         : undefined,
     message:
       typeof candidate.message === 'string' ? candidate.message : undefined,
-    step:
-      candidate.step &&
-      typeof candidate.step === 'object' &&
-      !Array.isArray(candidate.step)
-        ? {
-            id: assertNonEmptyString(
-              (candidate.step as Record<string, unknown>).id,
-              'step.id',
-            ),
-            order:
-              typeof (candidate.step as Record<string, unknown>).order ===
-              'number'
-                ? ((candidate.step as Record<string, unknown>).order as number)
-                : 0,
-            title: assertNonEmptyString(
-              (candidate.step as Record<string, unknown>).title,
-              'step.title',
-            ),
-            status:
-              (candidate.step as Record<string, unknown>).status === 'completed'
-                ? 'completed'
-                : (candidate.step as Record<string, unknown>).status === 'failed'
-                  ? 'failed'
-                  : 'running',
-          }
-        : undefined,
+    step: stepCandidate
+      ? {
+          id: assertNonEmptyString(stepCandidate.id, 'step.id'),
+          order:
+            typeof stepCandidate.order === 'number'
+              ? stepCandidate.order
+              : 0,
+          title: assertNonEmptyString(stepCandidate.title, 'step.title'),
+          status:
+            stepCandidate.status === 'completed'
+              ? 'completed'
+              : stepCandidate.status === 'failed'
+                ? 'failed'
+                : 'running',
+          durationMs:
+            typeof stepCandidate.durationMs === 'number'
+              ? stepCandidate.durationMs
+              : undefined,
+          toolCount:
+            typeof stepCandidate.toolCount === 'number'
+              ? stepCandidate.toolCount
+              : undefined,
+        }
+      : undefined,
     stage:
       candidate.stage &&
       typeof candidate.stage === 'object' &&
@@ -684,9 +734,35 @@ export function validateAnalysisExecutionStreamEvent(
                   : 'running',
           }
         : undefined,
-    renderBlocks: candidate.renderBlocks.map((block) =>
-      validateRenderBlock(block),
-    ),
+    tool: toolCandidate
+      ? {
+          name: assertNonEmptyString(toolCandidate.name, 'tool.name'),
+          label: assertNonEmptyString(toolCandidate.label, 'tool.label'),
+          input:
+            toolCandidate.input &&
+            typeof toolCandidate.input === 'object' &&
+            !Array.isArray(toolCandidate.input)
+              ? (toolCandidate.input as Record<string, unknown>)
+              : undefined,
+          output:
+            toolCandidate.output &&
+            typeof toolCandidate.output === 'object' &&
+            !Array.isArray(toolCandidate.output)
+              ? (toolCandidate.output as Record<string, unknown>)
+              : undefined,
+          error:
+            typeof toolCandidate.error === 'string'
+              ? toolCandidate.error
+              : undefined,
+          durationMs:
+            typeof toolCandidate.durationMs === 'number'
+              ? toolCandidate.durationMs
+              : undefined,
+        }
+      : undefined,
+    renderBlocks: Array.isArray(rawRenderBlocks)
+      ? rawRenderBlocks.map((block) => validateRenderBlock(block))
+      : [],
     metadata:
       candidate.metadata &&
       typeof candidate.metadata === 'object' &&

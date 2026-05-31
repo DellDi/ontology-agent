@@ -9,7 +9,8 @@ export type AnalysisExecutionEventStore = {
     message?: string;
     step?: AnalysisExecutionStreamEvent['step'];
     stage?: AnalysisExecutionStreamEvent['stage'];
-    renderBlocks: AnalysisExecutionStreamEvent['renderBlocks'];
+    tool?: AnalysisExecutionStreamEvent['tool'];
+    renderBlocks?: AnalysisExecutionStreamEvent['renderBlocks'];
     metadata?: Record<string, unknown>;
   }): Promise<AnalysisExecutionStreamEvent>;
   listBySession(sessionId: string): Promise<AnalysisExecutionStreamEvent[]>;
