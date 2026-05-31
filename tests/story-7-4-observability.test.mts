@@ -290,6 +290,40 @@ test('Story 7.4 | logger safeStringify 处理循环引用不抛出（P4 验证�
   assert.ok(logger);
 });
 
+test('Story 7.4 | logger 暴露上海 24 小时制本地时间', async () => {
+  const { formatShanghaiLogTime } = (await import(
+    '@/infrastructure/observability/logger'
+  )) as typeof import('../src/infrastructure/observability/logger');
+
+  const localTime = formatShanghaiLogTime(
+    new Date('2026-05-31T03:55:38.777Z'),
+  );
+
+  assert.equal(localTime, '2026-05-31 11:55:38.777 +08:00');
+});
+
+test('Story 7.4 | logger time 字段默认使用上海 24 小时制并保留 utcTime', async () => {
+  const { createLogger } = (await import(
+    '@/infrastructure/observability/logger'
+  )) as typeof import('../src/infrastructure/observability/logger');
+  const originalLog = console.log;
+  let serialized = '';
+
+  console.log = (message?: unknown) => {
+    serialized = String(message ?? '');
+  };
+
+  try {
+    createLogger().info('test.local_time');
+  } finally {
+    console.log = originalLog;
+  }
+
+  const record = JSON.parse(serialized) as { time: string; utcTime: string };
+  assert.match(record.time, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \+08:00$/);
+  assert.match(record.utcTime, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+});
+
 test('Story 7.4 | attachResponseCorrelationHeader 对 ReadableStream body 不克隆（P1 验证）', async () => {
   const { correlation } = await loadModules();
 

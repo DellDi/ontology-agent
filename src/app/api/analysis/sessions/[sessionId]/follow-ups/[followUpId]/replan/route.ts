@@ -8,7 +8,10 @@ import {
   InvalidAnalysisFollowUpReplanError,
 } from '@/application/follow-up/use-cases';
 import { createFactorExpansionUseCases } from '@/application/factor-expansion/use-cases';
-import { buildGroundedPlanningArtifacts } from '@/application/ontology/grounded-planning';
+import {
+  buildGroundedPlanningArtifacts,
+  formatGroundingErrorForUser,
+} from '@/application/ontology/grounded-planning';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
@@ -156,7 +159,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     url.searchParams.set('followUpId', followUp.id);
     url.searchParams.set(
       'followUpReplanError',
-      error instanceof Error ? error.message : '治理化重规划失败，请稍后重试。',
+      error instanceof Error
+        ? formatGroundingErrorForUser(error)
+        : '系统暂时无法重新生成执行计划，请稍后重试。',
     );
 
     return NextResponse.redirect(url, {

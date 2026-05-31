@@ -133,6 +133,68 @@ test('项目口径应收指标会把应收账期语义映射到 FinanceReceivabl
   });
 });
 
+test('Cube 查询有授权项目范围时优先使用项目过滤，避免父组织过滤丢失子组织数据', async () => {
+  const result = await runTsSnippet(`
+    import queryBuilderModule from './src/infrastructure/cube/query-builder.ts';
+
+    const { buildCubeLoadQuery } = queryBuilderModule;
+    const query = buildCubeLoadQuery({
+      metric: 'project-receivable-amount',
+      scope: {
+        organizationId: '240',
+        projectIds: ['10030'],
+      },
+      dateRange: {
+        dimension: 'receivable-accounting-period',
+        from: '2026-01-01',
+        to: '2026-12-31',
+      },
+      limit: 20,
+    });
+
+    console.log(JSON.stringify(query.filters));
+  `);
+
+  assert.deepEqual(result, [
+    {
+      member: 'FinanceReceivables.projectId',
+      operator: 'equals',
+      values: ['10030'],
+    },
+  ]);
+});
+
+test('Cube 查询没有授权项目范围时仍保留组织过滤', async () => {
+  const result = await runTsSnippet(`
+    import queryBuilderModule from './src/infrastructure/cube/query-builder.ts';
+
+    const { buildCubeLoadQuery } = queryBuilderModule;
+    const query = buildCubeLoadQuery({
+      metric: 'project-receivable-amount',
+      scope: {
+        organizationId: '240',
+        projectIds: [],
+      },
+      dateRange: {
+        dimension: 'receivable-accounting-period',
+        from: '2026-01-01',
+        to: '2026-12-31',
+      },
+      limit: 20,
+    });
+
+    console.log(JSON.stringify(query.filters));
+  `);
+
+  assert.deepEqual(result, [
+    {
+      member: 'FinanceReceivables.organizationId',
+      operator: 'equals',
+      values: ['240'],
+    },
+  ]);
+});
+
 test('项目口径实收指标会同时使用应收账期和实收日期两个时间语义', async () => {
   const result = await runTsSnippet(`
     import queryBuilderModule from './src/infrastructure/cube/query-builder.ts';

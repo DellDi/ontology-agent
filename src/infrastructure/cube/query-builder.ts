@@ -95,19 +95,21 @@ export function buildCubeLoadQuery(
     return member;
   });
 
-  const filters: CubeFilter[] = [
-    {
-      member: definition.scopeMembers.organization,
-      operator: 'equals',
-      values: [request.scope.organizationId],
-    },
-  ];
+  const filters: CubeFilter[] = [];
+  const hasProjectScope =
+    request.scope.projectIds.length > 0 && Boolean(definition.scopeMembers.project);
 
-  if (request.scope.projectIds.length > 0 && definition.scopeMembers.project) {
+  if (hasProjectScope && definition.scopeMembers.project) {
     filters.push({
       member: definition.scopeMembers.project,
       operator: 'equals',
       values: request.scope.projectIds,
+    });
+  } else {
+    filters.push({
+      member: definition.scopeMembers.organization,
+      operator: 'equals',
+      values: [request.scope.organizationId],
     });
   }
 

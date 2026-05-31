@@ -99,7 +99,7 @@ const TIME_RANGE_RULES: Array<{
   },
   {
     label: '今年',
-    pattern: /今年/,
+    pattern: /今年|本年/,
   },
   {
     label: '去年',
@@ -171,7 +171,7 @@ function extractEntity(
   const leadingClause = questionText
     .split(/[，,。；;？?]/u, 1)[0]
     ?.replace(/^(为什么|为何|请问)\s*/u, '')
-    .replace(/^(近三个月|最近三个月|本月|上月|本季度|今年|去年)\s*/u, '')
+    .replace(/^(近三个月|最近三个月|本月|上月|本季度|今年|本年|去年)\s*/u, '')
     .trim();
 
   const pushEntity = (
@@ -191,9 +191,21 @@ function extractEntity(
       value: normalizedValue,
     });
   };
+  const pushProjectEntity = (value: string | null | undefined) => {
+    const normalizedValue = value?.trim();
+
+    if (!normalizedValue) {
+      return;
+    }
+
+    pushEntity(
+      '项目约束',
+      /项目$/u.test(normalizedValue) ? normalizedValue : `${normalizedValue}项目`,
+    );
+  };
 
   const projectAfterKeywordMatch = questionText.match(
-    /项目\s*(?!的)([\p{L}\p{N}_-]+)(?=[\s，,。；;？?]|$)/u,
+    /项目(?:\s+|[:：]\s*)([A-Za-z0-9][A-Za-z0-9_-]*)(?=[\s，,。；;？?]|$)/u,
   );
 
   if (projectAfterKeywordMatch?.[1]) {
@@ -209,11 +221,19 @@ function extractEntity(
   }
 
   const projectBeforeKeywordMatch = leadingClause?.match(
-    /^([\p{L}\p{N}_-]{2,}项目)(?=的|$)/u,
+    /^([\p{L}\p{N}_-]{2,}?项目)(?=的|(?:19|20)\d{2}年?|今年|本年|本月|上月|本季度|去年|近三个月|最近三个月|[\s，,。；;？?]|$)/u,
   );
 
   if (projectBeforeKeywordMatch?.[1]) {
     pushEntity('项目约束', projectBeforeKeywordMatch[1]);
+  }
+
+  const communityBeforeTimeMatch = leadingClause?.match(
+    /^([\p{L}\p{N}_-]{2,}?小区)(?=(?:19|20)\d{2}年?|今年|本年|本月|上月|本季度|去年|近三个月|最近三个月|的|[\s，,。；;？?]|$)/u,
+  );
+
+  if (communityBeforeTimeMatch?.[1]) {
+    pushProjectEntity(communityBeforeTimeMatch[1]);
   }
 
   const areaBeforeKeywordMatch = leadingClause?.match(
@@ -253,6 +273,15 @@ function extractEntity(
 }
 
 function extractTimeRange(questionText: string): ExtractionResult {
+  const explicitYearMatch = questionText.match(/(?:^|[^\d])((?:19|20)\d{2})\s*年?/u);
+
+  if (explicitYearMatch?.[1]) {
+    return {
+      value: `${explicitYearMatch[1]}年`,
+      state: 'confirmed',
+    };
+  }
+
   for (const rule of TIME_RANGE_RULES) {
     if (rule.pattern.test(questionText)) {
       return {
@@ -288,9 +317,9 @@ function extractComparison(questionText: string): ExtractionResult {
   }
 
   return {
-    value: '待补充比较方式',
-    state: 'missing',
-    note: '尚未识别到同比、环比或显式对比关系。',
+    value: '无需比较',
+    state: 'confirmed',
+    note: '当前问题是单点指标查询，不需要同比、环比或其他比较基线。',
   };
 }
 

@@ -4,7 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionSubmissionUseCases } from '@/application/analysis-execution/submission-use-cases';
 import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
-import { buildGroundedPlanningArtifacts } from '@/application/ontology/grounded-planning';
+import {
+  buildGroundedPlanningArtifacts,
+  formatGroundingErrorForUser,
+} from '@/application/ontology/grounded-planning';
 import { InvalidAnalysisExecutionPlanError } from '@/domain/analysis-execution/models';
 import { resolveOntologyVersionBindingSource } from '@/domain/ontology/version-binding';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
@@ -185,7 +188,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     const url = buildSessionUrl(request, sessionId);
     url.searchParams.set(
       'executionError',
-      error instanceof Error ? error.message : '治理化上下文生成失败。',
+      error instanceof Error
+        ? formatGroundingErrorForUser(error)
+        : '系统暂时无法生成执行计划，请稍后重试。',
     );
     if (followUp) {
       url.searchParams.set('followUpId', followUp.id);

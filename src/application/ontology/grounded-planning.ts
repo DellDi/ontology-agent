@@ -92,6 +92,52 @@ export function buildAutoExecutionAssumptions(error: OntologyGroundingError) {
   return assumptions;
 }
 
+function formatIssueType(type: GroundingIssueType) {
+  switch (type) {
+    case 'entity':
+      return '分析对象';
+    case 'metric':
+      return '指标';
+    case 'factor':
+      return '影响因素';
+    case 'time':
+      return '时间范围';
+    case 'version':
+      return '知识版本';
+    case 'permission':
+      return '访问权限';
+    default:
+      return '分析条件';
+  }
+}
+
+function formatIssueText(text: string) {
+  const trimmed = text.trim();
+
+  return trimmed ? `“${trimmed}”` : '当前输入';
+}
+
+export function formatGroundingErrorForUser(error: OntologyGroundingError | Error) {
+  if (!(error instanceof OntologyGroundingError)) {
+    return '系统暂时无法生成执行计划，请稍后重试。';
+  }
+
+  const failedItems = error.details.failedItems;
+  const ambiguousItems = error.details.ambiguousItems ?? [];
+
+  if (failedItems.length > 0) {
+    const first = failedItems[0];
+    return `系统没能确认${formatIssueType(first.type)}${formatIssueText(first.text)}。请检查名称是否完整，或换成系统里的标准名称后再试。`;
+  }
+
+  if (ambiguousItems.length > 0) {
+    const first = ambiguousItems[0];
+    return `系统找到多个可能的${formatIssueType(first.type)}${formatIssueText(first.text)}，暂时无法确定你要查哪一个。请把名称说得更完整一些。`;
+  }
+
+  return '系统没能确认当前问题的分析条件，请补充项目、时间或指标后再试。';
+}
+
 function appendAssumptionsToSummary(summary: string, assumptions: string[]) {
   if (!assumptions.length) {
     return summary;
@@ -180,8 +226,8 @@ export function buildGroundingBlockedPlanReadModel(
 ): AnalysisPlanReadModel {
   return {
     mode: 'minimal',
-    headline: '治理化计划阻断',
-    summary: error.message,
+    headline: '暂时不能开始分析',
+    summary: formatGroundingErrorForUser(error),
     assumptions: [],
     steps: [],
   };
