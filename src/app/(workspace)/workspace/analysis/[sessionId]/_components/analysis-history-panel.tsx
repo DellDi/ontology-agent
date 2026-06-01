@@ -52,7 +52,7 @@ export function AnalysisHistoryPanel({
         </p>
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="mt-5 space-y-4">
         <div className="space-y-3">
           {readModel.rounds.map((round) => (
             <a
