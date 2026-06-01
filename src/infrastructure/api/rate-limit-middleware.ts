@@ -13,8 +13,8 @@ export type RateLimitResult =
 /**
  * 基于 Redis 的固定窗口限流检查。
  *
- * 使用 INCR + EXPIRE 实现：每次请求递增计数，首次请求时设置窗口过期时间。
- * 超过 maxRequests 后拒绝并返回剩余等待秒数。
+ * 使用 Lua 脚本原子化 INCR + 条件 EXPIRE，避免进程崩溃导致 key 永久存在、
+ * 用户被永久限流的问题。超过 maxRequests 后拒绝并返回剩余等待秒数。
  */
 export async function checkRateLimit(
   redis: RedisClientType,
@@ -22,11 +22,19 @@ export async function checkRateLimit(
   identifier: string,
 ): Promise<RateLimitResult> {
   const key = `${config.keyPrefix}:${identifier}`;
-  const count = await redis.incr(key);
 
-  if (count === 1) {
-    await redis.expire(key, config.windowSeconds);
-  }
+  const luaScript = `
+    local current = redis.call('INCR', KEYS[1])
+    if current == 1 then
+      redis.call('EXPIRE', KEYS[1], ARGV[1])
+    end
+    return current
+  `;
+
+  const count = (await redis.eval(luaScript, {
+    keys: [key],
+    arguments: [String(config.windowSeconds)],
+  })) as number;
 
   if (count > config.maxRequests) {
     const ttl = await redis.ttl(key);
