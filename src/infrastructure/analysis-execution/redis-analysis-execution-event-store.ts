@@ -10,6 +10,9 @@ import { redisKeys } from '@/infrastructure/redis/keys';
 
 const MAX_EVENT_COUNT = 200;
 
+/** Redis stream 键过期时间：72 小时，防止分析会话数据永久驻留造成内存泄漏。 */
+export const STREAM_TTL_SECONDS = 72 * 60 * 60;
+
 export function createRedisAnalysisExecutionEventStore(
   redis: RedisClientType,
 ): AnalysisExecutionEventStore {
@@ -38,6 +41,13 @@ export function createRedisAnalysisExecutionEventStore(
 
       await redis.rPush(streamKey, JSON.stringify(event));
       await redis.lTrim(streamKey, -MAX_EVENT_COUNT, -1);
+
+      // 每次 append 刷新 stream 和 sequence key 的 TTL，防止内存泄漏
+      await redis.expire(streamKey, STREAM_TTL_SECONDS);
+      await redis.expire(
+        redisKeys.streamSequence(input.sessionId),
+        STREAM_TTL_SECONDS,
+      );
 
       return event;
     },
