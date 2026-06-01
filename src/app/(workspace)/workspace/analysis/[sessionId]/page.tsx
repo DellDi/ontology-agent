@@ -23,6 +23,7 @@ import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
+import { buildConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
 import { AnalysisContextPanel } from './_components/analysis-context-panel';
 import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
 import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
@@ -448,6 +449,49 @@ export default async function AnalysisSessionPage({
     !executionStreamReadModel &&
     !pendingExecutionBlockerMessage &&
     (shouldAutoExecute || Boolean(requestedExecutionIdForDisplay) || !latestExecutionSnapshot);
+  // 构建多轮追问线程视图（2+ 轮时传递给 live shell，否则退化为单轮模式）
+  const threadRounds: Parameters<typeof buildConversationThreadViewModel>[0]['rounds'] = [];
+
+  // 初始轮次（session 本身）
+  if (latestExecutionSnapshot) {
+    threadRounds.push({
+      executionId: latestExecutionSnapshot.executionId,
+      questionText: analysisSession.questionText,
+      projection: projectionHydration?.projection ?? null,
+      events: executionStreamReadModel?.events ?? [],
+      intentLabel: intent ? getIntentTypeLabel(intent.type) : undefined,
+      ontologyVersion: ontologyVersionBadgeText ?? undefined,
+    });
+  }
+
+  // 追问轮次：通过 resultExecutionId 在 sessionSnapshots 中查找对应快照
+  for (const followUp of followUps) {
+    const followUpSnapshot = followUp.resultExecutionId
+      ? sessionSnapshots.find(
+          (snapshot) => snapshot.executionId === followUp.resultExecutionId,
+        )
+      : null;
+    if (followUpSnapshot) {
+      threadRounds.push({
+        executionId: followUpSnapshot.executionId,
+        questionText: followUp.questionText,
+        projection: null,
+        events: [],
+        followUpLabel: '追问',
+      });
+    }
+  }
+
+  const thread =
+    threadRounds.length > 1
+      ? buildConversationThreadViewModel({
+          rounds: threadRounds,
+          activeTurnId:
+            resolvedExecutionId ??
+            threadRounds[threadRounds.length - 1].executionId,
+        })
+      : undefined;
+
   const followUpInputBlock = latestFollowUpConclusion ? (
     <AnalysisFollowUpInput
       sessionId={analysisSession.id}
@@ -518,6 +562,7 @@ export default async function AnalysisSessionPage({
           intentLabel={intent ? getIntentTypeLabel(intent.type) : undefined}
           ontologyVersionBadge={ontologyVersionBadgeText ?? undefined}
           followUpLabel={activeFollowUp ? '追问模式' : undefined}
+          thread={thread}
           drawerContents={{
             plan: (
               <AnalysisPlanPanel

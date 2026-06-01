@@ -10,6 +10,7 @@ import {
   type AiRuntimeProjection,
 } from '@/application/ai-runtime';
 import { buildConversationViewModel } from '@/application/analysis-message-projection/conversation-view-model';
+import type { ConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisUiMessageProjectionStreamCursor } from '@/domain/analysis-message-projection/models';
@@ -36,6 +37,8 @@ type AnalysisExecutionLiveShellProps = {
   intentLabel?: string;
   ontologyVersionBadge?: string;
   followUpLabel?: string;
+  /** 多轮追问线程（2+ 轮时由 page 层构建） */
+  thread?: ConversationThreadViewModel;
   /** 详情抽屉内容（由 page 级 server component 预渲染） */
   drawerContents?: Record<string, ReactNode>;
   /** 对话区底部追加内容（如追问输入框） */
@@ -75,6 +78,7 @@ export function AnalysisExecutionLiveShell({
   intentLabel,
   ontologyVersionBadge,
   followUpLabel,
+  thread,
   drawerContents = {},
   children,
 }: AnalysisExecutionLiveShellProps) {
@@ -262,6 +266,7 @@ export function AnalysisExecutionLiveShell({
       )}
       <AnalysisConversationShell
         viewModel={conversationViewModel}
+        thread={thread}
         drawerContents={mergedDrawerContents}
       >
         {children}
