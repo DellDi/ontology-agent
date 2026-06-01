@@ -363,6 +363,7 @@ export function createAnalysisToolingServices({
           return {
             metric: result.metric,
             rowCount: result.rows.length,
+            granularity: input.granularity,
             rows: result.rows.map((row) => ({
               value: row.value,
               time: row.time,
