@@ -244,6 +244,7 @@ const OPERATIONAL_BLOCK_TITLES = new Set([
   '阶段状态',
   '阶段结果',
   '平台能力状态',
+  'ERP 读取结果',
 ]);
 
 function classifyRenderedBlock(
@@ -515,6 +516,14 @@ function renderStepTimelinePart(
 // Story 12-3：业务向视图提取
 // ---------------------------------------------------------------------------
 
+/** 已知非业务指标的 kv-list 标题，defense-in-depth：即使分类层遗漏也不应进入指标卡。 */
+const NON_METRIC_KV_LIST_TITLES = new Set([
+  'ERP 读取结果',
+  '平台能力状态',
+  '执行状态',
+  '执行元数据',
+]);
+
 /** 从 kv-list 与 metric chart 中提取指标卡。 */
 function extractMetricCards(
   blocks: readonly AnalysisRenderedBlock[],
@@ -523,6 +532,9 @@ function extractMetricCards(
 
   for (const block of blocks) {
     if (block.kind === 'kv-list') {
+      // defense-in-depth：跳过运营 / 状态类 kv-list，避免污染业务指标卡
+      if (block.title && NON_METRIC_KV_LIST_TITLES.has(block.title)) continue;
+
       const items = Array.isArray(block.payload?.items)
         ? (block.payload.items as { label: string; value: string }[])
         : [];
