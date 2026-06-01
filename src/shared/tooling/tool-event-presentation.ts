@@ -21,6 +21,24 @@ function buildFailurePresentation(
   };
 }
 
+const ERP_RESOURCE_LABELS: Record<string, string> = {
+  projects: '项目基础数据',
+  'service-orders': '工单数据',
+  payments: '缴费记录',
+  receivables: '应收数据',
+  owners: '业主信息',
+  complaints: '投诉记录',
+};
+
+const ERP_RESOURCE_PURPOSE: Record<string, string> = {
+  projects: '项目匹配/范围校验',
+  'service-orders': '工单履约分析',
+  payments: '缴费行为分析',
+  receivables: '应收账龄分析',
+  owners: '业主画像',
+  complaints: '投诉趋势分析',
+};
+
 function buildSuccessPresentation(
   event: Extract<AnalysisToolInvocationResult, { ok: true }>,
 ): ToolEventPresentation {
@@ -106,26 +124,27 @@ function buildSuccessPresentation(
         resource?: string;
         count?: number;
       };
+      const resourceLabel =
+        ERP_RESOURCE_LABELS[output.resource ?? ''] ??
+        output.resource ??
+        '业务数据';
+      const purpose =
+        ERP_RESOURCE_PURPOSE[output.resource ?? ''] ?? '数据分析';
 
       return {
-        summary: [
-          'ERP 读取结果',
-          output.resource ? `资源 ${output.resource}` : null,
-          typeof output.count === 'number' ? `记录数 ${output.count}` : null,
-        ]
-          .filter(Boolean)
-          .join('，'),
+        summary: `已读取${resourceLabel} ${output.count ?? 0} 条，用于${purpose}。`,
         renderBlocks: [
           {
             type: 'kv-list',
             title: 'ERP 读取结果',
             items: [
-              { label: '资源', value: output.resource ?? '-' },
+              { label: '数据类型', value: resourceLabel },
               {
                 label: '记录数',
                 value:
                   typeof output.count === 'number' ? String(output.count) : '-',
               },
+              { label: '用途', value: purpose },
             ],
           },
         ],
