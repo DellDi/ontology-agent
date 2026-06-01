@@ -78,6 +78,22 @@ test('Phase 2b | failed 状态应优先于 completed', async () => {
   assert.equal(result.status, 'failed', 'failed 应优先于 completed');
 });
 
+test('Phase 2b | kind=step-completed + status=failed 应显示失败', async () => {
+  const result = await runTsSnippet(`
+    import m from './src/application/analysis-execution/execution-event-reducer.ts';
+    const { reduceEventsToStepCards } = m;
+
+    const events = [
+      { id: 'e1', sessionId: 's', executionId: 'x', sequence: 1, kind: 'step-started', timestamp: '2026-01-01T00:00:00Z', step: { id: 'step-1', title: '步骤' } },
+      { id: 'e2', sessionId: 's', executionId: 'x', sequence: 2, kind: 'step-completed', status: 'failed', timestamp: '2026-01-01T00:00:01Z', step: { id: 'step-1', status: 'failed' } },
+    ];
+
+    const cards = reduceEventsToStepCards(events);
+    console.log(JSON.stringify({ status: cards[0]?.status }));
+  `);
+  assert.equal(result.status, 'failed', 'kind=step-completed + status=failed 应显示 failed');
+});
+
 test('Phase 2b | 无 step 的事件应被跳过', async () => {
   const result = await runTsSnippet(`
     import m from './src/application/analysis-execution/execution-event-reducer.ts';

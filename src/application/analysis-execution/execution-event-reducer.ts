@@ -30,16 +30,16 @@ export function reduceEventsToStepCards(
 
     const existing = stepMap.get(stepId);
 
-    // 从当前事件推导状态
+    // 从当前事件推导状态（failed 优先于 completed）
     let eventStatus: 'running' | 'completed' | 'failed' = 'running';
-    if (
+    if (event.status === 'failed' || event.step?.status === 'failed') {
+      eventStatus = 'failed';
+    } else if (
       event.status === 'completed' ||
       event.step?.status === 'completed' ||
       event.kind === 'step-completed'
     ) {
       eventStatus = 'completed';
-    } else if (event.status === 'failed' || event.step?.status === 'failed') {
-      eventStatus = 'failed';
     }
 
     // 推导显示标签

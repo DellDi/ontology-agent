@@ -84,3 +84,23 @@ test('Phase 2a | tool-input-builder 应传递 granularity 到 cube 输入', asyn
     'cube.semantic-query input should include granularity',
   );
 });
+
+test('Phase 2a | "本月"不应被识别为 granularity', async () => {
+  const result = await runTsSnippet(`
+    import m from './src/domain/analysis-context/models.ts';
+    const { extractAnalysisContext } = m;
+    const ctx = extractAnalysisContext('本月物业费收缴率是多少');
+    console.log(JSON.stringify({ granularity: ctx.granularity ?? null }));
+  `);
+  assert.equal(result.granularity, null, '"本月"是时间范围，不是 granularity');
+});
+
+test('Phase 2a | "2026年1月"不应被识别为 granularity', async () => {
+  const result = await runTsSnippet(`
+    import m from './src/domain/analysis-context/models.ts';
+    const { extractAnalysisContext } = m;
+    const ctx = extractAnalysisContext('2026年1月收缴率');
+    console.log(JSON.stringify({ granularity: ctx.granularity ?? null }));
+  `);
+  assert.equal(result.granularity, null, '"1月"是时间范围，不是 granularity');
+});
