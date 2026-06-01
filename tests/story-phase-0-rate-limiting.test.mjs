@@ -233,3 +233,176 @@ test('Phase 0c | 限流 key 应包含用户标识以实现 per-user 隔离', asy
   assert.ok(result.userAlphaInKey, 'key 应包含 user-alpha 标识');
   assert.ok(result.userBetaInKey, 'key 应包含 user-beta 标识');
 });
+
+// ---------------------------------------------------------------------------
+// P2 Finding 11: 表单端点限流应返回 303 redirect，避免浏览器跳到裸 JSON
+// ---------------------------------------------------------------------------
+
+test('P2-F11 | isFormPostRequest 应识别 multipart/form-data', async () => {
+  const result = await runTsSnippet(`
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { isFormPostRequest } = rateLimitModule;
+
+    const request = new Request('http://localhost/api/test', {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=---abc' },
+    });
+
+    console.log(JSON.stringify({ isForm: isFormPostRequest(request) }));
+  `);
+
+  assert.equal(result.isForm, true, 'multipart/form-data 应被识别为 form POST');
+});
+
+test('P2-F11 | isFormPostRequest 应识别 application/x-www-form-urlencoded', async () => {
+  const result = await runTsSnippet(`
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { isFormPostRequest } = rateLimitModule;
+
+    const request = new Request('http://localhost/api/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+
+    console.log(JSON.stringify({ isForm: isFormPostRequest(request) }));
+  `);
+
+  assert.equal(result.isForm, true, 'application/x-www-form-urlencoded 应被识别为 form POST');
+});
+
+test('P2-F11 | isFormPostRequest 不应识别 application/json', async () => {
+  const result = await runTsSnippet(`
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { isFormPostRequest } = rateLimitModule;
+
+    const request = new Request('http://localhost/api/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+
+    console.log(JSON.stringify({ isForm: isFormPostRequest(request) }));
+  `);
+
+  assert.equal(result.isForm, false, 'application/json 不应被识别为 form POST');
+});
+
+test('P2-F11 | isFormPostRequest 无 content-type 时应返回 false', async () => {
+  const result = await runTsSnippet(`
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { isFormPostRequest } = rateLimitModule;
+
+    const request = new Request('http://localhost/api/test', { method: 'POST' });
+
+    console.log(JSON.stringify({ isForm: isFormPostRequest(request) }));
+  `);
+
+  assert.equal(result.isForm, false, '无 content-type 时不应被识别为 form POST');
+});
+
+test('P2-F11 | form POST 限流应返回 303 redirect 而非 429 JSON', async () => {
+  const result = await runTsSnippet(`
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { buildRateLimitRejectedResponse } = rateLimitModule;
+
+    const request = new Request('http://localhost/api/test', {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=---abc' },
+    });
+
+    const redirectUrl = new URL('http://localhost/workspace/analysis/session-123');
+    const response = buildRateLimitRejectedResponse(request, {
+      redirectUrl,
+      errorParamName: 'executionError',
+      rateResult: { allowed: false, retryAfterSeconds: 42, limit: 5 },
+    });
+
+    const location = response.headers.get('location') ?? '';
+    const url = new URL(location);
+
+    console.log(JSON.stringify({
+      status: response.status,
+      hasLocation: !!location,
+      locationPath: url.pathname,
+      executionError: url.searchParams.get('executionError'),
+    }));
+  `);
+
+  assert.equal(result.status, 303, 'form POST 限流应返回 303');
+  assert.equal(result.hasLocation, true, '应包含 Location header');
+  assert.equal(result.locationPath, '/workspace/analysis/session-123', '应重定向到工作台页面');
+  assert.ok(
+    result.executionError?.includes('42'),
+    'executionError 应包含 retryAfterSeconds',
+  );
+});
+
+test('P2-F11 | JSON 请求限流仍返回 429 JSON', async () => {
+  const result = await runTsSnippet(`
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { buildRateLimitRejectedResponse } = rateLimitModule;
+
+    const request = new Request('http://localhost/api/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const redirectUrl = new URL('http://localhost/workspace/analysis/session-123');
+    const response = buildRateLimitRejectedResponse(request, {
+      redirectUrl,
+      errorParamName: 'executionError',
+      rateResult: { allowed: false, retryAfterSeconds: 42, limit: 5 },
+    });
+
+    const body = await response.json();
+
+    console.log(JSON.stringify({
+      status: response.status,
+      retryAfterHeader: response.headers.get('Retry-After'),
+      rateLimitHeader: response.headers.get('X-RateLimit-Limit'),
+      bodyError: body.error,
+      bodyRetryAfter: body.retryAfter,
+    }));
+  `);
+
+  assert.equal(result.status, 429, 'JSON 请求限流应返回 429');
+  assert.equal(result.retryAfterHeader, '42', '应包含 Retry-After header');
+  assert.equal(result.rateLimitHeader, '5', '应包含 X-RateLimit-Limit header');
+  assert.equal(result.bodyRetryAfter, 42, 'body.retryAfter 应等于 retryAfterSeconds');
+});
+
+test('P2-F11 | follow-ups 端点 form POST 限流使用 followUpError 参数', async () => {
+  const result = await runTsSnippet(`
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { buildRateLimitRejectedResponse } = rateLimitModule;
+
+    const request = new Request('http://localhost/api/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+
+    const redirectUrl = new URL('http://localhost/workspace/analysis/session-456');
+    const response = buildRateLimitRejectedResponse(request, {
+      redirectUrl,
+      errorParamName: 'followUpError',
+      rateResult: { allowed: false, retryAfterSeconds: 30, limit: 10 },
+    });
+
+    const location = response.headers.get('location') ?? '';
+    const url = new URL(location);
+
+    console.log(JSON.stringify({
+      status: response.status,
+      locationPath: url.pathname,
+      followUpError: url.searchParams.get('followUpError'),
+      executionError: url.searchParams.get('executionError'),
+    }));
+  `);
+
+  assert.equal(result.status, 303, 'follow-ups form POST 限流应返回 303');
+  assert.equal(result.locationPath, '/workspace/analysis/session-456', '应重定向到工作台页面');
+  assert.ok(
+    result.followUpError?.includes('30'),
+    'followUpError 应包含 retryAfterSeconds',
+  );
+  assert.equal(result.executionError, null, '不应设置 executionError');
+});

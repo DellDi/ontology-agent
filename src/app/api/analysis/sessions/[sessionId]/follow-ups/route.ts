@@ -8,6 +8,7 @@ import {
   MissingAnalysisConclusionForFollowUpError,
 } from '@/application/follow-up/use-cases';
 import {
+  buildRateLimitRejectedResponse,
   checkRateLimit,
   FOLLOW_UP_RATE_LIMIT,
 } from '@/infrastructure/api/rate-limit-middleware';
@@ -58,16 +59,11 @@ export async function POST(request: Request, { params }: RouteContext) {
     const rateResult = await checkRateLimit(redis, FOLLOW_UP_RATE_LIMIT, authSession.userId);
 
     if (!rateResult.allowed) {
-      return NextResponse.json(
-        { error: `请求过于频繁，请 ${rateResult.retryAfterSeconds} 秒后重试。` },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(rateResult.retryAfterSeconds),
-            'X-RateLimit-Limit': String(rateResult.limit),
-          },
-        },
-      );
+      return buildRateLimitRejectedResponse(request, {
+        redirectUrl: buildSessionUrl(request, sessionId),
+        errorParamName: 'followUpError',
+        rateResult,
+      });
     }
   } catch (error) {
     // Redis 不可用时不限流，降级放行；避免缓存故障阻断全部请求
