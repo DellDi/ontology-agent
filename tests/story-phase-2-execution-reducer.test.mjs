@@ -108,3 +108,31 @@ test('Phase 2b | 无 step 的事件应被跳过', async () => {
   `);
   assert.equal(result.cardCount, 0, '无 step 的事件应被跳过');
 });
+
+test('Phase 2b | 无 step 但有 renderBlocks 的事件应保留', async () => {
+  const result = await runTsSnippet(`
+    import m from './src/application/analysis-execution/execution-event-reducer.ts';
+    const { reduceEventsToStepCards } = m;
+
+    const events = [
+      {
+        id: 'e1',
+        sessionId: 's',
+        executionId: 'x',
+        sequence: 1,
+        kind: 'stage-result',
+        timestamp: '2026-01-01T00:00:00Z',
+        stage: { label: '阶段结果' },
+        renderBlocks: [{ type: 'kv-list', title: '结果', items: [] }]
+      },
+    ];
+
+    const cards = reduceEventsToStepCards(events);
+    console.log(JSON.stringify({
+      cardCount: cards.length,
+      hasRenderBlocks: cards[0]?.renderBlocks?.length > 0
+    }));
+  `);
+  assert.equal(result.cardCount, 1, '应保留执行级卡片');
+  assert.equal(result.hasRenderBlocks, true, '应包含 renderBlocks');
+});

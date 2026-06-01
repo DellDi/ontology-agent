@@ -23,8 +23,30 @@ export function reduceEventsToStepCards(
 
   for (const event of events) {
     const stepId = event.step?.id;
+    const hasRenderBlocks = event.renderBlocks && event.renderBlocks.length > 0;
+
     if (!stepId) {
-      // 无 step 的事件（如 execution-status）— 跳过
+      // 无 step 但有 renderBlocks 的事件 → 归入执行级卡片
+      if (hasRenderBlocks) {
+        const execCardKey = '__execution_level__';
+        const existing = stepMap.get(execCardKey);
+        if (existing) {
+          existing.renderBlocks = [
+            ...(existing.renderBlocks ?? []),
+            ...event.renderBlocks,
+          ];
+        } else {
+          stepMap.set(execCardKey, {
+            stepId: execCardKey,
+            stepLabel: event.stage?.label ?? '执行级结果',
+            stageLabel: event.stage?.label ?? '执行结果',
+            status: 'completed',
+            startedAt: event.timestamp,
+            renderBlocks: event.renderBlocks,
+          });
+        }
+      }
+      // 无 step 且无 renderBlocks 的事件（如 execution-status）— 跳过
       continue;
     }
 
