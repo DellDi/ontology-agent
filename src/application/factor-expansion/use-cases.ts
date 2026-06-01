@@ -6,6 +6,7 @@ import {
 } from '@/domain/factor-expansion/models';
 import type { AnalysisIntentType } from '@/domain/analysis-intent/models';
 import type { ReturnTypeOfCreateGraphUseCases } from '@/shared/types/graph';
+import { translateEdgeKind, translateDirection, translateEvidenceSource } from './graph-edge-translations';
 
 export type CandidateFactorReadModel = {
   mode: 'expand' | 'skip';
@@ -25,9 +26,9 @@ function mapGraphFactor(factor: GraphCandidateFactor): CandidateFactorReadModel[
     key: factor.factorKey,
     label: factor.factorLabel,
     rationale: factor.explanation,
-    relationType: factor.relationType,
-    direction: factor.direction,
-    source: factor.source,
+    relationType: translateEdgeKind(factor.relationType),
+    direction: translateDirection(factor.direction),
+    source: translateEvidenceSource(factor.source),
   };
 }
 
@@ -94,7 +95,7 @@ export function createFactorExpansionUseCases({
         basisLabel: '与当前指标或实体的相关依据',
         factors: ruleFallback.factors.map((factor) => ({
           ...factor,
-          source: 'governed-rule',
+          source: translateEvidenceSource('governed-rule'),
         })),
       };
     },
