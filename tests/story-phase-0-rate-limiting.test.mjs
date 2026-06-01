@@ -32,6 +32,8 @@ async function runTsSnippet(code) {
 
 // ---------------------------------------------------------------------------
 // Phase 0c: API rate limiting — execute 和 follow-up 端点的限流检查
+// 注：重构为 Lua 脚本原子化 INCR + EXPIRE 后，mock 需要实现 eval()。
+// eval 的签名：eval(script, { keys, arguments })
 // ---------------------------------------------------------------------------
 
 test('Phase 0c | 未超限的请求应被放行', async () => {
@@ -40,8 +42,7 @@ test('Phase 0c | 未超限的请求应被放行', async () => {
     const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
-      async incr() { return 1; },
-      async expire() { return true; },
+      async eval(script, opts) { return 1; },
       async ttl() { return 30; },
     };
 
@@ -61,8 +62,7 @@ test('Phase 0c | 恰好到达上限的请求仍应被放行', async () => {
     const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
-      async incr() { return 5; },
-      async expire() { return true; },
+      async eval(script, opts) { return 5; },
       async ttl() { return 30; },
     };
 
@@ -82,8 +82,7 @@ test('Phase 0c | 超过上限的请求应被拒绝并返回 retryAfterSeconds', 
     const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
-      async incr() { return 6; },
-      async expire() { return true; },
+      async eval(script, opts) { return 6; },
       async ttl() { return 30; },
     };
 
@@ -101,59 +100,66 @@ test('Phase 0c | 超过上限的请求应被拒绝并返回 retryAfterSeconds', 
   assert.equal(result.limit, 5, 'limit 应等于 maxRequests');
 });
 
-test('Phase 0c | 首次请求应设置 TTL，后续请求不应重复设置', async () => {
+test('Phase 0c | eval 应接收正确的 key 与 windowSeconds 参数', async () => {
   const result = await runTsSnippet(`
     import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
     const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
-    const calls = [];
+    const evalCalls = [];
     const mockRedis = {
-      async incr(key) { calls.push(['incr', key]); return 1; },
-      async expire(key, ttl) { calls.push(['expire', key, ttl]); return true; },
+      async eval(script, opts) {
+        evalCalls.push({ script: script.trim(), keys: opts.keys, arguments: opts.arguments });
+        return 1;
+      },
       async ttl() { return 30; },
     };
 
     await checkRateLimit(mockRedis, EXECUTION_RATE_LIMIT, 'user-1');
 
-    const expireCalls = calls.filter(c => c[0] === 'expire');
-    const expireKey = expireCalls[0]?.[1] ?? null;
-    const expireTtl = expireCalls[0]?.[2] ?? null;
-
+    const call = evalCalls[0];
     console.log(JSON.stringify({
-      expireCallCount: expireCalls.length,
-      expireKey,
-      expireTtl,
-      keyContainsPrefix: expireKey?.includes('rl:analysis:execute') ?? false,
+      evalCallCount: evalCalls.length,
+      key: call?.keys?.[0] ?? null,
+      keyContainsPrefix: call?.keys?.[0]?.includes('rl:analysis:execute') ?? false,
+      keyContainsUser: call?.keys?.[0]?.includes('user-1') ?? false,
+      windowArg: call?.arguments?.[0] ?? null,
+      scriptUsesIncr: call?.script?.includes('INCR') ?? false,
+      scriptUsesExpire: call?.script?.includes('EXPIRE') ?? false,
     }));
   `);
 
-  assert.equal(result.expireCallCount, 1, '首次请求应调用一次 expire');
-  assert.equal(result.expireTtl, 60, 'expire TTL 应为 60 秒');
+  assert.equal(result.evalCallCount, 1, '应调用一次 eval');
   assert.ok(result.keyContainsPrefix, 'key 应包含 rl:analysis:execute 前缀');
+  assert.ok(result.keyContainsUser, 'key 应包含用户标识');
+  assert.equal(result.windowArg, '60', 'ARGV[1] 应为 windowSeconds 字符串 "60"');
+  assert.ok(result.scriptUsesIncr, 'Lua 脚本应包含 INCR 调用');
+  assert.ok(result.scriptUsesExpire, 'Lua 脚本应包含 EXPIRE 调用');
 });
 
-test('Phase 0c | 非首次请求（count > 1）不应重新设置 TTL', async () => {
+test('Phase 0c | Lua 脚本保证原子性：INCR 与 EXPIRE 不会分离执行', async () => {
   const result = await runTsSnippet(`
     import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
     const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
+    // 验证：checkRateLimit 仅调用 eval（Lua），不再单独调用 incr / expire。
+    // 这是原子性保证——若仍调用 incr/expire，说明回退到非原子路径。
     const calls = [];
     const mockRedis = {
-      async incr(key) { calls.push(['incr', key]); return 3; },
-      async expire(key, ttl) { calls.push(['expire', key, ttl]); return true; },
+      async eval(script, opts) { calls.push('eval'); return 1; },
+      async incr() { calls.push('incr'); return 1; },
+      async expire() { calls.push('expire'); return true; },
       async ttl() { return 30; },
     };
 
     await checkRateLimit(mockRedis, EXECUTION_RATE_LIMIT, 'user-1');
 
-    const expireCalls = calls.filter(c => c[0] === 'expire');
-
     console.log(JSON.stringify({
-      expireCallCount: expireCalls.length,
+      calls,
+      onlyEvalUsed: calls.length === 1 && calls[0] === 'eval',
     }));
   `);
 
-  assert.equal(result.expireCallCount, 0, 'count > 1 时不应调用 expire');
+  assert.equal(result.onlyEvalUsed, true, '应仅通过 eval(Lua) 执行 INCR+EXPIRE，不直接调用 incr/expire');
 });
 
 test('Phase 0c | FOLLOW_UP_RATE_LIMIT 的 maxRequests 应大于 EXECUTION_RATE_LIMIT', async () => {
@@ -183,8 +189,7 @@ test('Phase 0c | TTL 为 -1（key 无过期）时应回退到 windowSeconds', as
     const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
-      async incr() { return 6; },
-      async expire() { return true; },
+      async eval() { return 6; },
       async ttl() { return -1; },
     };
 
@@ -207,8 +212,7 @@ test('Phase 0c | 限流 key 应包含用户标识以实现 per-user 隔离', asy
 
     const keys = [];
     const mockRedis = {
-      async incr(key) { keys.push(key); return 1; },
-      async expire() { return true; },
+      async eval(script, opts) { keys.push(opts.keys[0]); return 1; },
       async ttl() { return 30; },
     };
 
