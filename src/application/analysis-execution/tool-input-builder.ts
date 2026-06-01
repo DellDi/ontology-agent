@@ -296,7 +296,10 @@ export function buildToolInputs(input: {
       groupBy: input.projectIds.length > 1 ? ['project-name'] : undefined,
       filters: projectNameFilters,
       limit: 20,
-      granularity: input.context.granularity?.value,
+      granularity:
+        input.context.granularity?.state === 'confirmed'
+          ? input.context.granularity.value
+          : undefined,
     },
     'neo4j.graph-query': {
       intentType: intent.type,

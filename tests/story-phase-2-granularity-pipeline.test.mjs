@@ -95,6 +95,74 @@ test('Phase 2a | "本月"不应被识别为 granularity', async () => {
   assert.equal(result.granularity, null, '"本月"是时间范围，不是 granularity');
 });
 
+test('Phase 2a | 低置信度 granularity 不应进入 cube 输入', async () => {
+  const result = await runTsSnippet(`
+    import mod from './src/application/analysis-execution/tool-input-builder.ts';
+    const { buildToolInputs } = mod;
+
+    const context = {
+      targetMetric: { label: '目标指标', value: '收缴率', state: 'confirmed' },
+      entity: { label: '实体对象', value: '项目A', state: 'confirmed' },
+      timeRange: { label: '时间范围', value: '2026年', state: 'confirmed' },
+      comparison: { label: '比较方式', value: '无需比较', state: 'confirmed' },
+      granularity: { label: '时间粒度', value: 'month', state: 'missing' },
+      constraints: [],
+    };
+
+    const inputs = buildToolInputs({
+      context,
+      questionText: '测试问题',
+      projectIds: ['proj-1'],
+      areaIds: [],
+      organizationId: 'org-1',
+      ownerUserId: 'user-1',
+      sessionId: 'sess-1',
+      groundedContext: undefined,
+      step: { id: 's1', title: '测试步骤', objective: '测试目标' },
+      planSummary: '测试计划',
+    });
+
+    console.log(JSON.stringify({
+      granularity: inputs['cube.semantic-query']?.granularity ?? null,
+    }));
+  `);
+  assert.equal(result.granularity, null, '低置信度 granularity 不应下推');
+});
+
+test('Phase 2a | confirmed granularity 应正常进入 cube 输入', async () => {
+  const result = await runTsSnippet(`
+    import mod from './src/application/analysis-execution/tool-input-builder.ts';
+    const { buildToolInputs } = mod;
+
+    const context = {
+      targetMetric: { label: '目标指标', value: '收缴率', state: 'confirmed' },
+      entity: { label: '实体对象', value: '项目A', state: 'confirmed' },
+      timeRange: { label: '时间范围', value: '2026年', state: 'confirmed' },
+      comparison: { label: '比较方式', value: '无需比较', state: 'confirmed' },
+      granularity: { label: '时间粒度', value: 'month', state: 'confirmed' },
+      constraints: [],
+    };
+
+    const inputs = buildToolInputs({
+      context,
+      questionText: '测试问题',
+      projectIds: ['proj-1'],
+      areaIds: [],
+      organizationId: 'org-1',
+      ownerUserId: 'user-1',
+      sessionId: 'sess-1',
+      groundedContext: undefined,
+      step: { id: 's1', title: '测试步骤', objective: '测试目标' },
+      planSummary: '测试计划',
+    });
+
+    console.log(JSON.stringify({
+      granularity: inputs['cube.semantic-query']?.granularity ?? null,
+    }));
+  `);
+  assert.equal(result.granularity, 'month', 'confirmed granularity 应正常下推');
+});
+
 test('Phase 2a | "2026年1月"不应被识别为 granularity', async () => {
   const result = await runTsSnippet(`
     import m from './src/domain/analysis-context/models.ts';
