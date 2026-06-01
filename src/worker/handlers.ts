@@ -75,6 +75,7 @@ type AnalysisExecutionUseCases = {
     toolInputsByName: Partial<Record<AnalysisToolName, unknown>>;
     groundedContext?: import('@/domain/ontology/grounding').OntologyGroundedContext;
     eventEmitter?: ToolExecutionEventEmitter;
+    signal?: AbortSignal;
   }) => Promise<OrchestrationStepExecutionResult>;
 };
 
@@ -214,7 +215,7 @@ export function createAnalysisExecutionJobHandler(
       let result: OrchestrationStepExecutionResult;
       try {
         result = await callWithTimeout(
-          () =>
+          (signal) =>
             dependencies.analysisExecutionUseCases.executeStep({
               stepId: step.id,
               stepTitle: step.title,
@@ -249,6 +250,7 @@ export function createAnalysisExecutionJobHandler(
               }),
               groundedContext: jobData.groundedContext,
               eventEmitter,
+              signal,
             }),
         );
       } catch (error) {

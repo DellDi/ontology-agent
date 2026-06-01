@@ -38,6 +38,8 @@ export type AnalysisToolInvocationContext = {
   sessionId?: string;
   userId?: string;
   organizationId?: string;
+  /** 超时取消信号 — 由 worker 层 callWithTimeout 注入，工具可传递给底层 HTTP 调用。 */
+  signal?: AbortSignal;
 };
 
 export type AnalysisToolInvocationError = {
