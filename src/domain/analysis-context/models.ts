@@ -26,6 +26,7 @@ export type AnalysisContext = {
   entity: AnalysisContextField;
   timeRange: AnalysisContextField;
   comparison: AnalysisContextField;
+  granularity?: AnalysisContextField;
   constraints: AnalysisContextConstraint[];
 };
 
@@ -124,6 +125,25 @@ const COMPARISON_RULES: Array<{
     pattern: /环比/,
   },
 ];
+
+const GRANULARITY_RULES: Array<{ pattern: RegExp; value: string; label: string }> = [
+  { pattern: /按?月份?|月度|逐月/, value: 'month', label: '按月' },
+  { pattern: /按?季[度]?|季度/, value: 'quarter', label: '按季度' },
+  { pattern: /按?周|每周|逐周/, value: 'week', label: '按周' },
+  { pattern: /按?天|逐日|每日|按日/, value: 'day', label: '按日' },
+  { pattern: /按年|年度|逐年/, value: 'year', label: '按年' },
+];
+
+function extractGranularity(
+  questionText: string,
+): { value: string; state: AnalysisContextFieldState; label: string } | undefined {
+  for (const rule of GRANULARITY_RULES) {
+    if (rule.pattern.test(questionText)) {
+      return { value: rule.value, state: 'confirmed', label: rule.label };
+    }
+  }
+  return undefined;
+}
 
 function toField(
   label: string,
@@ -358,12 +378,17 @@ export function extractAnalysisContext(
     '比较方式',
     extractComparison(normalizedQuestionText),
   );
+  const granularityResult = extractGranularity(normalizedQuestionText);
+  const granularity = granularityResult
+    ? { label: '时间粒度', value: granularityResult.value, state: granularityResult.state }
+    : undefined;
 
   return {
     targetMetric,
     entity,
     timeRange,
     comparison,
+    granularity,
     constraints,
   };
 }

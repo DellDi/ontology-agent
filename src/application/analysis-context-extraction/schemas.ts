@@ -26,6 +26,12 @@ export const llmContextExtractionOutputSchema = z.object({
     type: z.enum(['yoy', 'mom', 'custom', 'none']),
     confidence: z.number().min(0).max(1),
   }),
+  granularity: z
+    .object({
+      value: z.enum(['day', 'week', 'month', 'quarter', 'year']).optional(),
+      confidence: z.number().min(0).max(1),
+    })
+    .optional(),
   filters: z
     .array(
       z.object({

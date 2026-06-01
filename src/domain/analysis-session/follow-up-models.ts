@@ -37,7 +37,8 @@ export type FollowUpContextFieldKey =
   | 'targetMetric'
   | 'entity'
   | 'timeRange'
-  | 'comparison';
+  | 'comparison'
+  | 'granularity';
 
 export type FollowUpContextChangeItem = {
   type: 'field' | 'constraint';
@@ -108,6 +109,11 @@ export function mergeFollowUpContext({
     normalizeQuestionText(followUpQuestionText),
   );
 
+  // 时间粒度：追问抽取结果优先，否则继承
+  const mergedGranularity = extractedFollowUpContext.granularity
+    ? extractedFollowUpContext.granularity
+    : inheritedContext.granularity;
+
   return {
     targetMetric: mergeField(
       inheritedContext.targetMetric,
@@ -122,6 +128,7 @@ export function mergeFollowUpContext({
       inheritedContext.comparison,
       extractedFollowUpContext.comparison,
     ),
+    granularity: mergedGranularity,
     constraints: mergeConstraints(
       inheritedContext.constraints,
       extractedFollowUpContext.constraints,
@@ -134,6 +141,7 @@ const FIELD_LABELS: Record<FollowUpContextFieldKey, string> = {
   entity: '实体对象',
   timeRange: '时间范围',
   comparison: '比较方式',
+  granularity: '时间粒度',
 };
 
 function pushDiffItem(
@@ -157,19 +165,46 @@ export function buildFollowUpContextDiff({
     const inheritedField = inheritedContext[fieldKey];
     const mergedField = mergedContext[fieldKey];
 
-    if (inheritedField.value === mergedField.value) {
+    // 可选字段（如 granularity）两侧均为 undefined 时跳过
+    if (!inheritedField && !mergedField) {
+      return;
+    }
+
+    // 仅一侧存在视为新增
+    if (!inheritedField && mergedField) {
+      pushDiffItem(added, {
+        type: 'field',
+        key: fieldKey,
+        label: FIELD_LABELS[fieldKey],
+        nextValue: mergedField.value,
+      });
+      return;
+    }
+
+    if (inheritedField && !mergedField) {
+      pushDiffItem(overridden, {
+        type: 'field',
+        key: fieldKey,
+        label: FIELD_LABELS[fieldKey],
+        previousValue: inheritedField.value,
+        nextValue: '',
+      });
+      return;
+    }
+
+    if (inheritedField!.value === mergedField!.value) {
       return;
     }
 
     const targetCollection =
-      inheritedField.state === 'confirmed' ? overridden : added;
+      inheritedField!.state === 'confirmed' ? overridden : added;
 
     pushDiffItem(targetCollection, {
       type: 'field',
       key: fieldKey,
       label: FIELD_LABELS[fieldKey],
-      previousValue: inheritedField.value,
-      nextValue: mergedField.value,
+      previousValue: inheritedField!.value,
+      nextValue: mergedField!.value,
     });
   });
 
@@ -209,14 +244,24 @@ export function analyzeFollowUpContextAdjustment({
 }) {
   const conflicts: FollowUpContextChangeItem[] = [];
 
+  const correctionRecord = adjustment.correction as Record<
+    string,
+    { value: string; note?: string } | undefined
+  >;
+
   (Object.keys(FIELD_LABELS) as FollowUpContextFieldKey[]).forEach((fieldKey) => {
-    const candidate = adjustment.correction[fieldKey];
+    const candidate = correctionRecord[fieldKey];
 
     if (!candidate) {
       return;
     }
 
     const currentField = currentContext[fieldKey];
+
+    // 可选字段未设置时不产生冲突
+    if (!currentField) {
+      return;
+    }
 
     if (
       currentField.state === 'confirmed' &&
