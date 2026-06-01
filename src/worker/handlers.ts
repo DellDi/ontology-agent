@@ -29,6 +29,7 @@ import {
 } from './analysis-execution-renderer';
 import { translateToolName } from '@/application/analysis-message-projection/tool-name-translations';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
+import { callWithTimeout, LLMTimeoutError } from './timeout-utils';
 
 export type JobHandler = (
   job: Job,
@@ -210,41 +211,69 @@ export function createAnalysisExecutionJobHandler(
         },
       };
 
-      const result = await dependencies.analysisExecutionUseCases.executeStep({
-        stepId: step.id,
-        stepTitle: step.title,
-        stepObjective: step.objective,
-        questionText: jobData.questionText,
-        planSummary: jobData.plan.summary,
-        selectionContext: {
-          userId: jobData.ownerUserId,
-          organizationId: jobData.organizationId,
-          purpose: 'analysis-execution',
-          sessionId: jobData.sessionId,
-        },
-        intentType: inferredIntentType,
-        invocationContext: {
-          correlationId: `${job.id}:${step.id}:${randomUUID()}`,
-          source: 'worker',
-          sessionId: jobData.sessionId,
-          userId: jobData.ownerUserId,
-          organizationId: jobData.organizationId,
-        },
-        toolInputsByName: buildToolInputs({
-          sessionId: jobData.sessionId,
-          ownerUserId: jobData.ownerUserId,
-          organizationId: jobData.organizationId,
-          projectIds: jobData.projectIds,
-          areaIds: jobData.areaIds,
-          questionText: jobData.questionText,
-          context: jobData.context ?? analysisSession.savedContext,
-          groundedContext: jobData.groundedContext,
-          step,
-          planSummary: jobData.plan.summary,
-        }),
-        groundedContext: jobData.groundedContext,
-        eventEmitter,
-      });
+      let result: OrchestrationStepExecutionResult;
+      try {
+        result = await callWithTimeout(
+          () =>
+            dependencies.analysisExecutionUseCases.executeStep({
+              stepId: step.id,
+              stepTitle: step.title,
+              stepObjective: step.objective,
+              questionText: jobData.questionText,
+              planSummary: jobData.plan.summary,
+              selectionContext: {
+                userId: jobData.ownerUserId,
+                organizationId: jobData.organizationId,
+                purpose: 'analysis-execution',
+                sessionId: jobData.sessionId,
+              },
+              intentType: inferredIntentType,
+              invocationContext: {
+                correlationId: `${job.id}:${step.id}:${randomUUID()}`,
+                source: 'worker',
+                sessionId: jobData.sessionId,
+                userId: jobData.ownerUserId,
+                organizationId: jobData.organizationId,
+              },
+              toolInputsByName: buildToolInputs({
+                sessionId: jobData.sessionId,
+                ownerUserId: jobData.ownerUserId,
+                organizationId: jobData.organizationId,
+                projectIds: jobData.projectIds,
+                areaIds: jobData.areaIds,
+                questionText: jobData.questionText,
+                context: jobData.context ?? analysisSession.savedContext,
+                groundedContext: jobData.groundedContext,
+                step,
+                planSummary: jobData.plan.summary,
+              }),
+              groundedContext: jobData.groundedContext,
+              eventEmitter,
+            }),
+        );
+      } catch (error) {
+        if (error instanceof LLMTimeoutError) {
+          const stepDurationMs = Date.now() - stepStartedAt;
+
+          await streamUseCases.publishEvent(
+            buildStepCompletedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step: {
+                id: step.id,
+                order: step.order,
+                title: step.title,
+                status: 'failed',
+              },
+              durationMs: stepDurationMs,
+              toolCount: 0,
+            }),
+          );
+
+          throw error;
+        }
+        throw error;
+      }
 
       const stepDurationMs = Date.now() - stepStartedAt;
 
