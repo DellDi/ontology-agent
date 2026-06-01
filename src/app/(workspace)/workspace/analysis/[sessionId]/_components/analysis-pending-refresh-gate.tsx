@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type AnalysisPendingRefreshGateProps = {
@@ -15,6 +15,7 @@ export function AnalysisPendingRefreshGate({
   maxAttempts = 15,
 }: AnalysisPendingRefreshGateProps) {
   const router = useRouter();
+  const [exhausted, setExhausted] = useState(false);
 
   useEffect(() => {
     if (!enabled) {
@@ -28,6 +29,7 @@ export function AnalysisPendingRefreshGate({
 
       if (attempts >= maxAttempts) {
         window.clearInterval(intervalId);
+        setExhausted(true);
       }
     }, intervalMs);
 
@@ -38,6 +40,27 @@ export function AnalysisPendingRefreshGate({
 
   if (!enabled) {
     return null;
+  }
+
+  if (exhausted) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="mx-auto mt-4 max-w-[860px] px-4"
+      >
+        <div className="flex items-center justify-between rounded-xl border border-[color:var(--line-200)] bg-[color:var(--mist-50)] p-3 text-sm text-[color:var(--ink-600)]">
+          <span>分析仍在后台处理中</span>
+          <button
+            type="button"
+            onClick={() => router.refresh()}
+            className="rounded-lg border border-[color:var(--line-200)] bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-700)] hover:bg-[color:var(--mist-100)]"
+          >
+            手动刷新
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

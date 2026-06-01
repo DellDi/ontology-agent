@@ -53,3 +53,18 @@ test('Phase 2c | PendingRefreshGate should render loading indicator when enabled
   assert.ok(source.includes('aria-live="polite"'), 'Should have aria-live for dynamic content');
   assert.ok(source.includes('正在加载'), 'Should show loading text in Chinese');
 });
+
+test('Phase 2c | PendingRefreshGate should show exhausted UI when maxAttempts reached', () => {
+  const source = readFileSync(
+    'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-pending-refresh-gate.tsx',
+    'utf-8',
+  );
+  assert.ok(source.includes('exhausted'), 'Should track exhausted state');
+  assert.ok(source.includes('setExhausted(true)'), 'Should set exhausted when maxAttempts reached');
+  assert.ok(source.includes('分析仍在后台处理中'), 'Should show exhausted message in Chinese');
+  assert.ok(source.includes('手动刷新'), 'Should offer manual refresh button');
+  assert.ok(
+    source.includes('onClick={() => router.refresh()}'),
+    'Manual refresh button should call router.refresh()',
+  );
+});
