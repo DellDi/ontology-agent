@@ -452,10 +452,21 @@ export default async function AnalysisSessionPage({
   // 构建多轮追问线程视图（2+ 轮时传递给 live shell，否则退化为单轮模式）
   const threadRounds: Parameters<typeof buildConversationThreadViewModel>[0]['rounds'] = [];
 
+  // 初始执行快照：不被任何 followUp.resultExecutionId 引用的快照（根轮次绑定初始执行，而非最新执行）
+  const followUpResultExecutionIds = new Set(
+    followUps
+      .map((followUp) => followUp.resultExecutionId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const initialExecutionSnapshot =
+    sessionSnapshots.find(
+      (snapshot) => !followUpResultExecutionIds.has(snapshot.executionId),
+    ) ?? null;
+
   // 初始轮次（session 本身）
-  if (latestExecutionSnapshot) {
+  if (initialExecutionSnapshot) {
     threadRounds.push({
-      executionId: latestExecutionSnapshot.executionId,
+      executionId: initialExecutionSnapshot.executionId,
       questionText: analysisSession.questionText,
       projection: projectionHydration?.projection ?? null,
       events: executionStreamReadModel?.events ?? [],
