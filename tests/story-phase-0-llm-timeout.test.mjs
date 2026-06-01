@@ -36,7 +36,8 @@ async function runTsSnippet(code) {
 
 test('Phase 0d | callWithTimeout 在函数及时完成时正常 resolve', async () => {
   const result = await runTsSnippet(`
-    import { callWithTimeout } from './src/worker/timeout-utils.ts';
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout } = timeoutUtils;
 
     const value = await callWithTimeout(() => Promise.resolve('ok'), 5000);
     console.log(JSON.stringify({ value }));
@@ -47,7 +48,8 @@ test('Phase 0d | callWithTimeout 在函数及时完成时正常 resolve', async 
 
 test('Phase 0d | callWithTimeout 超时时 reject LLMTimeoutError', async () => {
   const result = await runTsSnippet(`
-    import { callWithTimeout, LLMTimeoutError } from './src/worker/timeout-utils.ts';
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout, LLMTimeoutError } = timeoutUtils;
 
     // 永不 resolve 的 Promise，配合极短超时
     const neverResolve = new Promise(() => {});
@@ -73,7 +75,8 @@ test('Phase 0d | callWithTimeout 超时时 reject LLMTimeoutError', async () => 
 
 test('Phase 0d | callWithTimeout 透传原始错误（非超时）', async () => {
   const result = await runTsSnippet(`
-    import { callWithTimeout, LLMTimeoutError } from './src/worker/timeout-utils.ts';
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout, LLMTimeoutError } = timeoutUtils;
 
     const failing = () => Promise.reject(new Error('LLM provider error'));
 
@@ -96,7 +99,8 @@ test('Phase 0d | callWithTimeout 透传原始错误（非超时）', async () =>
 
 test('Phase 0d | LLM_TIMEOUT_MS 常量在合理范围内（30s–120s）', async () => {
   const result = await runTsSnippet(`
-    import { LLM_TIMEOUT_MS } from './src/worker/timeout-utils.ts';
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { LLM_TIMEOUT_MS } = timeoutUtils;
 
     console.log(JSON.stringify({
       value: LLM_TIMEOUT_MS,
@@ -111,7 +115,8 @@ test('Phase 0d | LLM_TIMEOUT_MS 常量在合理范围内（30s–120s）', async
 
 test('Phase 0d | LLMTimeoutError 消息包含可读秒数', async () => {
   const result = await runTsSnippet(`
-    import { LLMTimeoutError } from './src/worker/timeout-utils.ts';
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { LLMTimeoutError } = timeoutUtils;
 
     const error60 = new LLMTimeoutError(60_000);
     const error30 = new LLMTimeoutError(30_000);
@@ -132,10 +137,10 @@ test('Phase 0d | LLMTimeoutError 消息包含可读秒数', async () => {
 
 test('Phase 0d | callWithTimeout 使用默认超时值', async () => {
   const result = await runTsSnippet(`
-    import { callWithTimeout, LLMTimeoutError, LLM_TIMEOUT_MS } from './src/worker/timeout-utils.ts';
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout, LLMTimeoutError } = timeoutUtils;
 
-    // 验证默认超时值生效：不传第二个参数时应使用 LLM_TIMEOUT_MS
-    // 用极短 timeout 验证函数签名接受省略参数
+    // 验证默认超时值生效：不传第二个参数时应使用 LLM_TIMEOUT_MS（60s）
     const neverResolve = new Promise(() => {});
 
     // 仅验证 callWithTimeout 可省略 timeoutMs 参数
@@ -148,6 +153,9 @@ test('Phase 0d | callWithTimeout 使用默认超时值', async () => {
     ]);
 
     console.log(JSON.stringify({ raceResult }));
+
+    // 强制退出，避免 pending timer 阻塞子进程
+    process.exit(0);
   `);
 
   assert.equal(
