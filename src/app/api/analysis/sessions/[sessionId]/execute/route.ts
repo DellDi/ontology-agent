@@ -10,6 +10,10 @@ import {
 } from '@/application/ontology/grounded-planning';
 import { InvalidAnalysisExecutionPlanError } from '@/domain/analysis-execution/models';
 import { resolveOntologyVersionBindingSource } from '@/domain/ontology/version-binding';
+import {
+  checkRateLimit,
+  EXECUTION_RATE_LIMIT,
+} from '@/infrastructure/api/rate-limit-middleware';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
@@ -23,6 +27,7 @@ import { createErpReadUseCases } from '@/application/erp-read/use-cases';
 import { auditUseCases } from '@/infrastructure/audit';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
 import { getCurrentCorrelationId } from '@/infrastructure/observability';
+import { ensureRedisConnected, getSharedRedisClient } from '@/infrastructure/redis/client';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 type RouteContext = {
@@ -72,6 +77,29 @@ export async function POST(request: Request, { params }: RouteContext) {
       new URL(`/login?next=/workspace/analysis/${sessionId}`, request.url),
       { status: 303 },
     );
+  }
+
+  // 限流检查：在触发 LLM 调用前拦截过高频率的请求
+  try {
+    const { redis } = getSharedRedisClient();
+    await ensureRedisConnected(redis);
+    const rateResult = await checkRateLimit(redis, EXECUTION_RATE_LIMIT, authSession.userId);
+
+    if (!rateResult.allowed) {
+      return NextResponse.json(
+        { error: `请求过于频繁，请 ${rateResult.retryAfterSeconds} 秒后重试。` },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateResult.retryAfterSeconds),
+            'X-RateLimit-Limit': String(rateResult.limit),
+          },
+        },
+      );
+    }
+  } catch (error) {
+    // Redis 不可用时不限流，降级放行；避免缓存故障阻断全部请求
+    console.warn('限流检查失败，降级放行:', error);
   }
 
   const analysisSession = await analysisSessionUseCases.getOwnedSession({
