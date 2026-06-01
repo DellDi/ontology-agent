@@ -127,11 +127,11 @@ const COMPARISON_RULES: Array<{
 ];
 
 const GRANULARITY_RULES: Array<{ pattern: RegExp; value: string; label: string }> = [
-  { pattern: /按?月份?|月度|逐月/, value: 'month', label: '按月' },
-  { pattern: /按?季[度]?|季度/, value: 'quarter', label: '按季度' },
-  { pattern: /按?周|每周|逐周/, value: 'week', label: '按周' },
-  { pattern: /按?天|逐日|每日|按日/, value: 'day', label: '按日' },
-  { pattern: /按年|年度|逐年/, value: 'year', label: '按年' },
+  { pattern: /按照?月份?|月度|逐月|分月|每月/, value: 'month', label: '按月' },
+  { pattern: /按照?季度|季度趋势|逐季|每季/, value: 'quarter', label: '按季度' },
+  { pattern: /按照?周|每周|逐周|分周/, value: 'week', label: '按周' },
+  { pattern: /按照?天|按照?日|逐日|每日|分日/, value: 'day', label: '按日' },
+  { pattern: /按照?年|年度|逐年|每年/, value: 'year', label: '按年' },
 ];
 
 function extractGranularity(
