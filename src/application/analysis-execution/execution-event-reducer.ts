@@ -70,7 +70,7 @@ export function reduceEventsToStepCards(
       // 累积 stage-result 的 renderBlocks
       if (event.renderBlocks?.length) {
         existing.renderBlocks = [
-          ...existing.renderBlocks,
+          ...(existing.renderBlocks ?? []),
           ...event.renderBlocks,
         ];
       }
