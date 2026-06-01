@@ -36,7 +36,8 @@ async function runTsSnippet(code) {
 
 test('Phase 0c | 未超限的请求应被放行', async () => {
   const result = await runTsSnippet(`
-    import { checkRateLimit, EXECUTION_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
       async incr() { return 1; },
@@ -56,7 +57,8 @@ test('Phase 0c | 未超限的请求应被放行', async () => {
 
 test('Phase 0c | 恰好到达上限的请求仍应被放行', async () => {
   const result = await runTsSnippet(`
-    import { checkRateLimit, EXECUTION_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
       async incr() { return 5; },
@@ -76,7 +78,8 @@ test('Phase 0c | 恰好到达上限的请求仍应被放行', async () => {
 
 test('Phase 0c | 超过上限的请求应被拒绝并返回 retryAfterSeconds', async () => {
   const result = await runTsSnippet(`
-    import { checkRateLimit, EXECUTION_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
       async incr() { return 6; },
@@ -100,7 +103,8 @@ test('Phase 0c | 超过上限的请求应被拒绝并返回 retryAfterSeconds', 
 
 test('Phase 0c | 首次请求应设置 TTL，后续请求不应重复设置', async () => {
   const result = await runTsSnippet(`
-    import { checkRateLimit, EXECUTION_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const calls = [];
     const mockRedis = {
@@ -130,7 +134,8 @@ test('Phase 0c | 首次请求应设置 TTL，后续请求不应重复设置', as
 
 test('Phase 0c | 非首次请求（count > 1）不应重新设置 TTL', async () => {
   const result = await runTsSnippet(`
-    import { checkRateLimit, EXECUTION_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const calls = [];
     const mockRedis = {
@@ -153,7 +158,8 @@ test('Phase 0c | 非首次请求（count > 1）不应重新设置 TTL', async ()
 
 test('Phase 0c | FOLLOW_UP_RATE_LIMIT 的 maxRequests 应大于 EXECUTION_RATE_LIMIT', async () => {
   const result = await runTsSnippet(`
-    import { EXECUTION_RATE_LIMIT, FOLLOW_UP_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { EXECUTION_RATE_LIMIT, FOLLOW_UP_RATE_LIMIT } = rateLimitModule;
 
     console.log(JSON.stringify({
       executionMax: EXECUTION_RATE_LIMIT.maxRequests,
@@ -173,7 +179,8 @@ test('Phase 0c | FOLLOW_UP_RATE_LIMIT 的 maxRequests 应大于 EXECUTION_RATE_L
 
 test('Phase 0c | TTL 为 -1（key 无过期）时应回退到 windowSeconds', async () => {
   const result = await runTsSnippet(`
-    import { checkRateLimit, EXECUTION_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const mockRedis = {
       async incr() { return 6; },
@@ -195,7 +202,8 @@ test('Phase 0c | TTL 为 -1（key 无过期）时应回退到 windowSeconds', as
 
 test('Phase 0c | 限流 key 应包含用户标识以实现 per-user 隔离', async () => {
   const result = await runTsSnippet(`
-    import { checkRateLimit, EXECUTION_RATE_LIMIT } from './src/infrastructure/api/rate-limit-middleware.ts';
+    import rateLimitModule from './src/infrastructure/api/rate-limit-middleware.ts';
+    const { checkRateLimit, EXECUTION_RATE_LIMIT } = rateLimitModule;
 
     const keys = [];
     const mockRedis = {
