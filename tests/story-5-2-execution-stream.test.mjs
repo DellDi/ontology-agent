@@ -399,11 +399,6 @@ test('并发追加事件时 sequence 仍保持唯一且递增', async () => {
     const { createRedisAnalysisExecutionEventStore } = eventStoreModule;
 
     const storedEvents = [];
-    let lengthCallCount = 0;
-    let releaseLengthReads = null;
-    const lengthReadsReady = new Promise((resolve) => {
-      releaseLengthReads = resolve;
-    });
     let nextSequence = 0;
 
     const redis = {
@@ -411,20 +406,11 @@ test('并发追加事件时 sequence 仍保持唯一且递增', async () => {
         nextSequence += 1;
         return nextSequence;
       },
-      async lLen() {
-        lengthCallCount += 1;
-
-        if (lengthCallCount === 2) {
-          releaseLengthReads();
-        }
-
-        await lengthReadsReady;
-        return 0;
+      async eval(_script, options) {
+        const eventJson = options.arguments[0];
+        storedEvents.push(JSON.parse(eventJson));
+        return 1;
       },
-      async rPush(_key, value) {
-        storedEvents.push(JSON.parse(value));
-      },
-      async lTrim() {},
       async lRange() {
         return storedEvents.map((event) => JSON.stringify(event));
       },

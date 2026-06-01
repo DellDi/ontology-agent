@@ -32,9 +32,10 @@ async function runTsSnippet(code) {
 
 // ---------------------------------------------------------------------------
 // Phase 0a: Redis Stream TTL — append 后应对 stream 和 sequence key 设置过期
+// (updated for Phase 0b: TTL now set inside Lua script via redis.eval)
 // ---------------------------------------------------------------------------
 
-test('Phase 0a | append 后应对 stream key 和 sequence key 设置 72h TTL', async () => {
+test('Phase 0a | append 通过 Lua 脚本对 stream key 和 sequence key 设置 72h TTL', async () => {
   const result = await runTsSnippet(`
     import eventStoreModule from './src/infrastructure/analysis-execution/redis-analysis-execution-event-store.ts';
     const { createRedisAnalysisExecutionEventStore } = eventStoreModule;
@@ -44,9 +45,10 @@ test('Phase 0a | append 后应对 stream key 和 sequence key 设置 72h TTL', a
 
     const mockRedis = {
       async incr(key) { calls.push(['incr', key]); return ++seqCounter; },
-      async rPush(key, value) { calls.push(['rPush', key, value]); return 1; },
-      async lTrim(key, start, stop) { calls.push(['lTrim', key, start, stop]); },
-      async expire(key, ttl) { calls.push(['expire', key, ttl]); },
+      async eval(script, options) {
+        calls.push(['eval', script, options]);
+        return 1;
+      },
       async lRange() { return []; },
     };
 
@@ -60,32 +62,42 @@ test('Phase 0a | append 后应对 stream key 和 sequence key 设置 72h TTL', a
       message: '开始执行',
     });
 
-    const expireCalls = calls.filter(c => c[0] === 'expire');
-    const expireKeys = expireCalls.map(c => c[1]);
-    const expireTtls = expireCalls.map(c => c[2]);
+    const evalCalls = calls.filter(c => c[0] === 'eval');
+
+    let evalKeys = [];
+    let evalArgs = [];
+    let scriptContainsExpire = false;
+    if (evalCalls.length > 0) {
+      const opts = evalCalls[0][2];
+      evalKeys = opts.keys || [];
+      evalArgs = opts.arguments || [];
+      scriptContainsExpire = evalCalls[0][1].includes('EXPIRE');
+    }
 
     const expectedStreamKey = 'dip3:stream:sess-001';
     const expectedSeqKey = 'dip3:stream-sequence:sess-001';
-    const expectedTtl = 72 * 60 * 60;
+    const expectedTtl = String(72 * 60 * 60);
 
     console.log(JSON.stringify({
-      expireCallCount: expireCalls.length,
-      expireKeys,
-      expireTtls,
-      hasStreamKey: expireKeys.includes(expectedStreamKey),
-      hasSeqKey: expireKeys.includes(expectedSeqKey),
-      allTtlsCorrect: expireTtls.every(t => t === expectedTtl),
+      evalCallCount: evalCalls.length,
+      evalKeys,
+      evalArgs,
+      scriptContainsExpire,
+      hasStreamKey: evalKeys.includes(expectedStreamKey),
+      hasSeqKey: evalKeys.includes(expectedSeqKey),
+      ttlArgCorrect: evalArgs.includes(expectedTtl),
       expectedTtl,
     }));
   `);
 
-  assert.equal(result.expireCallCount, 2, '应调用 expire 两次（stream + sequence）');
-  assert.ok(result.hasStreamKey, '应对 stream key 设置 TTL');
-  assert.ok(result.hasSeqKey, '应对 stream-sequence key 设置 TTL');
-  assert.ok(result.allTtlsCorrect, `TTL 应为 ${result.expectedTtl} 秒 (72h)`);
+  assert.equal(result.evalCallCount, 1, '应调用 eval 一次（Lua 脚本）');
+  assert.ok(result.hasStreamKey, 'Lua KEYS 应包含 stream key');
+  assert.ok(result.hasSeqKey, 'Lua KEYS 应包含 stream-sequence key');
+  assert.ok(result.scriptContainsExpire, 'Lua 脚本应包含 EXPIRE 命令');
+  assert.ok(result.ttlArgCorrect, `Lua ARGV 应包含 TTL ${result.expectedTtl} 秒 (72h)`);
 });
 
-test('Phase 0a | 多次 append 每次都刷新 TTL', async () => {
+test('Phase 0a | 多次 append 每次都通过 Lua 脚本刷新 TTL', async () => {
   const result = await runTsSnippet(`
     import eventStoreModule from './src/infrastructure/analysis-execution/redis-analysis-execution-event-store.ts';
     const { createRedisAnalysisExecutionEventStore } = eventStoreModule;
@@ -95,9 +107,10 @@ test('Phase 0a | 多次 append 每次都刷新 TTL', async () => {
 
     const mockRedis = {
       async incr(key) { calls.push(['incr', key]); return ++seqCounter; },
-      async rPush(key, value) { calls.push(['rPush', key, value]); return seqCounter; },
-      async lTrim(key, start, stop) { calls.push(['lTrim', key, start, stop]); },
-      async expire(key, ttl) { calls.push(['expire', key, ttl]); },
+      async eval(script, options) {
+        calls.push(['eval', script, options]);
+        return 1;
+      },
       async lRange() { return []; },
     };
 
@@ -117,14 +130,14 @@ test('Phase 0a | 多次 append 每次都刷新 TTL', async () => {
       message: '步骤 2',
     });
 
-    const expireCalls = calls.filter(c => c[0] === 'expire');
+    const evalCalls = calls.filter(c => c[0] === 'eval');
 
     console.log(JSON.stringify({
-      expireCallCount: expireCalls.length,
+      evalCallCount: evalCalls.length,
     }));
   `);
 
-  assert.equal(result.expireCallCount, 4, '两次 append 应各产生 2 次 expire 调用');
+  assert.equal(result.evalCallCount, 2, '两次 append 应各产生 1 次 eval 调用');
 });
 
 test('Phase 0a | STREAM_TTL_SECONDS 常量已导出且值为 259200', async () => {
