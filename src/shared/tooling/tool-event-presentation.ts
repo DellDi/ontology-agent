@@ -47,6 +47,7 @@ function buildSuccessPresentation(
       const output = event.output as {
         metric?: string;
         rowCount?: number;
+        granularity?: string;
         rows?: {
           value: number | null;
           time: string | null;
@@ -54,6 +55,10 @@ function buildSuccessPresentation(
         }[];
       };
       const firstValue = output.rows?.[0]?.value;
+      const isMonthly = output.granularity === 'month';
+      const displayRows = isMonthly
+        ? (output.rows ?? [])
+        : (output.rows ?? []).slice(0, 5);
 
       return {
         summary: [
@@ -70,7 +75,7 @@ function buildSuccessPresentation(
             type: 'table',
             title: '指标结果',
             columns: ['时间', '维度', '值'],
-            rows: (output.rows ?? []).slice(0, 5).map((row) => [
+            rows: displayRows.map((row) => [
               row.time ?? '-',
               Object.entries(row.dimensions ?? {})
                 .map(([key, value]) => `${key}=${value ?? '-'}`)
