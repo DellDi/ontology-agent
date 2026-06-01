@@ -573,6 +573,7 @@ export default async function AnalysisSessionPage({
           intentLabel={intent ? getIntentTypeLabel(intent.type) : undefined}
           ontologyVersionBadge={ontologyVersionBadgeText ?? undefined}
           followUpLabel={activeFollowUp ? '追问模式' : undefined}
+          candidateFactors={mergedCandidateFactorReadModel.factors}
           thread={thread}
           drawerContents={{
             plan: (

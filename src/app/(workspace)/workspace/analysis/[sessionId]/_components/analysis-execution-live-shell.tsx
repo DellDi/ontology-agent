@@ -37,6 +37,8 @@ type AnalysisExecutionLiveShellProps = {
   intentLabel?: string;
   ontologyVersionBadge?: string;
   followUpLabel?: string;
+  /** AC6: 候选因素列表（供诊断面板展示验证结果） */
+  candidateFactors?: readonly { key: string; label: string }[];
   /** 多轮追问线程（2+ 轮时由 page 层构建） */
   thread?: ConversationThreadViewModel;
   /** 详情抽屉内容（由 page 级 server component 预渲染） */
@@ -78,6 +80,7 @@ export function AnalysisExecutionLiveShell({
   intentLabel,
   ontologyVersionBadge,
   followUpLabel,
+  candidateFactors,
   thread,
   drawerContents = {},
   children,
@@ -134,6 +137,13 @@ export function AnalysisExecutionLiveShell({
       ? initialProjection
       : rebuiltProjection;
 
+  // 结论中的因素 ID 列表（用于判断候选因素是否进入最终判断）
+  const conclusionCauseIds = useMemo(
+    () =>
+      initialConclusionReadModel?.causes?.map((cause) => cause.id) ?? [],
+    [initialConclusionReadModel],
+  );
+
   // 构建对话视图模型
   const conversationViewModel = useMemo(
     () =>
@@ -146,6 +156,8 @@ export function AnalysisExecutionLiveShell({
         events,
         hasConnectionIssue: !!streamConnectionIssue,
         planAssumptions,
+        candidateFactors,
+        conclusionCauseIds,
       }),
     [
       questionText,
@@ -156,6 +168,8 @@ export function AnalysisExecutionLiveShell({
       events,
       streamConnectionIssue,
       planAssumptions,
+      candidateFactors,
+      conclusionCauseIds,
     ],
   );
 
@@ -235,6 +249,7 @@ export function AnalysisExecutionLiveShell({
         eventCount={diagnostics.eventCount}
         lastSequence={diagnostics.lastSequence}
         executionId={diagnostics.executionId}
+        candidateValidation={diagnostics.candidateValidation}
       />
     ),
   };
