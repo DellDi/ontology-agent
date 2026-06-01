@@ -201,6 +201,15 @@ export function normalizeLlmExtractionOutput(
         : undefined,
   };
 
+  // 时间粒度
+  const granularity = output.granularity?.value
+    ? {
+        label: '时间粒度',
+        value: output.granularity.value,
+        state: confidenceToState(output.granularity.confidence),
+      }
+    : undefined;
+
   // 过滤条件 → constraints
   if (output.filters) {
     for (const filter of output.filters) {
@@ -227,7 +236,7 @@ export function normalizeLlmExtractionOutput(
     output.comparison.confidence * 0.2;
 
   return {
-    context: { targetMetric, entity, timeRange, comparison, constraints },
+    context: { targetMetric, entity, timeRange, comparison, granularity, constraints },
     confidence,
   };
 }
