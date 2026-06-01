@@ -21,6 +21,8 @@ export type LlmInvocationContext = {
   organizationId: string;
   purpose: string;
   timeoutMs?: number;
+  /** 取消信号 — 由 worker 超时守卫注入，传递给 HTTP 客户端以中止底层请求。 */
+  signal?: AbortSignal;
 };
 
 export type LlmMessageRole = 'system' | 'user' | 'assistant';

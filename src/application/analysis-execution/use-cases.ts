@@ -317,6 +317,7 @@ export function createAnalysisExecutionUseCases({
       groundedContext,
       intentType,
       eventEmitter,
+      signal,
     }: {
       stepId: string;
       stepTitle?: string;
@@ -329,7 +330,13 @@ export function createAnalysisExecutionUseCases({
       groundedContext?: OntologyGroundedContext;
       intentType?: AnalysisIntentType;
       eventEmitter?: ToolExecutionEventEmitter;
+      /** 超时取消信号 — 透传到工具调用上下文，以便底层中止 HTTP 请求。 */
+      signal?: AbortSignal;
     }): Promise<OrchestrationStepExecutionResult> {
+      // 将 signal 合并到 invocationContext，使工具层可通过 context.signal 获取
+      const effectiveInvocationContext: AnalysisToolInvocationContext = signal
+        ? { ...invocationContext, signal }
+        : invocationContext;
       const selection = await this.selectToolsForStep({
         stepId,
         stepTitle,
@@ -391,7 +398,7 @@ export function createAnalysisExecutionUseCases({
                   events,
                 )
               : toolInputsByName[tool.toolName],
-          context: invocationContext,
+          context: effectiveInvocationContext,
         });
 
         const finishedAt = Date.now();

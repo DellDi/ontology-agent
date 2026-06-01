@@ -286,10 +286,18 @@ export function createAnalysisToolingServices({
         resolveAvailability: resolveLlmAvailability,
         inputSchema: llmStructuredAnalysisInputSchema,
         outputSchema: llmStructuredAnalysisOutputSchema,
-        async invoke(input) {
-          const result = await analysisAiUseCases.runTask(
-            input as Parameters<typeof analysisAiUseCases.runTask>[0],
-          );
+        async invoke(input, context) {
+          const typedInput = input as Parameters<typeof analysisAiUseCases.runTask>[0];
+
+          // 将 worker 注入的 abort signal 桥接到 LLM 请求上下文，使超时取消可传递到底层 HTTP 客户端
+          const requestWithContext = context?.signal
+            ? {
+                ...typedInput,
+                context: { ...typedInput.context, signal: context.signal },
+              }
+            : typedInput;
+
+          const result = await analysisAiUseCases.runTask(requestWithContext);
 
           return {
             taskType: result.taskType,

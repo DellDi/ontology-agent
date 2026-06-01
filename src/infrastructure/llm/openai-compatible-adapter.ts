@@ -384,7 +384,10 @@ export function createOpenAiCompatibleLlmProvider({
                   }
                 : undefined,
             },
-            { timeout: context.timeoutMs ?? config.timeoutMs },
+            {
+              timeout: context.timeoutMs ?? config.timeoutMs,
+              ...(context.signal ? { signal: context.signal } : {}),
+            },
           );
           const payload = {
             ...(response as unknown as JsonRecord),
@@ -456,7 +459,10 @@ export function createOpenAiCompatibleLlmProvider({
                 ? { response_format: mapChatCompletionResponseFormat(responseFormat) }
                 : {}),
             },
-            { timeout: context.timeoutMs ?? config.timeoutMs },
+            {
+              timeout: context.timeoutMs ?? config.timeoutMs,
+              ...(context.signal ? { signal: context.signal } : {}),
+            },
           );
 
           return {

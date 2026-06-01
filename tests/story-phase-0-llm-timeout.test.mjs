@@ -135,6 +135,126 @@ test('Phase 0d | LLMTimeoutError 消息包含可读秒数', async () => {
   assert.ok(result.has30, '30 秒超时的错误消息应包含"30"');
 });
 
+// ---------------------------------------------------------------------------
+// P1 Finding 9: AbortSignal 传递 — 超时时取消底层执行
+// ---------------------------------------------------------------------------
+
+test('P1-F9 | callWithTimeout 向 fn 传递 AbortSignal', async () => {
+  const result = await runTsSnippet(`
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout } = timeoutUtils;
+
+    let receivedSignal = null;
+    await callWithTimeout((signal) => {
+      receivedSignal = signal;
+      return Promise.resolve('ok');
+    }, 5000);
+
+    console.log(JSON.stringify({
+      hasSignal: receivedSignal !== null,
+      isAbortSignal: receivedSignal instanceof AbortSignal,
+      aborted: receivedSignal?.aborted,
+    }));
+  `);
+
+  assert.ok(result.hasSignal, 'fn 应收到 signal 参数');
+  assert.ok(result.isAbortSignal, 'signal 应为 AbortSignal 实例');
+  assert.equal(result.aborted, false, '及时完成时 signal 不应被 abort');
+});
+
+test('P1-F9 | 超时后 signal 被 abort', async () => {
+  const result = await runTsSnippet(`
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout, LLMTimeoutError } = timeoutUtils;
+
+    let signalRef = null;
+    const neverResolve = new Promise((resolve) => {
+      // 记录 signal 以便检查
+    });
+
+    try {
+      await callWithTimeout((signal) => {
+        signalRef = signal;
+        return neverResolve;
+      }, 50);
+    } catch (error) {
+      // 预期 LLMTimeoutError
+    }
+
+    // 给 abort 一点时间传播
+    await new Promise(r => setTimeout(r, 20));
+
+    console.log(JSON.stringify({
+      hasSignal: signalRef !== null,
+      aborted: signalRef?.aborted,
+    }));
+
+    // 强制退出以避免 neverResolve 的 pending timer 阻塞子进程
+    process.exit(0);
+  `);
+
+  assert.ok(result.hasSignal, 'fn 应收到 signal');
+  assert.equal(result.aborted, true, '超时后 signal.aborted 应为 true');
+});
+
+test('P1-F9 | signal 在 fn 及时完成时未被 abort', async () => {
+  const result = await runTsSnippet(`
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout } = timeoutUtils;
+
+    let signalRef = null;
+    await callWithTimeout(async (signal) => {
+      signalRef = signal;
+      await new Promise(r => setTimeout(r, 10));
+      return 'done';
+    }, 5000);
+
+    console.log(JSON.stringify({
+      hasSignal: signalRef !== null,
+      aborted: signalRef?.aborted,
+    }));
+  `);
+
+  assert.ok(result.hasSignal, 'fn 应收到 signal');
+  assert.equal(result.aborted, false, 'fn 及时完成时 signal 不应被 abort');
+});
+
+test('P1-F9 | 超时时 fn 可通过 signal 感知取消并提前退出', async () => {
+  const result = await runTsSnippet(`
+    import timeoutUtils from './src/worker/timeout-utils.ts';
+    const { callWithTimeout, LLMTimeoutError } = timeoutUtils;
+
+    let toolExecuted = false;
+
+    try {
+      await callWithTimeout(async (signal) => {
+        // 模拟底层工具检查 signal 并提前退出
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, 10_000);
+          signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            const err = new Error('The operation was aborted');
+            err.name = 'AbortError';
+            reject(err);
+          }, { once: true });
+        });
+        toolExecuted = true; // 不应执行到这里
+        return 'should-not-reach';
+      }, 50);
+    } catch (error) {
+      console.log(JSON.stringify({
+        isTimeout: error instanceof LLMTimeoutError,
+        toolExecuted,
+      }));
+    }
+
+    process.exit(0);
+  `);
+
+  assert.ok(result.isTimeout, '应抛出 LLMTimeoutError');
+  assert.equal(result.toolExecuted, false, '工具在 abort 后不应继续执行');
+});
+
 test('Phase 0d | callWithTimeout 使用默认超时值', async () => {
   const result = await runTsSnippet(`
     import timeoutUtils from './src/worker/timeout-utils.ts';
