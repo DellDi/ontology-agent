@@ -109,6 +109,71 @@ test('Phase 2b | 无 step 的事件应被跳过', async () => {
   assert.equal(result.cardCount, 0, '无 step 的事件应被跳过');
 });
 
+test('P1-Finding-4 | execution completed 后，running step 应收敛为 completed', async () => {
+  const result = await runTsSnippet(`
+    import m from './src/application/analysis-execution/execution-event-reducer.ts';
+    const { reduceEventsToStepCards } = m;
+
+    const events = [
+      { id: 'e1', sessionId: 's', executionId: 'x', sequence: 1, kind: 'step-started', timestamp: '2026-01-01T00:00:00Z', step: { id: 'step-1', title: '数据拉取' } },
+      { id: 'e2', sessionId: 's', executionId: 'x', sequence: 2, kind: 'step-started', timestamp: '2026-01-01T00:00:01Z', step: { id: 'step-2', title: '指标计算' } },
+      { id: 'e3', sessionId: 's', executionId: 'x', sequence: 3, kind: 'step-completed', status: 'completed', timestamp: '2026-01-01T00:00:02Z', step: { id: 'step-1', status: 'completed' } },
+      // step-2 没有收到 step-completed 事件，但 execution 整体已完成
+      { id: 'e4', sessionId: 's', executionId: 'x', sequence: 4, kind: 'execution-status', status: 'completed', timestamp: '2026-01-01T00:00:03Z' },
+    ];
+
+    const cards = reduceEventsToStepCards({ events, executionStatus: 'completed' });
+    const step1 = cards.find(c => c.stepId === 'step-1');
+    const step2 = cards.find(c => c.stepId === 'step-2');
+    console.log(JSON.stringify({
+      cardCount: cards.length,
+      step1Status: step1?.status,
+      step2Status: step2?.status,
+      step2CompletedAt: step2?.completedAt,
+    }));
+  `);
+  assert.equal(result.cardCount, 2, '应有 2 张卡片');
+  assert.equal(result.step1Status, 'completed', 'step-1 正常完成');
+  assert.equal(result.step2Status, 'completed', 'step-2 应被收敛为 completed');
+  assert.equal(result.step2CompletedAt, '2026-01-01T00:00:01Z', 'converged step 的 completedAt 应回退到 startedAt');
+});
+
+test('P1-Finding-4 | execution failed 后，running step 应收敛为 failed', async () => {
+  const result = await runTsSnippet(`
+    import m from './src/application/analysis-execution/execution-event-reducer.ts';
+    const { reduceEventsToStepCards } = m;
+
+    const events = [
+      { id: 'e1', sessionId: 's', executionId: 'x', sequence: 1, kind: 'step-started', timestamp: '2026-01-01T00:00:00Z', step: { id: 'step-1', title: '数据拉取' } },
+      { id: 'e2', sessionId: 's', executionId: 'x', sequence: 2, kind: 'execution-status', status: 'failed', timestamp: '2026-01-01T00:00:01Z' },
+    ];
+
+    const cards = reduceEventsToStepCards({ events, executionStatus: 'failed' });
+    console.log(JSON.stringify({
+      status: cards[0]?.status,
+    }));
+  `);
+  assert.equal(result.status, 'failed', 'running step 应被收敛为 failed');
+});
+
+test('P1-Finding-4 | executionStatus 未传时 running step 保持不变（向后兼容）', async () => {
+  const result = await runTsSnippet(`
+    import m from './src/application/analysis-execution/execution-event-reducer.ts';
+    const { reduceEventsToStepCards } = m;
+
+    const events = [
+      { id: 'e1', sessionId: 's', executionId: 'x', sequence: 1, kind: 'step-started', timestamp: '2026-01-01T00:00:00Z', step: { id: 'step-1', title: '数据拉取' } },
+    ];
+
+    // 旧调用方式：直接传数组
+    const cards = reduceEventsToStepCards(events);
+    console.log(JSON.stringify({
+      status: cards[0]?.status,
+    }));
+  `);
+  assert.equal(result.status, 'running', '不传 executionStatus 时 running 状态不变');
+});
+
 test('Phase 2b | 无 step 但有 renderBlocks 的事件应保留', async () => {
   const result = await runTsSnippet(`
     import m from './src/application/analysis-execution/execution-event-reducer.ts';
