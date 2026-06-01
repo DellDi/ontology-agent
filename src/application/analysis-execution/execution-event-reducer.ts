@@ -10,15 +10,30 @@ export type ReducedStepCard = {
   renderBlocks: AnalysisExecutionStreamEvent['renderBlocks'];
 };
 
+export type ReduceEventsInput = {
+  events: readonly AnalysisExecutionStreamEvent[];
+  executionStatus?: 'running' | 'completed' | 'failed';
+};
+
 /**
  * 将细粒度事件流归并为按步骤聚合的卡片列表。
  *
  * 同一 step.id 的多个事件（step-started, step-lifecycle, tool-*, step-completed）
  * 归并为一张卡片，状态按优先级：failed > completed > running。
+ *
+ * 当 executionStatus 为终态（completed / failed）时，所有仍处于 running 的
+ * step 卡片会被收敛为对应终态，避免执行结束后仍显示"执行中"。
  */
 export function reduceEventsToStepCards(
-  events: readonly AnalysisExecutionStreamEvent[],
+  input: ReduceEventsInput | readonly AnalysisExecutionStreamEvent[],
 ): ReducedStepCard[] {
+  // 兼容旧的直接传 events 数组的调用方式（'events' in 区分对象与数组）
+  const isLegacyArray = !('events' in input);
+  const events: readonly AnalysisExecutionStreamEvent[] = isLegacyArray
+    ? input
+    : input.events;
+  const executionStatus: 'running' | 'completed' | 'failed' | undefined =
+    isLegacyArray ? undefined : input.executionStatus;
   const stepMap = new Map<string, ReducedStepCard>();
 
   for (const event of events) {
@@ -102,6 +117,16 @@ export function reduceEventsToStepCards(
       }
       if (event.stage?.label) {
         existing.stageLabel = event.stage.label;
+      }
+    }
+  }
+
+  // 如果 execution 已进入终态，将所有仍处于 running 的 step 收敛为终态
+  if (executionStatus === 'completed' || executionStatus === 'failed') {
+    for (const card of stepMap.values()) {
+      if (card.status === 'running') {
+        card.status = executionStatus;
+        card.completedAt = card.startedAt;
       }
     }
   }

@@ -31,6 +31,18 @@ export function AnalysisExecutionStreamPanel({
     },
   );
 
+  // 取最后一条 execution-status 事件作为终态（事件按 sequence 升序排列）
+  const lastExecStatusEvent = [...events]
+    .reverse()
+    .find((e) => e.kind === 'execution-status');
+  const rawExecStatus = lastExecStatusEvent?.status;
+  const executionStatus =
+    rawExecStatus === 'completed'
+      ? 'completed'
+      : rawExecStatus === 'failed'
+        ? 'failed'
+        : undefined;
+
   return (
     <article
       className={
@@ -52,7 +64,7 @@ export function AnalysisExecutionStreamPanel({
           renderedBlock={processBoardRenderedBlock}
         />
 
-        {reduceEventsToStepCards(events).map((card) => (
+        {reduceEventsToStepCards({ events, executionStatus }).map((card) => (
             <section
               className="rounded-3xl border border-[color:var(--line-200)] bg-white/80 p-5"
               key={card.stepId}
