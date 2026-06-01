@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -642,14 +643,41 @@ function AnalysisDetailDrawer({
   content: ReactNode;
   onClose: () => void;
 }) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!drawerType) return;
+
+    const drawer = drawerRef.current;
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !drawer) return;
+
+      const focusable = drawer.querySelectorAll<HTMLElement>(focusableSelector);
+      if (!focusable.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
+
+    // Focus first focusable element on open
+    if (drawer) {
+      const firstFocusable = drawer.querySelector<HTMLElement>(focusableSelector);
+      firstFocusable?.focus();
+    }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -659,6 +687,10 @@ function AnalysisDetailDrawer({
 
   return (
     <aside
+      ref={drawerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={DRAWER_LABELS[drawerType] ?? '详情'}
       className="fixed inset-y-0 right-0 z-40 w-full max-w-[560px] transform transition-transform duration-300 translate-x-0"
     >
       <div className="h-full p-2 sm:p-4">
