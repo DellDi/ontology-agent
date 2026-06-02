@@ -118,13 +118,30 @@ export function buildCandidateValidationSummary(
     }
   }
 
-  // 结论中的因素 ID 集合，用于判断是否进入最终判断
-  const conclusionIdSet = new Set(conclusionCauseIds ?? []);
+  // 从结论相关事件的 renderBlocks 中提取文本，用于判断因素是否进入最终判断
+  const conclusionTexts: string[] = [];
+  for (const event of events) {
+    if (event.kind === 'stage-result' || event.kind === 'step-completed') {
+      for (const block of event.renderBlocks ?? []) {
+        const raw = block as Record<string, unknown>;
+        if (raw.type === 'markdown') {
+          conclusionTexts.push((raw.content as string) ?? '');
+        } else if (raw.type === 'conclusion-card') {
+          const payload = raw.payload as Record<string, unknown> | undefined;
+          conclusionTexts.push((payload?.headline as string) ?? '');
+          conclusionTexts.push((payload?.summary as string) ?? '');
+        }
+      }
+    }
+  }
+  const conclusionText = conclusionTexts.join(' ').toLowerCase();
 
   const validations: CandidateValidationResult[] = candidateFactors.map(
     (factor) => {
       const metadataResult = metadataValidations.get(factor.key);
-      const includedInFinalConclusion = conclusionIdSet.has(factor.key);
+      const includedInFinalConclusion = conclusionText.includes(
+        factor.label.toLowerCase(),
+      );
 
       if (!hasValidationStep) {
         // 没有任何验证步骤事件

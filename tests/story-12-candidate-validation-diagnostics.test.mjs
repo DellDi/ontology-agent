@@ -169,7 +169,7 @@ test('AC6 | 验证步骤未完成时所有因素标记为 not-validated 附注',
   );
 });
 
-test('AC6 | 无 metadata 但因素出现在结论中时标记为 not-validated（不再推导）', async () => {
+test('AC6 | 无 metadata 但因素标签出现在结论文本中时标记 includedInFinalConclusion', async () => {
   const events = [
     buildEvent({
       sequence: 1,
@@ -179,26 +179,38 @@ test('AC6 | 无 metadata 但因素出现在结论中时标记为 not-validated�
         { type: 'kv-list', title: '验证结果', items: [{ label: '总体', value: '完成' }] },
       ],
     }),
+    buildEvent({
+      sequence: 2,
+      kind: 'step-completed',
+      step: { id: 'synthesize-attribution', order: 3, title: '归因综合', status: 'completed' },
+      renderBlocks: [
+        { type: 'markdown', title: '结论', content: '收费政策触达和账单生成及时性是影响收缴率的关键因素' },
+      ],
+    }),
   ];
   const result = await runTsSnippet(`
     ${IMPORTS}
     const events = ${JSON.stringify(events)};
     const factors = ${JSON.stringify(SAMPLE_FACTORS)};
-    const summary = buildCandidateValidationSummary(events, factors, ['fee-policy-reach', 'billing-timeliness']);
+    const summary = buildCandidateValidationSummary(events, factors, []);
     console.log(JSON.stringify(summary));
   `);
 
-  // includedInFinalConclusion 仍正确标记
+  // 结论文本中包含收费政策触达和账单生成及时性，不包含工单响应时效
   assert.equal(result.includedCount, 2);
 
-  // 但 status 不再从结论推导，诚实标记为 not-validated
+  // status 不从结论推导，诚实标记为 not-validated
   const feePolicy = result.validations.find((v) => v.factorKey === 'fee-policy-reach');
   assert.equal(feePolicy.status, 'not-validated', '无 metadata → not-validated（不再推导）');
   assert.equal(feePolicy.includedInFinalConclusion, true);
   assert.equal(feePolicy.validationNote, '验证步骤未生成逐因素结果');
 
+  const billing = result.validations.find((v) => v.factorKey === 'billing-timeliness');
+  assert.equal(billing.includedInFinalConclusion, true, '标签出现在结论文本中 → included');
+
   const workOrder = result.validations.find((v) => v.factorKey === 'work-order-response');
   assert.equal(workOrder.status, 'not-validated', '无 metadata → not-validated');
+  assert.equal(workOrder.includedInFinalConclusion, false, '标签不在结论文本中 → not included');
 });
 
 // ---------------------------------------------------------------------------
