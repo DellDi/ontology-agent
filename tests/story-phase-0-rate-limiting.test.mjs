@@ -191,6 +191,7 @@ test('Phase 0c | TTL 为 -1（key 无过期）时应回退到 windowSeconds', as
     const mockRedis = {
       async eval() { return 6; },
       async ttl() { return -1; },
+      async expire() { return true; },
     };
 
     const res = await checkRateLimit(mockRedis, EXECUTION_RATE_LIMIT, 'user-1');
