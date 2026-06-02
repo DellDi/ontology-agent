@@ -240,7 +240,7 @@ export function createAnalysisExecutionUseCases({
 
       const ontologySelection = await ontologyToolBindingUseCases?.selectToolsForStep({
         stepId,
-        availableToolNames: [...registeredToolNames],
+        availableToolNames: [...readyToolNames],
         groundedContext,
         intentType,
         questionText,
