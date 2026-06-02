@@ -140,7 +140,7 @@ test('AC6 | 验证步骤完成且有 metadata validatedFactors 时逐因素提�
   assert.equal(workOrder.includedInFinalConclusion, false);
 
   const billing = result.validations.find((v) => v.factorKey === 'billing-timeliness');
-  assert.equal(billing.status, 'inconclusive', '无 metadata 且不在结论中 → inconclusive');
+  assert.equal(billing.status, 'not-validated', '无 metadata 且不在结论中 → not-validated');
 });
 
 test('AC6 | 验证步骤未完成时所有因素标记为 not-validated 附注', async () => {
@@ -169,7 +169,7 @@ test('AC6 | 验证步骤未完成时所有因素标记为 not-validated 附注',
   );
 });
 
-test('AC6 | 无 metadata 但因素出现在结论中时推导为 supported', async () => {
+test('AC6 | 无 metadata 但因素出现在结论中时标记为 not-validated（不再推导）', async () => {
   const events = [
     buildEvent({
       sequence: 1,
@@ -188,14 +188,17 @@ test('AC6 | 无 metadata 但因素出现在结论中时推导为 supported', asy
     console.log(JSON.stringify(summary));
   `);
 
+  // includedInFinalConclusion 仍正确标记
   assert.equal(result.includedCount, 2);
 
+  // 但 status 不再从结论推导，诚实标记为 not-validated
   const feePolicy = result.validations.find((v) => v.factorKey === 'fee-policy-reach');
-  assert.equal(feePolicy.status, 'supported', '出现在结论中 → supported');
+  assert.equal(feePolicy.status, 'not-validated', '无 metadata → not-validated（不再推导）');
   assert.equal(feePolicy.includedInFinalConclusion, true);
+  assert.equal(feePolicy.validationNote, '验证步骤未生成逐因素结果');
 
   const workOrder = result.validations.find((v) => v.factorKey === 'work-order-response');
-  assert.equal(workOrder.status, 'inconclusive', '不在结论中且无 metadata → inconclusive');
+  assert.equal(workOrder.status, 'not-validated', '无 metadata → not-validated');
 });
 
 // ---------------------------------------------------------------------------

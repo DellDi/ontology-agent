@@ -170,7 +170,6 @@ export function buildCandidateValidationSummary(
         evidence: validationEvidence.slice(0, 4),
         includedInFinalConclusion,
         validationNote: '验证步骤未生成逐因素结果',
-        includedInFinalConclusion: false,
       };
     },
   );
