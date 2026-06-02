@@ -268,32 +268,48 @@ export async function POST(request: Request, { params }: RouteContext) {
     : candidateFactorReadModel;
   let groundedArtifacts;
 
-  try {
-    groundedArtifacts = await buildGroundedPlanningArtifacts({
-      sessionId: analysisSession.id,
-      ownerUserId: authSession.userId,
-      intentType: intent?.type ?? 'general-analysis',
-      contextReadModel: executionContextReadModel,
-      candidateFactorReadModel: mergedCandidateFactorReadModel,
-      groundingUseCases: ontologyRuntimeServices.groundingUseCases,
-      groundedContextStore: ontologyRuntimeServices.groundedContextStore,
-      analysisPlanningUseCases,
-    });
-  } catch (error) {
-    const url = buildSessionUrl(request, sessionId);
-    url.searchParams.set(
-      'executionError',
-      error instanceof Error
-        ? formatGroundingErrorForUser(error)
-        : '系统暂时无法生成执行计划，请稍后重试。',
-    );
-    if (followUp) {
-      url.searchParams.set('followUpId', followUp.id);
-    }
+  // #13: If the followUp already carries a replan plan snapshot that the user
+  // has reviewed and confirmed, reuse it instead of regenerating a fresh plan.
+  // The corresponding groundedContext was persisted by the replan route, so we
+  // retrieve it from the store.
+  const replanPlanSnapshot = followUp?.currentPlanSnapshot ?? null;
+  const replanGroundedContext = replanPlanSnapshot
+    ? await ontologyRuntimeServices.groundedContextStore.getLatest(analysisSession.id)
+    : null;
 
-    return NextResponse.redirect(url, {
-      status: 303,
-    });
+  if (replanPlanSnapshot && replanGroundedContext) {
+    groundedArtifacts = {
+      planSnapshot: replanPlanSnapshot,
+      groundedContext: replanGroundedContext,
+    };
+  } else {
+    try {
+      groundedArtifacts = await buildGroundedPlanningArtifacts({
+        sessionId: analysisSession.id,
+        ownerUserId: authSession.userId,
+        intentType: intent?.type ?? 'general-analysis',
+        contextReadModel: executionContextReadModel,
+        candidateFactorReadModel: mergedCandidateFactorReadModel,
+        groundingUseCases: ontologyRuntimeServices.groundingUseCases,
+        groundedContextStore: ontologyRuntimeServices.groundedContextStore,
+        analysisPlanningUseCases,
+      });
+    } catch (error) {
+      const url = buildSessionUrl(request, sessionId);
+      url.searchParams.set(
+        'executionError',
+        error instanceof Error
+          ? formatGroundingErrorForUser(error)
+          : '系统暂时无法生成执行计划，请稍后重试。',
+      );
+      if (followUp) {
+        url.searchParams.set('followUpId', followUp.id);
+      }
+
+      return NextResponse.redirect(url, {
+        status: 303,
+      });
+    }
   }
 
   try {
