@@ -59,9 +59,20 @@ function parseNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function createAbortController(timeoutMs: number) {
+function createAbortController(timeoutMs: number, externalSignal?: AbortSignal) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  // 如果外部 signal 已 abort（如 worker 超时），也触发内部 abort
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener('abort', () => controller.abort(), {
+        once: true,
+      });
+    }
+  }
 
   return {
     controller,
@@ -305,8 +316,11 @@ export function createCubeSemanticQueryAdapter(
 ): SemanticQueryPort {
   const config = getCubeProviderConfig();
 
-  async function executeLoadQuery(query: ReturnType<typeof buildCubeLoadQuery>) {
-    const { controller, clear } = createAbortController(config.timeoutMs);
+  async function executeLoadQuery(
+    query: ReturnType<typeof buildCubeLoadQuery>,
+    externalSignal?: AbortSignal,
+  ) {
+    const { controller, clear } = createAbortController(config.timeoutMs, externalSignal);
 
     try {
       const response = await fetchImpl(`${config.apiUrl}/load`, {
@@ -347,7 +361,7 @@ export function createCubeSemanticQueryAdapter(
   }
 
   return {
-    async runMetricQuery(request) {
+    async runMetricQuery(request, options) {
       const runtimeCatalog = await loadApprovedSemanticMetricCatalog();
       const definition = getSemanticMetricDefinition(request.metric, runtimeCatalog);
 
@@ -356,6 +370,8 @@ export function createCubeSemanticQueryAdapter(
           `Unsupported semantic metric "${request.metric}".`,
         );
       }
+
+      const externalSignal = options?.signal;
 
       if (definition.numeratorMetricKey && definition.denominatorMetricKey) {
         const numeratorRequest = normalizeFinanceMeasureRequest({
@@ -382,8 +398,14 @@ export function createCubeSemanticQueryAdapter(
         }
 
         const [numeratorPayload, denominatorPayload] = await Promise.all([
-          executeLoadQuery(buildCubeLoadQuery(numeratorRequest, numeratorDefinition)),
-          executeLoadQuery(buildCubeLoadQuery(denominatorRequest, denominatorDefinition)),
+          executeLoadQuery(
+            buildCubeLoadQuery(numeratorRequest, numeratorDefinition),
+            externalSignal,
+          ),
+          executeLoadQuery(
+            buildCubeLoadQuery(denominatorRequest, denominatorDefinition),
+            externalSignal,
+          ),
         ]);
 
         return combineRatioResults({
@@ -410,6 +432,7 @@ export function createCubeSemanticQueryAdapter(
         normalizedDefinition,
         await executeLoadQuery(
           buildCubeLoadQuery(normalizedRequest, normalizedDefinition),
+          externalSignal,
         ),
       );
     },

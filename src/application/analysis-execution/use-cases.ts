@@ -215,6 +215,7 @@ export function createAnalysisExecutionUseCases({
       context,
       groundedContext,
       intentType,
+      signal,
     }: {
       stepId: string;
       stepTitle?: string;
@@ -224,6 +225,8 @@ export function createAnalysisExecutionUseCases({
       context: AnalysisAiTaskContext;
       groundedContext?: OntologyGroundedContext;
       intentType?: AnalysisIntentType;
+      /** 超时取消信号 — 透传到 LLM 工具选择调用。 */
+      signal?: AbortSignal;
     }): Promise<OrchestrationStepSelection> {
       const toolDefinitions = toolRegistryUseCases.listToolDefinitions();
       const readyToolNames = new Set(
@@ -251,6 +254,10 @@ export function createAnalysisExecutionUseCases({
 
       const toolSelection = await (async () => {
         try {
+          // 将 signal 注入 LLM 选择调用的上下文，使超时取消可传递到底层 HTTP 客户端
+          const contextWithSignal = signal
+            ? { ...context, signal }
+            : context;
           return await analysisAiUseCases.runTask({
             taskType: 'tool-selection',
             input: {
@@ -260,7 +267,7 @@ export function createAnalysisExecutionUseCases({
               stepTitle,
               stepObjective,
             },
-            context,
+            context: contextWithSignal,
           });
         } catch {
           return {
@@ -346,6 +353,7 @@ export function createAnalysisExecutionUseCases({
         context: selectionContext,
         groundedContext,
         intentType,
+        signal,
       });
 
       const events: AnalysisToolInvocationResult[] = [];
@@ -367,10 +375,15 @@ export function createAnalysisExecutionUseCases({
       }
 
       for (const tool of selection.tools) {
+        // 超时防护：若 signal 已 abort，跳过后续工具调用与事件发布
+        if (signal?.aborted) {
+          break;
+        }
+
         // Story 12 fix: 在工具调用前发布 started 事件
         // 事件发布是可观测链路，失败时记录诊断但不阻断工具执行（主链路）
         const startedAt = Date.now();
-        if (eventEmitter) {
+        if (eventEmitter && !signal?.aborted) {
           try {
             await eventEmitter.onToolStarted({
               toolName: tool.toolName,
@@ -404,7 +417,8 @@ export function createAnalysisExecutionUseCases({
         const finishedAt = Date.now();
 
         // Story 12 fix: 在工具调用后发布 completed/failed 事件
-        if (eventEmitter) {
+        // 超时防护：signal.aborted 时丢弃事件，避免 late events
+        if (eventEmitter && !signal?.aborted) {
           try {
             if (event.ok) {
               await eventEmitter.onToolCompleted({

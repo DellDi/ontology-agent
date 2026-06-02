@@ -131,6 +131,41 @@ function mapRecordValue(value: unknown) {
   return value;
 }
 
+/**
+ * 将 Neo4j 查询包装为可中断 Promise。
+ * Neo4j driver 不支持原生 AbortSignal，因此通过 Promise.race 实现：
+ * - 当 signal abort 时，race 立即 reject，查询结果被丢弃
+ * - 底层 Neo4j 连接仍会完成查询（无法真正取消），但调用方不再等待
+ */
+function withAbortSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) {
+    return promise;
+  }
+
+  if (signal.aborted) {
+    return Promise.reject(new Neo4jGraphResponseError('Neo4j query was aborted.'));
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      reject(new Neo4jGraphResponseError('Neo4j query was aborted.'));
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 function chunkArray<T>(items: T[], chunkSize: number) {
   const chunks: T[][] = [];
 
@@ -257,20 +292,24 @@ export function createNeo4jGraphAdapter(
   driverFactory: () => DriverLike = getSharedDriver,
 ): GraphReadPort & GraphWritePort {
   return {
-    async findCandidateFactors(query) {
+    async findCandidateFactors(query, options) {
       if (!isNeo4jConfigured()) {
         return mapFallbackFactors(query);
       }
 
       const driver = driverFactory();
+      const signal = options?.signal;
 
       try {
         const config = getNeo4jGraphConfig();
         const queryShape = buildCandidateFactorQuery(query);
-        const result = await driver.executeQuery(
-          queryShape.cypher,
-          queryShape.params,
-          { database: config.database },
+        const result = await withAbortSignal(
+          driver.executeQuery(
+            queryShape.cypher,
+            queryShape.params,
+            { database: config.database },
+          ),
+          signal,
         );
 
         const factors = mapQueryRecords(result.records);

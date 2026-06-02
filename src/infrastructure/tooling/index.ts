@@ -68,7 +68,10 @@ type AnalysisToolingDependencies = {
     listServiceOrders: (session: AuthSession) => Promise<Record<string, unknown>[]>;
   };
   semanticQueryUseCases: {
-    runMetricQuery: (request: unknown) => Promise<{
+    runMetricQuery: (
+      request: unknown,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{
       metric: string;
       rows: {
         value: number | null;
@@ -85,7 +88,10 @@ type AnalysisToolingDependencies = {
     }>;
   };
   graphUseCases: {
-    expandCandidateFactors: (request: unknown) => Promise<{
+    expandCandidateFactors: (
+      request: unknown,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{
       mode: 'expand' | 'skip';
       factors: {
         factorKey: string;
@@ -365,8 +371,10 @@ export function createAnalysisToolingServices({
         resolveAvailability: resolveCubeAvailability,
         inputSchema: cubeSemanticQueryInputSchema,
         outputSchema: cubeSemanticQueryOutputSchema,
-        async invoke(input) {
-          const result = await semanticQueryUseCases.runMetricQuery(input);
+        async invoke(input, context) {
+          const result = await semanticQueryUseCases.runMetricQuery(input, {
+            signal: context?.signal,
+          });
 
           return {
             metric: result.metric,
@@ -399,8 +407,10 @@ export function createAnalysisToolingServices({
         resolveAvailability: resolveNeo4jAvailability,
         inputSchema: neo4jGraphQueryInputSchema,
         outputSchema: neo4jGraphQueryOutputSchema,
-        async invoke(input) {
-          const result = await graphUseCases.expandCandidateFactors(input);
+        async invoke(input, context) {
+          const result = await graphUseCases.expandCandidateFactors(input, {
+            signal: context?.signal,
+          });
 
           return {
             mode: result.mode,

@@ -143,12 +143,21 @@ export function createAnalysisExecutionJobHandler(
       const stepStartedAt = Date.now();
 
       // Story 12 fix: 创建实时事件发射器，在工具调用过程中发布事件
+      //
+      // 超时防护：当 callWithTimeout 触发 LLMTimeoutError 后，executeStep 内部的
+      // 异步工具调用可能仍在运行。设置 emitterDisabled = true 可阻止这些 late events
+      // 写入 Redis，避免 "step 已失败但工具又完成" 的混乱事件序列。
+      let emitterDisabled = false;
+
       const eventEmitter = {
         async onToolStarted(input: {
           toolName: string;
           toolLabel: string;
           startedAt: number;
         }) {
+          if (emitterDisabled) {
+            return;
+          }
           const toolLabel = translateToolName(input.toolName);
           await streamUseCases.publishEvent(
             buildToolStartedEvent({
@@ -166,6 +175,9 @@ export function createAnalysisExecutionJobHandler(
           finishedAt: number;
           output?: unknown;
         }) {
+          if (emitterDisabled) {
+            return;
+          }
           const toolLabel = translateToolName(input.toolName);
           const durationMs = input.finishedAt - input.startedAt;
           await streamUseCases.publishEvent(
@@ -194,6 +206,9 @@ export function createAnalysisExecutionJobHandler(
           finishedAt: number;
           error: string;
         }) {
+          if (emitterDisabled) {
+            return;
+          }
           const toolLabel = translateToolName(input.toolName);
           const durationMs = input.finishedAt - input.startedAt;
           await streamUseCases.publishEvent(
@@ -255,6 +270,9 @@ export function createAnalysisExecutionJobHandler(
         );
       } catch (error) {
         if (error instanceof LLMTimeoutError) {
+          // 禁用事件发射器 — 超时后任何迟滞的工具完成事件都将被丢弃
+          emitterDisabled = true;
+
           const stepDurationMs = Date.now() - stepStartedAt;
 
           await streamUseCases.publishEvent(
@@ -432,21 +450,23 @@ async function createDefaultAnalysisExecutionHandler(): Promise<JobHandler> {
     analysisAiUseCases,
     erpReadUseCases,
     semanticQueryUseCases: {
-      async runMetricQuery(request) {
+      async runMetricQuery(request, options) {
         return await semanticQueryUseCases.runMetricQuery(
           request as NonNullable<
             Parameters<typeof semanticQueryUseCases.runMetricQuery>[0]
           >,
+          options,
         );
       },
       checkHealth: semanticQueryUseCases.checkHealth,
     },
     graphUseCases: {
-      async expandCandidateFactors(request) {
+      async expandCandidateFactors(request, options) {
         return await neo4jModule.graphUseCases.expandCandidateFactors(
           request as Parameters<
             typeof neo4jModule.graphUseCases.expandCandidateFactors
           >[0],
+          options,
         );
       },
       checkHealth: neo4jModule.graphUseCases.checkHealth,
