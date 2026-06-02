@@ -10,6 +10,11 @@ import {
 } from '@/application/ontology/grounded-planning';
 import { InvalidAnalysisExecutionPlanError } from '@/domain/analysis-execution/models';
 import { resolveOntologyVersionBindingSource } from '@/domain/ontology/version-binding';
+import {
+  buildRateLimitRejectedResponse,
+  checkRateLimit,
+  EXECUTION_RATE_LIMIT,
+} from '@/infrastructure/api/rate-limit-middleware';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
@@ -23,6 +28,7 @@ import { createErpReadUseCases } from '@/application/erp-read/use-cases';
 import { auditUseCases } from '@/infrastructure/audit';
 import { withJobUseCases } from '@/infrastructure/job/runtime';
 import { getCurrentCorrelationId } from '@/infrastructure/observability';
+import { ensureRedisConnected, getSharedRedisClient } from '@/infrastructure/redis/client';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 type RouteContext = {
@@ -72,6 +78,24 @@ export async function POST(request: Request, { params }: RouteContext) {
       new URL(`/login?next=/workspace/analysis/${sessionId}`, request.url),
       { status: 303 },
     );
+  }
+
+  // 限流检查：在触发 LLM 调用前拦截过高频率的请求
+  try {
+    const { redis } = getSharedRedisClient();
+    await ensureRedisConnected(redis);
+    const rateResult = await checkRateLimit(redis, EXECUTION_RATE_LIMIT, authSession.userId);
+
+    if (!rateResult.allowed) {
+      return buildRateLimitRejectedResponse(request, {
+        redirectUrl: buildSessionUrl(request, sessionId),
+        errorParamName: 'executionError',
+        rateResult,
+      });
+    }
+  } catch (error) {
+    // Redis 不可用时不限流，降级放行；避免缓存故障阻断全部请求
+    console.warn('限流检查失败，降级放行:', error);
   }
 
   const analysisSession = await analysisSessionUseCases.getOwnedSession({
@@ -244,32 +268,48 @@ export async function POST(request: Request, { params }: RouteContext) {
     : candidateFactorReadModel;
   let groundedArtifacts;
 
-  try {
-    groundedArtifacts = await buildGroundedPlanningArtifacts({
-      sessionId: analysisSession.id,
-      ownerUserId: authSession.userId,
-      intentType: intent?.type ?? 'general-analysis',
-      contextReadModel: executionContextReadModel,
-      candidateFactorReadModel: mergedCandidateFactorReadModel,
-      groundingUseCases: ontologyRuntimeServices.groundingUseCases,
-      groundedContextStore: ontologyRuntimeServices.groundedContextStore,
-      analysisPlanningUseCases,
-    });
-  } catch (error) {
-    const url = buildSessionUrl(request, sessionId);
-    url.searchParams.set(
-      'executionError',
-      error instanceof Error
-        ? formatGroundingErrorForUser(error)
-        : '系统暂时无法生成执行计划，请稍后重试。',
-    );
-    if (followUp) {
-      url.searchParams.set('followUpId', followUp.id);
-    }
+  // #13: If the followUp already carries a replan plan snapshot that the user
+  // has reviewed and confirmed, reuse it instead of regenerating a fresh plan.
+  // The corresponding groundedContext was persisted by the replan route, so we
+  // retrieve it from the store.
+  const replanPlanSnapshot = followUp?.currentPlanSnapshot ?? null;
+  const replanGroundedContext = replanPlanSnapshot
+    ? await ontologyRuntimeServices.groundedContextStore.getLatest(analysisSession.id)
+    : null;
 
-    return NextResponse.redirect(url, {
-      status: 303,
-    });
+  if (replanPlanSnapshot && replanGroundedContext) {
+    groundedArtifacts = {
+      planSnapshot: replanPlanSnapshot,
+      groundedContext: replanGroundedContext,
+    };
+  } else {
+    try {
+      groundedArtifacts = await buildGroundedPlanningArtifacts({
+        sessionId: analysisSession.id,
+        ownerUserId: authSession.userId,
+        intentType: intent?.type ?? 'general-analysis',
+        contextReadModel: executionContextReadModel,
+        candidateFactorReadModel: mergedCandidateFactorReadModel,
+        groundingUseCases: ontologyRuntimeServices.groundingUseCases,
+        groundedContextStore: ontologyRuntimeServices.groundedContextStore,
+        analysisPlanningUseCases,
+      });
+    } catch (error) {
+      const url = buildSessionUrl(request, sessionId);
+      url.searchParams.set(
+        'executionError',
+        error instanceof Error
+          ? formatGroundingErrorForUser(error)
+          : '系统暂时无法生成执行计划，请稍后重试。',
+      );
+      if (followUp) {
+        url.searchParams.set('followUpId', followUp.id);
+      }
+
+      return NextResponse.redirect(url, {
+        status: 303,
+      });
+    }
   }
 
   try {

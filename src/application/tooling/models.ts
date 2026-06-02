@@ -177,6 +177,7 @@ export const cubeSemanticQueryInputSchema = z.object({
 export const cubeSemanticQueryOutputSchema = z.object({
   metric: z.string().min(1),
   rowCount: z.number().int().nonnegative(),
+  granularity: z.enum(['day', 'week', 'month', 'quarter', 'year']).optional(),
   rows: z.array(
     z.object({
       value: z.number().nullable(),

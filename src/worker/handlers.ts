@@ -29,6 +29,7 @@ import {
 } from './analysis-execution-renderer';
 import { translateToolName } from '@/application/analysis-message-projection/tool-name-translations';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
+import { callWithTimeout, LLMTimeoutError } from './timeout-utils';
 
 export type JobHandler = (
   job: Job,
@@ -74,6 +75,7 @@ type AnalysisExecutionUseCases = {
     toolInputsByName: Partial<Record<AnalysisToolName, unknown>>;
     groundedContext?: import('@/domain/ontology/grounding').OntologyGroundedContext;
     eventEmitter?: ToolExecutionEventEmitter;
+    signal?: AbortSignal;
   }) => Promise<OrchestrationStepExecutionResult>;
 };
 
@@ -141,12 +143,21 @@ export function createAnalysisExecutionJobHandler(
       const stepStartedAt = Date.now();
 
       // Story 12 fix: 创建实时事件发射器，在工具调用过程中发布事件
+      //
+      // 超时防护：当 callWithTimeout 触发 LLMTimeoutError 后，executeStep 内部的
+      // 异步工具调用可能仍在运行。设置 emitterDisabled = true 可阻止这些 late events
+      // 写入 Redis，避免 "step 已失败但工具又完成" 的混乱事件序列。
+      let emitterDisabled = false;
+
       const eventEmitter = {
         async onToolStarted(input: {
           toolName: string;
           toolLabel: string;
           startedAt: number;
         }) {
+          if (emitterDisabled) {
+            return;
+          }
           const toolLabel = translateToolName(input.toolName);
           await streamUseCases.publishEvent(
             buildToolStartedEvent({
@@ -164,6 +175,9 @@ export function createAnalysisExecutionJobHandler(
           finishedAt: number;
           output?: unknown;
         }) {
+          if (emitterDisabled) {
+            return;
+          }
           const toolLabel = translateToolName(input.toolName);
           const durationMs = input.finishedAt - input.startedAt;
           await streamUseCases.publishEvent(
@@ -192,6 +206,9 @@ export function createAnalysisExecutionJobHandler(
           finishedAt: number;
           error: string;
         }) {
+          if (emitterDisabled) {
+            return;
+          }
           const toolLabel = translateToolName(input.toolName);
           const durationMs = input.finishedAt - input.startedAt;
           await streamUseCases.publishEvent(
@@ -210,41 +227,73 @@ export function createAnalysisExecutionJobHandler(
         },
       };
 
-      const result = await dependencies.analysisExecutionUseCases.executeStep({
-        stepId: step.id,
-        stepTitle: step.title,
-        stepObjective: step.objective,
-        questionText: jobData.questionText,
-        planSummary: jobData.plan.summary,
-        selectionContext: {
-          userId: jobData.ownerUserId,
-          organizationId: jobData.organizationId,
-          purpose: 'analysis-execution',
-          sessionId: jobData.sessionId,
-        },
-        intentType: inferredIntentType,
-        invocationContext: {
-          correlationId: `${job.id}:${step.id}:${randomUUID()}`,
-          source: 'worker',
-          sessionId: jobData.sessionId,
-          userId: jobData.ownerUserId,
-          organizationId: jobData.organizationId,
-        },
-        toolInputsByName: buildToolInputs({
-          sessionId: jobData.sessionId,
-          ownerUserId: jobData.ownerUserId,
-          organizationId: jobData.organizationId,
-          projectIds: jobData.projectIds,
-          areaIds: jobData.areaIds,
-          questionText: jobData.questionText,
-          context: jobData.context ?? analysisSession.savedContext,
-          groundedContext: jobData.groundedContext,
-          step,
-          planSummary: jobData.plan.summary,
-        }),
-        groundedContext: jobData.groundedContext,
-        eventEmitter,
-      });
+      let result: OrchestrationStepExecutionResult;
+      try {
+        result = await callWithTimeout(
+          (signal) =>
+            dependencies.analysisExecutionUseCases.executeStep({
+              stepId: step.id,
+              stepTitle: step.title,
+              stepObjective: step.objective,
+              questionText: jobData.questionText,
+              planSummary: jobData.plan.summary,
+              selectionContext: {
+                userId: jobData.ownerUserId,
+                organizationId: jobData.organizationId,
+                purpose: 'analysis-execution',
+                sessionId: jobData.sessionId,
+              },
+              intentType: inferredIntentType,
+              invocationContext: {
+                correlationId: `${job.id}:${step.id}:${randomUUID()}`,
+                source: 'worker',
+                sessionId: jobData.sessionId,
+                userId: jobData.ownerUserId,
+                organizationId: jobData.organizationId,
+              },
+              toolInputsByName: buildToolInputs({
+                sessionId: jobData.sessionId,
+                ownerUserId: jobData.ownerUserId,
+                organizationId: jobData.organizationId,
+                projectIds: jobData.projectIds,
+                areaIds: jobData.areaIds,
+                questionText: jobData.questionText,
+                context: jobData.context ?? analysisSession.savedContext,
+                groundedContext: jobData.groundedContext,
+                step,
+                planSummary: jobData.plan.summary,
+              }),
+              groundedContext: jobData.groundedContext,
+              eventEmitter,
+              signal,
+            }),
+        );
+      } catch (error) {
+        if (error instanceof LLMTimeoutError) {
+          // 禁用事件发射器 — 超时后任何迟滞的工具完成事件都将被丢弃
+          emitterDisabled = true;
+
+          const stepDurationMs = Date.now() - stepStartedAt;
+
+          await streamUseCases.publishEvent(
+            buildStepCompletedEvent({
+              sessionId: jobData.sessionId,
+              executionId: job.id,
+              step: {
+                id: step.id,
+                order: step.order,
+                title: step.title,
+                status: 'failed',
+              },
+              durationMs: stepDurationMs,
+              toolCount: 0,
+            }),
+          );
+
+          throw error;
+        }
+        throw error;
+      }
 
       const stepDurationMs = Date.now() - stepStartedAt;
 
@@ -401,21 +450,23 @@ async function createDefaultAnalysisExecutionHandler(): Promise<JobHandler> {
     analysisAiUseCases,
     erpReadUseCases,
     semanticQueryUseCases: {
-      async runMetricQuery(request) {
+      async runMetricQuery(request, options) {
         return await semanticQueryUseCases.runMetricQuery(
           request as NonNullable<
             Parameters<typeof semanticQueryUseCases.runMetricQuery>[0]
           >,
+          options,
         );
       },
       checkHealth: semanticQueryUseCases.checkHealth,
     },
     graphUseCases: {
-      async expandCandidateFactors(request) {
+      async expandCandidateFactors(request, options) {
         return await neo4jModule.graphUseCases.expandCandidateFactors(
           request as Parameters<
             typeof neo4jModule.graphUseCases.expandCandidateFactors
           >[0],
+          options,
         );
       },
       checkHealth: neo4jModule.graphUseCases.checkHealth,

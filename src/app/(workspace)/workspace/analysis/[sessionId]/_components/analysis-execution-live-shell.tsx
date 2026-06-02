@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
   buildAiRuntimeProjection,
@@ -9,6 +10,7 @@ import {
   type AiRuntimeProjection,
 } from '@/application/ai-runtime';
 import { buildConversationViewModel } from '@/application/analysis-message-projection/conversation-view-model';
+import type { ConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisUiMessageProjectionStreamCursor } from '@/domain/analysis-message-projection/models';
@@ -35,11 +37,18 @@ type AnalysisExecutionLiveShellProps = {
   intentLabel?: string;
   ontologyVersionBadge?: string;
   followUpLabel?: string;
+  /** AC6: 候选因素列表（供诊断面板展示验证结果） */
+  candidateFactors?: readonly { key: string; label: string }[];
+  /** 多轮追问线程（2+ 轮时由 page 层构建） */
+  thread?: ConversationThreadViewModel;
   /** 详情抽屉内容（由 page 级 server component 预渲染） */
   drawerContents?: Record<string, ReactNode>;
   /** 对话区底部追加内容（如追问输入框） */
   children?: ReactNode;
 };
+
+// SSE 连接最大持续时间（5 分钟），超时后自动关闭并提示用户。
+const SSE_MAX_DURATION_MS = 5 * 60 * 1000;
 
 // 向后兼容：process board 相关纯函数保留导出，供 story-10-7 回归测试使用。
 export const PROCESS_BOARD_STORAGE_KEY_PREFIX = 'analysis-process-board-open-v2';
@@ -71,9 +80,12 @@ export function AnalysisExecutionLiveShell({
   intentLabel,
   ontologyVersionBadge,
   followUpLabel,
+  candidateFactors,
+  thread,
   drawerContents = {},
   children,
 }: AnalysisExecutionLiveShellProps) {
+  const router = useRouter();
   const [events, setEvents] = useState<AnalysisExecutionStreamEvent[]>(
     initialReadModel.events,
   );
@@ -82,6 +94,14 @@ export function AnalysisExecutionLiveShell({
     message: string;
     occurredAt: string;
   } | null>(null);
+  // 用于强制重新挂载 SSE useEffect，实现"重新连接"功能。
+  const [reconnectEpoch, setReconnectEpoch] = useState(0);
+
+  const handleReconnect = useCallback(() => {
+    setStreamConnectionIssue(null);
+    setHasReceivedLiveEvents(false);
+    setReconnectEpoch((epoch) => epoch + 1);
+  }, []);
 
   // 当父层切换 execution 时，重置 canonical events 到新 execution 的 initial snapshot。
   const [trackedExecutionKey, setTrackedExecutionKey] = useState(
@@ -117,6 +137,13 @@ export function AnalysisExecutionLiveShell({
       ? initialProjection
       : rebuiltProjection;
 
+  // 结论中的因素 ID 列表（用于判断候选因素是否进入最终判断）
+  const conclusionCauseIds = useMemo(
+    () =>
+      initialConclusionReadModel?.causes?.map((cause) => cause.id) ?? [],
+    [initialConclusionReadModel],
+  );
+
   // 构建对话视图模型
   const conversationViewModel = useMemo(
     () =>
@@ -129,6 +156,8 @@ export function AnalysisExecutionLiveShell({
         events,
         hasConnectionIssue: !!streamConnectionIssue,
         planAssumptions,
+        candidateFactors,
+        conclusionCauseIds,
       }),
     [
       questionText,
@@ -139,10 +168,12 @@ export function AnalysisExecutionLiveShell({
       events,
       streamConnectionIssue,
       planAssumptions,
+      candidateFactors,
+      conclusionCauseIds,
     ],
   );
 
-  // SSE 连接
+  // SSE 连接（含最大持续时间保护）
   useEffect(() => {
     if (!enableLiveStream) {
       return;
@@ -155,6 +186,15 @@ export function AnalysisExecutionLiveShell({
         resumeCursor,
       }),
     );
+
+    // 最大连接时长保护：超时后自动断开并提示用户。
+    const maxDurationTimer = setTimeout(() => {
+      eventSource.close();
+      setStreamConnectionIssue({
+        message: '分析执行时间较长，实时流已超时。您可以手动刷新查看最新状态。',
+        occurredAt: new Date().toISOString(),
+      });
+    }, SSE_MAX_DURATION_MS);
 
     eventSource.onmessage = (message) => {
       const nextEvent = JSON.parse(message.data) as AnalysisExecutionStreamEvent;
@@ -173,11 +213,13 @@ export function AnalysisExecutionLiveShell({
         nextEvent.kind === 'execution-status' &&
         (nextEvent.status === 'completed' || nextEvent.status === 'failed')
       ) {
+        clearTimeout(maxDurationTimer);
         eventSource.close();
       }
     };
 
     eventSource.onerror = () => {
+      clearTimeout(maxDurationTimer);
       setStreamConnectionIssue({
         message: '事件流连接已中断，当前页面可能无法继续实时刷新。',
         occurredAt: new Date().toISOString(),
@@ -186,9 +228,10 @@ export function AnalysisExecutionLiveShell({
     };
 
     return () => {
+      clearTimeout(maxDurationTimer);
       eventSource.close();
     };
-  }, [enableLiveStream, executionId, resumeCursor, sessionId]);
+  }, [enableLiveStream, executionId, resumeCursor, sessionId, reconnectEpoch]);
 
   // 把执行日志面板和诊断面板作为抽屉内容注入
   const { diagnostics } = conversationViewModel.assistantMessage;
@@ -206,16 +249,43 @@ export function AnalysisExecutionLiveShell({
         eventCount={diagnostics.eventCount}
         lastSequence={diagnostics.lastSequence}
         executionId={diagnostics.executionId}
+        candidateValidation={diagnostics.candidateValidation}
       />
     ),
   };
 
   return (
-    <AnalysisConversationShell
-      viewModel={conversationViewModel}
-      drawerContents={mergedDrawerContents}
-    >
-      {children}
-    </AnalysisConversationShell>
+    <>
+      {streamConnectionIssue && (
+        <div className="mx-auto mt-4 max-w-[860px] px-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <p>{streamConnectionIssue.message}</p>
+            <div className="mt-2 flex gap-3">
+              <button
+                onClick={handleReconnect}
+                className="secondary-button"
+                type="button"
+              >
+                重新连接
+              </button>
+              <button
+                onClick={() => router.refresh()}
+                className="secondary-button"
+                type="button"
+              >
+                手动刷新
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <AnalysisConversationShell
+        viewModel={conversationViewModel}
+        thread={thread}
+        drawerContents={mergedDrawerContents}
+      >
+        {children}
+      </AnalysisConversationShell>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -14,6 +15,7 @@ import type {
   ToolActivitySummary,
   Visualization,
 } from '@/application/analysis-message-projection/conversation-view-model';
+import type { ConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
 import { AnalysisStepTimeline } from './analysis-step-timeline';
@@ -642,14 +644,41 @@ function AnalysisDetailDrawer({
   content: ReactNode;
   onClose: () => void;
 }) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!drawerType) return;
+
+    const drawer = drawerRef.current;
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !drawer) return;
+
+      const focusable = drawer.querySelectorAll<HTMLElement>(focusableSelector);
+      if (!focusable.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
+
+    // Focus first focusable element on open
+    if (drawer) {
+      const firstFocusable = drawer.querySelector<HTMLElement>(focusableSelector);
+      firstFocusable?.focus();
+    }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -659,6 +688,10 @@ function AnalysisDetailDrawer({
 
   return (
     <aside
+      ref={drawerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={DRAWER_LABELS[drawerType] ?? '详情'}
       className="fixed inset-y-0 right-0 z-40 w-full max-w-[560px] transform transition-transform duration-300 translate-x-0"
     >
       <div className="h-full p-2 sm:p-4">
@@ -687,21 +720,51 @@ function AnalysisDetailDrawer({
 }
 
 // ---------------------------------------------------------------------------
+// 折叠轮次摘要（非活跃轮次时显示）
+// ---------------------------------------------------------------------------
+
+function CollapsedTurnSummary({
+  viewModel,
+}: {
+  viewModel: AnalysisConversationViewModel;
+}) {
+  return (
+    <div className="mt-2 rounded-2xl border border-[color:var(--line-200)] bg-[color:var(--mist-50)]/60 px-5 py-3">
+      <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+        {viewModel.userMessage.questionText}
+      </p>
+      <p className="mt-1 text-sm text-[color:var(--ink-600)]">
+        {viewModel.assistantMessage.primaryAnswer || viewModel.assistantMessage.headline}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 主组件：AnalysisConversationShell
 // ---------------------------------------------------------------------------
 
 export type AnalysisConversationShellProps = {
   viewModel: AnalysisConversationViewModel;
+  /** 多轮追问线程（当存在 2+ 轮时由父层构建），提供后替代单条 viewModel 渲染 */
+  thread?: ConversationThreadViewModel;
   drawerContents: Record<string, ReactNode>;
   children?: ReactNode;
 };
 
 export function AnalysisConversationShell({
   viewModel,
+  thread,
   drawerContents,
   children,
 }: AnalysisConversationShellProps) {
   const [activeDrawer, setActiveDrawer] = useState<DetailDrawerType>(null);
+  const activeTurnRef = useRef<HTMLDivElement>(null);
+
+  // 线程 activeTurnId 变化时自动滚动到当前轮次
+  useEffect(() => {
+    activeTurnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [thread?.activeTurnId]);
 
   const handleOpenDetail = useCallback((drawer: DetailDrawerType) => {
     setActiveDrawer(drawer);
@@ -711,29 +774,64 @@ export function AnalysisConversationShell({
     setActiveDrawer(null);
   }, []);
 
+  const turns = thread?.turns;
+
   return (
     <>
       <div className="mx-auto w-full max-w-[860px] space-y-6 px-4">
-        {/* 用户消息 */}
-        <AnalysisUserMessage
-          questionText={viewModel.userMessage.questionText}
-          badges={viewModel.userMessage.badges}
-        />
+        {turns ? (
+          turns.map((turn) => (
+            <div
+              key={turn.executionId}
+              ref={turn.isExpanded ? activeTurnRef : undefined}
+            >
+              <AnalysisUserMessage
+                questionText={turn.viewModel.userMessage.questionText}
+                badges={turn.viewModel.userMessage.badges}
+              />
+              {turn.isExpanded ? (
+                <AnalysisAssistantMessage
+                  status={turn.viewModel.assistantMessage.status}
+                  headline={turn.viewModel.assistantMessage.headline}
+                  progressLabel={turn.viewModel.assistantMessage.progressLabel}
+                  toolActivities={turn.viewModel.assistantMessage.toolActivities}
+                  result={turn.viewModel.assistantMessage.result}
+                  diagnostics={turn.viewModel.assistantMessage.diagnostics}
+                  primaryAnswer={turn.viewModel.assistantMessage.primaryAnswer}
+                  metricCards={turn.viewModel.assistantMessage.metricCards}
+                  visualizations={turn.viewModel.assistantMessage.visualizations}
+                  toolTimeline={turn.viewModel.assistantMessage.toolTimeline}
+                  onOpenDetail={handleOpenDetail}
+                />
+              ) : (
+                <CollapsedTurnSummary viewModel={turn.viewModel} />
+              )}
+            </div>
+          ))
+        ) : (
+          <>
+            {/* 用户消息 */}
+            <AnalysisUserMessage
+              questionText={viewModel.userMessage.questionText}
+              badges={viewModel.userMessage.badges}
+            />
 
-        {/* 助手消息 */}
-        <AnalysisAssistantMessage
-          status={viewModel.assistantMessage.status}
-          headline={viewModel.assistantMessage.headline}
-          progressLabel={viewModel.assistantMessage.progressLabel}
-          toolActivities={viewModel.assistantMessage.toolActivities}
-          result={viewModel.assistantMessage.result}
-          diagnostics={viewModel.assistantMessage.diagnostics}
-          primaryAnswer={viewModel.assistantMessage.primaryAnswer}
-          metricCards={viewModel.assistantMessage.metricCards}
-          visualizations={viewModel.assistantMessage.visualizations}
-          toolTimeline={viewModel.assistantMessage.toolTimeline}
-          onOpenDetail={handleOpenDetail}
-        />
+            {/* 助手消息 */}
+            <AnalysisAssistantMessage
+              status={viewModel.assistantMessage.status}
+              headline={viewModel.assistantMessage.headline}
+              progressLabel={viewModel.assistantMessage.progressLabel}
+              toolActivities={viewModel.assistantMessage.toolActivities}
+              result={viewModel.assistantMessage.result}
+              diagnostics={viewModel.assistantMessage.diagnostics}
+              primaryAnswer={viewModel.assistantMessage.primaryAnswer}
+              metricCards={viewModel.assistantMessage.metricCards}
+              visualizations={viewModel.assistantMessage.visualizations}
+              toolTimeline={viewModel.assistantMessage.toolTimeline}
+              onOpenDetail={handleOpenDetail}
+            />
+          </>
+        )}
 
         {/* 追问入口（由外部 children 注入） */}
         {children}

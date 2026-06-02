@@ -24,6 +24,10 @@ import {
   renderAnalysisInteractionPart,
 } from '@/application/analysis-interaction';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
+import {
+  buildCandidateValidationSummary,
+  type CandidateValidationSummary,
+} from './candidate-validation-model';
 import { translateToolName } from './tool-name-translations';
 
 // Re-export so existing imports (e.g. analysis-step-timeline.tsx) keep working.
@@ -95,6 +99,8 @@ export type ConversationDiagnostics = {
   renderErrors: AnalysisRenderedBlock[];
   /** 其余未分类块 */
   otherBlocks: AnalysisRenderedBlock[];
+  /** AC6: 候选因素验证摘要（诊断面板必须展示） */
+  candidateValidation: CandidateValidationSummary;
 };
 
 // ---------------------------------------------------------------------------
@@ -244,6 +250,7 @@ const OPERATIONAL_BLOCK_TITLES = new Set([
   '阶段状态',
   '阶段结果',
   '平台能力状态',
+  'ERP 读取结果',
 ]);
 
 function classifyRenderedBlock(
@@ -515,6 +522,14 @@ function renderStepTimelinePart(
 // Story 12-3：业务向视图提取
 // ---------------------------------------------------------------------------
 
+/** 已知非业务指标的 kv-list 标题，defense-in-depth：即使分类层遗漏也不应进入指标卡。 */
+const NON_METRIC_KV_LIST_TITLES = new Set([
+  'ERP 读取结果',
+  '平台能力状态',
+  '执行状态',
+  '执行元数据',
+]);
+
 /** 从 kv-list 与 metric chart 中提取指标卡。 */
 function extractMetricCards(
   blocks: readonly AnalysisRenderedBlock[],
@@ -523,6 +538,9 @@ function extractMetricCards(
 
   for (const block of blocks) {
     if (block.kind === 'kv-list') {
+      // defense-in-depth：跳过运营 / 状态类 kv-list，避免污染业务指标卡
+      if (block.title && NON_METRIC_KV_LIST_TITLES.has(block.title)) continue;
+
       const items = Array.isArray(block.payload?.items)
         ? (block.payload.items as { label: string; value: string }[])
         : [];
@@ -908,6 +926,10 @@ export type BuildConversationViewModelInput = {
   hasConnectionIssue: boolean;
   /** 执行计划声明的假设列表（审计信息，进入"假设与口径"折叠区） */
   planAssumptions?: readonly string[];
+  /** AC6: 候选因素列表（用于诊断面板验证结果展示） */
+  candidateFactors?: readonly { key: string; label: string }[];
+  /** AC6: 结论中的因素 ID 列表（用于判断是否进入最终判断） */
+  conclusionCauseIds?: readonly string[];
 };
 
 /**
@@ -974,6 +996,11 @@ export function buildConversationViewModel(
       processBoardBlocks: [],
       renderErrors: [],
       otherBlocks: [],
+      candidateValidation: buildCandidateValidationSummary(
+        events,
+        input.candidateFactors ?? [],
+        input.conclusionCauseIds,
+      ),
     };
 
     return {
@@ -1170,6 +1197,11 @@ export function buildConversationViewModel(
     processBoardBlocks: diagnosticBlocks,
     renderErrors: renderErrorBlocks,
     otherBlocks,
+    candidateValidation: buildCandidateValidationSummary(
+      events,
+      input.candidateFactors ?? [],
+      input.conclusionCauseIds,
+    ),
   };
 
   // -- Story 12-3：业务向视图字段 --
