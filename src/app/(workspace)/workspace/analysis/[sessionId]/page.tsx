@@ -463,13 +463,82 @@ export default async function AnalysisSessionPage({
       (snapshot) => !followUpResultExecutionIds.has(snapshot.executionId),
     ) ?? null;
 
+  // 收集线程中所有轮次的 executionId，逐轮加载各自的事实（projection + events），
+  // 避免将当前正在查看的执行错挂到其他轮次上。
+  const threadExecutionIds = new Set<string>();
+  if (initialExecutionSnapshot) {
+    threadExecutionIds.add(initialExecutionSnapshot.executionId);
+  }
+  for (const followUp of followUps) {
+    if (
+      followUp.resultExecutionId &&
+      sessionSnapshots.some(
+        (snapshot) => snapshot.executionId === followUp.resultExecutionId,
+      )
+    ) {
+      threadExecutionIds.add(followUp.resultExecutionId);
+    }
+  }
+
+  const threadExecutionData = new Map<
+    string,
+    {
+      projection: Parameters<typeof buildConversationThreadViewModel>[0]['rounds'][number]['projection'];
+      events: Parameters<typeof buildConversationThreadViewModel>[0]['rounds'][number]['events'];
+    }
+  >();
+
+  for (const threadExecutionId of threadExecutionIds) {
+    if (threadExecutionId === resolvedExecutionId) {
+      // 复用当前已加载的 read model / projection，避免重复 IO
+      threadExecutionData.set(threadExecutionId, {
+        projection: projectionHydration?.projection ?? null,
+        events: executionStreamReadModel?.events ?? [],
+      });
+      continue;
+    }
+
+    const threadSnapshot = sessionSnapshots.find(
+      (snapshot) => snapshot.executionId === threadExecutionId,
+    );
+
+    if (!threadSnapshot) {
+      threadExecutionData.set(threadExecutionId, {
+        projection: null,
+        events: [],
+      });
+      continue;
+    }
+
+    const threadStreamReadModel =
+      buildExecutionStreamReadModelFromSnapshot(threadSnapshot);
+    const threadHydration =
+      await analysisUiMessageProjectionUseCases.hydrateProjection({
+        ownerUserId: currentUser.userId,
+        sessionId: analysisSession.id,
+        executionId: threadExecutionId,
+        followUpId: threadSnapshot.followUpId,
+        canonical: {
+          events: threadStreamReadModel.events,
+        },
+      });
+
+    threadExecutionData.set(threadExecutionId, {
+      projection: threadHydration?.projection ?? null,
+      events: threadStreamReadModel.events,
+    });
+  }
+
   // 初始轮次（session 本身）
   if (initialExecutionSnapshot) {
+    const initialData = threadExecutionData.get(
+      initialExecutionSnapshot.executionId,
+    );
     threadRounds.push({
       executionId: initialExecutionSnapshot.executionId,
       questionText: analysisSession.questionText,
-      projection: projectionHydration?.projection ?? null,
-      events: executionStreamReadModel?.events ?? [],
+      projection: initialData?.projection ?? null,
+      events: initialData?.events ?? [],
       intentLabel: intent ? getIntentTypeLabel(intent.type) : undefined,
       ontologyVersion: ontologyVersionBadgeText ?? undefined,
     });
@@ -483,11 +552,14 @@ export default async function AnalysisSessionPage({
         )
       : null;
     if (followUpSnapshot) {
+      const followUpData = threadExecutionData.get(
+        followUpSnapshot.executionId,
+      );
       threadRounds.push({
         executionId: followUpSnapshot.executionId,
         questionText: followUp.questionText,
-        projection: null,
-        events: [],
+        projection: followUpData?.projection ?? null,
+        events: followUpData?.events ?? [],
         followUpLabel: '追问',
       });
     }
