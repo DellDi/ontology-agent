@@ -21,6 +21,63 @@ function buildFailurePresentation(
   };
 }
 
+const ERP_RESOURCE_LABELS: Record<string, string> = {
+  projects: '项目基础数据',
+  'service-orders': '工单数据',
+  payments: '缴费记录',
+  receivables: '应收数据',
+  owners: '业主信息',
+  complaints: '投诉记录',
+};
+
+const CUBE_DIMENSION_LABELS: Record<string, string> = {
+  'project-name': '项目',
+  'project-id': '项目',
+  'charge-item-name': '收费项目',
+  'charge-item-id': '收费项目',
+  'service-type-name': '服务类型',
+  'organization-id': '组织',
+  'area-name': '区域',
+};
+
+function formatDimensions(dimensions: Record<string, string | null> | null | undefined): string {
+  if (!dimensions) return '-';
+  const entries = Object.entries(dimensions).filter(([, value]) => value != null);
+  if (entries.length === 0) return '-';
+  return entries
+    .map(([key, value]) => {
+      const label = CUBE_DIMENSION_LABELS[key] ?? key;
+      return entries.length === 1 ? (value ?? '-') : `${label}：${value ?? '-'}`;
+    })
+    .join(', ');
+}
+
+const NEO4J_RELATION_LABELS: Record<string, string> = {
+  'contains': '包含',
+  'belongs-to': '所属',
+  'has-owner': '业主关联',
+  'has-receivable': '应收关联',
+  'has-payment': '缴费关联',
+  'has-service-order': '工单关联',
+  'has-complaint': '投诉关联',
+  'has-satisfaction': '满意度关联',
+  'causal': '因果关系',
+};
+
+function translateRelationType(raw: string | undefined): string {
+  if (!raw) return '-';
+  return NEO4J_RELATION_LABELS[raw] ?? raw;
+}
+
+const ERP_RESOURCE_PURPOSE: Record<string, string> = {
+  projects: '项目匹配/范围校验',
+  'service-orders': '工单履约分析',
+  payments: '缴费行为分析',
+  receivables: '应收账龄分析',
+  owners: '业主画像',
+  complaints: '投诉趋势分析',
+};
+
 function buildSuccessPresentation(
   event: Extract<AnalysisToolInvocationResult, { ok: true }>,
 ): ToolEventPresentation {
@@ -29,6 +86,7 @@ function buildSuccessPresentation(
       const output = event.output as {
         metric?: string;
         rowCount?: number;
+        granularity?: string;
         rows?: {
           value: number | null;
           time: string | null;
@@ -36,6 +94,10 @@ function buildSuccessPresentation(
         }[];
       };
       const firstValue = output.rows?.[0]?.value;
+      const isMonthly = output.granularity === 'month';
+      const displayRows = isMonthly
+        ? (output.rows ?? [])
+        : (output.rows ?? []).slice(0, 5);
 
       return {
         summary: [
@@ -52,11 +114,9 @@ function buildSuccessPresentation(
             type: 'table',
             title: '指标结果',
             columns: ['时间', '维度', '值'],
-            rows: (output.rows ?? []).slice(0, 5).map((row) => [
+            rows: displayRows.map((row) => [
               row.time ?? '-',
-              Object.entries(row.dimensions ?? {})
-                .map(([key, value]) => `${key}=${value ?? '-'}`)
-                .join(', ') || '-',
+              formatDimensions(row.dimensions),
               row.value === null ? '-' : String(row.value),
             ]),
           },
@@ -91,10 +151,10 @@ function buildSuccessPresentation(
           {
             type: 'table',
             title: '候选因素',
-            columns: ['因素', '关系', '说明'],
+            columns: ['因素', '关联类型', '说明'],
             rows: (output.factors ?? []).slice(0, 5).map((factor) => [
               factor.factorLabel ?? '-',
-              factor.relationType ?? '-',
+              translateRelationType(factor.relationType),
               factor.explanation ?? '-',
             ]),
           },
@@ -106,26 +166,27 @@ function buildSuccessPresentation(
         resource?: string;
         count?: number;
       };
+      const resourceLabel =
+        ERP_RESOURCE_LABELS[output.resource ?? ''] ??
+        output.resource ??
+        '业务数据';
+      const purpose =
+        ERP_RESOURCE_PURPOSE[output.resource ?? ''] ?? '数据分析';
 
       return {
-        summary: [
-          'ERP 读取结果',
-          output.resource ? `资源 ${output.resource}` : null,
-          typeof output.count === 'number' ? `记录数 ${output.count}` : null,
-        ]
-          .filter(Boolean)
-          .join('，'),
+        summary: `已读取${resourceLabel} ${output.count ?? 0} 条，用于${purpose}。`,
         renderBlocks: [
           {
             type: 'kv-list',
             title: 'ERP 读取结果',
             items: [
-              { label: '资源', value: output.resource ?? '-' },
+              { label: '数据类型', value: resourceLabel },
               {
                 label: '记录数',
                 value:
                   typeof output.count === 'number' ? String(output.count) : '-',
               },
+              { label: '用途', value: purpose },
             ],
           },
         ],

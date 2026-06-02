@@ -7,11 +7,17 @@ import {
   InvalidAnalysisFollowUpQuestionError,
   MissingAnalysisConclusionForFollowUpError,
 } from '@/application/follow-up/use-cases';
+import {
+  buildRateLimitRejectedResponse,
+  checkRateLimit,
+  FOLLOW_UP_RATE_LIMIT,
+} from '@/infrastructure/api/rate-limit-middleware';
 import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
 import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
 import { createPostgresOntologyVersionStore } from '@/infrastructure/ontology/postgres-ontology-version-store';
+import { ensureRedisConnected, getSharedRedisClient } from '@/infrastructure/redis/client';
 import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 type RouteContext = {
@@ -44,6 +50,24 @@ export async function POST(request: Request, { params }: RouteContext) {
       new URL(`/login?next=/workspace/analysis/${sessionId}`, request.url),
       { status: 303 },
     );
+  }
+
+  // 限流检查：在触发 LLM 调用前拦截过高频率的请求
+  try {
+    const { redis } = getSharedRedisClient();
+    await ensureRedisConnected(redis);
+    const rateResult = await checkRateLimit(redis, FOLLOW_UP_RATE_LIMIT, authSession.userId);
+
+    if (!rateResult.allowed) {
+      return buildRateLimitRejectedResponse(request, {
+        redirectUrl: buildSessionUrl(request, sessionId),
+        errorParamName: 'followUpError',
+        rateResult,
+      });
+    }
+  } catch (error) {
+    // Redis 不可用时不限流，降级放行；避免缓存故障阻断全部请求
+    console.warn('限流检查失败，降级放行:', error);
   }
 
   const analysisSession = await analysisSessionUseCases.getOwnedSession({

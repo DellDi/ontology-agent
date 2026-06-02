@@ -5,6 +5,7 @@ import {
   normalizeExecutionRenderBlock,
   renderAnalysisInteractionPart,
 } from '@/application/analysis-interaction';
+import { reduceEventsToStepCards } from '@/application/analysis-execution/execution-event-reducer';
 import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 
 import { AnalysisInteractionRenderedBlock } from './analysis-interaction-rendered-block';
@@ -13,31 +14,6 @@ type AnalysisExecutionStreamPanelProps = {
   events: AnalysisExecutionStreamEvent[];
   variant?: 'embedded' | 'side-sheet';
 };
-
-function getEventStatusLabel(event: AnalysisExecutionStreamEvent) {
-  if (event.status === 'completed' || event.step?.status === 'completed') {
-    return '已完成';
-  }
-
-  if (event.status === 'failed' || event.step?.status === 'failed') {
-    return '已失败';
-  }
-
-  return '执行中';
-}
-
-function getEventStatusClassName(event: AnalysisExecutionStreamEvent) {
-  if (event.status === 'completed' || event.step?.status === 'completed') {
-    return 'bg-emerald-100 text-emerald-700';
-  }
-
-  if (event.status === 'failed' || event.step?.status === 'failed') {
-    return 'bg-rose-100 text-rose-700';
-  }
-
-  return 'bg-sky-100 text-[color:var(--brand-700)]';
-}
-
 
 export function AnalysisExecutionStreamPanel({
   events,
@@ -54,6 +30,18 @@ export function AnalysisExecutionStreamPanel({
       surface: 'workspace',
     },
   );
+
+  // 取最后一条 execution-status 事件作为终态（事件按 sequence 升序排列）
+  const lastExecStatusEvent = [...events]
+    .reverse()
+    .find((e) => e.kind === 'execution-status');
+  const rawExecStatus = lastExecStatusEvent?.status;
+  const executionStatus =
+    rawExecStatus === 'completed'
+      ? 'completed'
+      : rawExecStatus === 'failed'
+        ? 'failed'
+        : undefined;
 
   return (
     <article
@@ -76,39 +64,49 @@ export function AnalysisExecutionStreamPanel({
           renderedBlock={processBoardRenderedBlock}
         />
 
-        {events.map((event) => (
+        {reduceEventsToStepCards({ events, executionStatus }).map((card) => (
             <section
               className="rounded-3xl border border-[color:var(--line-200)] bg-white/80 p-5"
-              key={event.id}
+              key={card.stepId}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
-                    {event.stage?.label ?? (event.kind === 'stage-result' ? '阶段结果' : '执行事件')}
+                    {card.stageLabel}
                   </p>
                   <h4 className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
-                    {event.step?.title ?? event.message ?? '执行状态更新'}
+                    {card.stepLabel}
                   </h4>
                   <p className="mt-1 text-xs text-[color:var(--ink-600)]">
-                    {new Date(event.timestamp).toLocaleString('zh-CN', {
+                    {new Date(card.startedAt).toLocaleString('zh-CN', {
                       hour12: false,
                     })}
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${getEventStatusClassName(event)}`}
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    card.status === 'completed'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : card.status === 'failed'
+                        ? 'bg-rose-100 text-rose-700'
+                        : 'bg-sky-100 text-[color:var(--brand-700)]'
+                  }`}
                 >
-                  {getEventStatusLabel(event)}
+                  {card.status === 'completed'
+                    ? '已完成'
+                    : card.status === 'failed'
+                      ? '已失败'
+                      : '执行中'}
                 </span>
               </div>
 
-              {(event.renderBlocks ?? []).map((block, index) => {
+              {(card.renderBlocks ?? []).map((block, index) => {
                 const part = normalizeExecutionRenderBlock(block, {
                   sourceType: 'execution-render-block',
-                  sessionId: event.sessionId,
-                  executionId: event.executionId,
-                  eventId: event.id,
-                  sequence: event.sequence,
+                  sessionId: events[0]?.sessionId ?? 'session-unknown',
+                  executionId: events[0]?.executionId ?? 'execution-unknown',
+                  eventId: `reduced-${card.stepId}`,
+                  sequence: index,
                   blockIndex: index,
                 });
                 const renderedBlock = renderAnalysisInteractionPart(part, {

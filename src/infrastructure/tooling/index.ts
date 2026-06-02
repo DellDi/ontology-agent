@@ -1,6 +1,7 @@
 import { createAnalysisExecutionUseCases } from '@/application/analysis-execution/use-cases';
 import { createAiRuntimeToolBridgeFromRegistry } from '@/application/ai-runtime/tool-runtime-bridge';
 import { createAuditUseCases } from '@/application/audit/use-cases';
+import { z } from 'zod';
 import {
   createAnalysisToolRegistryUseCases,
 } from '@/application/tooling/use-cases';
@@ -68,7 +69,10 @@ type AnalysisToolingDependencies = {
     listServiceOrders: (session: AuthSession) => Promise<Record<string, unknown>[]>;
   };
   semanticQueryUseCases: {
-    runMetricQuery: (request: unknown) => Promise<{
+    runMetricQuery: (
+      request: unknown,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{
       metric: string;
       rows: {
         value: number | null;
@@ -85,7 +89,10 @@ type AnalysisToolingDependencies = {
     }>;
   };
   graphUseCases: {
-    expandCandidateFactors: (request: unknown) => Promise<{
+    expandCandidateFactors: (
+      request: unknown,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{
       mode: 'expand' | 'skip';
       factors: {
         factorKey: string;
@@ -286,10 +293,18 @@ export function createAnalysisToolingServices({
         resolveAvailability: resolveLlmAvailability,
         inputSchema: llmStructuredAnalysisInputSchema,
         outputSchema: llmStructuredAnalysisOutputSchema,
-        async invoke(input) {
-          const result = await analysisAiUseCases.runTask(
-            input as Parameters<typeof analysisAiUseCases.runTask>[0],
-          );
+        async invoke(input, context) {
+          const typedInput = input as Parameters<typeof analysisAiUseCases.runTask>[0];
+
+          // 将 worker 注入的 abort signal 桥接到 LLM 请求上下文，使超时取消可传递到底层 HTTP 客户端
+          const requestWithContext = context?.signal
+            ? {
+                ...typedInput,
+                context: { ...typedInput.context, signal: context.signal },
+              }
+            : typedInput;
+
+          const result = await analysisAiUseCases.runTask(requestWithContext);
 
           return {
             taskType: result.taskType,
@@ -357,12 +372,16 @@ export function createAnalysisToolingServices({
         resolveAvailability: resolveCubeAvailability,
         inputSchema: cubeSemanticQueryInputSchema,
         outputSchema: cubeSemanticQueryOutputSchema,
-        async invoke(input) {
-          const result = await semanticQueryUseCases.runMetricQuery(input);
+        async invoke(input, context) {
+          const typedInput = input as z.infer<typeof cubeSemanticQueryInputSchema>;
+          const result = await semanticQueryUseCases.runMetricQuery(typedInput, {
+            signal: context?.signal,
+          });
 
           return {
             metric: result.metric,
             rowCount: result.rows.length,
+            granularity: typedInput.granularity,
             rows: result.rows.map((row) => ({
               value: row.value,
               time: row.time,
@@ -390,8 +409,10 @@ export function createAnalysisToolingServices({
         resolveAvailability: resolveNeo4jAvailability,
         inputSchema: neo4jGraphQueryInputSchema,
         outputSchema: neo4jGraphQueryOutputSchema,
-        async invoke(input) {
-          const result = await graphUseCases.expandCandidateFactors(input);
+        async invoke(input, context) {
+          const result = await graphUseCases.expandCandidateFactors(input, {
+            signal: context?.signal,
+          });
 
           return {
             mode: result.mode,
