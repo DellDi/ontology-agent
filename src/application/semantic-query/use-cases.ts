@@ -1,5 +1,5 @@
 import type { MetricQueryRequest } from './models';
-import type { SemanticQueryPort } from './ports';
+import type { SemanticQueryOptions, SemanticQueryPort } from './ports';
 
 type SemanticQueryUseCasesDependencies = {
   port: SemanticQueryPort;
@@ -9,8 +9,11 @@ export function createSemanticQueryUseCases({
   port,
 }: SemanticQueryUseCasesDependencies) {
   return {
-    async runMetricQuery(request: MetricQueryRequest) {
-      return await port.runMetricQuery(request);
+    async runMetricQuery(
+      request: MetricQueryRequest,
+      options?: SemanticQueryOptions,
+    ) {
+      return await port.runMetricQuery(request, options);
     },
 
     async checkHealth() {

@@ -3,7 +3,7 @@ import type {
   GraphCandidateFactorQuery,
 } from '@/domain/graph/models';
 
-import type { GraphReadPort, GraphWritePort } from './ports';
+import type { GraphQueryOptions, GraphReadPort, GraphWritePort } from './ports';
 
 type GraphUseCasesDependencies = {
   graphReadPort: GraphReadPort;
@@ -21,11 +21,12 @@ export function createGraphUseCases({
   return {
     async expandCandidateFactors(
       query: GraphCandidateFactorQuery,
+      options?: GraphQueryOptions,
     ): Promise<{
       mode: 'expand' | 'skip';
       factors: GraphCandidateFactorReadModel[];
     }> {
-      const factors = await graphReadPort.findCandidateFactors(query);
+      const factors = await graphReadPort.findCandidateFactors(query, options);
 
       if (factors.length === 0) {
         return {
