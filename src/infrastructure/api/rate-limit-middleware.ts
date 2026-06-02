@@ -86,6 +86,15 @@ export async function checkRateLimit(
     arguments: [String(config.windowSeconds)],
   })) as number;
 
+  // Repair broken keys (ttl == -1 means no expiry set)
+  if (count > 1) {
+    const ttl = await redis.ttl(key);
+    if (ttl === -1) {
+      // Key exists but has no TTL — repair it
+      await redis.expire(key, config.windowSeconds);
+    }
+  }
+
   if (count > config.maxRequests) {
     const ttl = await redis.ttl(key);
     return {
