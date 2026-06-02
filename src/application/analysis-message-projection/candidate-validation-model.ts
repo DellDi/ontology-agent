@@ -161,22 +161,15 @@ export function buildCandidateValidationSummary(
         };
       }
 
-      // 无逐因素 metadata 时，根据结论推导状态
-      if (includedInFinalConclusion) {
-        return {
-          factorKey: factor.key,
-          factorLabel: factor.label,
-          status: 'supported' as const,
-          evidence: validationEvidence.slice(0, 4),
-          includedInFinalConclusion: true,
-        };
-      }
-
+      // 验证步骤完成但无逐因素 metadata — 诚实标记为 not-validated
+      // 不再从结论推导状态，避免误导用户
       return {
         factorKey: factor.key,
         factorLabel: factor.label,
-        status: 'inconclusive' as const,
+        status: 'not-validated' as const,
         evidence: validationEvidence.slice(0, 4),
+        includedInFinalConclusion,
+        validationNote: '验证步骤未生成逐因素结果',
         includedInFinalConclusion: false,
       };
     },
