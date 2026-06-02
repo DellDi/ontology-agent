@@ -1,6 +1,7 @@
 import { createAnalysisExecutionUseCases } from '@/application/analysis-execution/use-cases';
 import { createAiRuntimeToolBridgeFromRegistry } from '@/application/ai-runtime/tool-runtime-bridge';
 import { createAuditUseCases } from '@/application/audit/use-cases';
+import { z } from 'zod';
 import {
   createAnalysisToolRegistryUseCases,
 } from '@/application/tooling/use-cases';
@@ -372,14 +373,15 @@ export function createAnalysisToolingServices({
         inputSchema: cubeSemanticQueryInputSchema,
         outputSchema: cubeSemanticQueryOutputSchema,
         async invoke(input, context) {
-          const result = await semanticQueryUseCases.runMetricQuery(input, {
+          const typedInput = input as z.infer<typeof cubeSemanticQueryInputSchema>;
+          const result = await semanticQueryUseCases.runMetricQuery(typedInput, {
             signal: context?.signal,
           });
 
           return {
             metric: result.metric,
             rowCount: result.rows.length,
-            granularity: input.granularity,
+            granularity: typedInput.granularity,
             rows: result.rows.map((row) => ({
               value: row.value,
               time: row.time,
