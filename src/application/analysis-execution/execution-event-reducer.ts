@@ -42,20 +42,32 @@ export function reduceEventsToStepCards(
 
     if (!stepId) {
       // 无 step 但有 renderBlocks 的事件 → 归入执行级卡片
-      if (hasRenderBlocks) {
+      if (hasRenderBlocks && event.renderBlocks) {
         const execCardKey = '__execution_level__';
         const existing = stepMap.get(execCardKey);
+        // 执行级卡片状态：取事件自身的 status（如 execution-status 的 completed/failed）
+        const eventLevelStatus: 'running' | 'completed' | 'failed' =
+          event.status === 'failed'
+            ? 'failed'
+            : event.status === 'completed'
+              ? 'completed'
+              : 'running';
         if (existing) {
           existing.renderBlocks = [
             ...(existing.renderBlocks ?? []),
             ...event.renderBlocks,
           ];
+          // 状态升级（failed > completed > running）
+          const priority = { running: 0, completed: 1, failed: 2 };
+          if (priority[eventLevelStatus] > priority[existing.status]) {
+            existing.status = eventLevelStatus;
+          }
         } else {
           stepMap.set(execCardKey, {
             stepId: execCardKey,
             stepLabel: event.stage?.label ?? '执行级结果',
             stageLabel: event.stage?.label ?? '执行结果',
-            status: 'completed',
+            status: eventLevelStatus,
             startedAt: event.timestamp,
             renderBlocks: event.renderBlocks,
           });
