@@ -189,7 +189,9 @@ export function resolveExecutionProjectionDisplaySelection(input: {
       resolvedExecutionId: input.requestedExecutionIdForDisplay,
       followUpIdForProjection: requestedSnapshot?.followUpId ?? null,
       historyRoundIdForProjection: resolveRoundIdFromSnapshot(requestedSnapshot),
-      enableLiveStream: true,
+      enableLiveStream:
+        !requestedSnapshot ||
+        !['completed', 'failed'].includes(requestedSnapshot.status),
       isHistoryReplay: false,
     };
   }
@@ -201,7 +203,9 @@ export function resolveExecutionProjectionDisplaySelection(input: {
     historyRoundIdForProjection: resolveRoundIdFromSnapshot(
       input.latestExecutionSnapshot,
     ),
-    enableLiveStream: true,
+    enableLiveStream:
+      !input.latestExecutionSnapshot ||
+      !['completed', 'failed'].includes(input.latestExecutionSnapshot.status),
     isHistoryReplay: false,
   };
 }

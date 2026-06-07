@@ -203,6 +203,79 @@ test('图谱查询失败时，候选因素扩展会优雅降级到治理规则�
   assert.ok(result.factors.length > 0);
 });
 
+test('图谱候选因素会归并为业务可读原因，不直接展示节点 ID 或工单号', async () => {
+  const result = await runTsSnippet(`
+    import factorExpansionModule from './src/application/factor-expansion/use-cases.ts';
+
+    const { createFactorExpansionUseCases } = factorExpansionModule;
+
+    const useCases = createFactorExpansionUseCases({
+      graphUseCases: {
+        async expandCandidateFactors() {
+          return {
+            mode: 'expand',
+            factors: [
+              {
+                factorKey: '205199',
+                factorLabel: '205199',
+                explanation: 'Project -> Receivable',
+                relationType: 'has-receivable',
+                direction: 'outbound',
+                source: 'erp-derived',
+              },
+              {
+                factorKey: 'BXGD202605140048',
+                factorLabel: 'BXGD202605140048',
+                explanation: 'Project -> ServiceOrder',
+                relationType: 'has-service-order',
+                direction: 'outbound',
+                source: 'erp-derived',
+              },
+              {
+                factorKey: 'BXGD202605170006',
+                factorLabel: 'BXGD202605170006',
+                explanation: 'Project -> ServiceOrder',
+                relationType: 'has-service-order',
+                direction: 'outbound',
+                source: 'erp-derived',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const output = await useCases.buildCandidateFactorReadModel({
+      intentType: 'general-analysis',
+      questionText: '为什么丰和园小区本年的物业费收缴率异常？',
+      contextReadModel: {
+        version: 1,
+        questionText: '为什么丰和园小区本年的物业费收缴率异常？',
+        context: {
+          targetMetric: { value: '物业费收缴率', status: 'confirmed' },
+          entity: { value: '丰和园小区项目', status: 'confirmed' },
+          timeRange: { value: '今年', status: 'confirmed' },
+          comparison: { value: '存在趋势或比较语义', status: 'needs-confirmation' },
+          constraints: [],
+        },
+      },
+    });
+
+    console.log(JSON.stringify(output));
+  `);
+
+  assert.deepEqual(
+    result.factors.map((factor) => factor.label),
+    ['应收账单与收费口径', '工单服务履约影响'],
+  );
+  assert.ok(
+    result.factors.every((factor) => !/BXGD|205199/.test(factor.label)),
+    '候选原因标题不应展示技术 ID 或工单号',
+  );
+  assert.match(result.factors[0].rationale, /应收金额|账单生成|收费项目/);
+  assert.match(result.factors[1].rationale, /报修处理|服务响应|闭环时效/);
+});
+
 test('最小同步基线把 ERP 关系投影成受控图谱节点与边', async () => {
   const sync = await readRepoFile('src/infrastructure/sync/neo4j-graph-sync.ts');
   const doc = await readRepoFile('docs/data-contracts/graph-sync-baseline.md');

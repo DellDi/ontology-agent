@@ -12,7 +12,7 @@ type AnalysisPendingRefreshGateProps = {
 export function AnalysisPendingRefreshGate({
   enabled,
   intervalMs = 2000,
-  maxAttempts = 15,
+  maxAttempts = 90,
 }: AnalysisPendingRefreshGateProps) {
   const router = useRouter();
   const [exhausted, setExhausted] = useState(false);

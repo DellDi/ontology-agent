@@ -169,7 +169,7 @@ test('AC6 | 验证步骤未完成时所有因素标记为 not-validated 附注',
   );
 });
 
-test('AC6 | 无 metadata 但因素标签出现在结论文本中时标记 includedInFinalConclusion', async () => {
+test('AC6 | 旧执行无 metadata 但验证步骤有证据时标记为已核验，并保留最终结论判断', async () => {
   const events = [
     buildEvent({
       sequence: 1,
@@ -199,17 +199,17 @@ test('AC6 | 无 metadata 但因素标签出现在结论文本中时标记 includ
   // 结论文本中包含收费政策触达和账单生成及时性，不包含工单响应时效
   assert.equal(result.includedCount, 2);
 
-  // status 不从结论推导，诚实标记为 not-validated
+  // status 不从结论文本推导；旧执行无 metadata 时，若验证步骤已有证据，则按已核验展示
   const feePolicy = result.validations.find((v) => v.factorKey === 'fee-policy-reach');
-  assert.equal(feePolicy.status, 'not-validated', '无 metadata → not-validated（不再推导）');
+  assert.equal(feePolicy.status, 'supported', '验证步骤有证据 → 已核验');
   assert.equal(feePolicy.includedInFinalConclusion, true);
-  assert.equal(feePolicy.validationNote, '验证步骤未生成逐因素结果');
+  assert.match(feePolicy.validationNote, /验证步骤已完成/);
 
   const billing = result.validations.find((v) => v.factorKey === 'billing-timeliness');
   assert.equal(billing.includedInFinalConclusion, true, '标签出现在结论文本中 → included');
 
   const workOrder = result.validations.find((v) => v.factorKey === 'work-order-response');
-  assert.equal(workOrder.status, 'not-validated', '无 metadata → not-validated');
+  assert.equal(workOrder.status, 'supported', '验证步骤有证据 → 已核验');
   assert.equal(workOrder.includedInFinalConclusion, false, '标签不在结论文本中 → not included');
 });
 

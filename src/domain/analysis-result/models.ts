@@ -23,6 +23,48 @@ export type AnalysisConclusionReadModel = {
   renderBlocks: ExecutionRenderBlock[];
 };
 
+const CONCLUSION_RESULT_BLOCK_TYPES = new Set<ExecutionRenderBlock['type']>([
+  'kv-list',
+  'markdown',
+  'table',
+  'chart',
+  'graph',
+  'evidence-card',
+]);
+
+const NON_CONCLUSION_BLOCK_TITLES = new Set([
+  '阶段状态',
+  '阶段结果',
+  '工具调用',
+  '执行进度',
+  '当前步骤',
+  '平台能力状态',
+  'ERP 读取结果',
+  '候选因素',
+]);
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'undefined';
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+
+  return `{${entries
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .join(',')}}`;
+}
+
+function buildRenderBlockKey(block: ExecutionRenderBlock) {
+  return stableJson(block);
+}
+
 function extractEvidence(event: AnalysisExecutionStreamEvent) {
   const evidence: AnalysisConclusionEvidence[] = [];
 
@@ -130,11 +172,8 @@ function scoreConclusionEvent(event: AnalysisExecutionStreamEvent) {
     score -= 40;
   }
 
-  if ((event.renderBlocks ?? []).some((block) => block.type === 'table')) {
-    score += 20;
-  }
-
   if (
+    event.step?.id === 'synthesize-attribution' &&
     (event.renderBlocks ?? []).some(
       (block) =>
         block.type === 'markdown' && block.title === '结构化分析摘要',
@@ -144,6 +183,44 @@ function scoreConclusionEvent(event: AnalysisExecutionStreamEvent) {
   }
 
   return score;
+}
+
+function isConclusionResultBlock(block: ExecutionRenderBlock) {
+  if (!CONCLUSION_RESULT_BLOCK_TYPES.has(block.type)) return false;
+  if ('title' in block && NON_CONCLUSION_BLOCK_TITLES.has(block.title)) {
+    return false;
+  }
+
+  return true;
+}
+
+function collectConclusionResultBlocks(
+  events: readonly AnalysisExecutionStreamEvent[],
+) {
+  const resultBlocks: ExecutionRenderBlock[] = [];
+  const seen = new Set<string>();
+
+  for (const event of events) {
+    if (
+      event.kind !== 'stage-result' ||
+      event.step?.status !== 'completed' ||
+      event.step.order <= 0
+    ) {
+      continue;
+    }
+
+    for (const block of event.renderBlocks ?? []) {
+      if (!isConclusionResultBlock(block)) continue;
+
+      const key = buildRenderBlockKey(block);
+      if (seen.has(key)) continue;
+
+      seen.add(key);
+      resultBlocks.push(block);
+    }
+  }
+
+  return resultBlocks;
 }
 
 export function buildAnalysisConclusionReadModel(
@@ -166,38 +243,41 @@ export function buildAnalysisConclusionReadModel(
       return (left.step?.order ?? 0) - (right.step?.order ?? 0);
     });
 
-  const causes = stageResultEvents.map((event, index) => {
-    const metadata = extractConclusionMetadata(event);
-    const evidence = [...metadata.evidence, ...extractEvidence(event)].slice(0, 4);
+  const causes = stageResultEvents
+    .filter((event) => scoreConclusionEvent(event) > 0)
+    .map((event, index) => {
+      const metadata = extractConclusionMetadata(event);
+      const evidence = [...metadata.evidence, ...extractEvidence(event)].slice(0, 4);
 
-    return {
-      id: event.step?.id ?? event.id,
-      rank: index + 1,
-      title: metadata.title ?? event.step?.title ?? `原因 ${index + 1}`,
-      summary:
-        metadata.summary ??
-        event.message ??
-        `${event.step?.title ?? `步骤 ${index + 1}`} 对当前归因排序产生了影响。`,
-      confidence: metadata.confidence,
-      evidence,
-    };
-  });
+      return {
+        id: event.step?.id ?? event.id,
+        rank: index + 1,
+        title: metadata.title ?? event.step?.title ?? `原因 ${index + 1}`,
+        summary:
+          metadata.summary ??
+          event.message ??
+          `${event.step?.title ?? `步骤 ${index + 1}`} 对当前归因排序产生了影响。`,
+        confidence: metadata.confidence,
+        evidence,
+      };
+    });
+  const conclusionResultBlocks = collectConclusionResultBlocks(events);
+  const causeRankingBlock: ExecutionRenderBlock = {
+    type: 'table',
+    title: '原因排序',
+    columns: ['排序', '原因', '关键证据'],
+    rows: causes.map((cause) => [
+      String(cause.rank),
+      cause.title,
+      cause.evidence[0]?.summary ?? cause.summary,
+    ]),
+  };
 
   return {
     causes,
-    renderBlocks: causes.length
-      ? [
-          {
-            type: 'table',
-            title: '原因排序',
-            columns: ['排序', '原因', '关键证据'],
-            rows: causes.map((cause) => [
-              String(cause.rank),
-              cause.title,
-              cause.evidence[0]?.summary ?? cause.summary,
-            ]),
-          },
-        ]
-      : [],
+    renderBlocks: [
+      ...(causes.length ? [causeRankingBlock] : []),
+      ...conclusionResultBlocks,
+    ],
   };
 }

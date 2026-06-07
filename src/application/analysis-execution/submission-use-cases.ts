@@ -2,6 +2,7 @@ import type { AnalysisSession } from '@/domain/analysis-session/models';
 import type { Job, JobStatus } from '@/domain/job-contract/models';
 import type { AnalysisContext } from '@/domain/analysis-context/models';
 import {
+  type AnalysisExecutionCandidateFactor,
   type AnalysisExecutionPlanSnapshot,
   validateAnalysisExecutionPlanSnapshot,
 } from '@/domain/analysis-execution/models';
@@ -59,6 +60,7 @@ export function createAnalysisExecutionSubmissionUseCases({
       questionText,
       context,
       groundedContext,
+      candidateFactors,
       originCorrelationId,
     }: {
       session: AnalysisSession;
@@ -68,6 +70,7 @@ export function createAnalysisExecutionSubmissionUseCases({
       questionText?: string;
       context?: AnalysisContext;
       groundedContext?: OntologyGroundedContext;
+      candidateFactors?: readonly AnalysisExecutionCandidateFactor[];
       // Story 7.4 D2: web 发起执行时传入，worker 消费时恢复到同一条 trace。
       originCorrelationId?: string;
     }): Promise<SubmittedAnalysisExecution> {
@@ -91,6 +94,7 @@ export function createAnalysisExecutionSubmissionUseCases({
           questionText: questionText ?? session.questionText,
           context,
           groundedContext,
+          candidateFactors: candidateFactors ?? [],
           ontologyVersionId,
           submittedAt,
           plan: executablePlan,

@@ -13,6 +13,7 @@
 
 import type {
   AiRuntimeEvidenceCardPart,
+  AiRuntimeConclusionCardPart,
   AiRuntimeMessagePart,
   AiRuntimeProjection,
   AiRuntimeStatusBannerPart,
@@ -234,13 +235,12 @@ const RESULT_BLOCK_KINDS = new Set([
   'graph',
   'kv-list',
   'markdown',
-  'status',
 ]);
 
 const EVIDENCE_BLOCK_KINDS = new Set(['evidence-card']);
 const ASSUMPTION_BLOCK_KINDS = new Set(['assumption-card']);
 const REASONING_BLOCK_KINDS = new Set(['reasoning-summary']);
-const DIAGNOSTIC_BLOCK_KINDS = new Set(['process-board', 'timeline']);
+const DIAGNOSTIC_BLOCK_KINDS = new Set(['process-board', 'timeline', 'status']);
 const OPERATIONAL_BLOCK_TITLES = new Set([
   '执行状态',
   '执行元数据',
@@ -251,6 +251,7 @@ const OPERATIONAL_BLOCK_TITLES = new Set([
   '阶段结果',
   '平台能力状态',
   'ERP 读取结果',
+  '候选因素',
 ]);
 
 function classifyRenderedBlock(
@@ -265,6 +266,87 @@ function classifyRenderedBlock(
   if (DIAGNOSTIC_BLOCK_KINDS.has(block.kind)) return 'diagnostic';
   if (RESULT_BLOCK_KINDS.has(block.kind)) return 'result';
   return 'other';
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'undefined';
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+
+  return `{${entries
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .join(',')}}`;
+}
+
+function buildRenderedBlockSemanticKey(block: AnalysisRenderedBlock): string {
+  return stableJson({
+    kind: block.kind,
+    title: block.title ?? block.label ?? '',
+    variant: block.variant ?? '',
+    payload: block.payload,
+  });
+}
+
+function dedupeRenderedBlocks(
+  blocks: readonly AnalysisRenderedBlock[],
+): AnalysisRenderedBlock[] {
+  const seen = new Set<string>();
+  const result: AnalysisRenderedBlock[] = [];
+
+  for (const block of blocks) {
+    const key = buildRenderedBlockSemanticKey(block);
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(block);
+  }
+
+  return result;
+}
+
+function dedupeMetricCards(cards: readonly MetricCard[]): MetricCard[] {
+  const seen = new Set<string>();
+  const result: MetricCard[] = [];
+
+  for (const card of cards) {
+    const key = stableJson(card);
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(card);
+  }
+
+  return result;
+}
+
+function dedupeVisualizations(
+  visualizations: readonly Visualization[],
+): Visualization[] {
+  const seen = new Set<string>();
+  const result: Visualization[] = [];
+
+  for (const visualization of visualizations) {
+    const key = stableJson({
+      type: visualization.type,
+      title: visualization.title,
+      data: visualization.data,
+      summary: visualization.summary ?? '',
+    });
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(visualization);
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -435,14 +517,14 @@ function renderEvidenceBlocks(
     const sourceEventKind = eventKindById.get(evidencePart.sourceEventId);
     if (sourceEventKind === 'execution-status') continue;
 
-    for (const block of evidencePart.blocks) {
+    for (const [blockIndex, block] of evidencePart.blocks.entries()) {
       const source = {
         sourceType: 'execution-render-block' as const,
         sessionId: undefined,
         executionId: undefined,
         eventId: evidencePart.sourceEventId,
         sequence: evidencePart.sequence,
-        blockIndex: 0,
+        blockIndex,
       };
       try {
         const normalized = normalizeExecutionRenderBlock(block, source);
@@ -484,6 +566,31 @@ function renderEvidenceBlocks(
     }
   }
   return { rendered, errors };
+}
+
+function renderConclusionReadModelBlocks(
+  conclusionPart: AiRuntimeConclusionCardPart | null,
+): AnalysisRenderedBlock[] {
+  if (!conclusionPart) return [];
+
+  const rendered: AnalysisRenderedBlock[] = [];
+  for (const [blockIndex, block] of conclusionPart.readModel.renderBlocks.entries()) {
+    if (block.title === '原因排序') continue;
+
+    const source = {
+      sourceType: 'conclusion-read-model' as const,
+      eventId: conclusionPart.id,
+      blockIndex,
+    };
+    const normalized = normalizeExecutionRenderBlock(block, source);
+    rendered.push(
+      renderAnalysisInteractionPart(normalized, {
+        surface: 'workspace',
+      }),
+    );
+  }
+
+  return rendered;
 }
 
 function renderStepTimelinePart(
@@ -912,6 +1019,24 @@ function resolvePrimaryAnswer(input: {
   return '';
 }
 
+function resolveResultSummaryFromBlocks(
+  blocks: readonly AnalysisRenderedBlock[],
+): string | undefined {
+  for (const block of blocks) {
+    if (block.kind !== 'markdown') continue;
+
+    const content =
+      typeof block.payload?.content === 'string'
+        ? block.payload.content.trim()
+        : '';
+    if (!content) continue;
+
+    return content.split(/\n{2,}|\n/)[0]?.trim() || content;
+  }
+
+  return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // 主入口
 // ---------------------------------------------------------------------------
@@ -1041,7 +1166,10 @@ export function buildConversationViewModel(
   const evidenceParts = allParts.filter(
     (p): p is AiRuntimeEvidenceCardPart => p.kind === 'evidence-card',
   );
-  const conclusionPart = allParts.find((p) => p.kind === 'conclusion-card');
+  const conclusionPart = findPartByKind<AiRuntimeConclusionCardPart>(
+    allParts,
+    'conclusion-card',
+  );
 
   // -- 状态解析 --
   const status = resolveAssistantStatus({
@@ -1062,7 +1190,7 @@ export function buildConversationViewModel(
   const diagnosticBlocks: AnalysisRenderedBlock[] = [];
   const otherBlocks: AnalysisRenderedBlock[] = [];
 
-  for (const block of renderedEvidenceBlocks) {
+  for (const block of dedupeRenderedBlocks(renderedEvidenceBlocks)) {
     // tool-list 已经被提取为 toolActivities，不再作为 block 渲染
     if (block.kind === 'tool-list') continue;
 
@@ -1089,6 +1217,14 @@ export function buildConversationViewModel(
     }
   }
 
+  const conclusionResultBlocks = dedupeRenderedBlocks(
+    renderConclusionReadModelBlocks(conclusionPart),
+  ).filter((block) => classifyRenderedBlock(block) === 'result');
+  const mergedResultBlocks = dedupeRenderedBlocks([
+    ...resultBlocks,
+    ...conclusionResultBlocks,
+  ]);
+
   // -- planAssumptions 审计信息：构建假设卡片进入"假设与口径"折叠区 --
   if (input.planAssumptions && input.planAssumptions.length > 0) {
     const planAssumptionBlock: AnalysisRenderedBlock = {
@@ -1114,7 +1250,9 @@ export function buildConversationViewModel(
 
   // -- conclusion 解析 --
   let resultSection: ConversationResultSection | null = null;
-  const hasConclusion = conclusionPart?.kind === 'conclusion-card';
+  const hasConclusion =
+    conclusionPart?.kind === 'conclusion-card' &&
+    conclusionPart.readModel.causes.length > 0;
 
   if (hasConclusion) {
     const conclusionReadModel =
@@ -1152,21 +1290,21 @@ export function buildConversationViewModel(
     resultSection = {
       headline: conclusionHeadline,
       summary: conclusionSummary,
-      blocks: [conclusionRenderedBlock, ...resultBlocks],
+      blocks: [conclusionRenderedBlock, ...mergedResultBlocks],
       evidenceBlocks,
       assumptionBlocks,
       reasoningBlocks,
     };
   } else if (
-    resultBlocks.length > 0 ||
+    mergedResultBlocks.length > 0 ||
     evidenceBlocks.length > 0 ||
     reasoningBlocks.length > 0 ||
     assumptionBlocks.length > 0
   ) {
     resultSection = {
       headline: undefined,
-      summary: undefined,
-      blocks: resultBlocks,
+      summary: resolveResultSummaryFromBlocks(mergedResultBlocks),
+      blocks: mergedResultBlocks,
       evidenceBlocks,
       assumptionBlocks,
       reasoningBlocks,
@@ -1216,8 +1354,10 @@ export function buildConversationViewModel(
     ...(resultSection?.blocks ?? []),
     ...(resultSection?.evidenceBlocks ?? []),
   ];
-  const metricCards = extractMetricCards(allResultBlocks);
-  const visualizations = extractVisualizations(allResultBlocks);
+  const metricCards = dedupeMetricCards(extractMetricCards(allResultBlocks));
+  const visualizations = dedupeVisualizations(
+    extractVisualizations(allResultBlocks),
+  );
 
   const toolTimeline = buildToolTimeline({
     stepTimelinePart: stepTimeline,

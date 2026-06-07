@@ -332,6 +332,12 @@ export async function POST(request: Request, { params }: RouteContext) {
         questionText: executionQuestionText,
         context: executionContextReadModel.context,
         groundedContext: groundedArtifacts.groundedContext,
+        candidateFactors: mergedCandidateFactorReadModel.factors.map(
+          (factor) => ({
+            key: factor.key,
+            label: factor.label,
+          }),
+        ),
         // Story 7.4 D2: 把当前请求的 correlation id 写入 job payload，
         // worker 消费时恢复到同一条 trace，支撑 AC3 跨进程定位。
         originCorrelationId: getCurrentCorrelationId(),

@@ -2,6 +2,7 @@
 
 # ide
 .idea
+.codex-runtime
 
 # dependencies
 /node_modules

@@ -573,6 +573,13 @@ test('Story 10.3 AC2/AC4 | historyRoundId 切换主 projection 轮次，且历�
       sessionSnapshots: snapshots,
       selectedHistoryRound: null,
     });
+    const processingSelection = resolveExecutionProjectionDisplaySelection({
+      requestedExecutionIdForDisplay: '',
+      sessionScopedRequestedExecutionSnapshot: null,
+      latestExecutionSnapshot: { ...snapshots[1], status: 'processing' },
+      sessionSnapshots: snapshots,
+      selectedHistoryRound: null,
+    });
     console.log(JSON.stringify({
       historyExecutionId: historySelection.resolvedExecutionId,
       historyRoundId: historySelection.historyRoundIdForProjection,
@@ -581,6 +588,7 @@ test('Story 10.3 AC2/AC4 | historyRoundId 切换主 projection 轮次，且历�
       normalExecutionId: normalSelection.resolvedExecutionId,
       normalHistoryRoundId: normalSelection.historyRoundIdForProjection,
       normalLiveStream: normalSelection.enableLiveStream,
+      processingLiveStream: processingSelection.enableLiveStream,
     }));
   `);
 
@@ -590,7 +598,8 @@ test('Story 10.3 AC2/AC4 | historyRoundId 切换主 projection 轮次，且历�
   assert.equal(result.historyLiveStream, false);
   assert.equal(result.normalExecutionId, 'exec-follow-up');
   assert.equal(result.normalHistoryRoundId, 'follow-up-1');
-  assert.equal(result.normalLiveStream, true);
+  assert.equal(result.normalLiveStream, false);
+  assert.equal(result.processingLiveStream, true);
 });
 
 test('Story 10.3 AC5 | live stream URL 携带 projection cursor，服务端可从确认 sequence 之后续流', async () => {
