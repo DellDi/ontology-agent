@@ -219,6 +219,7 @@ export function buildStepResultEvent(input: {
   result: OrchestrationStepExecutionResult;
   processedStepCount: number;
   totalStepCount: number;
+  metadata?: Record<string, unknown>;
 }): Parameters<AnalysisExecutionStreamPublisher['publishEvent']>[0] {
   const status = input.result.status === 'completed' ? 'completed' : 'failed';
   const structuredConclusion = extractStructuredConclusion(input.result);
@@ -258,6 +259,7 @@ export function buildStepResultEvent(input: {
       conclusionText: structuredConclusion.conclusion ?? null,
       conclusionConfidence: structuredConclusion.confidence ?? null,
       conclusionEvidence: structuredConclusion.evidence ?? [],
+      ...(input.metadata ?? {}),
     },
   };
 }

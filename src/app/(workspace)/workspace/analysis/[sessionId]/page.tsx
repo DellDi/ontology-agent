@@ -20,6 +20,7 @@ import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
 import { analysisContextUseCases } from '@/infrastructure/analysis-context';
 import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
 import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
+import type { CandidateFactorReadModel } from '@/application/factor-expansion/use-cases';
 import { getIntentTypeLabel } from '@/domain/analysis-intent/models';
 import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
 import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
@@ -93,6 +94,61 @@ function resolveActiveFollowUpId(
     followUps.at(-1) ??
     null
   );
+}
+
+function buildFollowUpContextReadModel(
+  sessionId: string,
+  followUp: AnalysisSessionFollowUp,
+) {
+  return {
+    sessionId,
+    version: 0,
+    context: followUp.mergedContext,
+    canUndo: false,
+    originalQuestionText: followUp.questionText,
+  };
+}
+
+function mergeFollowUpManualCandidateFactors(
+  followUp: AnalysisSessionFollowUp | null,
+  candidateFactorReadModel: CandidateFactorReadModel,
+): CandidateFactorReadModel {
+  if (!followUp) {
+    return candidateFactorReadModel;
+  }
+
+  const manualFactors = followUp.mergedContext.constraints
+    .filter((constraint) => constraint.label === '候选因素')
+    .map((constraint, index) => ({
+      key: `manual-factor-${index + 1}`,
+      label: constraint.value,
+      rationale: '用户在 follow-up 中显式补充的候选因素。',
+    }));
+  const manualFactorLabels = new Set(
+    manualFactors.map((factor) => factor.label),
+  );
+
+  return {
+    ...candidateFactorReadModel,
+    factors: [
+      ...manualFactors,
+      ...candidateFactorReadModel.factors.filter(
+        (factor) => !manualFactorLabels.has(factor.label),
+      ),
+    ],
+  };
+}
+
+function getPlanAssumptionsFromSnapshot(
+  snapshot: { planSnapshot?: { _executionAssumptions?: string[] } } | null,
+) {
+  return snapshot?.planSnapshot?._executionAssumptions ?? [];
+}
+
+function getConclusionCauseIdsFromSnapshot(
+  snapshot: { conclusionState?: { causes?: { id: string }[] } } | null,
+) {
+  return snapshot?.conclusionState?.causes?.map((cause) => cause.id) ?? [];
 }
 
 const analysisSessionUseCases = createAnalysisSessionUseCases({
@@ -203,44 +259,58 @@ export default async function AnalysisSessionPage({
     selectedRoundId: historyRoundId || null,
   });
   const planContextReadModel = activeFollowUp
-    ? {
-        sessionId: analysisSession.id,
-        version: 0,
-        context: activeFollowUp.mergedContext,
-        canUndo: false,
-        originalQuestionText: activeFollowUp.questionText,
-      }
+    ? buildFollowUpContextReadModel(analysisSession.id, activeFollowUp)
     : contextReadModel;
   const planQuestionText =
     activeFollowUp?.questionText ?? analysisSession.questionText;
-  const candidateFactorReadModel =
+  const baseCandidateFactorReadModel =
     await factorExpansionUseCases.buildCandidateFactorReadModel({
       intentType: intent?.type ?? 'general-analysis',
-      questionText: planQuestionText,
-      contextReadModel: planContextReadModel,
+      questionText: analysisSession.questionText,
+      contextReadModel,
     });
-  const mergedCandidateFactorReadModel = activeFollowUp
-    ? {
-        ...candidateFactorReadModel,
-        factors: [
-          ...(activeFollowUp.mergedContext.constraints
-            .filter((constraint) => constraint.label === '候选因素')
-            .map((constraint, index) => ({
-              key: `manual-factor-${index + 1}`,
-              label: constraint.value,
-              rationale: '用户在 follow-up 中显式补充的候选因素。',
-            }))),
-          ...candidateFactorReadModel.factors.filter(
-            (factor) =>
-              !activeFollowUp.mergedContext.constraints.some(
-                (constraint) =>
-                  constraint.label === '候选因素' &&
-                  constraint.value === factor.label,
-              ),
-          ),
-        ],
-      }
-    : candidateFactorReadModel;
+  const planCandidateFactorReadModel = activeFollowUp
+    ? await factorExpansionUseCases.buildCandidateFactorReadModel({
+        intentType: intent?.type ?? 'general-analysis',
+        questionText: planQuestionText,
+        contextReadModel: planContextReadModel,
+      })
+    : baseCandidateFactorReadModel;
+  const mergedCandidateFactorReadModel =
+    mergeFollowUpManualCandidateFactors(
+      activeFollowUp,
+      planCandidateFactorReadModel,
+    );
+  const followUpCandidateFactorReadModels = new Map<
+    string,
+    CandidateFactorReadModel
+  >();
+  for (const followUp of followUps) {
+    if (activeFollowUp?.id === followUp.id) {
+      followUpCandidateFactorReadModels.set(
+        followUp.id,
+        mergedCandidateFactorReadModel,
+      );
+      continue;
+    }
+
+    const followUpCandidateFactorReadModel =
+      await factorExpansionUseCases.buildCandidateFactorReadModel({
+        intentType: intent?.type ?? 'general-analysis',
+        questionText: followUp.questionText,
+        contextReadModel: buildFollowUpContextReadModel(
+          analysisSession.id,
+          followUp,
+        ),
+      });
+    followUpCandidateFactorReadModels.set(
+      followUp.id,
+      mergeFollowUpManualCandidateFactors(
+        followUp,
+        followUpCandidateFactorReadModel,
+      ),
+    );
+  }
   const requestedExecutionSnapshot = executionId
     ? await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
         executionId,
@@ -449,6 +519,22 @@ export default async function AnalysisSessionPage({
     !executionStreamReadModel &&
     !pendingExecutionBlockerMessage &&
     (shouldAutoExecute || Boolean(requestedExecutionIdForDisplay) || !latestExecutionSnapshot);
+  const executionFeedbackStatus =
+    executionStreamReadModel?.currentStatus ??
+    requestedExecutionRuntime.requestedExecutionJob?.status ??
+    sessionScopedRequestedExecutionSnapshot?.status ??
+    null;
+  const shouldShowExecutionFeedback =
+    Boolean(executionError) ||
+    (Boolean(requestedExecutionIdForDisplay) &&
+      !executionStreamReadModel &&
+      executionFeedbackStatus !== 'completed');
+  const executionFeedbackMessage =
+    executionFeedbackStatus === 'failed'
+      ? '分析执行失败，请查看详细信息定位原因。'
+      : executionFeedbackStatus === 'processing'
+        ? '分析正在执行，结果会自动刷新。'
+        : '分析已提交，正在排队处理。';
   // 构建多轮追问线程视图（2+ 轮时传递给 live shell，否则退化为单轮模式）
   const threadRounds: Parameters<typeof buildConversationThreadViewModel>[0]['rounds'] = [];
 
@@ -541,6 +627,13 @@ export default async function AnalysisSessionPage({
       events: initialData?.events ?? [],
       intentLabel: intent ? getIntentTypeLabel(intent.type) : undefined,
       ontologyVersion: ontologyVersionBadgeText ?? undefined,
+      candidateFactors: baseCandidateFactorReadModel.factors,
+      conclusionCauseIds: getConclusionCauseIdsFromSnapshot(
+        initialExecutionSnapshot,
+      ),
+      planAssumptions: getPlanAssumptionsFromSnapshot(
+        initialExecutionSnapshot,
+      ),
     });
   }
 
@@ -561,6 +654,10 @@ export default async function AnalysisSessionPage({
         projection: followUpData?.projection ?? null,
         events: followUpData?.events ?? [],
         followUpLabel: '追问',
+        candidateFactors:
+          followUpCandidateFactorReadModels.get(followUp.id)?.factors ?? [],
+        conclusionCauseIds: getConclusionCauseIdsFromSnapshot(followUpSnapshot),
+        planAssumptions: getPlanAssumptionsFromSnapshot(followUpSnapshot),
       });
     }
   }
@@ -607,7 +704,7 @@ export default async function AnalysisSessionPage({
       <AnalysisPendingRefreshGate enabled={shouldRefreshPendingExecution} />
 
       {/* 执行提交反馈（轻量 banner） */}
-      {(requestedExecutionIdForDisplay || executionError) ? (
+      {shouldShowExecutionFeedback ? (
         <div
           className="rounded-xl px-4 py-3 text-sm"
           data-testid="analysis-execution-feedback"
@@ -623,7 +720,7 @@ export default async function AnalysisSessionPage({
           {executionError ? (
             <p>{executionError}</p>
           ) : (
-            <p>执行任务已提交，正在等待处理结果。</p>
+            <p>{executionFeedbackMessage}</p>
           )}
         </div>
       ) : null}

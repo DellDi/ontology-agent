@@ -46,6 +46,8 @@ export type ConversationTurnInput = {
   followUpLabel?: string;
   hasConnectionIssue?: boolean;
   planAssumptions?: readonly string[];
+  candidateFactors?: readonly { key: string; label: string }[];
+  conclusionCauseIds?: readonly string[];
 };
 
 /** 构建对话线程的输入参数。 */
@@ -77,6 +79,8 @@ export function buildConversationThreadViewModel(
       events: round.events,
       hasConnectionIssue: round.hasConnectionIssue ?? false,
       planAssumptions: round.planAssumptions,
+      candidateFactors: round.candidateFactors,
+      conclusionCauseIds: round.conclusionCauseIds,
     };
 
     return {

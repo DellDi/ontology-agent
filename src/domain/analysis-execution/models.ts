@@ -5,6 +5,11 @@ import { getPlanOntologyVersionId } from '@/domain/ontology/version-binding';
 
 export type AnalysisExecutionPlanSnapshot = AnalysisPlan;
 
+export type AnalysisExecutionCandidateFactor = {
+  key: string;
+  label: string;
+};
+
 export type AnalysisExecutionJobData = {
   sessionId: string;
   ownerUserId: string;
@@ -15,6 +20,7 @@ export type AnalysisExecutionJobData = {
   questionText: string;
   context?: AnalysisContext;
   groundedContext?: OntologyGroundedContext;
+  candidateFactors: AnalysisExecutionCandidateFactor[];
   ontologyVersionId?: string;
   submittedAt: string;
   plan: AnalysisExecutionPlanSnapshot;
@@ -44,6 +50,36 @@ function assertStringArray(value: unknown, fieldName: string) {
   }
 
   return value.map((item) => item.trim()).filter(Boolean);
+}
+
+function assertCandidateFactorArray(
+  value: unknown,
+): AnalysisExecutionCandidateFactor[] {
+  if (value === undefined || value === null) return [];
+
+  if (!Array.isArray(value)) {
+    throw new InvalidAnalysisExecutionPlanError(
+      'candidateFactors 必须是候选因素数组。',
+    );
+  }
+
+  return value.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new InvalidAnalysisExecutionPlanError(
+        `candidateFactors[${index}] 必须是对象。`,
+      );
+    }
+
+    const record = item as Record<string, unknown>;
+
+    return {
+      key: assertNonEmptyString(record.key, `candidateFactors[${index}].key`),
+      label: assertNonEmptyString(
+        record.label,
+        `candidateFactors[${index}].label`,
+      ),
+    };
+  });
 }
 
 export function validateAnalysisExecutionPlanSnapshot(
@@ -148,6 +184,7 @@ export function validateAnalysisExecutionJobData(
       candidate.groundedContext && typeof candidate.groundedContext === 'object'
         ? (candidate.groundedContext as OntologyGroundedContext)
         : undefined,
+    candidateFactors: assertCandidateFactorArray(candidate.candidateFactors),
     ontologyVersionId,
     submittedAt: assertNonEmptyString(candidate.submittedAt, 'submittedAt'),
     plan,

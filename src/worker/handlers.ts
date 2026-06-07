@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { AnalysisSessionStore } from '@/application/analysis-session/ports';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
 import { buildToolInputs } from '@/application/analysis-execution/tool-input-builder';
+import { deriveCandidateFactorValidations } from '@/application/analysis-execution/candidate-factor-validation';
 import type { ToolExecutionEventEmitter } from '@/application/analysis-execution/use-cases';
 import {
   recognizeIntentFromQuestion,
@@ -326,6 +327,15 @@ export function createAnalysisExecutionJobHandler(
           result,
           processedStepCount: nextProcessedCount,
           totalStepCount: jobData.plan.steps.length,
+          metadata:
+            step.id === 'validate-candidate-factors'
+              ? {
+                  validatedFactors: deriveCandidateFactorValidations({
+                    candidateFactors: jobData.candidateFactors,
+                    result,
+                  }),
+                }
+              : undefined,
         }),
       );
 

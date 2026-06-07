@@ -15,19 +15,19 @@ function CandidateValidationStatusBadge({
   > = {
     supported: {
       className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      label: '支持',
+      label: '已核验',
     },
     'not-supported': {
       className: 'bg-rose-50 text-rose-700 border-rose-200',
-      label: '不支持',
+      label: '未发现支持数据',
     },
     inconclusive: {
       className: 'bg-amber-50 text-amber-700 border-amber-200',
-      label: '待确认',
+      label: '需人工确认',
     },
     'not-validated': {
       className: 'bg-slate-50 text-slate-500 border-slate-200',
-      label: '未验证',
+      label: '尚未核验',
     },
   };
   const tone = toneMap[status];
@@ -66,34 +66,26 @@ export function AnalysisDiagnosticsPanel({
   candidateValidation: CandidateValidationSummary;
 }) {
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
+  const completedCount =
+    candidateValidation.supportedCount + candidateValidation.notSupportedCount;
 
   return (
     <div className="space-y-6">
-      {/* 元数据 */}
-      <div className="space-y-1 text-xs text-[color:var(--ink-600)]">
-        {executionId ? (
-          <p>Execution ID：<span className="font-mono">{executionId}</span></p>
-        ) : null}
-        <p>事件数：{eventCount}</p>
-        <p>最后序号：{lastSequence}</p>
-      </div>
-
-      {/* AC6: 候选因素验证结论 */}
       {candidateValidation.validations.length > 0 ? (
         <section data-testid="candidate-validation-section">
           <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
-            候选因素验证
+            候选原因核验结果
           </h4>
-          <p className="mt-1 text-xs text-[color:var(--ink-600)]">
-            共 {candidateValidation.totalFactors} 个候选因素，
-            {candidateValidation.supportedCount} 个支持，
-            {candidateValidation.includedCount} 个已纳入最终判断
+          <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+            系统已经对 {candidateValidation.totalFactors} 个候选方向做了数据核验；
+            {completedCount} 个已有明确核验结果，
+            {candidateValidation.includedCount} 个进入了最终判断。
           </p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-4 space-y-3">
             {candidateValidation.validations.map((validation) => (
               <div
                 key={validation.factorKey}
-                className="rounded-xl border border-[color:var(--line-200)] bg-white p-3"
+                className="rounded-xl border border-[color:var(--line-200)] bg-white p-4"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-[color:var(--ink-900)]">
@@ -103,21 +95,21 @@ export function AnalysisDiagnosticsPanel({
                     status={validation.status}
                   />
                 </div>
+                {validation.validationNote ? (
+                  <p className="mt-3 text-sm leading-6 text-[color:var(--ink-600)]">
+                    {validation.validationNote}
+                  </p>
+                ) : null}
                 {validation.evidence.length > 0 ? (
-                  <ul className="mt-2 space-y-1 text-xs text-[color:var(--ink-600)]">
-                    {validation.evidence.map((item, index) => (
+                  <ul className="mt-3 space-y-1 text-xs leading-5 text-[color:var(--ink-500)]">
+                    {validation.evidence.slice(0, 2).map((item, index) => (
                       <li key={index}>• {item}</li>
                     ))}
                   </ul>
                 ) : null}
-                {validation.validationNote ? (
-                  <p className="mt-1 text-xs text-[color:var(--ink-500)]">
-                    {validation.validationNote}
-                  </p>
-                ) : null}
                 {validation.includedInFinalConclusion ? (
-                  <p className="mt-1 text-xs font-medium text-emerald-700">
-                    ✓ 已纳入最终判断
+                  <p className="mt-3 text-xs font-medium text-emerald-700">
+                    已纳入最终判断
                   </p>
                 ) : null}
               </div>
@@ -154,7 +146,7 @@ export function AnalysisDiagnosticsPanel({
       {timelineBlocks.length > 0 ? (
         <section>
           <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
-            执行时间线
+            核验过程
           </h4>
           <div className="mt-2 space-y-2">
             {timelineBlocks.map((block, index) => (
@@ -186,7 +178,7 @@ export function AnalysisDiagnosticsPanel({
       {otherBlocks.length > 0 ? (
         <section>
           <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
-            其他
+            其他核验记录
           </h4>
           <div className="mt-2 space-y-2">
             {otherBlocks.map((block, index) => (
@@ -197,6 +189,19 @@ export function AnalysisDiagnosticsPanel({
           </div>
         </section>
       ) : null}
+
+      <details className="rounded-xl border border-[color:var(--line-200)] bg-white p-4 text-xs text-[color:var(--ink-600)]">
+        <summary className="cursor-pointer font-medium text-[color:var(--ink-900)]">
+          技术信息
+        </summary>
+        <div className="mt-3 space-y-1">
+          {executionId ? (
+            <p>Execution ID：<span className="font-mono">{executionId}</span></p>
+          ) : null}
+          <p>事件数：{eventCount}</p>
+          <p>最后序号：{lastSequence}</p>
+        </div>
+      </details>
     </div>
   );
 }

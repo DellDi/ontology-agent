@@ -29,6 +29,62 @@ import {
 
 const ASSISTANT_MESSAGE_ID_PREFIX = 'ai-runtime:assistant:';
 
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'undefined';
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+
+  return `{${entries
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .join(',')}}`;
+}
+
+function mergeConclusionReadModels(input: {
+  derived: AnalysisConclusionReadModel;
+  fallbackConclusion: AnalysisConclusionReadModel | null | undefined;
+}): AnalysisConclusionReadModel | null {
+  const causesById = new Map(
+    input.derived.causes.map((cause) => [cause.id, cause]),
+  );
+
+  for (const cause of input.fallbackConclusion?.causes ?? []) {
+    if (!causesById.has(cause.id)) {
+      causesById.set(cause.id, cause);
+    }
+  }
+
+  const seenBlocks = new Set<string>();
+  const renderBlocks = [
+    ...input.derived.renderBlocks,
+    ...(input.fallbackConclusion?.renderBlocks ?? []),
+  ].filter((block) => {
+    const key = stableJson(block);
+    if (seenBlocks.has(key)) return false;
+
+    seenBlocks.add(key);
+    return true;
+  });
+  const causes = [...causesById.values()].map((cause, index) => ({
+    ...cause,
+    rank: index + 1,
+  }));
+
+  if (causes.length === 0 && renderBlocks.length === 0) return null;
+
+  return {
+    causes,
+    renderBlocks,
+  };
+}
+
 function resolveAssistantMessageId(executionId: string) {
   return `${ASSISTANT_MESSAGE_ID_PREFIX}${executionId}`;
 }
@@ -49,6 +105,21 @@ function resolveStatus(
   events: readonly AnalysisExecutionStreamEvent[],
 ): JobStatus {
   const latest = resolveLatestStatusEvent(events);
+  if (latest?.status === 'completed' || latest?.status === 'failed') {
+    return latest.status;
+  }
+
+  const steps = mergeSteps(events);
+  if (steps.length > 0) {
+    if (steps.some((step) => step.status === 'failed')) {
+      return 'failed';
+    }
+
+    if (steps.every((step) => step.status === 'completed')) {
+      return 'completed';
+    }
+  }
+
   return latest?.status ?? 'processing';
 }
 
@@ -164,20 +235,16 @@ function buildConclusionCardPart(
   anchors: { sessionId: string; executionId: string },
 ): AiRuntimeConclusionCardPart | null {
   const derived = buildAnalysisConclusionReadModel([...events]);
-  if (derived.causes.length > 0) {
+  const readModel = mergeConclusionReadModels({
+    derived,
+    fallbackConclusion,
+  });
+  if (readModel) {
     return {
       id: computeAiRuntimePartId('conclusion-card', anchors),
       ...resolveAiRuntimePartLayout('conclusion-card'),
       kind: 'conclusion-card',
-      readModel: derived,
-    };
-  }
-  if (fallbackConclusion && fallbackConclusion.causes.length > 0) {
-    return {
-      id: computeAiRuntimePartId('conclusion-card', anchors),
-      ...resolveAiRuntimePartLayout('conclusion-card'),
-      kind: 'conclusion-card',
-      readModel: fallbackConclusion,
+      readModel,
     };
   }
   return null;
