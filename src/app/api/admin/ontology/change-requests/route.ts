@@ -5,8 +5,9 @@ import {
   COMPATIBILITY_TYPES,
   TARGET_OBJECT_TYPES,
 } from '@/domain/ontology/governance';
-import { auditUseCases } from '@/infrastructure/audit';
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
+import {
+  createCompositionRoot,
+} from '@/composition-root';
 
 import { authorizeGovernanceRequest, buildRedirect, describeGovernanceError } from '../_helpers';
 
@@ -19,13 +20,6 @@ type JsonFieldResult =
   | { ok: true; value: Record<string, unknown> | null }
   | { ok: false; error: string };
 
-/**
- * 读取并校验表单中的 JSON 字段（如 beforeSummary / afterSummary）。
- *
- * Story 9.5 Review 要求：无效 JSON 必须 fail loud，不能静默置空——否则会创建一条
- * 缺失差异摘要的 change request，审批人拿不到可复核的前/后对比。空串视为显式
- * 未填（返回 { ok: true, value: null }）；任何解析/类型错误都返回 { ok: false }。
- */
 function readJsonField(formData: FormData, key: string): JsonFieldResult {
   const raw = readString(formData, key);
   if (!raw) return { ok: true, value: null };
@@ -57,7 +51,8 @@ function readImpactScope(formData: FormData): string[] {
 }
 
 export async function POST(request: Request) {
-  const authResult = await authorizeGovernanceRequest('author');
+  const root = createCompositionRoot();
+  const authResult = await authorizeGovernanceRequest(root, 'author');
   if (authResult instanceof NextResponse) return authResult;
 
   const { session } = authResult;
@@ -70,12 +65,8 @@ export async function POST(request: Request) {
   const compatibilityType = readString(formData, 'compatibilityType');
   const title = readString(formData, 'title');
 
-  /**
-   * 提前失败的公共处理：写入 failed 审计 + 回传带 error 的重定向。
-   * 用于必填字段缺失、枚举非法、JSON 解析失败等结构性输入错误。
-   */
   const failFast = async (reason: string, message: string) => {
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,
@@ -113,7 +104,7 @@ export async function POST(request: Request) {
     return failFast('invalid-after-summary', `提交失败：${afterSummary.error}`);
   }
 
-  const { governanceUseCases } = getOntologyAdminRuntime();
+  const { governanceUseCases } = root.ontologyAdminRuntime;
 
   try {
     const cr = await governanceUseCases.createChangeRequest({
@@ -131,7 +122,7 @@ export async function POST(request: Request) {
       submittedBy: session.userId,
     });
 
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,
@@ -154,7 +145,7 @@ export async function POST(request: Request) {
     return buildRedirect(request, `/admin/ontology/change-requests/${cr.id}`, params);
   } catch (error) {
     const desc = describeGovernanceError(error);
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,

@@ -17,7 +17,8 @@ import * as graphSyncDirtyScopeStoreModule from '../../src/infrastructure/graph-
 import * as graphSyncOrganizationSourceModule from '../../src/infrastructure/graph-sync/postgres-graph-sync-organization-source';
 import * as graphSyncRunStoreModule from '../../src/infrastructure/graph-sync/postgres-graph-sync-run-store';
 import * as graphSyncSourceScanPortModule from '../../src/infrastructure/graph-sync/postgres-graph-sync-source-scan-port';
-import * as neo4jModule from '../../src/infrastructure/neo4j';
+import { createNeo4jGraphAdapter } from '../../src/infrastructure/neo4j';
+import { createGraphUseCases } from '../../src/application/graph/use-cases';
 
 loadEnvConfig(process.cwd());
 
@@ -56,7 +57,11 @@ const { createPostgresGraphSyncRunStore } = resolveModuleExport(
 const { createPostgresGraphSyncSourceScanPort } = resolveModuleExport(
   graphSyncSourceScanPortModule,
 );
-const { graphUseCases } = resolveModuleExport(neo4jModule);
+const graphAdapter = createNeo4jGraphAdapter();
+const graphUseCases = createGraphUseCases({
+  graphReadPort: graphAdapter,
+  graphWritePort: graphAdapter,
+});
 
 function parseStringListFlag(flagName: string) {
   const cliArg = process.argv.find((arg) => arg.startsWith(`--${flagName}=`));

@@ -1,27 +1,17 @@
 import { NextResponse } from 'next/server';
 
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import {
   AnalysisFollowUpConflictError,
-  createAnalysisFollowUpUseCases,
   InvalidAnalysisFollowUpAdjustmentError,
 } from '@/application/follow-up/use-cases';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
-import { createPostgresOntologyVersionStore } from '@/infrastructure/ontology/postgres-ontology-version-store';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+import {
+  createCompositionRoot,
+  getRequestSession,
+} from '@/composition-root';
 
 type RouteContext = {
   params: Promise<{ sessionId: string; followUpId: string }>;
 };
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
-const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
-  followUpStore: createPostgresAnalysisSessionFollowUpStore(),
-  ontologyVersionStore: createPostgresOntologyVersionStore(),
-});
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);
@@ -55,12 +45,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
+  const root = createCompositionRoot();
+
   const [analysisSession, followUp] = await Promise.all([
-    analysisSessionUseCases.getOwnedSession({
+    root.analysisSessionUseCases.getOwnedSession({
       sessionId,
       owner: authSession,
     }),
-    analysisFollowUpUseCases.getOwnedFollowUp({
+    root.analysisFollowUpUseCases.getOwnedFollowUp({
       followUpId,
       ownerUserId: authSession.userId,
     }),
@@ -101,8 +93,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     String(formData.get('confirmConflicts')) === 'true';
 
   try {
-    const adjustment = analysisFollowUpUseCases.validateAdjustmentInput(draft);
-    const result = await analysisFollowUpUseCases.adjustFollowUpContext({
+    const adjustment = root.analysisFollowUpUseCases.validateAdjustmentInput(draft);
+    const result = await root.analysisFollowUpUseCases.adjustFollowUpContext({
       followUp,
       adjustment,
       confirmConflicts,

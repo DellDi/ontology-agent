@@ -7,8 +7,10 @@ import {
   OntologyVersionNotReadyForPublishError,
   resolveGovernanceCapabilities,
 } from '@/domain/ontology/governance';
-import { auditUseCases } from '@/infrastructure/audit';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+import {
+  getRequestSession,
+} from '@/composition-root';
+import type { CompositionRoot } from '@/composition-root';
 import type { AuthSession } from '@/domain/auth/models';
 
 export type AuthorizedSession = {
@@ -16,11 +18,8 @@ export type AuthorizedSession = {
   capabilities: ReturnType<typeof resolveGovernanceCapabilities>;
 };
 
-/**
- * 鉴权与角色判定的最小受控入口（Story 9.5）。
- * 未登录 -> 401；已登录但缺少所需治理角色 -> 403。
- */
 export async function authorizeGovernanceRequest(
+  root: CompositionRoot,
   request: 'view' | 'author' | 'review' | 'publish',
 ): Promise<NextResponse | AuthorizedSession> {
   const session = await getRequestSession();
@@ -46,7 +45,7 @@ export async function authorizeGovernanceRequest(
   }
 
   if (!authorized) {
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,

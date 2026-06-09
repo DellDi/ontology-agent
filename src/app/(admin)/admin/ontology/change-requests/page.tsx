@@ -6,8 +6,7 @@ import {
   COMPATIBILITY_TYPES,
   TARGET_OBJECT_TYPES,
 } from '@/domain/ontology/governance';
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
-import { requireOntologyAdminSession } from '@/infrastructure/session/admin-auth';
+import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
 
 import {
   AdminCard,
@@ -37,7 +36,7 @@ export default async function OntologyAdminChangeRequestsPage({
   const requestedStatus = readParam(params.status);
   const validStatus = CHANGE_REQUEST_STATUSES.find((s) => s === requestedStatus);
 
-  const { adminUseCases } = getOntologyAdminRuntime();
+  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
   const [items, versions] = await Promise.all([
     validStatus
       ? adminUseCases.listChangeRequestsByStatus(validStatus)

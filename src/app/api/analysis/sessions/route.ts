@@ -1,17 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import {
-  createAnalysisSessionUseCases,
   InvalidAnalysisQuestionError,
 } from '@/application/analysis-session/use-cases';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
-import { auditUseCases } from '@/infrastructure/audit';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
+import {
+  createCompositionRoot,
+  getRequestSession,
+} from '@/composition-root';
 
 function redirectToWorkspace(request: Request, params: URLSearchParams) {
   const url = new URL('/workspace', request.url);
@@ -26,8 +21,9 @@ function redirectToWorkspace(request: Request, params: URLSearchParams) {
 
 export async function POST(request: Request) {
   const session = await getRequestSession();
+  const root = createCompositionRoot();
   let createdSession:
-    | Awaited<ReturnType<typeof analysisSessionUseCases.createSession>>
+    | Awaited<ReturnType<typeof root.analysisSessionUseCases.createSession>>
     | null = null;
 
   if (!session) {
@@ -43,17 +39,17 @@ export async function POST(request: Request) {
       : '';
 
   try {
-    createdSession = await analysisSessionUseCases.createSession({
+    createdSession = await root.analysisSessionUseCases.createSession({
       questionText,
       owner: session,
     });
 
-    await analysisIntentUseCases.recognizeAndStoreIntent({
+    await root.analysisIntentUseCases.recognizeAndStoreIntent({
       sessionId: createdSession.id,
       questionText: createdSession.questionText,
     });
 
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: createdSession.id,
@@ -75,7 +71,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (session) {
-      await auditUseCases.recordEvent({
+      await root.auditUseCases.recordEvent({
         userId: session.userId,
         organizationId: session.scope.organizationId,
         sessionId: createdSession?.id ?? null,
@@ -95,7 +91,7 @@ export async function POST(request: Request) {
     }
 
     if (!(error instanceof InvalidAnalysisQuestionError) && createdSession) {
-      await analysisSessionUseCases.deleteOwnedSession({
+      await root.analysisSessionUseCases.deleteOwnedSession({
         sessionId: createdSession.id,
         owner: session,
       });

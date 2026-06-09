@@ -1,46 +1,20 @@
 import { NextResponse } from 'next/server';
 
-import { createAnalysisPlanningUseCases } from '@/application/analysis-planning/use-cases';
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
-import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
 import {
-  createAnalysisFollowUpUseCases,
   InvalidAnalysisFollowUpReplanError,
 } from '@/application/follow-up/use-cases';
-import { createFactorExpansionUseCases } from '@/application/factor-expansion/use-cases';
 import {
   buildGroundedPlanningArtifacts,
   formatGroundingErrorForUser,
 } from '@/application/ontology/grounded-planning';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
-import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
-import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
-import { graphUseCases } from '@/infrastructure/neo4j';
-import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+import {
+  createCompositionRoot,
+  getRequestSession,
+} from '@/composition-root';
 
 type RouteContext = {
   params: Promise<{ sessionId: string; followUpId: string }>;
 };
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
-const ontologyRuntimeServices = createOntologyRuntimeServices();
-const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
-  followUpStore: createPostgresAnalysisSessionFollowUpStore(),
-  ontologyVersionStore: ontologyRuntimeServices.versionStore,
-});
-const analysisExecutionPersistenceUseCases =
-  createAnalysisExecutionPersistenceUseCases({
-    snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
-    ontologyVersionStore: ontologyRuntimeServices.versionStore,
-  });
-const analysisPlanningUseCases = createAnalysisPlanningUseCases();
-const factorExpansionUseCases = createFactorExpansionUseCases({
-  graphUseCases,
-});
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);
@@ -57,12 +31,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
+  const root = createCompositionRoot();
+
   const [analysisSession, followUp] = await Promise.all([
-    analysisSessionUseCases.getOwnedSession({
+    root.analysisSessionUseCases.getOwnedSession({
       sessionId,
       owner: authSession,
     }),
-    analysisFollowUpUseCases.getOwnedFollowUp({
+    root.analysisFollowUpUseCases.getOwnedFollowUp({
       followUpId,
       ownerUserId: authSession.userId,
     }),
@@ -75,9 +51,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
-  const intent = await analysisIntentUseCases.getIntentBySessionId(sessionId);
+  const intent = await root.analysisIntentUseCases.getIntentBySessionId(sessionId);
   const baseSnapshot =
-    await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+    await root.analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
       executionId: followUp.referencedExecutionId,
       ownerUserId: authSession.userId,
     });
@@ -98,7 +74,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   const candidateFactorReadModel =
-    await factorExpansionUseCases.buildCandidateFactorReadModel({
+    await root.factorExpansionUseCases.buildCandidateFactorReadModel({
       intentType: intent?.type ?? 'general-analysis',
       questionText: followUp.questionText,
       contextReadModel: {
@@ -150,9 +126,9 @@ export async function POST(request: Request, { params }: RouteContext) {
         ...candidateFactorReadModel,
         factors: dedupedFactors,
       },
-      groundingUseCases: ontologyRuntimeServices.groundingUseCases,
-      groundedContextStore: ontologyRuntimeServices.groundedContextStore,
-      analysisPlanningUseCases,
+      groundingUseCases: root.ontologyRuntimeServices.groundingUseCases,
+      groundedContextStore: root.ontologyRuntimeServices.groundedContextStore,
+      analysisPlanningUseCases: root.analysisPlanningUseCases,
     });
   } catch (error) {
     const url = buildSessionUrl(request, sessionId);
@@ -180,11 +156,11 @@ export async function POST(request: Request, { params }: RouteContext) {
     : '用户纠正后的上下文触发了计划重算。';
 
   try {
-    const updatedFollowUp = await analysisFollowUpUseCases.updateFollowUpPlan({
+    const updatedFollowUp = await root.analysisFollowUpUseCases.updateFollowUpPlan({
       followUp,
       previousPlanSnapshot,
       nextPlanSnapshot: groundedArtifacts.planSnapshot,
-      planDiff: analysisPlanningUseCases.buildPlanVersionDiff({
+      planDiff: root.analysisPlanningUseCases.buildPlanVersionDiff({
         previousPlanSnapshot,
         nextPlanSnapshot: groundedArtifacts.planSnapshot,
         reusableCompletedStepIds,

@@ -1,6 +1,2 @@
-import { createAnalysisIntentUseCases } from '@/application/analysis-intent/use-cases';
-import { createMemoryAnalysisIntentStore } from '@/infrastructure/analysis-intent/memory-analysis-intent-store';
-
-export const analysisIntentUseCases = createAnalysisIntentUseCases({
-  analysisIntentStore: createMemoryAnalysisIntentStore(),
-});
+export { createMemoryAnalysisIntentStore } from './memory-analysis-intent-store';
+export type { AnalysisIntentStore } from '@/application/analysis-intent/ports';

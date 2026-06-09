@@ -4,7 +4,7 @@ import { sanitizeNextPath } from '@/domain/auth/models';
 import {
   createSessionFromCallback,
   mapAuthErrorToMessage,
-} from '@/infrastructure/session/server-auth';
+} from '@/composition-root';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

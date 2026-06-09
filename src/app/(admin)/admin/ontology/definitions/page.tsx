@@ -1,5 +1,4 @@
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
-import { requireOntologyAdminSession } from '@/infrastructure/session/admin-auth';
+import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
 
 import {
   AdminCard,
@@ -27,7 +26,7 @@ export default async function OntologyAdminDefinitionsPage({
   const params = (await searchParams) ?? {};
   const requestedVersionId = readParam(params.versionId);
 
-  const { adminUseCases } = getOntologyAdminRuntime();
+  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
 
   const view = requestedVersionId
     ? await adminUseCases.loadDefinitionsForVersion(requestedVersionId)

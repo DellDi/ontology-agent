@@ -1,7 +1,6 @@
 import Link from 'next/link';
 
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
-import { requireOntologyAdminSession } from '@/infrastructure/session/admin-auth';
+import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
 
 import {
   AdminCard,
@@ -17,7 +16,7 @@ export default async function OntologyAdminOverviewPage() {
     return null;
   }
 
-  const { adminUseCases } = getOntologyAdminRuntime();
+  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
   const overview = await adminUseCases.loadOverview();
 
   return (

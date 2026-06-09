@@ -1,3 +1,1 @@
-import { createAnalysisPlanningUseCases } from '@/application/analysis-planning/use-cases';
-
-export const analysisPlanningUseCases = createAnalysisPlanningUseCases();
+// Module-level singleton removed. Use createCompositionRoot() from @/composition-root instead.

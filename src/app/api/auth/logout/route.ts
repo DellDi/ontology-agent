@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { logoutCurrentSession } from '@/infrastructure/session/server-auth';
+import { logoutCurrentSession } from '@/composition-root';
 
 export async function POST(request: Request) {
   await logoutCurrentSession();

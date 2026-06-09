@@ -1,32 +1,16 @@
 import { NextResponse } from 'next/server';
 
 import {
-  createAnalysisExecutionStreamUseCases,
   resolveAnalysisExecutionStreamAccess,
 } from '@/application/analysis-execution/stream-use-cases';
-import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
-import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
-import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { withJobUseCases } from '@/infrastructure/job/runtime';
 import {
-  ensureRedisConnected,
-  getSharedRedisClient,
-} from '@/infrastructure/redis/client';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+  createCompositionRoot,
+  getRequestSession,
+} from '@/composition-root';
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
-const analysisExecutionPersistenceUseCases =
-  createAnalysisExecutionPersistenceUseCases({
-    snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
-  });
 
 const encoder = new TextEncoder();
 
@@ -60,7 +44,9 @@ export async function GET(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: '未登录。' }, { status: 401 });
   }
 
-  const analysisSession = await analysisSessionUseCases.getOwnedSession({
+  const root = createCompositionRoot();
+
+  const analysisSession = await root.analysisSessionUseCases.getOwnedSession({
     sessionId,
     owner: authSession,
   });
@@ -96,13 +82,13 @@ export async function GET(request: Request, { params }: RouteContext) {
   }
 
   const requestedExecutionSnapshot =
-    await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+    await root.analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
       executionId,
       ownerUserId: authSession.userId,
     });
   const requestedExecutionJob = requestedExecutionSnapshot
     ? null
-    : await withJobUseCases(async ({ jobUseCases }) =>
+    : await root.withJobUseCases(async ({ jobUseCases }) =>
         jobUseCases.getJob(executionId),
       );
   const streamAccess = resolveAnalysisExecutionStreamAccess({
@@ -123,18 +109,13 @@ export async function GET(request: Request, { params }: RouteContext) {
   const stream = new ReadableStream({
     async start(controller) {
       let lastSequence = afterSequence;
-      const { redis } = getSharedRedisClient();
 
       try {
-        await ensureRedisConnected(redis);
-        const analysisExecutionStreamUseCases =
-          createAnalysisExecutionStreamUseCases({
-            eventStore: createRedisAnalysisExecutionEventStore(redis),
-          });
+        await root.ensureRedisConnected();
 
         while (!request.signal.aborted) {
           const events =
-            await analysisExecutionStreamUseCases.listExecutionEvents({
+            await root.analysisExecutionStreamUseCases.listExecutionEvents({
               sessionId,
               executionId,
             });

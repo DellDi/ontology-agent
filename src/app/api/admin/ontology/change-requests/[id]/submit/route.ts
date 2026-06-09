@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
-import { auditUseCases } from '@/infrastructure/audit';
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
+import {
+  createCompositionRoot,
+} from '@/composition-root';
 
 import { authorizeGovernanceRequest, buildRedirect, describeGovernanceError } from '../../../_helpers';
 
@@ -11,16 +12,18 @@ type Context = {
 
 export async function POST(request: Request, ctx: Context) {
   const { id } = await ctx.params;
-  const auth = await authorizeGovernanceRequest('author');
+
+  const root = createCompositionRoot();
+  const auth = await authorizeGovernanceRequest(root, 'author');
   if (auth instanceof NextResponse) return auth;
 
   const { session } = auth;
-  const { governanceUseCases } = getOntologyAdminRuntime();
+  const { governanceUseCases } = root.ontologyAdminRuntime;
 
   try {
     const cr = await governanceUseCases.submitChangeRequest(id);
 
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,
@@ -40,7 +43,7 @@ export async function POST(request: Request, ctx: Context) {
     return buildRedirect(request, `/admin/ontology/change-requests/${id}`, params);
   } catch (error) {
     const desc = describeGovernanceError(error);
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,
