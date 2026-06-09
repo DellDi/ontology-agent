@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import {
   createSessionFromLoginForm,
   mapAuthErrorToMessage,
-} from '@/infrastructure/session/server-auth';
+} from '@/composition-root';
 import { sanitizeNextPath } from '@/domain/auth/models';
 
 export async function POST(request: Request) {

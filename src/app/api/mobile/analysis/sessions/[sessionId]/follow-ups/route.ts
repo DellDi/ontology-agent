@@ -1,37 +1,18 @@
 import { NextResponse } from 'next/server';
 
-import { analysisContextUseCases } from '@/infrastructure/analysis-context';
-import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
-import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { createPostgresOntologyVersionStore } from '@/infrastructure/ontology/postgres-ontology-version-store';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
-import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import {
-  createAnalysisFollowUpUseCases,
   InvalidAnalysisFollowUpQuestionError,
   MissingAnalysisConclusionForFollowUpError,
 } from '@/application/follow-up/use-cases';
 import { evaluateMobileLightweightFollowUp } from '@/application/mobile-analysis';
+import {
+  createCompositionRoot,
+  getRequestSession,
+} from '@/composition-root';
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
-const ontologyVersionStore = createPostgresOntologyVersionStore();
-const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
-  followUpStore: createPostgresAnalysisSessionFollowUpStore(),
-  ontologyVersionStore,
-});
-const analysisExecutionPersistenceUseCases =
-  createAnalysisExecutionPersistenceUseCases({
-    snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
-    ontologyVersionStore,
-  });
 
 function buildMobileUrl(request: Request, sessionId: string) {
   return new URL(`/mobile/analysis/${sessionId}`, request.url);
@@ -52,7 +33,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
-  const analysisSession = await analysisSessionUseCases.getOwnedSession({
+  const root = createCompositionRoot();
+
+  const analysisSession = await root.analysisSessionUseCases.getOwnedSession({
     sessionId,
     owner: authSession,
   });
@@ -86,7 +69,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.redirect(url, { status: 303 });
   }
 
-  await analysisContextUseCases.initializeContext({
+  await root.analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
     ownerUserId: authSession.userId,
     questionText: analysisSession.questionText,
@@ -95,17 +78,17 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const [currentContextReadModel, latestSnapshot, parentFollowUp] =
     await Promise.all([
-      analysisContextUseCases.getCurrentContext({
+      root.analysisContextUseCases.getCurrentContext({
         sessionId: analysisSession.id,
         questionText: analysisSession.questionText,
         savedContext: analysisSession.savedContext,
       }),
-      analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
+      root.analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
         sessionId: analysisSession.id,
         ownerUserId: authSession.userId,
       }),
       parentFollowUpId
-        ? analysisFollowUpUseCases.getOwnedFollowUp({
+        ? root.analysisFollowUpUseCases.getOwnedFollowUp({
             followUpId: parentFollowUpId,
             ownerUserId: authSession.userId,
           })
@@ -125,12 +108,12 @@ export async function POST(request: Request, { params }: RouteContext) {
   try {
     const baseExecutionSnapshot =
       parentFollowUp?.resultExecutionId
-        ? await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+        ? await root.analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
             executionId: parentFollowUp.resultExecutionId,
             ownerUserId: authSession.userId,
           })
         : null;
-    const followUp = await analysisFollowUpUseCases.createFollowUp({
+    const followUp = await root.analysisFollowUpUseCases.createFollowUp({
       session: analysisSession,
       questionText: boundary.normalizedQuestionText,
       currentContextReadModel,

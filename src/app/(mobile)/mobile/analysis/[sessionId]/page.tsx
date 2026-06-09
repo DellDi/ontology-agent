@@ -1,18 +1,8 @@
 import { notFound } from 'next/navigation';
 
-import { analysisContextUseCases } from '@/infrastructure/analysis-context';
-import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
-import { createPostgresAnalysisUiMessageProjectionStore } from '@/infrastructure/analysis-message-projection/postgres-analysis-ui-message-projection-store';
-import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { createPostgresOntologyVersionStore } from '@/infrastructure/ontology/postgres-ontology-version-store';
-import { requireWorkspaceSession } from '@/infrastructure/session/server-auth';
+import { createCompositionRoot, requireWorkspaceSession } from '@/composition-root';
 import { analysisHistoryUseCases } from '@/application/analysis-history/use-cases';
-import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
-import { createAnalysisUiMessageProjectionUseCases } from '@/application/analysis-message-projection/use-cases';
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
-import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
 import {
   buildMobileAnalysisProjection,
   type MobileAnalysisProjection,
@@ -90,28 +80,11 @@ function getStatusTone(projection: MobileAnalysisProjection) {
   return statusPart?.kind === 'status-banner' ? statusPart.tone : 'info';
 }
 
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
-const ontologyVersionStore = createPostgresOntologyVersionStore();
-const analysisExecutionPersistenceUseCases =
-  createAnalysisExecutionPersistenceUseCases({
-    snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
-    ontologyVersionStore,
-  });
-const analysisUiMessageProjectionUseCases =
-  createAnalysisUiMessageProjectionUseCases({
-    projectionStore: createPostgresAnalysisUiMessageProjectionStore(),
-  });
-const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
-  followUpStore: createPostgresAnalysisSessionFollowUpStore(),
-  ontologyVersionStore,
-});
-
 export default async function MobileAnalysisPage({
   params,
   searchParams,
 }: MobileAnalysisPageProps) {
+  const root = createCompositionRoot();
   const { sessionId } = await params;
   const resolvedSearchParams = (await searchParams) ?? {};
   const { session: currentUser, accessDeniedMessage } =
@@ -121,7 +94,7 @@ export default async function MobileAnalysisPage({
     return null;
   }
 
-  const analysisSession = await analysisSessionUseCases.getOwnedSession({
+  const analysisSession = await root.analysisSessionUseCases.getOwnedSession({
     sessionId,
     owner: currentUser,
   });
@@ -130,29 +103,29 @@ export default async function MobileAnalysisPage({
     notFound();
   }
 
-  await analysisContextUseCases.initializeContext({
+  await root.analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
     ownerUserId: currentUser.userId,
     questionText: analysisSession.questionText,
     initialContext: analysisSession.savedContext,
   });
 
-  const contextReadModel = await analysisContextUseCases.getCurrentContext({
+  const contextReadModel = await root.analysisContextUseCases.getCurrentContext({
     sessionId: analysisSession.id,
     questionText: analysisSession.questionText,
     savedContext: analysisSession.savedContext,
   });
   const [latestExecutionSnapshot, sessionSnapshots, followUps] =
     await Promise.all([
-      analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
+      root.analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
         sessionId: analysisSession.id,
         ownerUserId: currentUser.userId,
       }),
-      analysisExecutionPersistenceUseCases.listSnapshotsForSession({
+      root.analysisExecutionPersistenceUseCases.listSnapshotsForSession({
         sessionId: analysisSession.id,
         ownerUserId: currentUser.userId,
       }),
-      analysisFollowUpUseCases.listOwnedFollowUps({
+      root.analysisFollowUpUseCases.listOwnedFollowUps({
         sessionId: analysisSession.id,
         ownerUserId: currentUser.userId,
       }),
@@ -211,7 +184,7 @@ export default async function MobileAnalysisPage({
       ? snapshotForDisplay.conclusionState
       : buildAnalysisConclusionReadModel(executionStreamReadModel.events);
   const projectionHydration =
-    await analysisUiMessageProjectionUseCases.hydrateProjection({
+    await root.analysisUiMessageProjectionUseCases.hydrateProjection({
       ownerUserId: currentUser.userId,
       sessionId: analysisSession.id,
       executionId: snapshotForDisplay.executionId,

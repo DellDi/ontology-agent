@@ -1,27 +1,24 @@
 import { NextResponse } from 'next/server';
 
 import { validateContextCorrection, ContextCorrectionError } from '@/domain/analysis-context/models';
-import { analysisContextUseCases } from '@/infrastructure/analysis-context';
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
+import {
+  createCompositionRoot,
+  getRequestSession,
+} from '@/composition-root';
+import type { CompositionRoot } from '@/composition-root';
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
 
-async function resolveOwnerAndSession(sessionId: string) {
+async function resolveOwnerAndSession(root: CompositionRoot, sessionId: string) {
   const authSession = await getRequestSession();
 
   if (!authSession) {
     return { error: NextResponse.json({ error: '未登录。' }, { status: 401 }) };
   }
 
-  const analysisSession = await analysisSessionUseCases.getOwnedSession({
+  const analysisSession = await root.analysisSessionUseCases.getOwnedSession({
     sessionId,
     owner: authSession,
   });
@@ -30,7 +27,7 @@ async function resolveOwnerAndSession(sessionId: string) {
     return { error: NextResponse.json({ error: '会话不存在或无权访问。' }, { status: 404 }) };
   }
 
-  await analysisContextUseCases.initializeContext({
+  await root.analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
     ownerUserId: authSession.userId,
     questionText: analysisSession.questionText,
@@ -42,13 +39,14 @@ async function resolveOwnerAndSession(sessionId: string) {
 
 export async function GET(request: Request, { params }: RouteContext) {
   const { sessionId } = await params;
-  const resolved = await resolveOwnerAndSession(sessionId);
+  const root = createCompositionRoot();
+  const resolved = await resolveOwnerAndSession(root, sessionId);
 
   if ('error' in resolved) {
     return resolved.error;
   }
 
-  const readModel = await analysisContextUseCases.getCurrentContext({
+  const readModel = await root.analysisContextUseCases.getCurrentContext({
     sessionId: resolved.analysisSession.id,
     questionText: resolved.analysisSession.questionText,
     savedContext: resolved.analysisSession.savedContext,
@@ -59,7 +57,8 @@ export async function GET(request: Request, { params }: RouteContext) {
 
 export async function PUT(request: Request, { params }: RouteContext) {
   const { sessionId } = await params;
-  const resolved = await resolveOwnerAndSession(sessionId);
+  const root = createCompositionRoot();
+  const resolved = await resolveOwnerAndSession(root, sessionId);
 
   if ('error' in resolved) {
     return resolved.error;
@@ -76,7 +75,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
   try {
     const correction = validateContextCorrection(body);
 
-    const updated = await analysisContextUseCases.correctContext({
+    const updated = await root.analysisContextUseCases.correctContext({
       sessionId: resolved.analysisSession.id,
       ownerUserId: resolved.authSession.userId,
       correction,
@@ -100,14 +99,15 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
 export async function DELETE(request: Request, { params }: RouteContext) {
   const { sessionId } = await params;
-  const resolved = await resolveOwnerAndSession(sessionId);
+  const root = createCompositionRoot();
+  const resolved = await resolveOwnerAndSession(root, sessionId);
 
   if ('error' in resolved) {
     return resolved.error;
   }
 
   try {
-    const restored = await analysisContextUseCases.undoCorrection({
+    const restored = await root.analysisContextUseCases.undoCorrection({
       sessionId: resolved.analysisSession.id,
       ownerUserId: resolved.authSession.userId,
     });

@@ -1,41 +1,20 @@
 import { NextResponse } from 'next/server';
 
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
-import { createAnalysisExecutionPersistenceUseCases } from '@/application/analysis-execution/persistence-use-cases';
 import {
-  createAnalysisFollowUpUseCases,
   InvalidAnalysisFollowUpQuestionError,
   MissingAnalysisConclusionForFollowUpError,
 } from '@/application/follow-up/use-cases';
 import {
-  buildRateLimitRejectedResponse,
+  createCompositionRoot,
+  getRequestSession,
   checkRateLimit,
+  buildRateLimitRejectedResponse,
   FOLLOW_UP_RATE_LIMIT,
-} from '@/infrastructure/api/rate-limit-middleware';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
-import { analysisContextUseCases } from '@/infrastructure/analysis-context';
-import { createPostgresAnalysisExecutionSnapshotStore } from '@/infrastructure/analysis-execution/postgres-analysis-execution-snapshot-store';
-import { createPostgresOntologyVersionStore } from '@/infrastructure/ontology/postgres-ontology-version-store';
-import { ensureRedisConnected, getSharedRedisClient } from '@/infrastructure/redis/client';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+} from '@/composition-root';
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
-const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
-  followUpStore: createPostgresAnalysisSessionFollowUpStore(),
-  ontologyVersionStore: createPostgresOntologyVersionStore(),
-});
-const analysisExecutionPersistenceUseCases =
-  createAnalysisExecutionPersistenceUseCases({
-    snapshotStore: createPostgresAnalysisExecutionSnapshotStore(),
-    ontologyVersionStore: createPostgresOntologyVersionStore(),
-  });
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);
@@ -52,11 +31,11 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
-  // 限流检查：在触发 LLM 调用前拦截过高频率的请求
+  const root = createCompositionRoot();
+
   try {
-    const { redis } = getSharedRedisClient();
-    await ensureRedisConnected(redis);
-    const rateResult = await checkRateLimit(redis, FOLLOW_UP_RATE_LIMIT, authSession.userId);
+    await root.ensureRedisConnected();
+    const rateResult = await checkRateLimit(root.redisClient.redis, FOLLOW_UP_RATE_LIMIT, authSession.userId);
 
     if (!rateResult.allowed) {
       return buildRateLimitRejectedResponse(request, {
@@ -66,11 +45,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       });
     }
   } catch (error) {
-    // Redis 不可用时不限流，降级放行；避免缓存故障阻断全部请求
     console.warn('限流检查失败，降级放行:', error);
   }
 
-  const analysisSession = await analysisSessionUseCases.getOwnedSession({
+  const analysisSession = await root.analysisSessionUseCases.getOwnedSession({
     sessionId,
     owner: authSession,
   });
@@ -92,7 +70,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       ? String(formData.get('parentFollowUpId'))
       : '';
 
-  await analysisContextUseCases.initializeContext({
+  await root.analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
     ownerUserId: authSession.userId,
     questionText: analysisSession.questionText,
@@ -100,17 +78,17 @@ export async function POST(request: Request, { params }: RouteContext) {
   });
 
   const [currentContextReadModel, latestSnapshot, parentFollowUp] = await Promise.all([
-    analysisContextUseCases.getCurrentContext({
+    root.analysisContextUseCases.getCurrentContext({
       sessionId: analysisSession.id,
       questionText: analysisSession.questionText,
       savedContext: analysisSession.savedContext,
     }),
-    analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
+    root.analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
       sessionId: analysisSession.id,
       ownerUserId: authSession.userId,
     }),
     parentFollowUpId
-      ? analysisFollowUpUseCases.getOwnedFollowUp({
+      ? root.analysisFollowUpUseCases.getOwnedFollowUp({
           followUpId: parentFollowUpId,
           ownerUserId: authSession.userId,
         })
@@ -132,12 +110,12 @@ export async function POST(request: Request, { params }: RouteContext) {
   try {
     const baseExecutionSnapshot =
       parentFollowUp?.resultExecutionId
-        ? await analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+        ? await root.analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
             executionId: parentFollowUp.resultExecutionId,
             ownerUserId: authSession.userId,
           })
         : null;
-    const followUp = await analysisFollowUpUseCases.createFollowUp({
+    const followUp = await root.analysisFollowUpUseCases.createFollowUp({
       session: analysisSession,
       questionText,
       currentContextReadModel,

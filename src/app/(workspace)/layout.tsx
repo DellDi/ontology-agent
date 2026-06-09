@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { getWorkspaceSessionState } from '@/infrastructure/session/server-auth';
+import { getWorkspaceSessionState } from '@/composition-root';
 
 import { ShellLayout } from '../_components/shell-layout';
 import { WORKSPACE_MENU } from '../_components/shell-menu-config';

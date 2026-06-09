@@ -4,7 +4,7 @@ import {
   getDevAuthPageState,
   getRequestSession,
   isDirectoryAuthAvailable,
-} from '@/infrastructure/session/server-auth';
+} from '@/composition-root';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
 
 type LoginPageProps = {

@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
-import { requireOntologyAdminSession } from '@/infrastructure/session/admin-auth';
+import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
 
 import {
   AdminCard,
@@ -35,7 +34,7 @@ export default async function OntologyAdminChangeRequestDetailPage({
   const state = await requireOntologyAdminSession(`/admin/ontology/change-requests/${id}`);
   if (state.accessDeniedMessage) return null;
 
-  const { adminUseCases } = getOntologyAdminRuntime();
+  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
   const detail = await adminUseCases.getChangeRequestDetail(id);
   if (!detail) {
     notFound();

@@ -1,5 +1,4 @@
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
-import { requireOntologyAdminSession } from '@/infrastructure/session/admin-auth';
+import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
 
 import {
   AdminCard,
@@ -11,7 +10,7 @@ export default async function OntologyAdminPublishHistoryPage() {
   const state = await requireOntologyAdminSession('/admin/ontology/publishes');
   if (state.accessDeniedMessage) return null;
 
-  const { adminUseCases } = getOntologyAdminRuntime();
+  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
   const records = await adminUseCases.listPublishHistory(50);
 
   return (

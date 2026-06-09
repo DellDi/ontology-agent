@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
-import { auditUseCases } from '@/infrastructure/audit';
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
+import {
+  createCompositionRoot,
+} from '@/composition-root';
 
 import { authorizeGovernanceRequest, buildRedirect, describeGovernanceError } from '../../../_helpers';
 
@@ -17,14 +18,15 @@ function readString(formData: FormData, key: string) {
 export async function POST(request: Request, ctx: Context) {
   const { id } = await ctx.params;
 
-  const auth = await authorizeGovernanceRequest('publish');
+  const root = createCompositionRoot();
+  const auth = await authorizeGovernanceRequest(root, 'publish');
   if (auth instanceof NextResponse) return auth;
 
   const { session } = auth;
   const formData = await request.formData();
   const publishNote = readString(formData, 'publishNote') || null;
 
-  const { governanceUseCases } = getOntologyAdminRuntime();
+  const { governanceUseCases } = root.ontologyAdminRuntime;
 
   try {
     const { publishRecord } = await governanceUseCases.publishVersion({
@@ -33,7 +35,7 @@ export async function POST(request: Request, ctx: Context) {
       publishNote,
     });
 
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,
@@ -53,7 +55,7 @@ export async function POST(request: Request, ctx: Context) {
     return buildRedirect(request, '/admin/ontology/publishes', params);
   } catch (error) {
     const desc = describeGovernanceError(error);
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,

@@ -2,31 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { createPostgresDb } from '@/infrastructure/postgres/client';
 import {
-  ensureRedisConnected,
-  getSharedRedisClient,
-} from '@/infrastructure/redis/client';
-import {
+  createCompositionRoot,
   createLogger,
   withRequestObservability,
-} from '@/infrastructure/observability';
-
-/**
- * Story 7.4 Health Endpoint。
- *
- * 返回 JSON：
- * ```
- * {
- *   "status": "ok" | "degraded",
- *   "checks": { "postgres": "ok", "redis": "ok", "uptimeSeconds": 123 },
- *   "version": "<git sha | 'unknown'>",
- * }
- * ```
- *
- * 设计：
- * - GET /api/health 对外无需认证（用于探针），但不暴露内部细节（实例 id、环境变量等）。
- * - 任一核心依赖故障时 status 降级为 `degraded` 并返回 503，满足 K8s readinessProbe 语义。
- * - 全部检查在 2s 内超时，避免级联卡死。
- */
+} from '@/composition-root';
 
 type CheckStatus = 'ok' | 'degraded';
 type CheckResult = {
@@ -75,15 +54,14 @@ async function checkPostgres(): Promise<CheckResult> {
 
 async function checkRedis(): Promise<CheckResult> {
   const startedAtMs = Date.now();
-  // P2 / D3: 复用进程级 shared Redis client，避免探针 churn。
-  const { redis } = getSharedRedisClient();
+  const root = createCompositionRoot();
   try {
     await withTimeout(
-      ensureRedisConnected(redis),
+      root.ensureRedisConnected(),
       CHECK_TIMEOUT_MS,
       'redis-connect',
     );
-    await withTimeout(redis.ping(), CHECK_TIMEOUT_MS, 'redis-ping');
+    await withTimeout(root.redisClient.redis.ping(), CHECK_TIMEOUT_MS, 'redis-ping');
     return {
       status: 'ok',
       latencyMs: Date.now() - startedAtMs,

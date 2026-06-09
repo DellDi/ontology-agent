@@ -29,6 +29,7 @@ import {
   buildToolStartedEvent,
 } from './analysis-execution-renderer';
 import { translateToolName } from '@/application/analysis-message-projection/tool-name-translations';
+import { createGraphUseCases } from '@/application/graph/use-cases';
 import { getValidatedAnalysisExecutionJobData } from './analysis-execution-job';
 import { callWithTimeout, LLMTimeoutError } from './timeout-utils';
 
@@ -470,17 +471,21 @@ async function createDefaultAnalysisExecutionHandler(): Promise<JobHandler> {
       },
       checkHealth: semanticQueryUseCases.checkHealth,
     },
-    graphUseCases: {
-      async expandCandidateFactors(request, options) {
-        return await neo4jModule.graphUseCases.expandCandidateFactors(
-          request as Parameters<
-            typeof neo4jModule.graphUseCases.expandCandidateFactors
-          >[0],
-          options,
-        );
-      },
-      checkHealth: neo4jModule.graphUseCases.checkHealth,
-    },
+graphUseCases: (() => {
+      const graphAdapter = neo4jModule.createNeo4jGraphAdapter();
+      const created = createGraphUseCases({
+        graphReadPort: graphAdapter,
+        graphWritePort: graphAdapter,
+      });
+      return {
+        expandCandidateFactors: (request: unknown, options?: { signal?: AbortSignal }) =>
+          created.expandCandidateFactors(
+            request as Parameters<typeof created.expandCandidateFactors>[0],
+            options,
+          ),
+        checkHealth: created.checkHealth,
+      };
+    })(),
   });
 
   return createAnalysisExecutionJobHandler({

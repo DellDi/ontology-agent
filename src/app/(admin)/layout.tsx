@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-import { getOntologyAdminSessionState } from '@/infrastructure/session/admin-auth';
+import { getOntologyAdminSessionState } from '@/composition-root';
 
 import { ShellLayout } from '../_components/shell-layout';
 import { ADMIN_MENU } from '../_components/shell-menu-config';

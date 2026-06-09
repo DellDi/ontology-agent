@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 
 import { isAuditAdmin } from '@/domain/audit/models';
-import { auditUseCases } from '@/infrastructure/audit';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+import {
+  createCompositionRoot,
+  getRequestSession,
+} from '@/composition-root';
 
 function parseLimit(value: string | null) {
   const parsed = Number.parseInt(value ?? '50', 10);
@@ -25,8 +27,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: '无权查看审计明细。' }, { status: 403 });
   }
 
+  const root = createCompositionRoot();
   const url = new URL(request.url);
-  const items = await auditUseCases.listRecentEvents({
+  const items = await root.auditUseCases.listRecentEvents({
     limit: parseLimit(url.searchParams.get('limit')),
   });
 

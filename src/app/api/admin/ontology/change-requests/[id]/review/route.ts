@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { APPROVAL_DECISIONS, type ApprovalDecision } from '@/domain/ontology/governance';
-import { auditUseCases } from '@/infrastructure/audit';
-import { getOntologyAdminRuntime } from '@/infrastructure/ontology-admin';
+import {
+  createCompositionRoot,
+} from '@/composition-root';
 
 import { authorizeGovernanceRequest, buildRedirect, describeGovernanceError } from '../../../_helpers';
 
@@ -18,7 +19,8 @@ function readString(formData: FormData, key: string) {
 export async function POST(request: Request, ctx: Context) {
   const { id } = await ctx.params;
 
-  const auth = await authorizeGovernanceRequest('review');
+  const root = createCompositionRoot();
+  const auth = await authorizeGovernanceRequest(root, 'review');
   if (auth instanceof NextResponse) return auth;
 
   const { session } = auth;
@@ -38,7 +40,7 @@ export async function POST(request: Request, ctx: Context) {
     return buildRedirect(request, `/admin/ontology/change-requests/${id}`, params);
   }
 
-  const { governanceUseCases } = getOntologyAdminRuntime();
+  const { governanceUseCases } = root.ontologyAdminRuntime;
 
   try {
     const result = await governanceUseCases.reviewChangeRequest({
@@ -53,7 +55,7 @@ export async function POST(request: Request, ctx: Context) {
         ? 'ontology.change_request.approved'
         : 'ontology.change_request.rejected';
 
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,
@@ -78,7 +80,7 @@ export async function POST(request: Request, ctx: Context) {
       decision === 'approved'
         ? 'ontology.change_request.approved'
         : 'ontology.change_request.rejected';
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
       sessionId: session.sessionId,

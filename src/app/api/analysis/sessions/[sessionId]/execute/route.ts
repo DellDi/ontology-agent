@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-import { createAnalysisSessionUseCases } from '@/application/analysis-session/use-cases';
 import { createAnalysisExecutionSubmissionUseCases } from '@/application/analysis-execution/submission-use-cases';
-import { createAnalysisFollowUpUseCases } from '@/application/follow-up/use-cases';
 import {
   buildGroundedPlanningArtifacts,
   formatGroundingErrorForUser,
@@ -11,38 +9,17 @@ import {
 import { InvalidAnalysisExecutionPlanError } from '@/domain/analysis-execution/models';
 import { resolveOntologyVersionBindingSource } from '@/domain/ontology/version-binding';
 import {
-  buildRateLimitRejectedResponse,
+  createCompositionRoot,
+  getRequestSession,
+  getCurrentCorrelationId,
   checkRateLimit,
+  buildRateLimitRejectedResponse,
   EXECUTION_RATE_LIMIT,
-} from '@/infrastructure/api/rate-limit-middleware';
-import { createPostgresAnalysisSessionStore } from '@/infrastructure/analysis-session/postgres-analysis-session-store';
-import { createPostgresAnalysisSessionFollowUpStore } from '@/infrastructure/analysis-session/postgres-analysis-session-follow-up-store';
-import { analysisContextUseCases } from '@/infrastructure/analysis-context';
-import { analysisIntentUseCases } from '@/infrastructure/analysis-intent';
-import { createOntologyRuntimeServices } from '@/infrastructure/ontology/runtime';
-import { analysisPlanningUseCases } from '@/infrastructure/analysis-planning';
-import { factorExpansionUseCases } from '@/infrastructure/factor-expansion';
-import { getLlmContextExtractionUseCases } from '@/infrastructure/analysis-context-extraction';
-import { createPostgresErpReadRepository } from '@/infrastructure/erp/postgres-erp-read-repository';
-import { createErpReadUseCases } from '@/application/erp-read/use-cases';
-import { auditUseCases } from '@/infrastructure/audit';
-import { withJobUseCases } from '@/infrastructure/job/runtime';
-import { getCurrentCorrelationId } from '@/infrastructure/observability';
-import { ensureRedisConnected, getSharedRedisClient } from '@/infrastructure/redis/client';
-import { getRequestSession } from '@/infrastructure/session/server-auth';
+} from '@/composition-root';
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
-
-const analysisSessionUseCases = createAnalysisSessionUseCases({
-  analysisSessionStore: createPostgresAnalysisSessionStore(),
-});
-const ontologyRuntimeServices = createOntologyRuntimeServices();
-const analysisFollowUpUseCases = createAnalysisFollowUpUseCases({
-  followUpStore: createPostgresAnalysisSessionFollowUpStore(),
-  ontologyVersionStore: ontologyRuntimeServices.versionStore,
-});
 
 function buildSessionUrl(request: Request, sessionId: string) {
   return new URL(`/workspace/analysis/${sessionId}`, request.url);
@@ -80,11 +57,11 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
-  // 限流检查：在触发 LLM 调用前拦截过高频率的请求
+  const root = createCompositionRoot();
+
   try {
-    const { redis } = getSharedRedisClient();
-    await ensureRedisConnected(redis);
-    const rateResult = await checkRateLimit(redis, EXECUTION_RATE_LIMIT, authSession.userId);
+    await root.ensureRedisConnected();
+    const rateResult = await checkRateLimit(root.redisClient.redis, EXECUTION_RATE_LIMIT, authSession.userId);
 
     if (!rateResult.allowed) {
       return buildRateLimitRejectedResponse(request, {
@@ -94,17 +71,16 @@ export async function POST(request: Request, { params }: RouteContext) {
       });
     }
   } catch (error) {
-    // Redis 不可用时不限流，降级放行；避免缓存故障阻断全部请求
     console.warn('限流检查失败，降级放行:', error);
   }
 
-  const analysisSession = await analysisSessionUseCases.getOwnedSession({
+  const analysisSession = await root.analysisSessionUseCases.getOwnedSession({
     sessionId,
     owner: authSession,
   });
 
   if (!analysisSession) {
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: authSession.userId,
       organizationId: authSession.scope.organizationId,
       sessionId,
@@ -126,11 +102,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const followUpId = await readOptionalFollowUpId(request);
 
-  // Story 12-4 fix: LLM 抽取必须在主链路真正生效
-  // 1. 先用 savedContext 初始化（确保 context store 有 version 1）
-  // 2. 再尝试 LLM 抽取，用 replaceInitialContextIfUnmodified 替换
-  // 3. 如果 LLM 失败，记录 audit event，用规则抽取继续
-  await analysisContextUseCases.initializeContext({
+  await root.analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
     ownerUserId: authSession.userId,
     questionText: analysisSession.questionText,
@@ -138,28 +110,21 @@ export async function POST(request: Request, { params }: RouteContext) {
   });
 
   try {
-    const erpReadUseCases = createErpReadUseCases({
-      erpReadPort: createPostgresErpReadRepository(),
-    });
-    const scopedProjects = await erpReadUseCases.listProjects(authSession);
+    const scopedProjects = await root.erpReadUseCases.listProjects(authSession);
     const projectNames = scopedProjects
       .filter((p) => authSession.scope.projectIds.includes(p.id))
       .map((p) => p.name);
 
-    const extractionUseCases = getLlmContextExtractionUseCases();
-    const extractionResult = await extractionUseCases.extractContext({
+    const extractionResult = await root.llmContextExtractionUseCases.extractContext({
       questionText: analysisSession.questionText,
       projectNames,
     });
 
     if (extractionResult.source !== 'llm') {
-      // LLM 抽取失败，extractContext 内部已 catch 并降级到规则抽取。
-      // 记录 audit event 用于可观测性，但不替换 context version ——
-      // 保留 version 1 (savedContext)，避免系统 fallback 被误认为用户修正。
       const llmIssue = extractionResult.issues.find(
         (issue) => issue.field === 'llm' && issue.severity === 'error',
       );
-      await auditUseCases.recordEvent({
+      await root.auditUseCases.recordEvent({
         userId: authSession.userId,
         organizationId: authSession.scope.organizationId,
         sessionId,
@@ -175,8 +140,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         },
       });
     } else {
-      // LLM 成功：用抽取结果替换初始上下文（仅在用户未手动修正时）
-      await analysisContextUseCases.replaceInitialContextIfUnmodified({
+      await root.analysisContextUseCases.replaceInitialContextIfUnmodified({
         sessionId: analysisSession.id,
         ownerUserId: authSession.userId,
         questionText: analysisSession.questionText,
@@ -184,8 +148,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       });
     }
   } catch (error) {
-    // 抽取流程本身抛出未预期异常（非 extractContext 内部降级），记录 audit event
-    await auditUseCases.recordEvent({
+    await root.auditUseCases.recordEvent({
       userId: authSession.userId,
       organizationId: authSession.scope.organizationId,
       sessionId,
@@ -202,14 +165,14 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   const [intent, contextReadModel, followUp] = await Promise.all([
-    analysisIntentUseCases.getIntentBySessionId(analysisSession.id),
-    analysisContextUseCases.getCurrentContext({
+    root.analysisIntentUseCases.getIntentBySessionId(analysisSession.id),
+    root.analysisContextUseCases.getCurrentContext({
       sessionId: analysisSession.id,
       questionText: analysisSession.questionText,
       savedContext: analysisSession.savedContext,
     }),
     followUpId
-      ? analysisFollowUpUseCases.getOwnedFollowUp({
+      ? root.analysisFollowUpUseCases.getOwnedFollowUp({
           followUpId,
           ownerUserId: authSession.userId,
         })
@@ -238,7 +201,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   const executionQuestionText = followUp?.questionText ?? analysisSession.questionText;
 
   const candidateFactorReadModel =
-    await factorExpansionUseCases.buildCandidateFactorReadModel({
+    await root.factorExpansionUseCases.buildCandidateFactorReadModel({
       intentType: intent?.type ?? 'general-analysis',
       questionText: executionQuestionText,
       contextReadModel: executionContextReadModel,
@@ -268,13 +231,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     : candidateFactorReadModel;
   let groundedArtifacts;
 
-  // #13: If the followUp already carries a replan plan snapshot that the user
-  // has reviewed and confirmed, reuse it instead of regenerating a fresh plan.
-  // The corresponding groundedContext was persisted by the replan route, so we
-  // retrieve it from the store.
   const replanPlanSnapshot = followUp?.currentPlanSnapshot ?? null;
   const replanGroundedContext = replanPlanSnapshot
-    ? await ontologyRuntimeServices.groundedContextStore.getLatest(analysisSession.id)
+    ? await root.ontologyRuntimeServices.groundedContextStore.getLatest(analysisSession.id)
     : null;
 
   if (replanPlanSnapshot && replanGroundedContext) {
@@ -290,9 +249,9 @@ export async function POST(request: Request, { params }: RouteContext) {
         intentType: intent?.type ?? 'general-analysis',
         contextReadModel: executionContextReadModel,
         candidateFactorReadModel: mergedCandidateFactorReadModel,
-        groundingUseCases: ontologyRuntimeServices.groundingUseCases,
-        groundedContextStore: ontologyRuntimeServices.groundedContextStore,
-        analysisPlanningUseCases,
+        groundingUseCases: root.ontologyRuntimeServices.groundingUseCases,
+        groundedContextStore: root.ontologyRuntimeServices.groundedContextStore,
+        analysisPlanningUseCases: root.analysisPlanningUseCases,
       });
     } catch (error) {
       const url = buildSessionUrl(request, sessionId);
@@ -314,14 +273,14 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   try {
     const executionId = randomUUID();
-    const execution = await withJobUseCases(async ({
+    const execution = await root.withJobUseCases(async ({
       jobUseCases,
       analysisExecutionStreamUseCases,
     }) => {
       const submissionUseCases = createAnalysisExecutionSubmissionUseCases({
         jobUseCases,
         analysisExecutionStreamUseCases,
-        ontologyVersionStore: ontologyRuntimeServices.versionStore,
+        ontologyVersionStore: root.ontologyRuntimeServices.versionStore,
       });
 
       return await submissionUseCases.submitExecution({
@@ -338,14 +297,12 @@ export async function POST(request: Request, { params }: RouteContext) {
             label: factor.label,
           }),
         ),
-        // Story 7.4 D2: 把当前请求的 correlation id 写入 job payload，
-        // worker 消费时恢复到同一条 trace，支撑 AC3 跨进程定位。
         originCorrelationId: getCurrentCorrelationId(),
       });
     });
 
     if (followUp) {
-      await analysisFollowUpUseCases.attachFollowUpExecution({
+      await root.analysisFollowUpUseCases.attachFollowUpExecution({
         followUpId: followUp.id,
         ownerUserId: authSession.userId,
         executionId: execution.executionId,

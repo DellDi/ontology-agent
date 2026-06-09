@@ -4,7 +4,7 @@ import { sanitizeNextPath } from '@/domain/auth/models';
 import {
   createSessionFromDirectoryLogin,
   mapDirectoryAuthErrorToMessage,
-} from '@/infrastructure/session/server-auth';
+} from '@/composition-root';
 
 export async function POST(request: Request) {
   const formData = await request.formData();
