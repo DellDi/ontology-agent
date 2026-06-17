@@ -41,7 +41,7 @@ export function AnalysisToolActivityStrip({
       {activities.map((activity) => (
         <span
           key={`${activity.toolName}::${activity.objective}`}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-xs text-[color:var(--ink-600)]"
+          className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1 text-xs text-[color:var(--ink-600)]"
         >
           <span
             className={`h-1.5 w-1.5 rounded-full ${getToolActivityStatusDotClass(activity.status)}`}

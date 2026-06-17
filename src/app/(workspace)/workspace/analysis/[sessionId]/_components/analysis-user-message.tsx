@@ -10,7 +10,7 @@ export function AnalysisUserMessage({
   return (
     <div className="flex justify-end">
       <div className="max-w-[85%]">
-        <div className="rounded-2xl rounded-tr-sm bg-[color:var(--brand-700)] px-5 py-3.5">
+        <div className="rounded-lg rounded-tr-sm bg-[color:var(--brand-700)] px-5 py-3.5">
           <p className="text-base leading-7 text-white">
             {questionText}
           </p>
@@ -20,7 +20,7 @@ export function AnalysisUserMessage({
             {badges.map((badge) => (
               <span
                 key={badge.label}
-                className="rounded-full bg-white/60 px-2 py-0.5 text-[10px] text-[color:var(--ink-600)]"
+                className="rounded-md bg-white px-2 py-0.5 text-[10px] text-[color:var(--ink-600)]"
               >
                 {badge.label}
               </span>

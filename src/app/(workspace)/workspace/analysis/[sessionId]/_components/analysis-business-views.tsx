@@ -26,7 +26,7 @@ export function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
       {cards.map((card, index) => (
         <div
           key={`${card.label}-${index}`}
-          className="rounded-xl border border-[color:var(--line-200)] bg-white px-4 py-3 shadow-sm"
+          className="rounded-lg border border-[color:var(--line-200)] bg-white px-4 py-3 shadow-sm"
         >
           <p className="text-xs text-[color:var(--ink-600)]">{card.label}</p>
           <p className="mt-1 flex items-baseline gap-1.5 text-2xl font-semibold text-[color:var(--ink-900)]">
@@ -98,7 +98,7 @@ export function PrimaryAnswerBlock({ answer }: { answer: string }) {
   if (!answer) return null;
 
   return (
-    <div className="mt-3 rounded-xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-[color:var(--line-200)]">
+    <div className="mt-3 rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-[color:var(--line-200)]">
       <p className="text-base leading-7 text-[color:var(--ink-900)]">{answer}</p>
     </div>
   );

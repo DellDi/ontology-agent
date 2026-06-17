@@ -26,10 +26,10 @@ export function ShellMenu({ items }: { items: ShellMenuItem[] }) {
           <Link
             key={item.href + item.label}
             href={item.href}
-            className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+            className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
               active
                 ? 'bg-[color:var(--brand-100)] text-[color:var(--brand-800)]'
-                : 'text-[color:var(--ink-600)] hover:bg-white/70 hover:text-[color:var(--ink-900)]'
+                : 'text-[color:var(--ink-600)] hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]'
             }`}
           >
             {item.label}

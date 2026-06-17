@@ -91,7 +91,7 @@ import { renderTitle } from './rendering-utils';
 
 export function renderTableBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       {renderTable(renderedBlock)}
     </div>
@@ -100,7 +100,7 @@ export function renderTableBlock({ renderedBlock, className = '' }: AnalysisInte
 
 export function renderChartBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       {renderChart(renderedBlock)}
     </div>
@@ -109,7 +109,7 @@ export function renderChartBlock({ renderedBlock, className = '' }: AnalysisInte
 
 export function renderGraphBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       {renderGraph(renderedBlock)}
     </div>
@@ -125,7 +125,7 @@ export function renderGraph(block: AnalysisRenderedBlock) {
       <div className="flex flex-wrap gap-2">
         {nodes.map((node) => (
           <span
-            className="rounded-full bg-white px-3 py-1 text-xs text-[color:var(--ink-700)]"
+            className="rounded-md bg-white px-3 py-1 text-xs text-[color:var(--ink-700)]"
             key={getString(node.id, getString(node.label))}
           >
             {getString(node.label)}

@@ -16,7 +16,7 @@ export default async function OntologyAdminPublishHistoryPage() {
   return (
     <section className="space-y-6">
       <AdminPageHeader
-        eyebrow="Publish History"
+        eyebrow="发布记录"
         title="发布记录"
         description="所有 ontology version 的发布记录与对应的变更申请批次。默认运行时只认 published 版本。"
       />
@@ -31,7 +31,7 @@ export default async function OntologyAdminPublishHistoryPage() {
             {records.map((record) => (
               <div
                 key={record.id}
-                className="rounded-3xl bg-white/76 p-5 text-sm"
+                className="rounded-lg bg-white p-5 text-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -42,7 +42,7 @@ export default async function OntologyAdminPublishHistoryPage() {
                       发布人 {record.publishedBy} · 发布时间 {formatTimestamp(record.createdAt)}
                     </p>
                   </div>
-                  <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+                  <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
                     包含 {record.changeRequestIds.length} 个变更
                   </span>
                 </div>

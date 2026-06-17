@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react';
-
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
 export function getToneClassName(tone: unknown) {
@@ -11,7 +9,7 @@ export function getToneClassName(tone: unknown) {
     case 'info':
       return 'bg-sky-50';
     default:
-      return 'bg-[color:var(--sky-50)]/80';
+      return 'bg-[color:var(--sky-50)]';
   }
 }
 
@@ -43,7 +41,7 @@ export function getToolStatusLabel(status: unknown) {
 
 export function renderTitle(block: AnalysisRenderedBlock, fallback?: string) {
   return (
-    <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+    <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
       {block.title ?? block.label ?? fallback}
     </p>
   );

@@ -50,7 +50,7 @@ export default async function OntologyAdminChangeRequestsPage({
   return (
     <section className="space-y-6">
       <AdminPageHeader
-        eyebrow="Change Requests"
+        eyebrow="变更申请"
         title="变更申请管理"
         description="提交、审批与发布的最小操作面。所有写动作都通过受控服务端用例执行。"
         trailing={
@@ -181,7 +181,7 @@ export default async function OntologyAdminChangeRequestsPage({
               <Link
                 key={cr.id}
                 href={`/admin/ontology/change-requests/${cr.id}`}
-                className="rounded-3xl border border-[color:var(--line-200)] bg-white/76 p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+                className="rounded-lg border border-[color:var(--line-200)] bg-white p-5 transition hover:bg-[color:var(--surface-50)] hover:shadow-[var(--shadow-soft)]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>

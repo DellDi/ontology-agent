@@ -37,7 +37,7 @@ export default async function OntologyAdminDefinitionsPage({
     return (
       <section className="space-y-6">
         <AdminPageHeader
-          eyebrow="Definitions"
+          eyebrow="定义管理"
           title="本体定义查阅"
           description="查询当前生效版本下的实体、指标、因素、计划模板等正式定义。"
         />
@@ -128,11 +128,11 @@ export default async function OntologyAdminDefinitionsPage({
   return (
     <section className="space-y-6">
       <AdminPageHeader
-        eyebrow="Definitions"
+        eyebrow="定义管理"
         title="本体定义查阅"
         description="按版本查阅当前 ontology 治理对象。首期只读，变更请走变更申请。"
         trailing={
-          <div className="rounded-full border border-[color:var(--line-200)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
+          <div className="rounded-md border border-[color:var(--line-200)] bg-white px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
             版本 {version.semver} · {version.status}
           </div>
         }
@@ -170,16 +170,16 @@ export default async function OntologyAdminDefinitionsPage({
         description={version.description ?? '无描述'}
       >
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-3xl bg-white/76 p-4 text-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">状态</p>
+          <div className="rounded-lg bg-white p-4 text-sm">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">状态</p>
             <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">{version.status}</p>
           </div>
-          <div className="rounded-3xl bg-white/76 p-4 text-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">发布时间</p>
+          <div className="rounded-lg bg-white p-4 text-sm">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">发布时间</p>
             <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(version.publishedAt)}</p>
           </div>
-          <div className="rounded-3xl bg-white/76 p-4 text-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">创建时间</p>
+          <div className="rounded-lg bg-white p-4 text-sm">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">创建时间</p>
             <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(version.createdAt)}</p>
           </div>
         </div>
@@ -198,7 +198,7 @@ export default async function OntologyAdminDefinitionsPage({
               {group.items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/76 p-4"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-4"
                 >
                   <div>
                     <p className="text-base font-semibold text-[color:var(--ink-900)]">

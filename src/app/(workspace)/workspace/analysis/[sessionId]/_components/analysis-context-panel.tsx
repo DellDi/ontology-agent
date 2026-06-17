@@ -52,11 +52,11 @@ function ContextFieldCard({
   note,
 }: AnalysisContext['targetMetric']) {
   return (
-    <div className="rounded-3xl bg-white/76 p-5">
+    <div className="rounded-lg bg-white p-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-[color:var(--ink-600)]">{label}</p>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${getStateBadgeClassName(state)}`}
+          className={`rounded-md px-3 py-1 text-xs font-medium ${getStateBadgeClassName(state)}`}
         >
           {getContextFieldStateLabel(state)}
         </span>
@@ -258,7 +258,7 @@ export function AnalysisContextPanel({
     <article className="glass-panel p-6" data-testid="analysis-context-panel">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
             分析上下文
           </p>
           <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
@@ -278,7 +278,7 @@ export function AnalysisContextPanel({
         </button>
       </div>
 
-      <div className="mt-4 rounded-3xl bg-white/76 p-5">
+      <div className="mt-4 rounded-lg bg-white p-5">
         <p className="text-xs text-[color:var(--ink-600)]">原始问题文本</p>
         <p className="mt-2 text-base leading-7 text-[color:var(--ink-900)]">
           {readModel.originalQuestionText}
@@ -292,7 +292,7 @@ export function AnalysisContextPanel({
         <ContextFieldCard {...readModel.context.comparison} />
       </div>
 
-      <div className="mt-5 rounded-3xl bg-white/76 p-5">
+      <div className="mt-5 rounded-lg bg-white p-5">
         <p className="text-xs text-[color:var(--ink-600)]">约束条件</p>
         {readModel.context.constraints.length > 0 ? (
           <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
@@ -309,10 +309,10 @@ export function AnalysisContextPanel({
         )}
       </div>
 
-      <div className="mt-5 rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-5">
+      <div className="mt-5 rounded-lg border border-[color:var(--line-200)] bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+            <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
               修正上下文
             </p>
             <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">

@@ -228,8 +228,8 @@ export function AnalysisStepTimeline({
   if (entries.length === 0) return null;
 
   return (
-    <div className="mt-4 rounded-xl border border-[color:var(--line-200)] bg-white/60 px-4 py-3">
-      <p className="mb-2 text-xs font-medium tracking-[0.15em] text-[color:var(--ink-600)] uppercase">
+    <div className="mt-4 rounded-lg border border-[color:var(--line-200)] bg-white px-4 py-3">
+      <p className="mb-2 text-xs font-medium tracking-[0.1em] text-[color:var(--ink-600)]">
         分析过程
       </p>
       <ol className="space-y-0">

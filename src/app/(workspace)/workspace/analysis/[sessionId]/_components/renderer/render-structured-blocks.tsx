@@ -10,7 +10,7 @@ export function renderEvidenceCardBlock({
 }: AnalysisInteractionUiRenderInput) {
   const evidence = getItems(renderedBlock.payload.evidence);
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       <p className="mt-2 text-sm leading-7 text-[color:var(--ink-700)]">
         {getString(renderedBlock.payload.summary)}
@@ -29,7 +29,7 @@ export function renderEvidenceCardBlock({
 export function renderTimelineBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   const items = getItems(renderedBlock.payload.items);
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       <ol className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
         {items.map((item) => (
@@ -48,7 +48,7 @@ export function renderApprovalStateBlock({
   className = '',
 }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       <p className="mt-2 text-sm font-medium text-[color:var(--ink-900)]">
         {getString(renderedBlock.payload.state)}
@@ -69,7 +69,7 @@ export function renderSkillsStateBlock({
 }: AnalysisInteractionUiRenderInput) {
   const items = getItems(renderedBlock.payload.items);
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
         {items.map((item) => (
@@ -95,7 +95,7 @@ export function renderAssumptionCardBlock({
 
   return (
     <section
-      className={`${className} rounded-3xl border border-amber-100 bg-amber-50/80 p-4`}
+      className={`${className} rounded-lg border border-amber-100 bg-amber-50 p-4`}
       data-testid={testId || undefined}
     >
       {renderTitle(renderedBlock, '自动执行假设')}

@@ -66,12 +66,12 @@ export function AnalysisExecutionStreamPanel({
 
         {reduceEventsToStepCards({ events, executionStatus }).map((card) => (
             <section
-              className="rounded-3xl border border-[color:var(--line-200)] bg-white/80 p-5"
+              className="rounded-lg border border-[color:var(--line-200)] bg-white p-5"
               key={card.stepId}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+                  <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                     {card.stageLabel}
                   </p>
                   <h4 className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
@@ -84,7 +84,7 @@ export function AnalysisExecutionStreamPanel({
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  className={`rounded-md px-3 py-1 text-xs font-medium ${
                     card.status === 'completed'
                       ? 'bg-emerald-100 text-emerald-700'
                       : card.status === 'failed'

@@ -9,7 +9,7 @@ export function CandidateFactorPanel({
 }: CandidateFactorPanelProps) {
   return (
     <article className="glass-panel p-6" data-testid="candidate-factor-panel">
-      <p className="text-sm font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
+      <p className="text-sm font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
         {readModel.headline}
       </p>
       <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]">
@@ -17,7 +17,7 @@ export function CandidateFactorPanel({
       </p>
 
       {readModel.mode === 'skip' ? (
-        <div className="mt-5 rounded-3xl bg-white/76 p-5">
+        <div className="mt-5 rounded-lg bg-white p-5">
           <p className="text-sm font-medium text-[color:var(--ink-900)]">
             {readModel.skipReason}
           </p>
@@ -28,16 +28,16 @@ export function CandidateFactorPanel({
       ) : (
         <div className="mt-5 space-y-4">
           {readModel.factors.map((factor) => (
-            <section key={factor.key} className="rounded-3xl bg-white/76 p-5">
+            <section key={factor.key} className="rounded-lg bg-white p-5">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-[color:var(--ink-900)]">
                   {factor.label}
                 </h3>
-                <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+                <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
                   候选方向
                 </span>
               </div>
-              <p className="mt-3 text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+              <p className="mt-3 text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                 {readModel.basisLabel}
               </p>
               <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">

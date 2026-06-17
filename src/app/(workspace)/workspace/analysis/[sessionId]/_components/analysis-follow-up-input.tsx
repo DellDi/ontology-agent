@@ -49,9 +49,9 @@ function AnalysisFollowUpDrawer({
         data-testid="analysis-follow-up-drawer"
       >
         <div className="h-full p-2 sm:p-4">
-          <div className="flex h-full flex-col overflow-hidden rounded-[24px] border border-[color:var(--line-200)] bg-[color:var(--mist-0)]/97 shadow-[0_26px_58px_rgba(25,38,61,0.22)] backdrop-blur-md">
+          <div className="flex h-full flex-col overflow-hidden rounded-lg border border-[color:var(--line-200)] bg-[color:var(--mist-0)] shadow-[var(--shadow-soft)] ">
             <div className="flex items-center justify-between border-b border-[color:var(--line-200)] px-6 py-4">
-              <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                 追问详情
               </p>
               <button
@@ -124,7 +124,7 @@ export function AnalysisFollowUpInput({
     <div data-testid="analysis-follow-up-input">
       <form
         action={`/api/analysis/sessions/${sessionId}/follow-ups`}
-        className="flex items-end gap-3 rounded-2xl border border-[color:var(--line-200)] bg-white/80 p-3"
+        className="flex items-end gap-3 rounded-lg border border-[color:var(--line-200)] bg-white p-3"
         method="post"
         onSubmit={handleSubmit}
       >

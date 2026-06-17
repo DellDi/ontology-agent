@@ -22,11 +22,11 @@ export default async function OntologyAdminOverviewPage() {
   return (
     <section className="space-y-6">
       <AdminPageHeader
-        eyebrow="Governance Overview"
+        eyebrow="治理总览"
         title="本体治理概览"
         description="查看当前生效版本、待审批事项与最近发布记录，是治理后台的默认入口。"
         trailing={
-          <div className="rounded-full border border-[color:var(--line-200)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)]">
+          <div className="rounded-md border border-[color:var(--line-200)] bg-white px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)]">
             {overview.currentPublishedVersion
               ? `当前生效：${overview.currentPublishedVersion.semver}`
               : '当前无生效版本'}
@@ -51,7 +51,7 @@ export default async function OntologyAdminOverviewPage() {
           description="默认运行时只认 published 版本，未发布版本不会进入业务路径。"
         >
           {overview.currentPublishedVersion ? (
-            <div className="rounded-3xl bg-white/76 p-5">
+            <div className="rounded-lg bg-white p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-lg font-semibold text-[color:var(--ink-900)]">
@@ -78,7 +78,7 @@ export default async function OntologyAdminOverviewPage() {
           title="待办与下一步"
           description="审批与发布是当前最容易堵塞的两个环节。"
         >
-          <div className="rounded-3xl bg-white/76 p-5 space-y-3">
+          <div className="rounded-lg bg-white p-5 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-[color:var(--ink-600)]">待审批变更</span>
               <StatusBadge tone={overview.pendingChangeRequests.length > 0 ? 'warning' : 'neutral'}>
@@ -121,7 +121,7 @@ export default async function OntologyAdminOverviewPage() {
               <Link
                 key={cr.id}
                 href={`/admin/ontology/change-requests/${cr.id}`}
-                className="rounded-3xl border border-[color:var(--line-200)] bg-white/76 p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+                className="rounded-lg border border-[color:var(--line-200)] bg-white p-5 transition hover:bg-[color:var(--surface-50)] hover:shadow-[var(--shadow-soft)]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>

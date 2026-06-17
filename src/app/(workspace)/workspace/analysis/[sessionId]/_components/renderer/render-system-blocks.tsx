@@ -9,7 +9,7 @@ export function renderFallbackBlock({
   className = '',
 }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl border border-amber-100 bg-amber-50/80 p-4`}>
+    <div className={`${className} rounded-lg border border-amber-100 bg-amber-50 p-4`}>
       {renderTitle(renderedBlock, 'Fallback')}
       <p className="mt-2 text-sm leading-7 text-amber-900">
         未支持的分析块：{getString(renderedBlock.payload.originalKind, renderedBlock.kind)}
@@ -27,7 +27,7 @@ export function renderRenderErrorBlock({
 }: AnalysisInteractionUiRenderInput) {
   return (
     <div
-      className={`${className} rounded-2xl border border-rose-200 bg-rose-50/80 p-4`}
+      className={`${className} rounded-lg border border-rose-200 bg-rose-50 p-4`}
       data-testid="analysis-render-error"
     >
       {renderTitle(renderedBlock, '渲染异常')}
@@ -46,7 +46,7 @@ export function renderConclusionSummaryBlock({
   className = '',
 }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock, '分析结论')}
       <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">
         {getString(renderedBlock.payload.summary)}

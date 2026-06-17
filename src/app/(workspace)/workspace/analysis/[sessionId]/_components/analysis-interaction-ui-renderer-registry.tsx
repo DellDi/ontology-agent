@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
-import { getToolStatusLabel } from './renderer/rendering-utils';
 import { renderTableBlock, renderChartBlock, renderGraphBlock } from './renderer/block-sub-renderers';
 import { renderProcessBoardBlock } from './renderer/render-process-board-block';
 import { renderStatusBlock, renderKvListBlock, renderToolListBlock, renderMarkdownBlock, renderReasoningSummaryBlock } from './renderer/render-simple-blocks';
