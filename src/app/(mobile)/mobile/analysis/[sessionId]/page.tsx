@@ -158,8 +158,8 @@ export default async function MobileAnalysisPage({
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col gap-4 px-4 py-5">
         <header className="hero-panel p-5">
-          <p className="text-xs font-semibold tracking-[0.16em] text-[color:var(--brand-700)] uppercase">
-            Mobile Analysis
+          <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
+            移动分析
           </p>
           <h1 className="mt-2 text-xl font-semibold text-[color:var(--ink-900)]">
             {analysisSession.questionText}
@@ -167,10 +167,10 @@ export default async function MobileAnalysisPage({
         </header>
         <article className="glass-panel p-5" data-testid="mobile-analysis-empty">
           <div className="status-banner" data-tone="info">
-            当前会话还没有可展示的执行结果。请在 PC 工作台完成计划确认或执行。
+            当前会话还没有可展示的执行结果。请在桌面工作台完成计划确认或执行。
           </div>
           <a className="secondary-button mt-4 w-full" href={pcWorkspaceUrl}>
-            打开 PC 工作台
+            打开桌面工作台
           </a>
         </article>
       </main>
@@ -219,15 +219,15 @@ export default async function MobileAnalysisPage({
       <header className="hero-panel p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold tracking-[0.16em] text-[color:var(--brand-700)] uppercase">
-              Mobile Analysis
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
+              移动分析
             </p>
             <h1 className="mt-2 text-xl font-semibold leading-8 text-[color:var(--ink-900)]">
               {analysisSession.questionText}
             </h1>
           </div>
           <a className="secondary-button shrink-0 px-3 py-2 text-sm" href={pcWorkspaceUrl}>
-            PC
+            桌面
           </a>
         </div>
       </header>
@@ -244,11 +244,11 @@ export default async function MobileAnalysisPage({
 
       <article className="glass-panel p-5" data-testid="mobile-analysis-summary-card">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold tracking-[0.16em] text-[color:var(--brand-700)] uppercase">
+          <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
             摘要
           </p>
           <span
-            className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[color:var(--ink-600)]"
+            className="rounded-md bg-white px-3 py-1 text-xs font-semibold text-[color:var(--ink-600)]"
             data-testid="mobile-analysis-status"
           >
             {getStatusLabel(mobileProjection)}
@@ -270,7 +270,7 @@ export default async function MobileAnalysisPage({
           {mobileProjection.summaryProjection.keyEvidence.length > 0 ? (
             mobileProjection.summaryProjection.keyEvidence.map((item) => (
               <li
-                className="rounded-2xl border border-[color:var(--line-200)] bg-white/70 p-3"
+                className="rounded-lg border border-[color:var(--line-200)] bg-white p-3"
                 key={`${item.label}-${item.summary}`}
               >
                 <p className="text-sm font-semibold text-[color:var(--ink-900)]">
@@ -295,13 +295,13 @@ export default async function MobileAnalysisPage({
         </p>
         <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
           <div>
-            <dt className="text-[color:var(--ink-600)]">Execution</dt>
+            <dt className="text-[color:var(--ink-600)]">执行编号</dt>
             <dd className="mt-1 break-all font-mono text-xs text-[color:var(--ink-900)]">
               {mobileProjection.resumeProjection.executionId}
             </dd>
           </div>
           <div>
-            <dt className="text-[color:var(--ink-600)]">Sequence</dt>
+            <dt className="text-[color:var(--ink-600)]">事件序号</dt>
             <dd className="mt-1 font-mono text-xs text-[color:var(--ink-900)]">
               {mobileProjection.resumeProjection.lastSequence}
             </dd>
@@ -316,7 +316,7 @@ export default async function MobileAnalysisPage({
         <div className="mt-3 space-y-3">
           {mobileProjection.summaryProjection.minimalHistoryContext.map((round) => (
             <a
-              className="block rounded-2xl border border-[color:var(--line-200)] bg-white/70 p-3"
+              className="block rounded-lg border border-[color:var(--line-200)] bg-white p-3"
               href={`/mobile/analysis/${analysisSession.id}?historyRoundId=${encodeURIComponent(round.roundId)}`}
               key={round.roundId}
             >
@@ -325,7 +325,7 @@ export default async function MobileAnalysisPage({
                   {round.label}
                 </p>
                 {round.isLatest ? (
-                  <span className="rounded-full bg-[color:var(--sky-100)] px-2 py-1 text-xs text-[color:var(--brand-700)]">
+                  <span className="rounded-md bg-[color:var(--sky-100)] px-2 py-1 text-xs text-[color:var(--brand-700)]">
                     最新
                   </span>
                 ) : null}
@@ -366,7 +366,7 @@ export default async function MobileAnalysisPage({
           </button>
         </form>
         <a className="secondary-button mt-3 w-full" href={followUpProjection.pcWorkspaceUrl}>
-          复杂编辑去 PC
+          复杂编辑到桌面处理
         </a>
       </article>
     </main>

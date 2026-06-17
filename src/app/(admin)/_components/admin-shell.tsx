@@ -14,17 +14,17 @@ export function AdminPageHeader({
   trailing,
 }: AdminPageHeaderProps) {
   return (
-    <article className="hero-panel p-7 md:p-9">
+    <article className="hero-panel p-6 md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl space-y-3">
-          <p className="text-sm font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
+          <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
             {eyebrow}
           </p>
-          <h2 className="font-display text-3xl leading-tight font-semibold text-[color:var(--ink-900)] md:text-4xl">
+          <h2 className="font-display text-2xl leading-tight font-semibold text-[color:var(--ink-900)] md:text-3xl">
             {title}
           </h2>
           {description ? (
-            <p className="max-w-2xl text-base leading-7 text-[color:var(--ink-600)]">
+            <p className="max-w-2xl text-sm leading-6 text-[color:var(--ink-600)]">
               {description}
             </p>
           ) : null}
@@ -85,7 +85,7 @@ export function StatusBadge({
   const colors = palette[tone] ?? palette.neutral;
   return (
     <span
-      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
+      className="inline-flex items-center rounded-md px-3 py-1 text-xs font-medium"
       style={{ backgroundColor: colors.bg, color: colors.fg }}
     >
       {children}

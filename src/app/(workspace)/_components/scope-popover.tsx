@@ -66,7 +66,7 @@ export function ScopePopover({
     <div className="relative" ref={containerRef}>
       <button
         type="button"
-        className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line-200)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)] transition-transform duration-200 hover:-translate-y-0.5"
+        className="inline-flex items-center gap-2 rounded-md border border-[color:var(--line-200)] bg-white px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)] transition-colors duration-150 hover:bg-[color:var(--surface-50)]"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
       >
@@ -87,10 +87,10 @@ export function ScopePopover({
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 z-30 mt-3 w-[min(420px,calc(100vw-32px))] rounded-[28px] border border-[color:var(--line-200)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,250,255,0.96))] p-6 shadow-[0_24px_60px_rgba(20,35,70,0.16)]">
+        <div className="absolute right-0 z-30 mt-3 w-[min(420px,calc(100vw-32px))] rounded-lg border border-[color:var(--line-200)] bg-white p-5 shadow-[var(--shadow-soft)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+              <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 当前权限范围
               </p>
               <h3 className="mt-2 text-lg font-semibold text-[color:var(--ink-900)]">
@@ -99,7 +99,7 @@ export function ScopePopover({
             </div>
             <button
               type="button"
-              className="rounded-full border border-[color:var(--line-200)] px-3 py-1 text-xs text-[color:var(--ink-600)]"
+              className="rounded-md border border-[color:var(--line-200)] px-3 py-1 text-xs text-[color:var(--ink-600)]"
               onClick={close}
             >
               关闭
@@ -107,16 +107,16 @@ export function ScopePopover({
           </div>
 
           <div className="mt-5 space-y-3">
-            <div className="rounded-3xl bg-white/76 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
+            <div className="rounded-lg bg-white p-4">
+              <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 组织
               </p>
               <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
                 {organization}
               </p>
             </div>
-            <div className="rounded-3xl bg-white/76 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
+            <div className="rounded-lg bg-white p-4">
+              <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 项目
               </p>
               <ProjectScopeDialog
@@ -124,8 +124,8 @@ export function ScopePopover({
                 projects={projectDisplayNames}
               />
             </div>
-            <div className="rounded-3xl bg-white/76 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">
+            <div className="rounded-lg bg-white p-4">
+              <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 角色
               </p>
               <p className="mt-2 text-base text-[color:var(--ink-900)]">
@@ -134,8 +134,8 @@ export function ScopePopover({
             </div>
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-[color:var(--line-200)] bg-white/76 p-5">
-            <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+          <div className="mt-5 rounded-lg border border-[color:var(--line-200)] bg-white p-5">
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
               范围说明
             </p>
             <div className="mt-4 space-y-4">
@@ -155,7 +155,7 @@ export function ScopePopover({
                   {boundaryGuidance.unsupported.join('、')}等业务能力。
                 </p>
               </div>
-              <p className="rounded-2xl bg-[color:var(--sky-50)] px-4 py-3 text-sm leading-6 text-[color:var(--ink-700)]">
+              <p className="rounded-lg bg-[color:var(--sky-50)] px-4 py-3 text-sm leading-6 text-[color:var(--ink-700)]">
                 {boundaryGuidance.note}
               </p>
             </div>

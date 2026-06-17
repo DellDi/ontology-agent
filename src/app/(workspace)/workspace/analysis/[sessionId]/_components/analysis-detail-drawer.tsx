@@ -80,10 +80,10 @@ export function AnalysisDetailDrawer({
       className="fixed inset-y-0 right-0 z-40 w-full max-w-[560px] transform transition-transform duration-300 translate-x-0"
     >
       <div className="h-full p-2 sm:p-4">
-        <div className="flex h-full flex-col overflow-hidden rounded-[24px] border border-[color:var(--line-200)] bg-[color:var(--mist-0)]/97 shadow-[0_26px_58px_rgba(25,38,61,0.22)] backdrop-blur-md">
+        <div className="flex h-full flex-col overflow-hidden rounded-lg border border-[color:var(--line-200)] bg-[color:var(--mist-0)] shadow-[var(--shadow-soft)] ">
           <div className="flex items-center justify-between border-b border-[color:var(--line-200)] px-6 py-4">
             <div>
-              <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                 {DRAWER_LABELS[drawerType] ?? '详情'}
               </p>
             </div>

@@ -170,7 +170,7 @@ export function AnalysisAssistantMessage({
 
         {/* 失败状态 */}
         {status === 'failed' ? (
-          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
             <p className="text-sm text-rose-900">
               分析过程中遇到问题，请查看详细信息了解原因。
             </p>
@@ -186,7 +186,7 @@ export function AnalysisAssistantMessage({
 
         {/* 断流状态 */}
         {status === 'disconnected' ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm text-amber-900">
               {headline}
             </p>
@@ -196,35 +196,35 @@ export function AnalysisAssistantMessage({
         {/* 底部信息入口（业务语言，不暴露工程术语） */}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('plan')}
             type="button"
           >
             分析计划
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('context')}
             type="button"
           >
             背景信息
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('history')}
             type="button"
           >
             历史问答
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('candidates')}
             type="button"
           >
             可能原因
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
             onClick={() => onOpenDetail('execution-log')}
             type="button"
           >
@@ -232,7 +232,7 @@ export function AnalysisAssistantMessage({
           </button>
           {hasDiagnostics ? (
             <button
-              className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-white/60 hover:text-[color:var(--ink-900)]"
+              className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
               onClick={() => onOpenDetail('diagnostics')}
               type="button"
             >

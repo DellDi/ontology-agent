@@ -55,7 +55,7 @@ export default async function OntologyAdminChangeRequestDetailPage({
   return (
     <section className="space-y-6">
       <AdminPageHeader
-        eyebrow={`Change Request · ${cr.status}`}
+        eyebrow={`变更申请 · ${cr.status}`}
         title={cr.title}
         description={cr.description ?? '本变更申请没有提供描述说明。'}
         trailing={<StatusBadge tone={changeRequestStatusTone(cr.status)}>{cr.status}</StatusBadge>}
@@ -70,8 +70,8 @@ export default async function OntologyAdminChangeRequestDetailPage({
 
       <AdminCard title="目标对象与影响范围">
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-3xl bg-white/76 p-4 text-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">目标对象</p>
+          <div className="rounded-lg bg-white p-4 text-sm">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">目标对象</p>
             <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">
               {cr.targetObjectType} / {cr.targetObjectKey}
             </p>
@@ -82,8 +82,8 @@ export default async function OntologyAdminChangeRequestDetailPage({
               <p className="mt-2 text-xs text-[color:var(--ink-600)]">兼容说明：{cr.compatibilityNote}</p>
             ) : null}
           </div>
-          <div className="rounded-3xl bg-white/76 p-4 text-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">影响范围</p>
+          <div className="rounded-lg bg-white p-4 text-sm">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">影响范围</p>
             {cr.impactScope.length === 0 ? (
               <p className="mt-1 text-sm text-[color:var(--ink-600)]">未声明影响范围</p>
             ) : (
@@ -99,14 +99,14 @@ export default async function OntologyAdminChangeRequestDetailPage({
 
       <AdminCard title="变更前后摘要">
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-3xl bg-white/76 p-4 text-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">变更前</p>
+          <div className="rounded-lg bg-white p-4 text-sm">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">变更前</p>
             <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-[color:var(--ink-900)]">
               {cr.beforeSummary ? JSON.stringify(cr.beforeSummary, null, 2) : '—'}
             </pre>
           </div>
-          <div className="rounded-3xl bg-white/76 p-4 text-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">变更后</p>
+          <div className="rounded-lg bg-white p-4 text-sm">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">变更后</p>
             <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-[color:var(--ink-900)]">
               {cr.afterSummary ? JSON.stringify(cr.afterSummary, null, 2) : '—'}
             </pre>
@@ -116,16 +116,16 @@ export default async function OntologyAdminChangeRequestDetailPage({
 
       <AdminCard title="提交与时间线">
         <div className="grid gap-3 md:grid-cols-3 text-sm">
-          <div className="rounded-3xl bg-white/76 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">提交人</p>
+          <div className="rounded-lg bg-white p-4">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">提交人</p>
             <p className="mt-1 text-base text-[color:var(--ink-900)]">{cr.submittedBy}</p>
           </div>
-          <div className="rounded-3xl bg-white/76 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">提交时间</p>
+          <div className="rounded-lg bg-white p-4">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">提交时间</p>
             <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(cr.submittedAt)}</p>
           </div>
-          <div className="rounded-3xl bg-white/76 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--brand-700)]">最近更新</p>
+          <div className="rounded-lg bg-white p-4">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">最近更新</p>
             <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(cr.updatedAt)}</p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export default async function OntologyAdminChangeRequestDetailPage({
             {approvalHistory.map((record) => (
               <div
                 key={record.id}
-                className="rounded-2xl bg-white/76 p-4 text-sm"
+                className="rounded-lg bg-white p-4 text-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>

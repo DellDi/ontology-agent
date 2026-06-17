@@ -41,7 +41,7 @@ export function AnalysisHistoryPanel({
   return (
     <article className="glass-panel p-6" data-testid="analysis-history-panel">
       <div>
-        <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+        <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
           多轮历史
         </p>
         <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
@@ -56,7 +56,7 @@ export function AnalysisHistoryPanel({
         <div className="space-y-3">
           {readModel.rounds.map((round) => (
             <a
-              className="block rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-4"
+              className="block rounded-lg border border-[color:var(--line-200)] bg-white p-4"
               data-active={selectedRound.id === round.id ? 'true' : 'false'}
               href={buildHistoryHref({
                 sessionId,
@@ -69,7 +69,7 @@ export function AnalysisHistoryPanel({
                 <p className="text-sm font-semibold text-[color:var(--ink-900)]">
                   {round.label}
                 </p>
-                <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+                <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
                   {round.isLatest ? '最新结论' : '历史结论'}
                 </span>
               </div>
@@ -90,23 +90,23 @@ export function AnalysisHistoryPanel({
         </div>
 
         <section
-          className="rounded-3xl border border-[color:var(--line-200)] bg-white/82 p-5"
+          className="rounded-lg border border-[color:var(--line-200)] bg-white p-5"
           data-testid="analysis-history-detail"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                 当前查看轮次
               </p>
               <h4 className="mt-2 text-xl font-semibold text-[color:var(--ink-900)]">
                 {selectedRound.label}
               </h4>
             </div>
-            <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+            <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
               {selectedRound.isLatest ? '最新轮次' : '历史轮次'}
             </span>
             <span
-              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
+              className="rounded-md bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
               data-testid="selected-history-ontology-version"
             >
               {formatOntologyVersionBindingBadge(
@@ -115,7 +115,7 @@ export function AnalysisHistoryPanel({
             </span>
           </div>
 
-          <div className="mt-4 rounded-3xl bg-white/76 p-4">
+          <div className="mt-4 rounded-lg bg-white p-4">
             <p className="text-xs text-[color:var(--ink-600)]">当轮输入</p>
             <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
               {selectedRound.questionText}
@@ -128,7 +128,7 @@ export function AnalysisHistoryPanel({
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl bg-white/76 p-4">
+            <div className="rounded-lg bg-white p-4">
               <p className="text-xs text-[color:var(--ink-600)]">计划摘要</p>
               <p className="mt-2 text-sm leading-6 text-[color:var(--ink-900)]">
                 {selectedRound.planSummary ?? '该轮尚未生成计划摘要。'}
@@ -144,7 +144,7 @@ export function AnalysisHistoryPanel({
               ) : null}
             </div>
 
-            <div className="rounded-3xl bg-white/76 p-4">
+            <div className="rounded-lg bg-white p-4">
               <p className="text-xs text-[color:var(--ink-600)]">主要结论</p>
               <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
                 {selectedRound.conclusionTitle ?? '尚未产出结论'}
@@ -155,7 +155,7 @@ export function AnalysisHistoryPanel({
             </div>
           </div>
 
-          <div className="mt-4 rounded-3xl bg-white/76 p-4">
+          <div className="mt-4 rounded-lg bg-white p-4">
             <p className="text-xs text-[color:var(--ink-600)]">关键证据</p>
             {selectedRound.evidence.length > 0 ? (
               <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">

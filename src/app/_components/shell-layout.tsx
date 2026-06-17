@@ -19,10 +19,10 @@ export function ShellLayout({
   return (
     <div className="flex min-h-screen flex-col">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 border-b border-[color:var(--line-200)] bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-[color:var(--line-200)] bg-white">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 lg:px-10">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-[0.15em] text-[color:var(--brand-700)]">
+            <span className="text-sm font-semibold tracking-[0.1em] text-[color:var(--brand-700)]">
               DIP3 · 智慧数据
             </span>
           </div>

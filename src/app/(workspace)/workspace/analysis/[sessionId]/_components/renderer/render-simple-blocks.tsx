@@ -6,7 +6,7 @@ import { getToneClassName, getString, getItems, getToolStatusLabel, renderTitle 
 
 export function renderStatusBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl p-4 ${getToneClassName(renderedBlock.payload.tone)}`}>
+    <div className={`${className} rounded-lg p-4 ${getToneClassName(renderedBlock.payload.tone)}`}>
       {renderTitle(renderedBlock)}
       <p className="mt-2 text-sm font-medium text-[color:var(--ink-900)]">
         {getString(renderedBlock.payload.value)}
@@ -18,7 +18,7 @@ export function renderStatusBlock({ renderedBlock, className = '' }: AnalysisInt
 export function renderKvListBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   const items = getItems(renderedBlock.payload.items);
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       <dl className="mt-3 grid gap-2 md:grid-cols-2">
         {items.map((item) => (
@@ -39,7 +39,7 @@ export function renderKvListBlock({ renderedBlock, className = '' }: AnalysisInt
 export function renderToolListBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   const items = getItems(renderedBlock.payload.items);
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock, '工具调用')}
       <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
         {items.map((item) => (
@@ -55,7 +55,7 @@ export function renderToolListBlock({ renderedBlock, className = '' }: AnalysisI
 
 export function renderMarkdownBlock({ renderedBlock, className = '' }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle(renderedBlock)}
       <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">
         {getString(renderedBlock.payload.content)}
@@ -69,7 +69,7 @@ export function renderReasoningSummaryBlock({
   className = '',
 }: AnalysisInteractionUiRenderInput) {
   return (
-    <div className={`${className} rounded-2xl bg-[color:var(--sky-50)]/80 p-4`}>
+    <div className={`${className} rounded-lg bg-[color:var(--sky-50)] p-4`}>
       {renderTitle({ ...renderedBlock, title: '推理摘要' })}
       <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">
         {getString(renderedBlock.payload.content)}

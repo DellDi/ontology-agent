@@ -34,7 +34,7 @@ type AnalysisFollowUpPanelProps = {
 function renderOntologyVersionBadge(followUp: AnalysisSessionFollowUp) {
   return (
     <span
-      className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
+      className="rounded-md bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
       data-testid="follow-up-ontology-version-badge"
     >
       {formatOntologyVersionBindingBadge(followUp.ontologyVersionBinding)}
@@ -80,7 +80,7 @@ export function AnalysisFollowUpPanel({
     <article className="glass-panel p-6" data-testid="analysis-follow-up-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
             继续追问
           </p>
           <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
@@ -110,7 +110,7 @@ export function AnalysisFollowUpPanel({
         </div>
       ) : null}
 
-      <div className="mt-5 rounded-3xl bg-white/76 p-5">
+      <div className="mt-5 rounded-lg bg-white p-5">
         <p className="text-xs text-[color:var(--ink-600)]">当前承接结论</p>
         <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
           {latestConclusionTitle ?? '未命名结论'}
@@ -120,7 +120,7 @@ export function AnalysisFollowUpPanel({
         </p>
       </div>
 
-      <div className="mt-4 rounded-3xl bg-white/76 p-5">
+      <div className="mt-4 rounded-lg bg-white p-5">
         <p className="text-xs text-[color:var(--ink-600)]">默认沿用上下文</p>
         <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
           {renderContextSummary(inheritedContext).map((item) => (
@@ -131,7 +131,7 @@ export function AnalysisFollowUpPanel({
 
       <form
         action={`/api/analysis/sessions/${sessionId}/follow-ups`}
-        className="mt-5 rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-5"
+        className="mt-5 rounded-lg border border-[color:var(--line-200)] bg-white p-5"
         method="post"
       >
         {activeFollowUp ? (
@@ -155,9 +155,9 @@ export function AnalysisFollowUpPanel({
 
       <div className="mt-5 space-y-4">
         {activeFollowUp ? (
-          <section className="rounded-3xl border border-[color:var(--line-200)] bg-white/78 p-5">
+          <section className="rounded-lg border border-[color:var(--line-200)] bg-white p-5">
             <div>
-              <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                 补充因素或缩小范围
               </p>
               <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
@@ -172,7 +172,7 @@ export function AnalysisFollowUpPanel({
             ) : null}
 
             {conflictItems.length > 0 ? (
-              <div className="mt-4 space-y-3 rounded-3xl bg-white/76 p-5">
+              <div className="mt-4 space-y-3 rounded-lg bg-white p-5">
                 {conflictItems.map((conflict) => (
                   <div key={`${conflict.key}-${conflict.nextValue}`} className="space-y-1">
                     <p className="text-sm font-medium text-[color:var(--ink-900)]">
@@ -274,7 +274,7 @@ export function AnalysisFollowUpPanel({
         ) : null}
 
         <div>
-          <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
             已提交追问
           </p>
           <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
@@ -290,7 +290,7 @@ export function AnalysisFollowUpPanel({
             />
           ))
         ) : (
-          <p className="rounded-3xl bg-white/76 p-5 text-sm leading-6 text-[color:var(--ink-600)]">
+          <p className="rounded-lg bg-white p-5 text-sm leading-6 text-[color:var(--ink-600)]">
             尚未发起追问。
           </p>
         )}
@@ -313,7 +313,7 @@ function FollowUpCard({
 
   return (
     <section
-      className="rounded-3xl border border-[color:var(--line-200)] bg-white/76 p-5"
+      className="rounded-lg border border-[color:var(--line-200)] bg-white p-5"
       data-active={active ? 'true' : 'false'}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -321,7 +321,7 @@ function FollowUpCard({
           {followUp.questionText}
         </p>
         {active ? (
-          <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+          <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
             最新追问
           </span>
         ) : null}
@@ -337,8 +337,8 @@ function FollowUpCard({
       </ul>
 
       {diff.added.length > 0 ? (
-        <div className="mt-4 rounded-3xl bg-[color:var(--sky-50)]/80 p-4">
-          <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+        <div className="mt-4 rounded-lg bg-[color:var(--sky-50)] p-4">
+          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
             新增条件
           </p>
           <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
@@ -352,8 +352,8 @@ function FollowUpCard({
       ) : null}
 
       {diff.overridden.length > 0 ? (
-        <div className="mt-4 rounded-3xl bg-amber-50 p-4">
-          <p className="text-xs font-medium tracking-[0.18em] text-amber-700 uppercase">
+        <div className="mt-4 rounded-lg bg-amber-50 p-4">
+          <p className="text-xs font-medium tracking-[0.12em] text-amber-700">
             已覆盖条件
           </p>
           <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
@@ -367,7 +367,7 @@ function FollowUpCard({
       ) : null}
 
       {followUp.planVersion && followUp.currentPlanDiff ? (
-        <div className="mt-4 space-y-4 rounded-3xl border border-[color:var(--line-200)] bg-white/82 p-4">
+        <div className="mt-4 space-y-4 rounded-lg border border-[color:var(--line-200)] bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-[color:var(--ink-900)]">
               计划版本 v{followUp.planVersion}
@@ -379,7 +379,7 @@ function FollowUpCard({
 
           {followUp.currentPlanDiff.reusedSteps.length > 0 ? (
             <div>
-              <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                 可复用步骤
               </p>
               <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
@@ -392,7 +392,7 @@ function FollowUpCard({
 
           {followUp.currentPlanDiff.invalidatedSteps.length > 0 ? (
             <div>
-              <p className="text-xs font-medium tracking-[0.18em] text-amber-700 uppercase">
+              <p className="text-xs font-medium tracking-[0.12em] text-amber-700">
                 失效步骤
               </p>
               <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
@@ -405,7 +405,7 @@ function FollowUpCard({
 
           {followUp.currentPlanDiff.addedSteps.length > 0 ? (
             <div>
-              <p className="text-xs font-medium tracking-[0.18em] text-[color:var(--brand-700)] uppercase">
+              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
                 新增步骤
               </p>
               <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">

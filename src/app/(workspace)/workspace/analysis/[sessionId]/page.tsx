@@ -77,7 +77,7 @@ export default async function AnalysisSessionPage({
       {/* 执行提交反馈（轻量 banner） */}
       {pageModel.shouldShowExecutionFeedback ? (
         <div
-          className="rounded-xl px-4 py-3 text-sm"
+          className="rounded-lg px-4 py-3 text-sm"
           data-testid="analysis-execution-feedback"
           style={{
             backgroundColor: pageModel.executionError
@@ -151,7 +151,7 @@ export default async function AnalysisSessionPage({
           data-testid="analysis-pending-conversation"
         >
           <div className="flex justify-end">
-            <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-[color:var(--brand-700)] px-5 py-3.5">
+            <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-[color:var(--brand-700)] px-5 py-3.5">
               <p className="text-base leading-7 text-white">
                 {pageModel.questionText}
               </p>
@@ -174,7 +174,7 @@ export default async function AnalysisSessionPage({
 
               {pageModel.pendingExecutionBlockerMessage ? (
                 <div
-                  className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3"
+                  className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3"
                   data-testid="analysis-execution-blocked"
                 >
                   <p className="text-sm font-medium text-rose-900">
@@ -208,7 +208,7 @@ export default async function AnalysisSessionPage({
               </form>
 
               <details
-                className="mt-4 rounded-xl border border-[color:var(--line-200)] bg-white/70 p-4"
+                className="mt-4 rounded-lg border border-[color:var(--line-200)] bg-white p-4"
                 data-testid="analysis-pending-plan-details"
               >
                 <summary className="cursor-pointer text-sm font-medium text-[color:var(--ink-700)]">

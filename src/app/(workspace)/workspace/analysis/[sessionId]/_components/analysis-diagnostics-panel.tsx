@@ -33,7 +33,7 @@ function CandidateValidationStatusBadge({
   const tone = toneMap[status];
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tone.className}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${tone.className}`}
     >
       {tone.label}
     </span>
@@ -85,7 +85,7 @@ export function AnalysisDiagnosticsPanel({
             {candidateValidation.validations.map((validation) => (
               <div
                 key={validation.factorKey}
-                className="rounded-xl border border-[color:var(--line-200)] bg-white p-4"
+                className="rounded-lg border border-[color:var(--line-200)] bg-white p-4"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-[color:var(--ink-900)]">
@@ -190,7 +190,7 @@ export function AnalysisDiagnosticsPanel({
         </section>
       ) : null}
 
-      <details className="rounded-xl border border-[color:var(--line-200)] bg-white p-4 text-xs text-[color:var(--ink-600)]">
+      <details className="rounded-lg border border-[color:var(--line-200)] bg-white p-4 text-xs text-[color:var(--ink-600)]">
         <summary className="cursor-pointer font-medium text-[color:var(--ink-900)]">
           技术信息
         </summary>

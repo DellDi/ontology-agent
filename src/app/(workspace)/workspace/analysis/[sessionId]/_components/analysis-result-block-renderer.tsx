@@ -32,14 +32,14 @@ function ConclusionSummaryBlock({
         return (
           <div
             key={`${cause.title}-${index}`}
-            className="rounded-xl border border-[color:var(--line-200)] bg-white p-4"
+            className="rounded-lg border border-[color:var(--line-200)] bg-white p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <h4 className="text-base font-semibold text-[color:var(--ink-900)]">
                 {index + 1}. {cause.title}
               </h4>
               {confidenceLabel ? (
-                <span className="shrink-0 rounded-full bg-[color:var(--sky-100)] px-2.5 py-0.5 text-xs font-medium text-[color:var(--brand-700)]">
+                <span className="shrink-0 rounded-md bg-[color:var(--sky-100)] px-2.5 py-0.5 text-xs font-medium text-[color:var(--brand-700)]">
                   置信度 {confidenceLabel}
                 </span>
               ) : null}

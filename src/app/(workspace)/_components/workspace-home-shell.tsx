@@ -38,23 +38,22 @@ export function WorkspaceHomeShell({
 }: WorkspaceHomeShellProps) {
   return (
     <section className="space-y-6">
-      <article className="hero-panel p-7 md:p-9">
+      <article className="hero-panel p-6 md:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-3xl space-y-4">
-            <p className="text-sm font-medium tracking-[0.22em] text-[color:var(--brand-700)] uppercase">
-              Skyline Intelligence Workspace
+          <div className="max-w-3xl space-y-3">
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
+              经营分析工作台
             </p>
-            <h2 className="font-display text-3xl leading-tight font-semibold text-[color:var(--ink-900)] md:text-4xl">
+            <h2 className="font-display text-2xl leading-tight font-semibold text-[color:var(--ink-900)] md:text-3xl">
               {model.greeting}
             </h2>
-            <p className="max-w-2xl text-base leading-7 text-[color:var(--ink-600)]">
-              这里先作为权限范围内的分析工作台首页，聚焦入口、范围提示和历史会话，
-              为后续会话、计划和证据阅读预留清晰过渡。
+            <p className="max-w-2xl text-sm leading-6 text-[color:var(--ink-600)]">
+              在当前权限范围内发起经营问题分析，持续保留问题、计划、证据与结论。
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-full border border-[color:var(--line-200)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)]">
+            <div className="rounded-md border border-[color:var(--line-200)] bg-white px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)]">
               {model.boundaryMessage}
             </div>
             <ScopePopover
@@ -72,7 +71,7 @@ export function WorkspaceHomeShell({
       <article className="glass-panel p-6 md:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
               分析输入台
             </p>
             <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
@@ -83,7 +82,7 @@ export function WorkspaceHomeShell({
               计划生成、证据阅读和归因结论。
             </p>
           </div>
-          <div className="rounded-full bg-[color:var(--sky-100)] px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
+          <div className="rounded-md bg-[color:var(--sky-100)] px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
             当前版本仅支持物业分析
           </div>
         </div>
@@ -132,15 +131,15 @@ export function WorkspaceHomeShell({
           <div key={action.label} className="glass-panel p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
-                  分析入口
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
+              分析能力
                 </p>
                 <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
                   {action.label}
                 </h3>
               </div>
               <span
-                className="rounded-full px-3 py-1 text-xs font-medium"
+                className="rounded-md px-3 py-1 text-xs font-medium"
                 style={{
                   backgroundColor:
                     action.status === 'ready'
@@ -176,7 +175,7 @@ export function WorkspaceHomeShell({
       <article className="glass-panel p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-medium tracking-[0.2em] text-[color:var(--brand-700)] uppercase">
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
               历史会话
             </p>
             <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
@@ -203,14 +202,14 @@ export function WorkspaceHomeShell({
                 <Link
                   key={item.id}
                   href={item.href}
-                  className="rounded-[28px] border border-[color:var(--line-200)] bg-white/78 p-5 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+                  className="rounded-lg border border-[color:var(--line-200)] bg-white p-5 transition-colors duration-150 hover:bg-[color:var(--surface-50)] hover:shadow-[var(--shadow-soft)]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h4 className="text-lg font-semibold text-[color:var(--ink-900)]">
                       {item.title}
                     </h4>
                     <span
-                      className="rounded-full px-3 py-1 text-xs font-medium"
+                      className="rounded-md px-3 py-1 text-xs font-medium"
                       style={toneStyle}
                     >
                       {item.statusLabel}

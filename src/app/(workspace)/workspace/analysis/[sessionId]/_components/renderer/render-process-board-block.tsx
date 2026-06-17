@@ -28,7 +28,7 @@ export function renderProcessBoardBlock({
 
   return (
     <section
-      className={`${className} rounded-3xl border border-[color:var(--line-200)] bg-white/80 p-5`}
+      className={`${className} rounded-lg border border-[color:var(--line-200)] bg-white p-5`}
       data-testid="analysis-process-board"
     >
       {renderTitle(renderedBlock, '执行流程看板')}
@@ -36,7 +36,7 @@ export function renderProcessBoardBlock({
         <p className="text-sm text-[color:var(--ink-600)]">
           实时状态与过程摘要
         </p>
-        <span className="rounded-full bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+        <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
           {eventCount} 条事件
         </span>
       </div>
@@ -61,14 +61,14 @@ export function renderProcessBoardBlock({
         <div className="mt-4 space-y-2">
           {steps.map((item) => (
             <div
-              className="flex items-center justify-between gap-3 rounded-2xl bg-[color:var(--sky-50)]/80 px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-lg bg-[color:var(--sky-50)] px-3 py-2"
               key={getString(item.id)}
             >
               <p className="text-sm text-[color:var(--ink-900)]">
                 {String(item.order)}. {getString(item.title)}
               </p>
               <span
-                className={`rounded-full px-3 py-1 text-xs font-medium ${item.status === 'completed'
+                className={`rounded-md px-3 py-1 text-xs font-medium ${item.status === 'completed'
                   ? 'bg-emerald-100 text-emerald-700'
                   : item.status === 'failed'
                     ? 'bg-rose-100 text-rose-700'

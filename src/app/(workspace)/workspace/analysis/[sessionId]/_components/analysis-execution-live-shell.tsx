@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildAiRuntimeProjection, mergeAnalysisExecutionStreamEvents, resolveLiveShellCanonicalEvents, type AiRuntimeProjection } from '@/application/ai-runtime';
 import { buildConversationViewModel } from '@/application/analysis-message-projection/conversation-view-model';
 import type { ConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
@@ -178,7 +180,7 @@ export function AnalysisExecutionLiveShell({
     <>
       {streamConnectionIssue && (
         <div className="mx-auto mt-4 max-w-[860px] px-4">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <p>{streamConnectionIssue.message}</p>
             <div className="mt-2 flex gap-3">
               <button onClick={handleReconnect} className="secondary-button" type="button">重新连接</button>
