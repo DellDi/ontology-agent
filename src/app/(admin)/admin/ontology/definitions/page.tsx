@@ -3,7 +3,10 @@ import { createCompositionRoot, requireOntologyAdminSession } from '@/compositio
 import {
   AdminCard,
   AdminPageHeader,
+  DataTable,
+  EmptyState,
   StatusBadge,
+  TabBar,
   formatTimestamp,
 } from '../../../_components/admin-shell';
 
@@ -17,6 +20,54 @@ function readParam(value: string | string[] | undefined): string | undefined {
   return undefined;
 }
 
+type DefinitionItem = {
+  id: string;
+  businessKey: string;
+  displayName: string;
+  status: string;
+};
+
+type DefinitionGroup = {
+  key: string;
+  title: string;
+  items: DefinitionItem[];
+};
+
+function getDefinitionGroups(definitions: {
+  entities: DefinitionItem[];
+  metrics: DefinitionItem[];
+  metricVariants: DefinitionItem[];
+  factors: DefinitionItem[];
+  planStepTemplates: DefinitionItem[];
+  timeSemantics: DefinitionItem[];
+  causalityEdges: DefinitionItem[];
+  evidenceTypes: DefinitionItem[];
+}): DefinitionGroup[] {
+  return [
+    { key: 'entities', title: '实体定义', items: definitions.entities },
+    { key: 'metrics', title: '指标定义', items: definitions.metrics },
+    { key: 'metricVariants', title: '指标变体', items: definitions.metricVariants },
+    { key: 'factors', title: '因素定义', items: definitions.factors },
+    { key: 'planStepTemplates', title: '计划步骤模板', items: definitions.planStepTemplates },
+    { key: 'timeSemantics', title: '时间语义', items: definitions.timeSemantics },
+    { key: 'causalityEdges', title: '因果边', items: definitions.causalityEdges },
+    { key: 'evidenceTypes', title: '证据类型', items: definitions.evidenceTypes },
+  ];
+}
+
+function getStatusTone(status: string): 'success' | 'warning' | 'neutral' {
+  if (status === 'approved') return 'success';
+  if (status === 'deprecated') return 'warning';
+  return 'neutral';
+}
+
+function getStatusLabel(status: string): string {
+  if (status === 'approved') return '已批准';
+  if (status === 'deprecated') return '已废弃';
+  if (status === 'draft') return '草稿';
+  return status;
+}
+
 export default async function OntologyAdminDefinitionsPage({
   searchParams,
 }: DefinitionsPageProps) {
@@ -25,6 +76,7 @@ export default async function OntologyAdminDefinitionsPage({
 
   const params = (await searchParams) ?? {};
   const requestedVersionId = readParam(params.versionId);
+  const activeTab = readParam(params.tab) ?? 'all';
 
   const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
 
@@ -42,179 +94,126 @@ export default async function OntologyAdminDefinitionsPage({
           description="查询当前生效版本下的实体、指标、因素、计划模板等正式定义。"
         />
         <article className="status-banner" data-tone="info">
-          当前还没有任何 ontology version 可供查阅。请先通过 Story 9.7 的 bootstrap 流程或正式的变更申请创建首个版本。
+          当前还没有任何 ontology version 可供查阅。请先通过 bootstrap 流程或正式的变更申请创建首个版本。
         </article>
       </section>
     );
   }
 
   const { version, definitions } = view;
+  const groups = getDefinitionGroups(definitions);
 
-  const groups: Array<{ title: string; items: Array<{ id: string; key: string; name: string; status: string }> }> = [
-    {
-      title: '实体定义',
-      items: definitions.entities.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
-    {
-      title: '指标定义',
-      items: definitions.metrics.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
-    {
-      title: '指标变体',
-      items: definitions.metricVariants.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
-    {
-      title: '因素定义',
-      items: definitions.factors.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
-    {
-      title: '计划步骤模板',
-      items: definitions.planStepTemplates.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
-    {
-      title: '时间语义',
-      items: definitions.timeSemantics.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
-    {
-      title: '因果边',
-      items: definitions.causalityEdges.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
-    {
-      title: '证据类型',
-      items: definitions.evidenceTypes.map((d) => ({
-        id: d.id,
-        key: d.businessKey,
-        name: d.displayName,
-        status: d.status,
-      })),
-    },
+  const tabs = [
+    { key: 'all', label: '全部', count: groups.reduce((sum, g) => sum + g.items.length, 0) },
+    ...groups
+      .filter((g) => g.items.length > 0)
+      .map((g) => ({ key: g.key, label: g.title, count: g.items.length })),
   ];
+
+  const tableHeaders = [
+    { key: 'name', label: '名称' },
+    { key: 'key', label: '业务键' },
+    { key: 'status', label: '状态' },
+  ];
+
+  const displayGroups = activeTab === 'all'
+    ? groups.filter((g) => g.items.length > 0)
+    : groups.filter((g) => g.key === activeTab);
 
   return (
     <section className="space-y-6">
       <AdminPageHeader
         eyebrow="定义管理"
         title="本体定义查阅"
-        description="按版本查阅当前 ontology 治理对象。首期只读，变更请走变更申请。"
+        description="按版本查阅当前 ontology 治理对象。首期只读，变更请走变更申请流程。"
         trailing={
-          <div className="rounded-md border border-[color:var(--line-200)] bg-white px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
-            版本 {version.semver} · {version.status}
+          <div className="flex items-center gap-3">
+            <form method="get" className="flex items-center gap-2">
+              <select
+                name="versionId"
+                defaultValue={version.id}
+                className="field-input min-w-[200px] py-2 text-sm"
+              >
+                {versions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.semver} · {v.displayName} · {v.status}
+                  </option>
+                ))}
+              </select>
+              <button className="secondary-button py-2 text-sm" type="submit">
+                切换版本
+              </button>
+            </form>
+            <StatusBadge tone="success">
+              {version.semver} · {version.status}
+            </StatusBadge>
           </div>
         }
       />
 
-      <AdminCard
-        title="版本切换"
-        description="选择历史版本进行回溯查阅；默认聚焦当前生效版本。"
-      >
-        <form method="get" className="flex flex-wrap items-center gap-3">
-          <label className="text-sm text-[color:var(--ink-600)]" htmlFor="versionId">
-            选择版本
-          </label>
-          <select
-            id="versionId"
-            name="versionId"
-            defaultValue={version.id}
-            className="field-input min-w-[260px]"
-          >
-            {versions.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.semver} · {v.displayName} · {v.status}
-                {v.publishedAt ? ' · 已发布' : ''}
-              </option>
-            ))}
-          </select>
-          <button className="primary-button" type="submit">
-            查看
-          </button>
-        </form>
-      </AdminCard>
-
-      <AdminCard
-        title={`版本元数据：${version.displayName}`}
-        description={version.description ?? '无描述'}
-      >
+      <AdminCard title="版本信息">
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg bg-white p-4 text-sm">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">状态</p>
-            <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">{version.status}</p>
+          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
+            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">版本名称</p>
+            <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">{version.displayName}</p>
           </div>
-          <div className="rounded-lg bg-white p-4 text-sm">
+          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
             <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">发布时间</p>
             <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(version.publishedAt)}</p>
           </div>
-          <div className="rounded-lg bg-white p-4 text-sm">
+          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
             <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">创建时间</p>
             <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(version.createdAt)}</p>
           </div>
         </div>
+        {version.description && (
+          <p className="mt-3 text-sm text-[color:var(--ink-600)]">{version.description}</p>
+        )}
       </AdminCard>
 
-      {groups.map((group) => (
-        <AdminCard
-          key={group.title}
-          title={group.title}
-          description={`共 ${group.items.length} 条`}
-        >
-          {group.items.length === 0 ? (
-            <div className="status-banner" data-tone="info">该分类暂无定义。</div>
-          ) : (
-            <div className="grid gap-2">
-              {group.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-4"
-                >
-                  <div>
-                    <p className="text-base font-semibold text-[color:var(--ink-900)]">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-[color:var(--ink-600)]">{item.key}</p>
-                  </div>
-                  <StatusBadge tone={item.status === 'approved' ? 'success' : item.status === 'deprecated' ? 'warning' : 'neutral'}>
-                    {item.status}
-                  </StatusBadge>
-                </div>
-              ))}
-            </div>
-          )}
+      <AdminCard title="">
+        <TabBar
+          tabs={tabs}
+          activeKey={activeTab}
+          basePath="/admin/ontology/definitions"
+          paramName="tab"
+        />
+      </AdminCard>
+
+      {displayGroups.length === 0 ? (
+        <AdminCard title="">
+          <EmptyState
+            title="暂无定义数据"
+            description="当前版本下还没有任何定义记录。请通过变更申请流程添加。"
+          />
         </AdminCard>
-      ))}
+      ) : (
+        displayGroups.map((group) => (
+          <AdminCard
+            key={group.key}
+            title={group.title}
+            description={`共 ${group.items.length} 条`}
+          >
+            <DataTable headers={tableHeaders}>
+              {group.items.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <span className="font-semibold text-[color:var(--ink-900)]">{item.displayName}</span>
+                  </td>
+                  <td>
+                    <span className="font-mono text-sm text-[color:var(--ink-600)]">{item.businessKey}</span>
+                  </td>
+                  <td>
+                    <StatusBadge tone={getStatusTone(item.status)}>
+                      {getStatusLabel(item.status)}
+                    </StatusBadge>
+                  </td>
+                </tr>
+              ))}
+            </DataTable>
+          </AdminCard>
+        ))
+      )}
     </section>
   );
 }
