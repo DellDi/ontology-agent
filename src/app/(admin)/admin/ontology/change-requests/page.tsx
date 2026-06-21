@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { CHANGE_REQUEST_STATUSES } from '@/domain/ontology/governance';
 import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import { Button } from '@/app/_components/button';
 
 import {
   AdminCard,
@@ -85,9 +86,11 @@ export default async function OntologyAdminChangeRequestsPage({
         description="管理本体变更的完整生命周期：创建、审批、发布。"
         trailing={
           state.capabilities.canAuthor ? (
-            <Link href="/admin/ontology/change-requests/new" className="primary-button">
-              新建变更申请
-            </Link>
+            <Button asChild>
+              <Link href="/admin/ontology/change-requests/new">
+                新建变更申请
+              </Link>
+            </Button>
           ) : null
         }
       />

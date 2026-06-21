@@ -36,6 +36,28 @@
     "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
     sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", monospace;
+
+  /* shadcn/ui theme tokens - mapped from existing design system */
+  --background: var(--surface-0);
+  --foreground: var(--ink-900);
+  --card: var(--surface-0);
+  --card-foreground: var(--ink-900);
+  --popover: var(--surface-0);
+  --popover-foreground: var(--ink-900);
+  --primary: var(--brand-700);
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-50);
+  --secondary-foreground: var(--ink-900);
+  --muted: var(--sky-50);
+  --muted-foreground: var(--ink-600);
+  --accent: var(--brand-100);
+  --accent-foreground: var(--brand-900);
+  --destructive: var(--danger-500);
+  --destructive-foreground: #ffffff;
+  --border: var(--line-200);
+  --input: var(--line-300);
+  --ring: var(--brand-500);
+  --radius: var(--radius-md);
 }
 
 @theme inline {
@@ -65,6 +87,32 @@
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+
+  /* shadcn/ui theme tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius: var(--radius);
+
+  /* status colors for badges */
+  --color-success-500: var(--success-500);
+  --color-warning-500: var(--warning-500);
 }
 
 * {

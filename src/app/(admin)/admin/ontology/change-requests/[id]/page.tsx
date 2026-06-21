@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import { Button } from '@/app/_components/button';
+import { FieldTextarea } from '@/app/_components/field';
 
 import {
   AdminCard,
@@ -80,7 +82,7 @@ export default async function OntologyAdminChangeRequestDetailPage({
         trailing={
           <div className="flex flex-col items-end gap-2">
             <StatusBadge tone={statusLabel.tone}>{statusLabel.label}</StatusBadge>
-            <span className="text-xs text-[color:var(--ink-500)]">{statusLabel.description}</span>
+            <span className="text-xs text-muted-foreground">{statusLabel.description}</span>
           </div>
         }
       />
@@ -107,9 +109,9 @@ export default async function OntologyAdminChangeRequestDetailPage({
                 action={`/api/admin/ontology/change-requests/${cr.id}/submit`}
                 className="inline-flex"
               >
-                <button className="primary-button" type="submit">
+                <Button type="submit">
                   提交审批
-                </button>
+                </Button>
               </form>
             )}
 
@@ -121,14 +123,14 @@ export default async function OntologyAdminChangeRequestDetailPage({
                 action={`/api/admin/ontology/versions/${version.id}/publish`}
                 className="inline-flex flex-col gap-2"
               >
-                <textarea
+                <FieldTextarea
                   name="publishNote"
                   placeholder="发布备注（可选）"
-                  className="field-input min-h-[60px] w-[280px]"
+                  className="min-h-[60px] w-[280px]"
                 />
-                <button className="primary-button" type="submit">
+                <Button type="submit">
                   发布版本
-                </button>
+                </Button>
               </form>
             )}
           </div>
@@ -153,8 +155,8 @@ export default async function OntologyAdminChangeRequestDetailPage({
           )}
         </div>
         {cr.compatibilityNote && (
-          <div className="mt-4 rounded-lg bg-[color:var(--sky-50)] p-4 text-sm">
-            <p className="text-xs font-semibold text-[color:var(--brand-700)]">兼容说明</p>
+          <div className="mt-4 rounded-lg bg-accent p-4 text-sm">
+            <p className="text-xs font-semibold text-primary">兼容说明</p>
             <p className="mt-1 text-[color:var(--ink-700)]">{cr.compatibilityNote}</p>
           </div>
         )}
@@ -162,15 +164,15 @@ export default async function OntologyAdminChangeRequestDetailPage({
 
       <AdminCard title="变更内容">
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
-            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">变更前</p>
-            <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-[color:var(--ink-900)]">
+          <div className="rounded-lg bg-muted p-4">
+            <p className="text-xs font-semibold tracking-[0.12em] text-primary">变更前</p>
+            <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-foreground">
               {cr.beforeSummary ? JSON.stringify(cr.beforeSummary, null, 2) : '—'}
             </pre>
           </div>
-          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
-            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">变更后</p>
-            <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-[color:var(--ink-900)]">
+          <div className="rounded-lg bg-muted p-4">
+            <p className="text-xs font-semibold tracking-[0.12em] text-primary">变更后</p>
+            <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-foreground">
               {cr.afterSummary ? JSON.stringify(cr.afterSummary, null, 2) : '—'}
             </pre>
           </div>
@@ -185,14 +187,14 @@ export default async function OntologyAdminChangeRequestDetailPage({
             {approvalHistory.map((record) => (
               <div
                 key={record.id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-[color:var(--surface-50)] p-4"
+                className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-muted p-4"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-[color:var(--ink-900)]">
+                    <span className="font-semibold text-foreground">
                       {record.reviewedBy}
                     </span>
-                    <span className="text-xs text-[color:var(--ink-500)]">
+                    <span className="text-xs text-muted-foreground">
                       {formatTimestamp(record.createdAt)}
                     </span>
                   </div>
@@ -214,7 +216,7 @@ export default async function OntologyAdminChangeRequestDetailPage({
       <div className="flex justify-start">
         <Link
           href="/admin/ontology/change-requests"
-          className="text-sm text-[color:var(--brand-700)] hover:underline"
+          className="text-sm text-primary hover:underline"
         >
           ← 返回变更申请列表
         </Link>
@@ -233,10 +235,10 @@ function InfoItem({
   note?: string;
 }) {
   return (
-    <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
-      <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">{label}</p>
-      <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">{value}</p>
-      {note && <p className="mt-1 text-xs text-[color:var(--ink-600)]">{note}</p>}
+    <div className="rounded-lg bg-muted p-4">
+      <p className="text-xs tracking-[0.12em] text-primary">{label}</p>
+      <p className="mt-1 text-base font-semibold text-foreground">{value}</p>
+      {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
     </div>
   );
 }
@@ -248,29 +250,28 @@ function ReviewForm({ changeRequestId }: { changeRequestId: string }) {
       action={`/api/admin/ontology/change-requests/${changeRequestId}/review`}
       className="flex flex-col gap-2"
     >
-      <textarea
+      <FieldTextarea
         name="comment"
         placeholder="审批意见（必填）"
         required
-        className="field-input min-h-[60px] w-[280px]"
+        className="min-h-[60px] w-[280px]"
       />
       <div className="flex gap-2">
-        <button
-          className="primary-button"
+        <Button
           name="decision"
           value="approved"
           type="submit"
         >
           审批通过
-        </button>
-        <button
-          className="secondary-button"
+        </Button>
+        <Button
+          variant="secondary"
           name="decision"
           value="rejected"
           type="submit"
         >
           驳回
-        </button>
+        </Button>
       </div>
     </form>
   );

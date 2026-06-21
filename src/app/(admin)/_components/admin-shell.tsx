@@ -1,6 +1,24 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/app/_components/button';
+import { cn } from '@/app/_lib/cn';
+
 type AdminPageHeaderProps = {
   eyebrow: string;
   title: string;
@@ -21,11 +39,11 @@ export function AdminPageHeader({
           <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
             {eyebrow}
           </p>
-          <h2 className="font-display text-2xl leading-tight font-semibold text-[color:var(--ink-900)] md:text-3xl">
+          <h2 className="font-display text-2xl leading-tight font-semibold text-foreground md:text-3xl">
             {title}
           </h2>
           {description ? (
-            <p className="max-w-2xl text-sm leading-6 text-[color:var(--ink-600)]">
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
               {description}
             </p>
           ) : null}
@@ -41,6 +59,7 @@ type AdminCardProps = {
   description?: string;
   children: ReactNode;
   trailing?: ReactNode;
+  className?: string;
 };
 
 export function AdminCard({
@@ -48,49 +67,71 @@ export function AdminCard({
   description,
   children,
   trailing,
+  className,
 }: AdminCardProps) {
+  if (!title && !description) {
+    return (
+      <Card className={className}>
+        <CardContent className="p-6 md:p-7">
+          {children}
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <article className="glass-panel p-6 md:p-7">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <Card className={className}>
+      <CardHeader className="flex-row items-start justify-between space-y-0 p-6 md:p-7">
         <div>
-          <h3 className="text-xl font-semibold text-[color:var(--ink-900)]">
-            {title}
-          </h3>
+          <CardTitle className="text-xl">{title}</CardTitle>
           {description ? (
-            <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-              {description}
-            </p>
+            <CardDescription className="mt-2">{description}</CardDescription>
           ) : null}
         </div>
         {trailing}
-      </div>
-      <div className="mt-5 space-y-3">{children}</div>
-    </article>
+      </CardHeader>
+      <CardContent className="p-6 pt-0 md:p-7 md:pt-0">
+        {children}
+      </CardContent>
+    </Card>
   );
 }
+
+type StatusTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+
+const toneVariantMap: Record<StatusTone, BadgeProps['variant']> = {
+  neutral: 'secondary',
+  success: 'default',
+  warning: 'default',
+  danger: 'destructive',
+  info: 'default',
+};
+
+const toneClassMap: Record<StatusTone, string> = {
+  neutral: '',
+  success: 'bg-success-500/14 text-[rgb(18_96_69)] hover:bg-success-500/20',
+  warning: 'bg-warning-500/18 text-[rgb(143_96_22)] hover:bg-warning-500/24',
+  danger: 'bg-destructive/14 text-destructive-foreground hover:bg-destructive/20',
+  info: 'bg-primary/14 text-[rgb(30_71_168)] hover:bg-primary/20',
+};
 
 export function StatusBadge({
   tone = 'neutral',
   children,
 }: {
-  tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+  tone?: StatusTone;
   children: ReactNode;
 }) {
-  const palette: Record<string, { bg: string; fg: string }> = {
-    neutral: { bg: 'rgb(118 126 142 / 12%)', fg: 'rgb(54 64 84)' },
-    success: { bg: 'rgb(49 185 130 / 14%)', fg: 'rgb(18 96 69)' },
-    warning: { bg: 'rgb(255 182 72 / 18%)', fg: 'rgb(143 96 22)' },
-    danger: { bg: 'rgb(228 92 92 / 14%)', fg: 'rgb(141 36 36)' },
-    info: { bg: 'rgb(72 138 255 / 14%)', fg: 'rgb(30 71 168)' },
-  };
-  const colors = palette[tone] ?? palette.neutral;
   return (
-    <span
-      className="inline-flex items-center rounded-md px-3 py-1 text-xs font-medium"
-      style={{ backgroundColor: colors.bg, color: colors.fg }}
+    <Badge
+      variant={toneVariantMap[tone]}
+      className={cn(
+        'rounded-md px-3 py-1 text-xs font-medium',
+        toneClassMap[tone],
+      )}
     >
       {children}
-    </span>
+    </Badge>
   );
 }
 
@@ -114,7 +155,7 @@ export function formatTimestamp(value: string | null | undefined): string {
 
 export function changeRequestStatusTone(
   status: string,
-): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+): StatusTone {
   switch (status) {
     case 'published':
       return 'success';
@@ -199,9 +240,11 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
       <h4 className="empty-state-title">{title}</h4>
       {description && <p className="empty-state-description">{description}</p>}
       {action && (
-        <Link href={action.href} className="primary-button mt-4">
-          {action.label}
-        </Link>
+        <Button asChild className="mt-4">
+          <Link href={action.href}>
+            {action.label}
+          </Link>
+        </Button>
       )}
     </div>
   );
@@ -220,20 +263,18 @@ type DataTableProps = {
 
 export function DataTable({ headers, children }: DataTableProps) {
   return (
-    <div className="data-table-wrapper">
-      <table className="data-table">
-        <thead>
-          <tr>
-            {headers.map((header) => (
-              <th key={header.key} className={header.className}>
-                {header.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
-    </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {headers.map((header) => (
+            <TableHead key={header.key} className={header.className}>
+              {header.label}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>{children}</TableBody>
+    </Table>
   );
 }
 

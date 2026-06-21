@@ -1,22 +1,31 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Button as ShadcnButton, type ButtonProps as ShadcnButtonProps } from '@/components/ui/button';
 import { cn } from '@/app/_lib/cn';
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'secondary';
+type ButtonVariant = 'primary' | 'secondary';
+
+type ButtonProps = Omit<ShadcnButtonProps, 'variant'> & {
+  variant?: ButtonVariant;
   children: ReactNode;
+};
+
+const variantMap: Record<ButtonVariant, ShadcnButtonProps['variant']> = {
+  primary: 'default',
+  secondary: 'outline',
 };
 
 export function Button({ variant = 'primary', className, children, ...props }: ButtonProps) {
   return (
-    <button
+    <ShadcnButton
+      variant={variantMap[variant]}
       className={cn(
-        variant === 'primary' && 'primary-button',
-        variant === 'secondary' && 'secondary-button',
+        variant === 'primary' && 'min-h-[44px] px-4 py-3 text-base font-semibold',
+        variant === 'secondary' && 'min-h-[44px] px-4 py-3 text-base font-semibold',
         className,
       )}
       {...props}
     >
       {children}
-    </button>
+    </ShadcnButton>
   );
 }
