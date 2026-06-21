@@ -89,8 +89,10 @@ type AnalysisExecutionDependencies = {
 const STEP_TOOL_FALLBACKS: Record<string, AnalysisToolName[]> = {
   'confirm-analysis-scope': ['platform.capability-status'],
   'confirm-query-scope': ['platform.capability-status'],
+  'return-metric-result': ['cube.semantic-query', 'platform.capability-status'],
   'inspect-metric-change': ['cube.semantic-query', 'platform.capability-status'],
   'validate-candidate-factors': [
+    'cube.semantic-query',
     'neo4j.graph-query',
     'erp.read-model',
     'platform.capability-status',
@@ -142,7 +144,22 @@ function buildFallbackSelection(
   availableToolNames: Set<AnalysisToolName>,
   registeredToolNames: Set<AnalysisToolName>,
 ): ToolSelectionDecision[] {
-  return (STEP_TOOL_FALLBACKS[stepId] ?? [])
+  const fallbackToolNames = STEP_TOOL_FALLBACKS[stepId] ?? [];
+  const readyBusinessTools = fallbackToolNames.filter(
+    (toolName) =>
+      toolName !== 'platform.capability-status' &&
+      availableToolNames.has(toolName),
+  );
+  const selectedToolNames =
+    readyBusinessTools.length > 0
+      ? readyBusinessTools
+      : fallbackToolNames.filter(
+          (toolName) =>
+            toolName === 'platform.capability-status' &&
+            registeredToolNames.has(toolName),
+        );
+
+  return selectedToolNames
     .filter(
       (toolName) =>
         availableToolNames.has(toolName) ||
@@ -187,9 +204,9 @@ function buildConclusionSummaryToolInput(
     ...events.map(summarizeToolEvent),
   ]
     .filter((value): value is string => Boolean(value))
-    .slice(0, 6)
+    .slice(0, 10)
     .join('\n')
-    .slice(0, 2_000);
+    .slice(0, 4_000);
 
   return {
     ...candidate,
@@ -198,6 +215,43 @@ function buildConclusionSummaryToolInput(
       evidenceSummary,
     },
   };
+}
+
+function isConclusionSummaryToolInput(input: unknown) {
+  return (
+    Boolean(input) &&
+    typeof input === 'object' &&
+    !Array.isArray(input) &&
+    (input as { taskType?: unknown }).taskType === 'conclusion-summary'
+  );
+}
+
+function orderToolsForExecution(
+  tools: ToolSelectionDecision[],
+  toolInputsByName: Partial<Record<AnalysisToolName, unknown>>,
+) {
+  const hasConclusionSummaryLlm = tools.some(
+    (tool) =>
+      tool.toolName === 'llm.structured-analysis' &&
+      isConclusionSummaryToolInput(toolInputsByName[tool.toolName]),
+  );
+
+  if (!hasConclusionSummaryLlm) {
+    return tools;
+  }
+
+  return [
+    ...tools.filter((tool) => tool.toolName !== 'llm.structured-analysis'),
+    ...tools.filter((tool) => tool.toolName === 'llm.structured-analysis'),
+  ];
+}
+
+function resolveToolInvocationInputs(toolName: AnalysisToolName, input: unknown) {
+  if (toolName === 'llm.structured-analysis') {
+    return [input];
+  }
+
+  return Array.isArray(input) ? input : [input];
 }
 
 export function createAnalysisExecutionUseCases({
@@ -374,102 +428,115 @@ export function createAnalysisExecutionUseCases({
         };
       }
 
-      for (const tool of selection.tools) {
+      const toolsToExecute = orderToolsForExecution(selection.tools, toolInputsByName);
+
+      for (const tool of toolsToExecute) {
         // 超时防护：若 signal 已 abort，跳过后续工具调用与事件发布
         if (signal?.aborted) {
           break;
         }
 
-        // Story 12 fix: 在工具调用前发布 started 事件
-        // 事件发布是可观测链路，失败时记录诊断但不阻断工具执行（主链路）
-        const startedAt = Date.now();
-        if (eventEmitter && !signal?.aborted) {
-          try {
-            await eventEmitter.onToolStarted({
-              toolName: tool.toolName,
-              toolLabel: tool.objective,
-              startedAt,
-            });
-          } catch (emitError) {
-            console.error(
-              `[diagnostic] eventEmitter.onToolStarted failed`,
-              {
-                toolName: tool.toolName,
-                correlationId: invocationContext.correlationId,
-                error: emitError instanceof Error ? emitError.message : String(emitError),
-              },
-            );
+        const invocationInputs = resolveToolInvocationInputs(
+          tool.toolName,
+          toolInputsByName[tool.toolName],
+        );
+
+        for (const invocationInput of invocationInputs) {
+          if (signal?.aborted) {
+            break;
           }
-        }
 
-        const event = await toolRegistryUseCases.invokeTool({
-          toolName: tool.toolName,
-          input:
-            tool.toolName === 'llm.structured-analysis'
-              ? buildConclusionSummaryToolInput(
-                  toolInputsByName[tool.toolName],
-                  events,
-                )
-              : toolInputsByName[tool.toolName],
-          context: effectiveInvocationContext,
-        });
-
-        const finishedAt = Date.now();
-
-        // Story 12 fix: 在工具调用后发布 completed/failed 事件
-        // 超时防护：signal.aborted 时丢弃事件，避免 late events
-        if (eventEmitter && !signal?.aborted) {
-          try {
-            if (event.ok) {
-              await eventEmitter.onToolCompleted({
+          // Story 12 fix: 在工具调用前发布 started 事件
+          // 事件发布是可观测链路，失败时记录诊断但不阻断工具执行（主链路）
+          const startedAt = Date.now();
+          if (eventEmitter && !signal?.aborted) {
+            try {
+              await eventEmitter.onToolStarted({
                 toolName: tool.toolName,
                 toolLabel: tool.objective,
                 startedAt,
-                finishedAt,
-                output: event.output,
               });
-            } else if (event.error.code !== 'tool-empty-result') {
-              await eventEmitter.onToolFailed({
-                toolName: tool.toolName,
-                toolLabel: tool.objective,
-                startedAt,
-                finishedAt,
-                error: event.error.message,
-              });
+            } catch (emitError) {
+              console.error(
+                `[diagnostic] eventEmitter.onToolStarted failed`,
+                {
+                  toolName: tool.toolName,
+                  correlationId: invocationContext.correlationId,
+                  error: emitError instanceof Error ? emitError.message : String(emitError),
+                },
+              );
             }
-          } catch (emitError) {
-            console.error(
-              `[diagnostic] eventEmitter.onTool${event.ok ? 'Completed' : 'Failed'} failed`,
-              {
-                toolName: tool.toolName,
-                correlationId: invocationContext.correlationId,
-                error: emitError instanceof Error ? emitError.message : String(emitError),
-              },
-            );
-          }
-        }
-
-        events.push(event);
-
-        if (!event.ok) {
-          if (event.error.code === 'tool-empty-result') {
-            continue;
           }
 
-          return {
-            status: 'failed',
-            strategy: selection.strategy,
-            tools: selection.tools,
-            events,
-            error: event.error,
-          };
+          const event = await toolRegistryUseCases.invokeTool({
+            toolName: tool.toolName,
+            input:
+              tool.toolName === 'llm.structured-analysis'
+                ? buildConclusionSummaryToolInput(
+                    invocationInput,
+                    events,
+                  )
+                : invocationInput,
+            context: effectiveInvocationContext,
+          });
+
+          const finishedAt = Date.now();
+
+          // Story 12 fix: 在工具调用后发布 completed/failed 事件
+          // 超时防护：signal.aborted 时丢弃事件，避免 late events
+          if (eventEmitter && !signal?.aborted) {
+            try {
+              if (event.ok) {
+                await eventEmitter.onToolCompleted({
+                  toolName: tool.toolName,
+                  toolLabel: tool.objective,
+                  startedAt,
+                  finishedAt,
+                  output: event.output,
+                });
+              } else if (event.error.code !== 'tool-empty-result') {
+                await eventEmitter.onToolFailed({
+                  toolName: tool.toolName,
+                  toolLabel: tool.objective,
+                  startedAt,
+                  finishedAt,
+                  error: event.error.message,
+                });
+              }
+            } catch (emitError) {
+              console.error(
+                `[diagnostic] eventEmitter.onTool${event.ok ? 'Completed' : 'Failed'} failed`,
+                {
+                  toolName: tool.toolName,
+                  correlationId: invocationContext.correlationId,
+                  error: emitError instanceof Error ? emitError.message : String(emitError),
+                },
+              );
+            }
+          }
+
+          events.push(event);
+
+          if (!event.ok) {
+            if (event.error.code === 'tool-empty-result') {
+              continue;
+            }
+
+            return {
+              status: 'failed',
+              strategy: selection.strategy,
+              tools: toolsToExecute,
+              events,
+              error: event.error,
+            };
+          }
         }
       }
 
       return {
         status: 'completed',
         strategy: selection.strategy,
-        tools: selection.tools,
+        tools: toolsToExecute,
         events,
       };
     },

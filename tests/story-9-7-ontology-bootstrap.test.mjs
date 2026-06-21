@@ -60,7 +60,9 @@ test('AC1+AC2 runtime-seed.ts: buildDefaultRuntimeOntologyPackage 覆盖全部�
       evidenceTypes: pkg.evidenceTypes.length,
       expected: DEFAULT_RUNTIME_BASELINE_EXPECTED_COUNTS,
       entityKeys: pkg.entities.map((e) => e.businessKey).sort(),
+      metricKeys: pkg.metrics.map((m) => m.businessKey).sort(),
       factorKeys: pkg.factors.map((f) => f.businessKey).sort(),
+      timeSemanticKeys: pkg.timeSemantics.map((t) => t.businessKey).sort(),
       planStepKeys: pkg.planStepTemplates.map((p) => p.businessKey).sort(),
     }));
   `);
@@ -80,6 +82,27 @@ test('AC1+AC2 runtime-seed.ts: buildDefaultRuntimeOntologyPackage 覆盖全部�
 
   // 核心 factor 必须存在
   assert.ok(result.factorKeys.includes('fee-policy-reach'), 'baseline 必须包含 fee-policy-reach factor');
+
+  // 服务分析闭环依赖的指标和时间语义必须进入正式 runtime baseline
+  for (const metricKey of [
+    'collection-rate',
+    'service-order-count',
+    'complaint-count',
+    'average-satisfaction',
+    'average-response-duration-hours',
+    'average-close-duration-hours',
+  ]) {
+    assert.ok(result.metricKeys.includes(metricKey), `baseline 必须包含 ${metricKey} metric`);
+  }
+  for (const timeSemanticKey of [
+    'receivable-accounting-period',
+    'billing-cycle-end-date',
+    'payment-date',
+    'created-at',
+    'completed-at',
+  ]) {
+    assert.ok(result.timeSemanticKeys.includes(timeSemanticKey), `baseline 必须包含 ${timeSemanticKey} time semantic`);
+  }
 
   // 核心 plan step 必须存在（与 STEP_TOOL_FALLBACKS 对齐）
   assert.ok(result.planStepKeys.includes('confirm-analysis-scope'), 'baseline 必须包含 confirm-analysis-scope');

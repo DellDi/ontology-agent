@@ -121,6 +121,97 @@ test('AC3 ontology binding use case 能基于 grounded context 选出绑定工�
   );
 });
 
+test('服务类指标 grounding 可从自然时间范围推断默认工单时间语义', async () => {
+  const result = await runTsSnippet(`
+    import postgresClientModule from './src/infrastructure/postgres/client.ts';
+    import versionStoreModule from './src/infrastructure/ontology/postgres-ontology-version-store.ts';
+    import entityStoreModule from './src/infrastructure/ontology/postgres-ontology-entity-definition-store.ts';
+    import metricStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-definition-store.ts';
+    import factorStoreModule from './src/infrastructure/ontology/postgres-ontology-factor-definition-store.ts';
+    import variantStoreModule from './src/infrastructure/ontology/postgres-ontology-metric-variant-store.ts';
+    import timeStoreModule from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
+    import planStepStoreModule from './src/infrastructure/ontology/postgres-ontology-plan-step-template-store.ts';
+    import causalityStoreModule from './src/infrastructure/ontology/postgres-ontology-causality-edge-store.ts';
+    import evidenceStoreModule from './src/infrastructure/ontology/postgres-ontology-evidence-type-definition-store.ts';
+    import toolBindingStoreModule from './src/infrastructure/ontology/postgres-ontology-tool-capability-binding-store.ts';
+    import groundingModule from './src/application/ontology/grounding.ts';
+    import seedModule from './src/domain/ontology/runtime-seed.ts';
+
+    const { createPostgresDb } = postgresClientModule;
+    const { createPostgresOntologyVersionStore } = versionStoreModule;
+    const { createPostgresOntologyEntityDefinitionStore } = entityStoreModule;
+    const { createPostgresOntologyMetricDefinitionStore } = metricStoreModule;
+    const { createPostgresOntologyFactorDefinitionStore } = factorStoreModule;
+    const { createPostgresOntologyMetricVariantStore } = variantStoreModule;
+    const { createPostgresOntologyTimeSemanticStore } = timeStoreModule;
+    const { createPostgresOntologyPlanStepTemplateStore } = planStepStoreModule;
+    const { createPostgresOntologyCausalityEdgeStore } = causalityStoreModule;
+    const { createPostgresOntologyEvidenceTypeDefinitionStore } = evidenceStoreModule;
+    const { createPostgresOntologyToolCapabilityBindingStore } = toolBindingStoreModule;
+    const { createOntologyBootstrapUseCases, createOntologyGroundingUseCases } = groundingModule;
+    const { buildDefaultRuntimeOntologyPackage } = seedModule;
+
+    const versionId = 'service-grounding-' + crypto.randomUUID();
+    const now = new Date().toISOString();
+    const { db, pool } = createPostgresDb();
+    try {
+      const deps = {
+        versionStore: createPostgresOntologyVersionStore(db),
+        entityStore: createPostgresOntologyEntityDefinitionStore(db),
+        metricStore: createPostgresOntologyMetricDefinitionStore(db),
+        factorStore: createPostgresOntologyFactorDefinitionStore(db),
+        metricVariantStore: createPostgresOntologyMetricVariantStore(db),
+        timeSemanticStore: createPostgresOntologyTimeSemanticStore(db),
+        planStepTemplateStore: createPostgresOntologyPlanStepTemplateStore(db),
+        causalityEdgeStore: createPostgresOntologyCausalityEdgeStore(db),
+        evidenceTypeStore: createPostgresOntologyEvidenceTypeDefinitionStore(db),
+        toolCapabilityBindingStore: createPostgresOntologyToolCapabilityBindingStore(db),
+      };
+      const pkg = buildDefaultRuntimeOntologyPackage(versionId, now);
+      await createOntologyBootstrapUseCases(deps).bootstrapCanonicalDefinitions({
+        requestedVersionId: versionId,
+        requestedSemver: '99.3.0-service-grounding-test',
+        createdBy: 'story-9-3-service-grounding-test',
+        seedDefinitions: {
+          entities: pkg.entities,
+          metrics: pkg.metrics,
+          factors: pkg.factors,
+          planStepTemplates: pkg.planStepTemplates,
+          metricVariants: pkg.metricVariants,
+          timeSemantics: pkg.timeSemantics,
+          causalityEdges: pkg.causalityEdges,
+          evidenceTypes: pkg.evidenceTypes,
+        },
+      });
+
+      const grounded = await createOntologyGroundingUseCases(deps).groundAnalysisContext({
+        sessionId: 'service-grounding-session',
+        ownerUserId: 'service-grounding-owner',
+        preferredVersionId: versionId,
+        analysisContext: {
+          targetMetric: { label: '目标指标', value: '工单总量', state: 'confirmed' },
+          entity: { label: '实体对象', value: '丰和园小区项目', state: 'confirmed' },
+          timeRange: { label: '时间范围', value: '2026年', state: 'confirmed' },
+          comparison: { label: '比较方式', value: '无', state: 'confirmed' },
+          constraints: [],
+        },
+      });
+
+      console.log(JSON.stringify({
+        status: grounded.groundingStatus,
+        metricKey: grounded.metrics[0]?.canonicalDefinition?.businessKey ?? null,
+        timeKey: grounded.timeSemantics[0]?.canonicalDefinition?.businessKey ?? null,
+      }));
+    } finally {
+      await pool.end();
+    }
+  `);
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.metricKey, 'service-order-count');
+  assert.equal(result.timeKey, 'created-at');
+});
+
 test('AC2 grounded planner 在缺失 canonical definition 时必须 fail loud，而不是回退自由文本', async () => {
   const result = await runTsSnippet(`
     import planModule from './src/domain/analysis-plan/models.ts';

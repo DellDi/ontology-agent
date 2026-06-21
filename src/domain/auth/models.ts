@@ -78,10 +78,14 @@ export function sanitizeNextPath(nextPath: string | null | undefined) {
   const parsedPath = new URL(trimmed, 'http://localhost');
   const normalizedPath = `${parsedPath.pathname}${parsedPath.search}${parsedPath.hash}`;
 
-  if (
-    parsedPath.pathname === '/workspace' ||
-    parsedPath.pathname.startsWith('/workspace/')
-  ) {
+  const allowedReturnPathRoots = ['/workspace', '/admin'];
+  const isAllowedReturnPath = allowedReturnPathRoots.some(
+    (root) =>
+      parsedPath.pathname === root ||
+      parsedPath.pathname.startsWith(`${root}/`),
+  );
+
+  if (isAllowedReturnPath) {
     return normalizedPath;
   }
 

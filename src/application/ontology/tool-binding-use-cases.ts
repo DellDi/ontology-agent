@@ -19,7 +19,7 @@ const STEP_CAPABILITY_TAGS: Record<string, string[]> = {
   'confirm-query-scope': ['capability-status'],
   'return-metric-result': ['semantic-query'],
   'inspect-metric-change': ['semantic-query'],
-  'validate-candidate-factors': ['graph-query', 'erp-read'],
+  'validate-candidate-factors': ['semantic-query', 'graph-query', 'erp-read'],
   'synthesize-attribution': [
     'semantic-query',
     'graph-query',

@@ -34,6 +34,28 @@ export function createMemoryAnalysisSessionStore(): AnalysisSessionStore {
         );
     },
 
+    async updateSavedContext({
+      sessionId,
+      ownerUserId,
+      savedContext,
+      updatedAt,
+    }) {
+      const session = store.get(sessionId);
+
+      if (!session || session.ownerUserId !== ownerUserId) {
+        return null;
+      }
+
+      const updated = {
+        ...session,
+        savedContext,
+        updatedAt,
+      };
+      store.set(sessionId, updated);
+
+      return updated;
+    },
+
     async delete(sessionId) {
       store.delete(sessionId);
     },

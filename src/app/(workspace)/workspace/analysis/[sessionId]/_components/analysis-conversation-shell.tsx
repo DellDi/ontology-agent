@@ -62,6 +62,7 @@ export function AnalysisConversationShell({
                 <AnalysisAssistantMessage
                   status={turn.viewModel.assistantMessage.status}
                   headline={turn.viewModel.assistantMessage.headline}
+                  errorSummary={turn.viewModel.assistantMessage.errorSummary}
                   progressLabel={turn.viewModel.assistantMessage.progressLabel}
                   toolActivities={turn.viewModel.assistantMessage.toolActivities}
                   result={turn.viewModel.assistantMessage.result}
@@ -89,6 +90,7 @@ export function AnalysisConversationShell({
             <AnalysisAssistantMessage
               status={viewModel.assistantMessage.status}
               headline={viewModel.assistantMessage.headline}
+              errorSummary={viewModel.assistantMessage.errorSummary}
               progressLabel={viewModel.assistantMessage.progressLabel}
               toolActivities={viewModel.assistantMessage.toolActivities}
               result={viewModel.assistantMessage.result}

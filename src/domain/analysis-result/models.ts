@@ -43,6 +43,13 @@ const NON_CONCLUSION_BLOCK_TITLES = new Set([
   '候选因素',
 ]);
 
+const CONCLUSION_STEP_IDS = new Set([
+  'inspect-metric-change',
+  'validate-candidate-factors',
+  'synthesize-attribution',
+  'return-metric-result',
+]);
+
 function stableJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value) ?? 'undefined';
@@ -163,6 +170,10 @@ function scoreConclusionEvent(event: AnalysisExecutionStreamEvent) {
 
   if (event.step?.id === 'synthesize-attribution') {
     score += 60;
+  }
+
+  if (event.step?.id && CONCLUSION_STEP_IDS.has(event.step.id)) {
+    score += 40;
   }
 
   if (

@@ -3,6 +3,10 @@ import { eq, sql } from 'drizzle-orm';
 import type { AuthIdentity } from '@/domain/auth/models';
 import { normalizePermissionScope } from '@/domain/auth/models';
 import {
+  applyDirectoryAccountRoleDefaults,
+  AUTH_ROLE_CODES,
+} from '@/domain/auth/role-defaults';
+import {
   createPostgresDb,
   type PostgresDb,
 } from '@/infrastructure/postgres/client';
@@ -20,6 +24,10 @@ export type ErpDirectoryUser = {
   isActived: string | null;
   isDeleted: number | null;
   displayName: string | null;
+};
+
+export type ResolveUserScopeOptions = {
+  userAccount?: string | null;
 };
 
 export async function findUserByAccount(
@@ -46,6 +54,7 @@ export async function resolveUserScope(
   userId: string,
   organizationId: bigint,
   db: PostgresDb,
+  options: ResolveUserScopeOptions = {},
 ): Promise<AuthIdentity['scope']> {
   const orgIdStr = String(organizationId);
 
@@ -85,12 +94,14 @@ export async function resolveUserScope(
     projectIds = projectRows.map((row) => row.precinctId);
   }
 
-  return normalizePermissionScope({
+  const scope = normalizePermissionScope({
     organizationId: orgIdStr,
     projectIds,
     areaIds: [],
-    roleCodes: ['PROPERTY_ANALYST'],
+    roleCodes: [AUTH_ROLE_CODES.PROPERTY_ANALYST],
   });
+
+  return applyDirectoryAccountRoleDefaults(scope, options.userAccount);
 }
 
 export function createErpScopeResolver(db?: PostgresDb) {
@@ -98,7 +109,10 @@ export function createErpScopeResolver(db?: PostgresDb) {
 
   return {
     findUserByAccount: (account: string) => findUserByAccount(account, resolvedDb),
-    resolveUserScope: (userId: string, organizationId: bigint) =>
-      resolveUserScope(userId, organizationId, resolvedDb),
+    resolveUserScope: (
+      userId: string,
+      organizationId: bigint,
+      options?: ResolveUserScopeOptions,
+    ) => resolveUserScope(userId, organizationId, resolvedDb, options),
   };
 }

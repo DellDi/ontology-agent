@@ -178,6 +178,18 @@ export const cubeSemanticQueryOutputSchema = z.object({
   metric: z.string().min(1),
   rowCount: z.number().int().nonnegative(),
   granularity: z.enum(['day', 'week', 'month', 'quarter', 'year']).optional(),
+  diagnostics: z
+    .object({
+      summary: z.string().min(1),
+      ratio: z
+        .object({
+          numeratorRows: z.number().int().nonnegative(),
+          denominatorRows: z.number().int().nonnegative(),
+          rowsMissingNumerator: z.number().int().nonnegative(),
+        })
+        .optional(),
+    })
+    .optional(),
   rows: z.array(
     z.object({
       value: z.number().nullable(),

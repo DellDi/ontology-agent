@@ -63,8 +63,23 @@ export function createContextExtractionUseCases({
         projectNames: input.projectNames,
         metricDictionary: input.metricDictionary,
       });
+      const ruleContext = extractAnalysisContext(input.questionText);
+      const calibratedContext = { ...normalized.context };
+
+      if (
+        !calibratedContext.granularity &&
+        ruleContext.granularity?.state === 'confirmed'
+      ) {
+        calibratedContext.granularity = ruleContext.granularity;
+        issues.push({
+          field: 'granularity',
+          message: `LLM 未返回时间粒度，已根据问题中的「${ruleContext.granularity.label}」表达补齐为 ${ruleContext.granularity.value}。`,
+          severity: 'warning',
+        });
+      }
+
       return {
-        context: normalized.context,
+        context: calibratedContext,
         source: 'llm',
         confidence: normalized.confidence,
         assumptions: llmOutput.assumptions,

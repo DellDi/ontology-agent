@@ -3,6 +3,7 @@ import type {
   AnalysisContextConstraint,
   AnalysisContextFieldState,
 } from '@/domain/analysis-context/models';
+import { resolveProjectEntityConstraints } from '@/domain/project-entity-resolution/models';
 
 import type { LlmContextExtractionOutput } from './schemas';
 
@@ -42,21 +43,55 @@ function confidenceToState(
 function matchMetric(
   value: string,
   dictionary: string[] | undefined,
-): { state: AnalysisContextFieldState; note?: string } {
+  candidates: string[] | undefined,
+): {
+  state: AnalysisContextFieldState;
+  normalizedValue: string;
+  note?: string;
+} {
   const trimmed = value.trim();
   if (!dictionary || dictionary.length === 0) {
     return {
       state: 'uncertain',
+      normalizedValue: trimmed,
       note: '缺少指标字典，无法确认指标口径。',
     };
   }
-  const hit = dictionary.some((entry) => {
-    const e = entry.trim();
-    return e === trimmed || trimmed.includes(e) || e.includes(trimmed);
-  });
-  if (hit) return { state: 'confirmed' };
+
+  const dictionaryEntries = [...new Set(dictionary.map((entry) => entry.trim()))]
+    .filter(Boolean);
+  const queryValues = [trimmed, ...(candidates ?? [])]
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  for (const query of queryValues) {
+    const exact = dictionaryEntries.find((entry) => entry === query);
+    if (exact) {
+      return { state: 'confirmed', normalizedValue: exact };
+    }
+  }
+
+  for (const query of queryValues) {
+    const containingMatches = dictionaryEntries.filter(
+      (entry) => entry.includes(query) || query.includes(entry),
+    );
+
+    if (containingMatches.length === 1) {
+      return { state: 'confirmed', normalizedValue: containingMatches[0] };
+    }
+
+    if (containingMatches.length > 1) {
+      return {
+        state: 'uncertain',
+        normalizedValue: trimmed,
+        note: `指标「${trimmed}」匹配到多个可能口径：${containingMatches.slice(0, 5).join('、')}。`,
+      };
+    }
+  }
+
   return {
     state: 'uncertain',
+    normalizedValue: trimmed,
     note: `指标「${trimmed}」未在已知字典中匹配到，建议确认口径。`,
   };
 }
@@ -87,15 +122,15 @@ function matchEntity(
     return { state: 'confirmed', constraintLabel, normalizedValue: trimmed };
   }
 
-  const matchedName = projectNames.find((name) => {
-    const n = name.trim();
-    return n === trimmed || trimmed.includes(n) || n.includes(trimmed);
+  const projectResolution = resolveProjectEntityConstraints({
+    values: [trimmed],
+    catalog: projectNames.map((name) => ({ id: name, name })),
   });
-  if (matchedName) {
+  if (projectResolution.projectNames.length > 0) {
     return {
       state: 'confirmed',
       constraintLabel,
-      normalizedValue: matchedName.trim(),
+      normalizedValue: projectResolution.projectNames.join(' / '),
     };
   }
   return {
@@ -134,10 +169,11 @@ export function normalizeLlmExtractionOutput(
   const metricMatch = matchMetric(
     output.targetMetric.value,
     context.metricDictionary,
+    output.targetMetric.candidates,
   );
   const targetMetric = {
     label: '目标指标',
-    value: output.targetMetric.value,
+    value: metricMatch.normalizedValue,
     state: metricMatch.state,
     note: metricMatch.note,
   };

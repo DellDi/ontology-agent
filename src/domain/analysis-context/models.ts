@@ -61,6 +61,10 @@ const METRIC_RULES: Array<{
     pattern: /欠费压力|欠费/,
   },
   {
+    label: '工单总量',
+    pattern: /工单总量|工单数量|工单数|工单量/,
+  },
+  {
     label: '投诉量',
     pattern: /投诉量|投诉率/,
   },
@@ -192,6 +196,10 @@ function extractEntity(
   const leadingClause = questionText
     .split(/[，,。；;？?]/u, 1)[0]
     ?.replace(/^(为什么|为何|请问)\s*/u, '')
+    .replace(
+      /^(帮我|帮忙|麻烦|请|查看一下|看一下|查一下|分析一下|查看|看看|看下|查下|分析|给我)\s*/u,
+      '',
+    )
     .replace(/^(近三个月|最近三个月|本月|上月|本季度|今年|本年|去年)\s*/u, '')
     .trim();
 

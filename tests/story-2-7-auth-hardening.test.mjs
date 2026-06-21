@@ -140,12 +140,11 @@ test('带空白前缀的路径被正确处理', async () => {
   assert.match(location, /\/workspace$/);
 });
 
-test('非 workspace 路径 /admin 被拒绝', async () => {
-  const response = await login('/admin');
+test('内部 admin 路径允许作为登录后回跳', async () => {
+  const response = await login('/admin/ontology');
   assert.equal(response.status, 303);
   const location = response.headers.get('location') ?? '';
-  assert.match(location, /\/workspace$/);
-  assert.doesNotMatch(location, /admin/);
+  assert.match(location, /\/admin\/ontology$/);
 });
 
 test('路径穿越 /workspace/../../etc/passwd 被规范化拒绝', async () => {

@@ -1,8 +1,16 @@
-import type { SemanticMetricKey } from '@/application/semantic-query/models';
+import type {
+  MetricQueryRequest,
+  SemanticGranularity,
+  SemanticMetricKey,
+} from '@/application/semantic-query/models';
 import type { AnalysisContext } from '@/domain/analysis-context/models';
 import { recognizeIntentFromQuestion } from '@/domain/analysis-intent/models';
 import type { AuthSession } from '@/domain/auth/models';
 import type { OntologyGroundedContext } from '@/domain/ontology/grounding';
+import {
+  resolveProjectEntityConstraints,
+  type ProjectEntityCatalogItem,
+} from '@/domain/project-entity-resolution/models';
 import type { AnalysisToolName } from '@/domain/tooling/models';
 
 export function resolveSemanticMetricKey(
@@ -31,36 +39,68 @@ export function resolveSemanticMetricKey(
     return groundedMetricKey as SemanticMetricKey;
   }
 
-  if (/应收/.test(metricValue) || /应收/.test(questionText)) {
+  if (/应收/.test(metricValue)) {
     return usesTailArrearsSemantics
       ? 'tail-arrears-receivable-amount'
       : 'project-receivable-amount';
   }
 
-  if (/实收|回款金额/.test(metricValue) || /实收|回款金额/.test(questionText)) {
+  if (/实收|回款金额/.test(metricValue)) {
     return usesTailArrearsSemantics
       ? 'tail-arrears-paid-amount'
       : 'project-paid-amount';
   }
 
-  if (/投诉/.test(metricValue) || /投诉/.test(questionText)) {
+  if (/投诉/.test(metricValue)) {
     return 'complaint-count';
   }
 
-  if (/满意度|评分/.test(metricValue) || /满意度|评分/.test(questionText)) {
+  if (/满意度|评分/.test(metricValue)) {
     return 'average-satisfaction';
   }
 
-  if (/响应/.test(metricValue) || /响应/.test(questionText)) {
+  if (/响应/.test(metricValue)) {
     return 'average-response-duration-hours';
   }
 
-  if (/关闭时长|完工时长/.test(metricValue) || /关闭时长|完工时长/.test(questionText)) {
+  if (/关闭时长|完工时长/.test(metricValue)) {
     return 'average-close-duration-hours';
   }
 
-  if (/工单|报修|维修/.test(metricValue) || /工单|报修|维修/.test(questionText)) {
+  if (/工单|报修|维修/.test(metricValue)) {
     return 'service-order-count';
+  }
+
+  if (/应收/.test(questionText)) {
+    return usesTailArrearsSemantics
+      ? 'tail-arrears-receivable-amount'
+      : 'project-receivable-amount';
+  }
+
+  if (/实收|回款金额/.test(questionText)) {
+    return usesTailArrearsSemantics
+      ? 'tail-arrears-paid-amount'
+      : 'project-paid-amount';
+  }
+
+  if (/工单|报修|维修/.test(questionText)) {
+    return 'service-order-count';
+  }
+
+  if (/投诉/.test(questionText)) {
+    return 'complaint-count';
+  }
+
+  if (/满意度|评分/.test(questionText)) {
+    return 'average-satisfaction';
+  }
+
+  if (/响应/.test(questionText)) {
+    return 'average-response-duration-hours';
+  }
+
+  if (/关闭时长|完工时长/.test(questionText)) {
+    return 'average-close-duration-hours';
   }
 
   return usesTailArrearsSemantics
@@ -85,6 +125,77 @@ export function resolveDateDimension(metric: SemanticMetricKey) {
     default:
       return 'created-at' as const;
   }
+}
+
+const SUPPORTING_METRIC_KEYWORDS: Array<{
+  pattern: RegExp;
+  metric: SemanticMetricKey;
+}> = [
+  { pattern: /收缴率|收费率|回款率/, metric: 'project-collection-rate' },
+  { pattern: /应收/, metric: 'project-receivable-amount' },
+  { pattern: /实收|回款金额/, metric: 'project-paid-amount' },
+  { pattern: /工单|报修|维修|服务压力/, metric: 'service-order-count' },
+  { pattern: /投诉/, metric: 'complaint-count' },
+  { pattern: /满意度|评分/, metric: 'average-satisfaction' },
+  { pattern: /响应/, metric: 'average-response-duration-hours' },
+  { pattern: /关闭时长|完工时长|闭环时长/, metric: 'average-close-duration-hours' },
+];
+
+const WORK_ORDER_EVIDENCE_METRICS: SemanticMetricKey[] = [
+  'complaint-count',
+  'average-satisfaction',
+  'average-response-duration-hours',
+  'average-close-duration-hours',
+];
+
+function shouldAttachFactorEvidence(stepId: string) {
+  return stepId === 'validate-candidate-factors' || stepId === 'synthesize-attribution';
+}
+
+function resolveSupportingMetricKeys(input: {
+  primaryMetric: SemanticMetricKey;
+  questionText: string;
+  stepId: string;
+}): SemanticMetricKey[] {
+  if (!shouldAttachFactorEvidence(input.stepId)) {
+    return [];
+  }
+
+  const metrics = new Set<SemanticMetricKey>();
+  const questionText = input.questionText;
+
+  for (const rule of SUPPORTING_METRIC_KEYWORDS) {
+    if (rule.pattern.test(questionText)) {
+      metrics.add(rule.metric);
+    }
+  }
+
+  const asksForCauseOrPressure = /原因|归因|影响|压力|异常|波动|趋势|如何|怎么样/.test(questionText);
+  if (
+    asksForCauseOrPressure &&
+    (input.primaryMetric === 'service-order-count' || /工单|服务压力/.test(questionText))
+  ) {
+    for (const metric of WORK_ORDER_EVIDENCE_METRICS) {
+      metrics.add(metric);
+    }
+  }
+
+  metrics.delete(input.primaryMetric);
+  return [...metrics];
+}
+
+function resolveGranularity(value: string | undefined): SemanticGranularity | undefined {
+  if (
+    value === 'day' ||
+    value === 'week' ||
+    value === 'month' ||
+    value === 'quarter' ||
+    value === 'year'
+  ) {
+    return value;
+  }
+
+  return undefined;
 }
 
 function formatDate(value: Date) {
@@ -194,11 +305,15 @@ export function resolveErpResource(questionText: string) {
   return 'projects' as const;
 }
 
-function resolveProjectNameFilters(context: AnalysisContext) {
-  const projectNames = context.constraints
+function extractProjectConstraintValues(context: AnalysisContext) {
+  return context.constraints
     .filter((constraint) => constraint.label === '项目约束')
     .map((constraint) => constraint.value.trim())
     .filter((value) => value.length > 0 && value !== '项目');
+}
+
+function resolveProjectNameFilters(context: AnalysisContext) {
+  const projectNames = extractProjectConstraintValues(context);
 
   if (projectNames.length === 0) {
     return undefined;
@@ -210,6 +325,43 @@ function resolveProjectNameFilters(context: AnalysisContext) {
       values: [...new Set(projectNames)],
     },
   ];
+}
+
+function resolveProjectScope(input: {
+  context: AnalysisContext;
+  currentProjectIds: string[];
+  projectCatalog?: ProjectEntityCatalogItem[];
+}) {
+  const projectConstraintValues = extractProjectConstraintValues(input.context);
+
+  if (projectConstraintValues.length === 0 || !input.projectCatalog) {
+    return {
+      projectIds: input.currentProjectIds,
+      filters: resolveProjectNameFilters(input.context),
+    };
+  }
+
+  const resolution = resolveProjectEntityConstraints({
+    values: projectConstraintValues,
+    catalog: input.projectCatalog,
+  });
+  const allowedProjectIds = new Set(input.currentProjectIds);
+  const scopedProjectIds =
+    input.currentProjectIds.length > 0
+      ? resolution.projectIds.filter((projectId) => allowedProjectIds.has(projectId))
+      : resolution.projectIds;
+
+  if (scopedProjectIds.length > 0) {
+    return {
+      projectIds: scopedProjectIds,
+      filters: undefined,
+    };
+  }
+
+  return {
+    projectIds: input.currentProjectIds,
+    filters: undefined,
+  };
 }
 
 export function buildWorkerAuthSession(input: {
@@ -241,6 +393,7 @@ export function buildToolInputs(input: {
   areaIds: string[];
   questionText: string;
   context: AnalysisContext;
+  projectCatalog?: ProjectEntityCatalogItem[];
   groundedContext?: OntologyGroundedContext;
   step: {
     id: string;
@@ -262,7 +415,45 @@ export function buildToolInputs(input: {
     projectIds: input.projectIds,
     areaIds: input.areaIds,
   });
-  const projectNameFilters = resolveProjectNameFilters(input.context);
+  const projectScope = resolveProjectScope({
+    context: input.context,
+    currentProjectIds: input.projectIds,
+    projectCatalog: input.projectCatalog,
+  });
+  const primaryCubeQuery: MetricQueryRequest = {
+    metric,
+    scope: {
+      organizationId: input.organizationId,
+      projectIds: projectScope.projectIds,
+    },
+    dateRange: resolveDateRange(metric, input.context, new Date(), input.groundedContext),
+    groupBy: projectScope.projectIds.length > 1 ? ['project-name'] : undefined,
+    filters: projectScope.filters,
+    limit: 20,
+    granularity:
+      input.context.granularity?.state === 'confirmed'
+        ? resolveGranularity(input.context.granularity.value)
+        : undefined,
+  };
+  const supportingMetrics = resolveSupportingMetricKeys({
+    primaryMetric: metric,
+    questionText: input.questionText,
+    stepId: input.step.id,
+  });
+  const cubeQueryInput =
+    supportingMetrics.length === 0
+      ? primaryCubeQuery
+      : [
+          primaryCubeQuery,
+          ...supportingMetrics.map((supportingMetric) => ({
+            metric: supportingMetric,
+            scope: primaryCubeQuery.scope,
+            dateRange: resolveDateRange(supportingMetric, input.context, new Date()),
+            groupBy: primaryCubeQuery.groupBy,
+            filters: primaryCubeQuery.filters,
+            limit: 20,
+          } satisfies MetricQueryRequest)),
+        ];
 
   return {
     'platform.capability-status': {},
@@ -286,21 +477,7 @@ export function buildToolInputs(input: {
         sessionId: input.sessionId,
       },
     },
-    'cube.semantic-query': {
-      metric,
-      scope: {
-        organizationId: input.organizationId,
-        projectIds: input.projectIds,
-      },
-      dateRange: resolveDateRange(metric, input.context, new Date(), input.groundedContext),
-      groupBy: input.projectIds.length > 1 ? ['project-name'] : undefined,
-      filters: projectNameFilters,
-      limit: 20,
-      granularity:
-        input.context.granularity?.state === 'confirmed'
-          ? input.context.granularity.value
-          : undefined,
-    },
+    'cube.semantic-query': cubeQueryInput,
     'neo4j.graph-query': {
       intentType: intent.type,
       metric: input.context.targetMetric.value,

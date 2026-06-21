@@ -4,7 +4,7 @@
  * 验证范围：
  * AC1: 系统优先从 ontology registry 读取正式治理定义
  * AC2: 治理覆盖 MetricVariant / TimeSemantic / CausalityEdge / EvidenceType
- * AC3: 收费类双口径 + 三类时间语义已进入正式治理模型
+ * AC3: 收费类双口径 + 收费/服务工单时间语义已进入正式治理模型
  * AC4: approved 生命周期约束——未 approved 定义不得进入默认运行时
  *
  * 测试类型：application / infrastructure 级集成测试（不依赖 next build）
@@ -120,7 +120,7 @@ test('AC2+AC3 装载收费类双口径 metric variants', async () => {
   assert.ok(result.keys.includes('tail-arrears-collection-rate'), '应包含尾欠口径收缴率');
 });
 
-test('AC3 装载三类时间语义', async () => {
+test('AC3 装载收费与服务工单时间语义', async () => {
   const result = await runTsSnippet(`
     import postgresClientModule from './src/infrastructure/postgres/client.ts';
     import timeSemanticStoreModule from './src/infrastructure/ontology/postgres-ontology-time-semantic-store.ts';
@@ -143,10 +143,12 @@ test('AC3 装载三类时间语义', async () => {
     }));
   `);
 
-  assert.equal(result.count, 3, '应装载 3 个时间语义');
+  assert.equal(result.count, 5, '应装载 5 个时间语义');
   assert.ok(result.keys.includes('receivable-accounting-period'), '应包含 receivable-accounting-period');
   assert.ok(result.keys.includes('billing-cycle-end-date'), '应包含 billing-cycle-end-date');
   assert.ok(result.keys.includes('payment-date'), '应包含 payment-date');
+  assert.ok(result.keys.includes('created-at'), '应包含 created-at');
+  assert.ok(result.keys.includes('completed-at'), '应包含 completed-at');
 });
 
 test('AC2 装载因果边定义', async () => {
@@ -260,7 +262,7 @@ test('AC1 getGovernanceDefinitionsByVersion 读取全量治理定义', async () 
   `);
 
   assert.equal(result.metricVariantCount, 6, '应读到 6 个 metric variants');
-  assert.equal(result.timeSemanticCount, 3, '应读到 3 个 time semantics');
+  assert.equal(result.timeSemanticCount, 5, '应读到 5 个 time semantics');
   assert.equal(result.causalityEdgeCount, 4, '应读到 4 个 causality edges');
   assert.equal(result.evidenceTypeCount, 4, '应读到 4 个 evidence types');
 });
@@ -408,6 +410,14 @@ test('AC3 time semantic 的 cubeTimeDimensionMapping 包含正确的 Cube 映射
       ${JSON.stringify(TEST_VERSION_ID)},
       'payment-date',
     );
+    const createdAt = await store.findByVersionAndKey(
+      ${JSON.stringify(TEST_VERSION_ID)},
+      'created-at',
+    );
+    const completedAt = await store.findByVersionAndKey(
+      ${JSON.stringify(TEST_VERSION_ID)},
+      'completed-at',
+    );
 
     await pool.end();
     console.log(JSON.stringify({
@@ -415,6 +425,10 @@ test('AC3 time semantic 的 cubeTimeDimensionMapping 包含正确的 Cube 映射
       rapDefaultGranularity: rap?.defaultGranularity ?? null,
       paymentCubeDimension: paymentDate?.cubeTimeDimensionMapping?.cubeDimension ?? null,
       paymentDefaultGranularity: paymentDate?.defaultGranularity ?? null,
+      createdAtCubeDimension: createdAt?.cubeTimeDimensionMapping?.cubeDimension ?? null,
+      createdAtDefaultGranularity: createdAt?.defaultGranularity ?? null,
+      completedAtCubeDimension: completedAt?.cubeTimeDimensionMapping?.cubeDimension ?? null,
+      completedAtDefaultGranularity: completedAt?.defaultGranularity ?? null,
     }));
   `);
 
@@ -422,6 +436,10 @@ test('AC3 time semantic 的 cubeTimeDimensionMapping 包含正确的 Cube 映射
   assert.equal(result.rapDefaultGranularity, 'year', '应收账期默认粒度应为 year');
   assert.equal(result.paymentCubeDimension, 'FinancePayments.paymentDate', '缴款日期对应正确 Cube dimension');
   assert.equal(result.paymentDefaultGranularity, 'month', '缴款日期默认粒度应为 month');
+  assert.equal(result.createdAtCubeDimension, 'ServiceOrders.createdAt', '创建时间对应正确 Cube dimension');
+  assert.equal(result.createdAtDefaultGranularity, 'month', '创建时间默认粒度应为 month');
+  assert.equal(result.completedAtCubeDimension, 'ServiceOrders.completedAt', '完成时间对应正确 Cube dimension');
+  assert.equal(result.completedAtDefaultGranularity, 'month', '完成时间默认粒度应为 month');
 });
 
 // ---------------------------------------------------------------------------
@@ -525,6 +543,13 @@ test('AC4 旧运行时映射层优先消费最新 approved governance definition
       : [];
     const governed = getSemanticMetricDefinition('project-collection-rate', catalog);
     const serviceOrder = getSemanticMetricDefinition('service-order-count', catalog);
+    const cleanupAt = new Date().toISOString();
+    await versionStore.updateStatus(
+      newerVersionId,
+      'retired',
+      cleanupAt,
+      { retiredAt: cleanupAt },
+    );
 
     await pool.end();
     console.log(JSON.stringify({

@@ -51,7 +51,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
-  const intent = await root.analysisIntentUseCases.getIntentBySessionId(sessionId);
+  const intent = await root.analysisIntentUseCases.getOrRecognizeIntent({
+    sessionId,
+    questionText: analysisSession.questionText,
+  });
   const baseSnapshot =
     await root.analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
       executionId: followUp.referencedExecutionId,
@@ -75,7 +78,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const candidateFactorReadModel =
     await root.factorExpansionUseCases.buildCandidateFactorReadModel({
-      intentType: intent?.type ?? 'general-analysis',
+      intentType: intent.type,
       questionText: followUp.questionText,
       contextReadModel: {
         sessionId: analysisSession.id,
@@ -120,7 +123,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     groundedArtifacts = await buildGroundedPlanningArtifacts({
       sessionId: analysisSession.id,
       ownerUserId: authSession.userId,
-      intentType: intent?.type ?? 'general-analysis',
+      intentType: intent.type,
       contextReadModel: followUpContextReadModel,
       candidateFactorReadModel: {
         ...candidateFactorReadModel,

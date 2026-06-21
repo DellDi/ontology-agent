@@ -163,6 +163,46 @@ test('Phase 2a | confirmed granularity 应正常进入 cube 输入', async () =>
   assert.equal(result.granularity, 'month', 'confirmed granularity 应正常下推');
 });
 
+test('Phase 2a | LLM 漏掉按月粒度时由规则校准补齐', async () => {
+  const result = await runTsSnippet(`
+    import useCaseModule from './src/application/analysis-context-extraction/use-cases.ts';
+    const { createContextExtractionUseCases } = useCaseModule;
+
+    const { extractContext } = createContextExtractionUseCases({
+      extractionPort: {
+        async extract() {
+          return {
+            targetMetric: { value: '工单总量', confidence: 0.9 },
+            entity: { value: '丰和园小区项目', kind: 'project', confidence: 0.9 },
+            timeRange: { value: '2026年', confidence: 0.9 },
+            comparison: { value: '无需比较', type: 'none', confidence: 0.9 },
+            assumptions: [],
+            needsClarification: false,
+            overallConfidence: 0.9,
+          };
+        },
+      },
+    });
+
+    const result = await extractContext({
+      questionText: '丰和园小区项目2026年按月工单总量趋势如何？',
+      projectNames: ['丰和园小区项目'],
+      metricDictionary: ['工单总量'],
+    });
+
+    console.log(JSON.stringify({
+      source: result.source,
+      granularity: result.context.granularity ?? null,
+      issueFields: result.issues.map((issue) => issue.field),
+    }));
+  `);
+
+  assert.equal(result.source, 'llm');
+  assert.equal(result.granularity?.value, 'month');
+  assert.equal(result.granularity?.state, 'confirmed');
+  assert.ok(result.issueFields.includes('granularity'), '应记录粒度校准 warning');
+});
+
 test('Phase 2a | "2026年1月"不应被识别为 granularity', async () => {
   const result = await runTsSnippet(`
     import m from './src/domain/analysis-context/models.ts';

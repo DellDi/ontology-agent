@@ -40,7 +40,7 @@ const INTENT_RULES: IntentRule[] = [
   {
     type: 'fee-analysis',
     topic: '收费',
-    patterns: [/收费/, /回款/, /缴费/, /欠费/, /账单/, /费用/],
+    patterns: [/收费/, /收缴/, /回款/, /缴费/, /欠费/, /账单/, /费用/, /物业费/, /催缴/],
   },
   {
     type: 'work-order-analysis',

@@ -635,6 +635,174 @@ test('Review P1.1 groundAnalysisContext 默认候选只允许 published 版本�
   assert.equal(result.groundedEntityId, 'entity-published');
 });
 
+test('Review P1.1 groundAnalysisContext 应跳过较新的不完整 published 候选，继续尝试完整 published 版本', async () => {
+  const result = await runTsSnippet(`
+    import groundingModule from './src/application/ontology/grounding.ts';
+
+    const { createOntologyGroundingUseCases } = groundingModule;
+    const newerIncomplete = {
+      id: 'published-incomplete-version',
+      semver: '99.5.1-incomplete',
+      displayName: 'Incomplete Published Runtime Version',
+      status: 'approved',
+      description: null,
+      publishedAt: '2026-04-29T10:00:00.000Z',
+      deprecatedAt: null,
+      retiredAt: null,
+      createdBy: 'test',
+      createdAt: '2026-04-29T09:00:00.000Z',
+      updatedAt: '2026-04-29T10:00:00.000Z',
+    };
+    const olderComplete = {
+      ...newerIncomplete,
+      id: 'published-complete-version',
+      semver: '1.0.0-complete',
+      displayName: 'Complete Published Runtime Version',
+      publishedAt: '2026-04-28T10:00:00.000Z',
+      createdAt: '2026-04-28T09:00:00.000Z',
+      updatedAt: '2026-04-28T10:00:00.000Z',
+    };
+
+    function entity(version) {
+      return {
+        id: 'entity-project-' + version.id,
+        ontologyVersionId: version.id,
+        businessKey: 'project',
+        displayName: '项目',
+        description: null,
+        status: 'approved',
+        synonyms: [],
+        parentBusinessKey: null,
+        metadata: {},
+        createdAt: version.createdAt,
+        updatedAt: version.updatedAt,
+      };
+    }
+    function metric(version) {
+      return {
+        id: 'metric-collection-rate-' + version.id,
+        ontologyVersionId: version.id,
+        businessKey: 'collection-rate',
+        displayName: '收缴率',
+        description: null,
+        status: 'approved',
+        applicableSubjectKeys: ['project'],
+        defaultAggregation: 'ratio',
+        unit: '%',
+        metadata: {},
+        createdAt: version.createdAt,
+        updatedAt: version.updatedAt,
+      };
+    }
+    function timeSemantic(version, key, name) {
+      return {
+        id: 'time-' + key + '-' + version.id,
+        ontologyVersionId: version.id,
+        businessKey: key,
+        displayName: name,
+        description: null,
+        status: 'approved',
+        semanticType: 'accounting-period',
+        entityDateFieldMapping: {},
+        cubeTimeDimensionMapping: {},
+        calculationRule: null,
+        defaultGranularity: 'year',
+        metadata: {},
+        createdAt: version.createdAt,
+        updatedAt: version.updatedAt,
+      };
+    }
+
+    const useCases = createOntologyGroundingUseCases({
+      versionStore: {
+        async findById(id) {
+          return id === newerIncomplete.id
+            ? newerIncomplete
+            : id === olderComplete.id
+              ? olderComplete
+              : null;
+        },
+        async findCurrentApproved() { return newerIncomplete; },
+        async findCurrentPublished() { return newerIncomplete; },
+        async listPublishedCandidates() { return [newerIncomplete, olderComplete]; },
+        async listApprovedCandidates() { return [newerIncomplete, olderComplete]; },
+      },
+      entityStore: {
+        async findByVersionId(versionId) {
+          const version = versionId === newerIncomplete.id ? newerIncomplete : olderComplete;
+          return [entity(version)];
+        },
+      },
+      metricStore: {
+        async findByVersionId(versionId) {
+          const version = versionId === newerIncomplete.id ? newerIncomplete : olderComplete;
+          return [metric(version)];
+        },
+      },
+      factorStore: { async findByVersionId() { return []; } },
+      metricVariantStore: {
+        async findByVersionId(versionId) {
+          if (versionId === newerIncomplete.id) return [];
+          return [{
+            id: 'variant-project-collection-rate-' + olderComplete.id,
+            ontologyVersionId: olderComplete.id,
+            parentMetricDefinitionId: 'collection-rate',
+            businessKey: 'project-collection-rate',
+            displayName: '项目收缴率',
+            description: null,
+            status: 'approved',
+            calculationFormula: null,
+            semanticDiscriminator: null,
+            cubeViewMapping: {},
+            filterTemplate: null,
+            metadata: {},
+            createdAt: olderComplete.createdAt,
+            updatedAt: olderComplete.updatedAt,
+          }];
+        },
+      },
+      timeSemanticStore: {
+        async findByVersionId(versionId) {
+          if (versionId === newerIncomplete.id) {
+            return [timeSemantic(newerIncomplete, 'payment-date', '缴款日期')];
+          }
+          return [
+            timeSemantic(olderComplete, 'receivable-accounting-period', '应收账期'),
+            timeSemantic(olderComplete, 'payment-date', '缴款日期'),
+          ];
+        },
+      },
+    });
+
+    const grounded = await useCases.groundAnalysisContext({
+      sessionId: 'session-review-p1-1-incomplete',
+      ownerUserId: 'owner-review-p1-1-incomplete',
+      analysisContext: {
+        targetMetric: { value: '收缴率', confidence: 1 },
+        entity: { value: '六坑铺项目', confidence: 1 },
+        timeRange: { value: '今年', confidence: 1 },
+        comparison: { value: '无', confidence: 0 },
+        constraints: [],
+      },
+    });
+
+    console.log(JSON.stringify({
+      ontologyVersionId: grounded.ontologyVersionId,
+      timeSemanticKey: grounded.timeSemantics[0]?.canonicalDefinition?.businessKey ?? null,
+      groundingStatus: grounded.groundingStatus,
+    }));
+    process.exit(0);
+  `);
+
+  assert.equal(
+    result.ontologyVersionId,
+    'published-complete-version',
+    '较新的 published 候选缺少可执行定义时，应继续尝试较旧的完整 published 版本',
+  );
+  assert.equal(result.timeSemanticKey, 'receivable-accounting-period');
+  assert.equal(result.groundingStatus, 'success');
+});
+
 // ---------------------------------------------------------------------------
 // Review Fix P1.2: publishVersion 事务原子性
 // ---------------------------------------------------------------------------

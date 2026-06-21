@@ -14,37 +14,58 @@ type AnalysisIntentUseCasesDependencies = {
 export function createAnalysisIntentUseCases({
   analysisIntentStore,
 }: AnalysisIntentUseCasesDependencies) {
+  async function recognizeAndStoreIntent({
+    sessionId,
+    questionText,
+  }: {
+    sessionId: string;
+    questionText: string;
+  }): Promise<AnalysisIntent> {
+    const failureToken = process.env.FAIL_ANALYSIS_INTENT_FOR_TEST?.trim();
+
+    if (failureToken && questionText.includes(failureToken)) {
+      throw new Error('analysis-intent-test-failure');
+    }
+
+    const result = recognizeIntentFromQuestion(questionText);
+
+    const intent: AnalysisIntent = {
+      id: randomUUID(),
+      sessionId,
+      type: result.type,
+      goal: result.goal,
+      createdAt: new Date().toISOString(),
+    };
+
+    return await analysisIntentStore.save(intent);
+  }
+
   return {
-    async recognizeAndStoreIntent({
+    recognizeAndStoreIntent,
+
+    async getIntentBySessionId(
+      sessionId: string,
+    ): Promise<AnalysisIntent | null> {
+      return await analysisIntentStore.getBySessionId(sessionId);
+    },
+
+    async getOrRecognizeIntent({
       sessionId,
       questionText,
     }: {
       sessionId: string;
       questionText: string;
     }): Promise<AnalysisIntent> {
-      const failureToken = process.env.FAIL_ANALYSIS_INTENT_FOR_TEST?.trim();
+      const existing = await analysisIntentStore.getBySessionId(sessionId);
 
-      if (failureToken && questionText.includes(failureToken)) {
-        throw new Error('analysis-intent-test-failure');
+      if (existing) {
+        return existing;
       }
 
-      const result = recognizeIntentFromQuestion(questionText);
-
-      const intent: AnalysisIntent = {
-        id: randomUUID(),
+      return await recognizeAndStoreIntent({
         sessionId,
-        type: result.type,
-        goal: result.goal,
-        createdAt: new Date().toISOString(),
-      };
-
-      return await analysisIntentStore.save(intent);
-    },
-
-    async getIntentBySessionId(
-      sessionId: string,
-    ): Promise<AnalysisIntent | null> {
-      return await analysisIntentStore.getBySessionId(sessionId);
+        questionText,
+      });
     },
   };
 }

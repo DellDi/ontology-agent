@@ -81,6 +81,12 @@ export async function PUT(request: Request, { params }: RouteContext) {
       correction,
     });
 
+    await root.analysisSessionUseCases.updateSavedContext({
+      sessionId: resolved.analysisSession.id,
+      owner: resolved.authSession,
+      context: updated.context,
+    });
+
     return NextResponse.json({
       sessionId: updated.sessionId,
       version: updated.version,
@@ -110,6 +116,12 @@ export async function DELETE(request: Request, { params }: RouteContext) {
     const restored = await root.analysisContextUseCases.undoCorrection({
       sessionId: resolved.analysisSession.id,
       ownerUserId: resolved.authSession.userId,
+    });
+
+    await root.analysisSessionUseCases.updateSavedContext({
+      sessionId: resolved.analysisSession.id,
+      owner: resolved.authSession,
+      context: restored.context,
     });
 
     return NextResponse.json({

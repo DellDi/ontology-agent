@@ -18,15 +18,15 @@ cube(`ServiceOrders`, {
     },
 
     averageSatisfaction: {
-      sql: `satisfaction`,
+      sql: `NULLIF(satisfaction, 0)`,
       type: `avg`,
       title: `平均满意度`,
     },
 
     averageResponseDurationHours: {
       sql: `CASE
-        WHEN ${CUBE}.update_date_time IS NULL OR ${CUBE}.create_date_time IS NULL THEN NULL
-        ELSE EXTRACT(EPOCH FROM (${CUBE}.update_date_time - ${CUBE}.create_date_time)) / 3600.0
+        WHEN ${CUBE}.accept_date IS NULL OR ${CUBE}.create_date_time IS NULL THEN NULL
+        ELSE EXTRACT(EPOCH FROM (${CUBE}.accept_date - ${CUBE}.create_date_time)) / 3600.0
       END`,
       type: `avg`,
       title: `平均响应时长（小时）`,
@@ -84,6 +84,12 @@ cube(`ServiceOrders`, {
       sql: `create_date_time`,
       type: `time`,
       title: `创建时间`,
+    },
+
+    completedAt: {
+      sql: `accomplish_date`,
+      type: `time`,
+      title: `完成时间`,
     },
   },
 });

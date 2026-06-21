@@ -187,7 +187,8 @@ test('Story 12.6 | renderer 为验证步骤 stage-result 写入 validatedFactors
   assert.equal(result[0].status, 'supported');
   assert.match(result[0].note, /应收余额变化/);
   assert.equal(result[1].factorKey, 'service-order-factor');
-  assert.equal(result[1].status, 'supported');
+  assert.equal(result[1].status, 'inconclusive');
+  assert.match(result[1].note, /没有命中/);
 });
 
 test('Story 12.6 | 工具明确空结果时逐因素标记为 not-supported', async () => {

@@ -93,6 +93,10 @@ test('Cube 本地模型至少提供 FinanceReceivables、FinancePayments 与 Ser
   assert.match(serviceOrdersModel, /averageResponseDurationHours/);
   assert.match(serviceOrdersModel, /averageCloseDurationHours/);
   assert.match(serviceOrdersModel, /averageSatisfaction/);
+  assert.match(serviceOrdersModel, /NULLIF\(satisfaction,\s*0\)/);
+  assert.match(serviceOrdersModel, /accept_date - \${CUBE}\.create_date_time/);
+  assert.match(serviceOrdersModel, /completedAt/);
+  assert.match(serviceOrdersModel, /accomplish_date/);
 });
 
 test('package.json 只保留正式基础设施与 smoke test 脚本', async () => {
