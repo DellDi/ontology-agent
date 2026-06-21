@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 
 type AdminPageHeaderProps = {
   eyebrow: string;
@@ -127,4 +128,149 @@ export function changeRequestStatusTone(
     default:
       return 'neutral';
   }
+}
+
+type StatusFlowStep = {
+  label: string;
+  status: string;
+};
+
+type StatusProgressBarProps = {
+  steps: StatusFlowStep[];
+  currentIndex: number;
+};
+
+export function StatusProgressBar({ steps, currentIndex }: StatusProgressBarProps) {
+  return (
+    <div className="status-progress-bar">
+      {steps.map((step, index) => {
+        const isCompleted = index < currentIndex;
+        const isCurrent = index === currentIndex;
+        return (
+          <div key={step.status} className="status-progress-step">
+            <div className="status-progress-connector">
+              {index > 0 && (
+                <div
+                  className={`status-progress-line ${isCompleted ? 'completed' : ''}`}
+                />
+              )}
+            </div>
+            <div
+              className={`status-progress-dot ${
+                isCompleted
+                  ? 'completed'
+                  : isCurrent
+                    ? 'current'
+                    : 'pending'
+              }`}
+            />
+            <span
+              className={`status-progress-label ${
+                isCompleted || isCurrent ? 'active' : ''
+              }`}
+            >
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+type EmptyStateProps = {
+  title: string;
+  description?: string;
+  action?: {
+    label: string;
+    href: string;
+  };
+};
+
+export function EmptyState({ title, description, action }: EmptyStateProps) {
+  return (
+    <div className="empty-state">
+      <div className="empty-state-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+      </div>
+      <h4 className="empty-state-title">{title}</h4>
+      {description && <p className="empty-state-description">{description}</p>}
+      {action && (
+        <Link href={action.href} className="primary-button mt-4">
+          {action.label}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+type TableHeader = {
+  key: string;
+  label: string;
+  className?: string;
+};
+
+type DataTableProps = {
+  headers: TableHeader[];
+  children: ReactNode;
+};
+
+export function DataTable({ headers, children }: DataTableProps) {
+  return (
+    <div className="data-table-wrapper">
+      <table className="data-table">
+        <thead>
+          <tr>
+            {headers.map((header) => (
+              <th key={header.key} className={header.className}>
+                {header.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+type TabItem = {
+  key: string;
+  label: string;
+  count?: number;
+};
+
+type TabBarProps = {
+  tabs: TabItem[];
+  activeKey: string;
+  basePath: string;
+  paramName?: string;
+};
+
+export function TabBar({ tabs, activeKey, basePath, paramName = 'tab' }: TabBarProps) {
+  return (
+    <div className="tab-bar">
+      {tabs.map((tab) => {
+        const isActive = tab.key === activeKey;
+        const href = tab.key === 'all'
+          ? basePath
+          : `${basePath}?${paramName}=${tab.key}`;
+        return (
+          <Link
+            key={tab.key}
+            href={href}
+            className={`tab-item ${isActive ? 'active' : ''}`}
+          >
+            {tab.label}
+            {tab.count !== undefined && (
+              <span className="tab-count">{tab.count}</span>
+            )}
+          </Link>
+        );
+      })}
+    </div>
+  );
 }

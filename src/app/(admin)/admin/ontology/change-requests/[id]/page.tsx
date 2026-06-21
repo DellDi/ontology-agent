@@ -7,9 +7,17 @@ import {
   AdminCard,
   AdminPageHeader,
   StatusBadge,
-  changeRequestStatusTone,
+  StatusProgressBar,
   formatTimestamp,
 } from '../../../../_components/admin-shell';
+import {
+  CR_STATUS_FLOW,
+  getChangeTypeLabel,
+  getCompatibilityLabel,
+  getCRStatusFlowIndex,
+  getCRStatusLabel,
+  getTargetObjectTypeLabel,
+} from '../../../../_lib/admin-labels';
 
 type CRDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -43,6 +51,13 @@ export default async function OntologyAdminChangeRequestDetailPage({
   const { changeRequest: cr, approvalHistory, version } = detail;
   const { capabilities } = state;
 
+  const statusLabel = getCRStatusLabel(cr.status);
+  const flowIndex = getCRStatusFlowIndex(cr.status);
+  const flowSteps = CR_STATUS_FLOW.map((s) => ({
+    label: getCRStatusLabel(s).label,
+    status: s,
+  }));
+
   const canSubmit = capabilities.canAuthor && cr.status === 'draft';
   const canReview = capabilities.canReview && cr.status === 'submitted';
   const canPublish =
@@ -52,14 +67,29 @@ export default async function OntologyAdminChangeRequestDetailPage({
     version.status === 'approved' &&
     !version.publishedAt;
 
+  const typeLabel = getChangeTypeLabel(cr.changeType);
+  const compatLabel = getCompatibilityLabel(cr.compatibilityType);
+  const objectTypeLabel = getTargetObjectTypeLabel(cr.targetObjectType);
+
   return (
     <section className="space-y-6">
       <AdminPageHeader
-        eyebrow={`变更申请 · ${cr.status}`}
+        eyebrow="变更申请"
         title={cr.title}
         description={cr.description ?? '本变更申请没有提供描述说明。'}
-        trailing={<StatusBadge tone={changeRequestStatusTone(cr.status)}>{cr.status}</StatusBadge>}
+        trailing={
+          <div className="flex flex-col items-end gap-2">
+            <StatusBadge tone={statusLabel.tone}>{statusLabel.label}</StatusBadge>
+            <span className="text-xs text-[color:var(--ink-500)]">{statusLabel.description}</span>
+          </div>
+        }
       />
+
+      {flowIndex >= 0 && (
+        <AdminCard title="">
+          <StatusProgressBar steps={flowSteps} currentIndex={flowIndex} />
+        </AdminCard>
+      )}
 
       {error ? (
         <div className="status-banner" data-tone="error">{decodeURIComponent(error)}</div>
@@ -68,45 +98,78 @@ export default async function OntologyAdminChangeRequestDetailPage({
         <div className="status-banner" data-tone="success">{decodeURIComponent(success)}</div>
       ) : null}
 
-      <AdminCard title="目标对象与影响范围">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg bg-white p-4 text-sm">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">目标对象</p>
-            <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">
-              {cr.targetObjectType} / {cr.targetObjectKey}
-            </p>
-            <p className="text-xs text-[color:var(--ink-600)]">
-              变更类型：{cr.changeType} · 兼容性：{cr.compatibilityType}
-            </p>
-            {cr.compatibilityNote ? (
-              <p className="mt-2 text-xs text-[color:var(--ink-600)]">兼容说明：{cr.compatibilityNote}</p>
-            ) : null}
-          </div>
-          <div className="rounded-lg bg-white p-4 text-sm">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">影响范围</p>
-            {cr.impactScope.length === 0 ? (
-              <p className="mt-1 text-sm text-[color:var(--ink-600)]">未声明影响范围</p>
-            ) : (
-              <ul className="mt-1 list-disc pl-5 text-sm leading-6 text-[color:var(--ink-900)]">
-                {cr.impactScope.map((scope) => (
-                  <li key={scope}>{scope}</li>
-                ))}
-              </ul>
+      {(canSubmit || canReview || canPublish) && (
+        <AdminCard title="治理操作">
+          <div className="action-bar">
+            {canSubmit && (
+              <form
+                method="post"
+                action={`/api/admin/ontology/change-requests/${cr.id}/submit`}
+                className="inline-flex"
+              >
+                <button className="primary-button" type="submit">
+                  提交审批
+                </button>
+              </form>
+            )}
+
+            {canReview && <ReviewForm changeRequestId={cr.id} />}
+
+            {canPublish && version && (
+              <form
+                method="post"
+                action={`/api/admin/ontology/versions/${version.id}/publish`}
+                className="inline-flex flex-col gap-2"
+              >
+                <textarea
+                  name="publishNote"
+                  placeholder="发布备注（可选）"
+                  className="field-input min-h-[60px] w-[280px]"
+                />
+                <button className="primary-button" type="submit">
+                  发布版本
+                </button>
+              </form>
             )}
           </div>
+        </AdminCard>
+      )}
+
+      <AdminCard title="变更概要">
+        <div className="grid gap-4 md:grid-cols-2">
+          <InfoItem label="目标对象" value={`${objectTypeLabel} / ${cr.targetObjectKey}`} />
+          <InfoItem label="变更类型" value={typeLabel} />
+          <InfoItem label="兼容性" value={compatLabel.label} note={compatLabel.note} />
+          <InfoItem label="影响范围" value={cr.impactScope.length > 0 ? cr.impactScope.join('、') : '未声明'} />
+          <InfoItem label="提交人" value={cr.submittedBy} />
+          <InfoItem label="提交时间" value={formatTimestamp(cr.submittedAt)} />
+          <InfoItem label="最近更新" value={formatTimestamp(cr.updatedAt)} />
+          {version && (
+            <InfoItem
+              label="目标版本"
+              value={`${version.semver} · ${version.displayName}`}
+              note={`状态：${version.status}${version.publishedAt ? ` · 已发布于 ${formatTimestamp(version.publishedAt)}` : ''}`}
+            />
+          )}
         </div>
+        {cr.compatibilityNote && (
+          <div className="mt-4 rounded-lg bg-[color:var(--sky-50)] p-4 text-sm">
+            <p className="text-xs font-semibold text-[color:var(--brand-700)]">兼容说明</p>
+            <p className="mt-1 text-[color:var(--ink-700)]">{cr.compatibilityNote}</p>
+          </div>
+        )}
       </AdminCard>
 
-      <AdminCard title="变更前后摘要">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg bg-white p-4 text-sm">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">变更前</p>
+      <AdminCard title="变更内容">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">变更前</p>
             <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-[color:var(--ink-900)]">
               {cr.beforeSummary ? JSON.stringify(cr.beforeSummary, null, 2) : '—'}
             </pre>
           </div>
-          <div className="rounded-lg bg-white p-4 text-sm">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">变更后</p>
+          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
+            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">变更后</p>
             <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6 text-[color:var(--ink-900)]">
               {cr.afterSummary ? JSON.stringify(cr.afterSummary, null, 2) : '—'}
             </pre>
@@ -114,115 +177,67 @@ export default async function OntologyAdminChangeRequestDetailPage({
         </div>
       </AdminCard>
 
-      <AdminCard title="提交与时间线">
-        <div className="grid gap-3 md:grid-cols-3 text-sm">
-          <div className="rounded-lg bg-white p-4">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">提交人</p>
-            <p className="mt-1 text-base text-[color:var(--ink-900)]">{cr.submittedBy}</p>
-          </div>
-          <div className="rounded-lg bg-white p-4">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">提交时间</p>
-            <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(cr.submittedAt)}</p>
-          </div>
-          <div className="rounded-lg bg-white p-4">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">最近更新</p>
-            <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(cr.updatedAt)}</p>
-          </div>
-        </div>
-        {version ? (
-          <p className="text-xs text-[color:var(--ink-600)]">
-            目标版本：{version.semver} · {version.displayName} · 当前状态 {version.status}
-            {version.publishedAt ? ` · 已发布于 ${formatTimestamp(version.publishedAt)}` : ''}
-          </p>
-        ) : null}
-      </AdminCard>
-
-      <AdminCard title="审批历史">
+      <AdminCard title="审批记录">
         {approvalHistory.length === 0 ? (
           <div className="status-banner" data-tone="info">该变更申请尚未产生审批记录。</div>
         ) : (
-          <div className="grid gap-2">
+          <div className="space-y-3">
             {approvalHistory.map((record) => (
               <div
                 key={record.id}
-                className="rounded-lg bg-white p-4 text-sm"
+                className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-[color:var(--surface-50)] p-4"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-[color:var(--ink-900)]">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-[color:var(--ink-900)]">
                       {record.reviewedBy}
-                    </p>
-                    <p className="text-xs text-[color:var(--ink-600)]">
+                    </span>
+                    <span className="text-xs text-[color:var(--ink-500)]">
                       {formatTimestamp(record.createdAt)}
-                    </p>
+                    </span>
                   </div>
-                  <StatusBadge tone={record.decision === 'approved' ? 'success' : 'danger'}>
-                    {record.decision}
-                  </StatusBadge>
+                  {record.comment && (
+                    <p className="mt-2 text-sm leading-6 text-[color:var(--ink-700)]">
+                      {record.comment}
+                    </p>
+                  )}
                 </div>
-                {record.comment ? (
-                  <p className="mt-2 text-xs leading-6 text-[color:var(--ink-700)]">
-                    {record.comment}
-                  </p>
-                ) : null}
+                <StatusBadge tone={record.decision === 'approved' ? 'success' : 'danger'}>
+                  {record.decision === 'approved' ? '通过' : '驳回'}
+                </StatusBadge>
               </div>
             ))}
           </div>
         )}
       </AdminCard>
 
-      <AdminCard
-        title="治理操作"
-        description="根据当前角色与状态决定可执行的操作。所有操作通过受控服务端用例执行并写入审计事件。"
-      >
-        <div className="flex flex-wrap gap-3">
-          {canSubmit ? (
-            <form
-              method="post"
-              action={`/api/admin/ontology/change-requests/${cr.id}/submit`}
-              className="inline-flex"
-            >
-              <button className="primary-button" type="submit">
-                提交进入审批
-              </button>
-            </form>
-          ) : null}
-
-          {canReview ? (
-            <ReviewForm changeRequestId={cr.id} />
-          ) : null}
-
-          {canPublish && version ? (
-            <form
-              method="post"
-              action={`/api/admin/ontology/versions/${version.id}/publish`}
-              className="inline-flex flex-col gap-2"
-            >
-              <textarea
-                name="publishNote"
-                placeholder="发布备注（可选）"
-                className="field-input min-h-[60px] w-[280px]"
-              />
-              <button className="primary-button" type="submit">
-                发布该版本
-              </button>
-            </form>
-          ) : null}
-
-          {!canSubmit && !canReview && !canPublish ? (
-            <p className="text-sm text-[color:var(--ink-600)]">
-              当前状态或角色下没有可执行的治理操作。
-            </p>
-          ) : null}
-        </div>
-
-        <p className="text-xs text-[color:var(--ink-600)]">
-          <Link className="underline" href="/admin/ontology/change-requests">
-            返回变更申请列表
-          </Link>
-        </p>
-      </AdminCard>
+      <div className="flex justify-start">
+        <Link
+          href="/admin/ontology/change-requests"
+          className="text-sm text-[color:var(--brand-700)] hover:underline"
+        >
+          ← 返回变更申请列表
+        </Link>
+      </div>
     </section>
+  );
+}
+
+function InfoItem({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  return (
+    <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
+      <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">{label}</p>
+      <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">{value}</p>
+      {note && <p className="mt-1 text-xs text-[color:var(--ink-600)]">{note}</p>}
+    </div>
   );
 }
 
