@@ -58,31 +58,31 @@ export default async function OntologyAdminPublishHistoryPage() {
                     {version ? (
                       <Link
                         href={`/admin/ontology/definitions?versionId=${version.id}`}
-                        className="font-semibold text-[color:var(--brand-700)] hover:underline"
+                        className="font-semibold text-primary hover:underline"
                       >
                         {version.semver}
                       </Link>
                     ) : (
-                      <span className="font-mono text-sm text-[color:var(--ink-600)]">
+                      <span className="font-mono text-sm text-muted-foreground">
                         {record.ontologyVersionId.slice(0, 8)}...
                       </span>
                     )}
                     {version && (
-                      <div className="text-xs text-[color:var(--ink-500)]">{version.displayName}</div>
+                      <div className="text-xs text-muted-foreground">{version.displayName}</div>
                     )}
                   </td>
                   <td>
-                    <span className="text-sm text-[color:var(--ink-600)]">{record.publishedBy}</span>
+                    <span className="text-sm text-muted-foreground">{record.publishedBy}</span>
                   </td>
                   <td>
-                    <span className="text-sm text-[color:var(--ink-600)]">
+                    <span className="text-sm text-muted-foreground">
                       {formatTimestamp(record.createdAt)}
                     </span>
                   </td>
                   <td>
                     <Link
                       href={`/admin/ontology/change-requests`}
-                      className="inline-flex items-center rounded-md bg-[color:var(--brand-100)] px-2.5 py-1 text-xs font-medium text-[color:var(--brand-700)] hover:bg-[color:var(--brand-300)]"
+                      className="inline-flex items-center rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:bg-accent/80"
                     >
                       {record.changeRequestIds.length} 个变更
                     </Link>
@@ -91,7 +91,7 @@ export default async function OntologyAdminPublishHistoryPage() {
                     {record.publishNote ? (
                       <span className="text-sm text-[color:var(--ink-700)]">{record.publishNote}</span>
                     ) : (
-                      <span className="text-sm text-[color:var(--ink-500)]">—</span>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </td>
                 </tr>

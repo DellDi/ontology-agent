@@ -1,4 +1,5 @@
 import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import { Button } from '@/app/_components/button';
 
 import {
   AdminCard,
@@ -140,9 +141,9 @@ export default async function OntologyAdminDefinitionsPage({
                   </option>
                 ))}
               </select>
-              <button className="secondary-button py-2 text-sm" type="submit">
+              <Button variant="secondary" type="submit" className="py-2 text-sm">
                 切换版本
-              </button>
+              </Button>
             </form>
             <StatusBadge tone="success">
               {version.semver} · {version.status}
@@ -153,21 +154,21 @@ export default async function OntologyAdminDefinitionsPage({
 
       <AdminCard title="版本信息">
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">版本名称</p>
-            <p className="mt-1 text-base font-semibold text-[color:var(--ink-900)]">{version.displayName}</p>
+          <div className="rounded-lg bg-muted p-4">
+            <p className="text-xs tracking-[0.12em] text-primary">版本名称</p>
+            <p className="mt-1 text-base font-semibold text-foreground">{version.displayName}</p>
           </div>
-          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">发布时间</p>
-            <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(version.publishedAt)}</p>
+          <div className="rounded-lg bg-muted p-4">
+            <p className="text-xs tracking-[0.12em] text-primary">发布时间</p>
+            <p className="mt-1 text-base text-foreground">{formatTimestamp(version.publishedAt)}</p>
           </div>
-          <div className="rounded-lg bg-[color:var(--surface-50)] p-4">
-            <p className="text-xs tracking-[0.12em] text-[color:var(--brand-700)]">创建时间</p>
-            <p className="mt-1 text-base text-[color:var(--ink-900)]">{formatTimestamp(version.createdAt)}</p>
+          <div className="rounded-lg bg-muted p-4">
+            <p className="text-xs tracking-[0.12em] text-primary">创建时间</p>
+            <p className="mt-1 text-base text-foreground">{formatTimestamp(version.createdAt)}</p>
           </div>
         </div>
         {version.description && (
-          <p className="mt-3 text-sm text-[color:var(--ink-600)]">{version.description}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{version.description}</p>
         )}
       </AdminCard>
 
@@ -198,10 +199,10 @@ export default async function OntologyAdminDefinitionsPage({
               {group.items.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <span className="font-semibold text-[color:var(--ink-900)]">{item.displayName}</span>
+                    <span className="font-semibold text-foreground">{item.displayName}</span>
                   </td>
                   <td>
-                    <span className="font-mono text-sm text-[color:var(--ink-600)]">{item.businessKey}</span>
+                    <span className="font-mono text-sm text-muted-foreground">{item.businessKey}</span>
                   </td>
                   <td>
                     <StatusBadge tone={getStatusTone(item.status)}>

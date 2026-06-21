@@ -6,6 +6,8 @@ import {
   TARGET_OBJECT_TYPES,
 } from '@/domain/ontology/governance';
 import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import { Button } from '@/app/_components/button';
+import { FieldInput, FieldTextarea } from '@/app/_components/field';
 
 import {
   AdminCard,
@@ -30,12 +32,14 @@ export default async function NewChangeRequestPage() {
           description="您没有创建变更申请的权限。"
         />
         <AdminCard title="">
-          <p className="text-sm text-[color:var(--ink-600)]">
+          <p className="text-sm text-muted-foreground">
             请联系管理员获取变更申请的创建权限。
           </p>
-          <Link href="/admin/ontology/change-requests" className="secondary-button mt-4 inline-block">
-            返回变更申请列表
-          </Link>
+          <Button variant="secondary" asChild className="mt-4">
+            <Link href="/admin/ontology/change-requests">
+              返回变更申请列表
+            </Link>
+          </Button>
         </AdminCard>
       </section>
     );
@@ -52,9 +56,11 @@ export default async function NewChangeRequestPage() {
           title="无法创建"
           description="当前没有可用的目标版本，请先通过 bootstrap 流程创建首个版本。"
         />
-        <Link href="/admin/ontology/change-requests" className="secondary-button inline-block">
-          返回变更申请列表
-        </Link>
+        <Button variant="secondary" asChild>
+          <Link href="/admin/ontology/change-requests">
+            返回变更申请列表
+          </Link>
+        </Button>
       </section>
     );
   }
@@ -66,9 +72,11 @@ export default async function NewChangeRequestPage() {
         title="新建变更申请"
         description="填写变更信息后保存为草稿，确认无误后再提交进入审批流程。"
         trailing={
-          <Link href="/admin/ontology/change-requests" className="secondary-button">
-            返回列表
-          </Link>
+          <Button variant="secondary" asChild>
+            <Link href="/admin/ontology/change-requests">
+              返回列表
+            </Link>
+          </Button>
         }
       />
 
@@ -83,8 +91,8 @@ export default async function NewChangeRequestPage() {
         >
           <div className="form-group">
             <label className="block">
-              <span className="field-label">标题 <span className="text-[color:var(--danger-500)]">*</span></span>
-              <input className="field-input" name="title" required maxLength={200} placeholder="简要描述本次变更的内容" />
+              <span className="field-label">标题 <span className="text-destructive">*</span></span>
+              <FieldInput name="title" required maxLength={200} placeholder="简要描述本次变更的内容" />
               <span className="field-helper">变更申请的标题，用于在列表中快速识别</span>
             </label>
           </div>
@@ -92,7 +100,7 @@ export default async function NewChangeRequestPage() {
           <div className="form-group">
             <label className="block">
               <span className="field-label">描述</span>
-              <textarea className="field-input min-h-[100px]" name="description" placeholder="详细说明变更的背景、目的和预期效果" />
+              <FieldTextarea name="description" placeholder="详细说明变更的背景、目的和预期效果" className="min-h-[100px]" />
               <span className="field-helper">可选。提供更详细的变更说明，帮助审批人理解变更意图</span>
             </label>
           </div>
@@ -101,7 +109,7 @@ export default async function NewChangeRequestPage() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="field-label">目标版本 <span className="text-[color:var(--danger-500)]">*</span></span>
+              <span className="field-label">目标版本 <span className="text-destructive">*</span></span>
               <select className="field-input" name="ontologyVersionId" required>
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -113,7 +121,7 @@ export default async function NewChangeRequestPage() {
             </label>
 
             <label className="block">
-              <span className="field-label">目标对象类型 <span className="text-[color:var(--danger-500)]">*</span></span>
+              <span className="field-label">目标对象类型 <span className="text-destructive">*</span></span>
               <select className="field-input" name="targetObjectType" required>
                 {TARGET_OBJECT_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -125,13 +133,13 @@ export default async function NewChangeRequestPage() {
             </label>
 
             <label className="block">
-              <span className="field-label">业务键 <span className="text-[color:var(--danger-500)]">*</span></span>
-              <input className="field-input" name="targetObjectKey" required placeholder="如：metrics.revenue" />
+              <span className="field-label">业务键 <span className="text-destructive">*</span></span>
+              <FieldInput name="targetObjectKey" required placeholder="如：metrics.revenue" />
               <span className="field-helper">变更对象的唯一业务标识符</span>
             </label>
 
             <label className="block">
-              <span className="field-label">变更类型 <span className="text-[color:var(--danger-500)]">*</span></span>
+              <span className="field-label">变更类型 <span className="text-destructive">*</span></span>
               <select className="field-input" name="changeType" required>
                 {CHANGE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -147,7 +155,7 @@ export default async function NewChangeRequestPage() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="field-label">兼容性 <span className="text-[color:var(--danger-500)]">*</span></span>
+              <span className="field-label">兼容性 <span className="text-destructive">*</span></span>
               <select className="field-input" name="compatibilityType" required>
                 {COMPATIBILITY_TYPES.map((t) => {
                   const compatLabel = COMPATIBILITY_LABELS[t];
@@ -168,7 +176,7 @@ export default async function NewChangeRequestPage() {
 
             <label className="block">
               <span className="field-label">影响范围</span>
-              <input className="field-input" name="impactScope" placeholder="metrics.x, factors.y" />
+              <FieldInput name="impactScope" placeholder="metrics.x, factors.y" />
               <span className="field-helper">受本次变更影响的其他对象，多个用逗号或换行分隔</span>
             </label>
           </div>
@@ -176,7 +184,7 @@ export default async function NewChangeRequestPage() {
           <div className="form-group">
             <label className="block">
               <span className="field-label">兼容说明</span>
-              <textarea className="field-input min-h-[80px]" name="compatibilityNote" placeholder="说明兼容性评估的依据和注意事项" />
+              <FieldTextarea name="compatibilityNote" placeholder="说明兼容性评估的依据和注意事项" className="min-h-[80px]" />
               <span className="field-helper">可选。对兼容性选择的补充说明</span>
             </label>
           </div>
@@ -186,32 +194,34 @@ export default async function NewChangeRequestPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="field-label">变更前摘要</span>
-              <textarea
-                className="field-input min-h-[120px] font-mono text-xs"
+              <FieldTextarea
                 name="beforeSummary"
                 placeholder='{"calculation":"by_amount"}'
+                className="min-h-[120px] font-mono text-xs"
               />
               <span className="field-helper">变更前的配置或定义，JSON 格式</span>
             </label>
 
             <label className="block">
               <span className="field-label">变更后摘要</span>
-              <textarea
-                className="field-input min-h-[120px] font-mono text-xs"
+              <FieldTextarea
                 name="afterSummary"
                 placeholder='{"calculation":"by_count"}'
+                className="min-h-[120px] font-mono text-xs"
               />
               <span className="field-helper">变更后的配置或定义，JSON 格式</span>
             </label>
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-[color:var(--line-200)] pt-6">
-            <Link href="/admin/ontology/change-requests" className="secondary-button">
-              取消
-            </Link>
-            <button className="primary-button" type="submit">
+          <div className="flex items-center justify-end gap-3 border-t border-border pt-6">
+            <Button variant="secondary" asChild>
+              <Link href="/admin/ontology/change-requests">
+                取消
+              </Link>
+            </Button>
+            <Button type="submit">
               保存为草稿
-            </button>
+            </Button>
           </div>
         </form>
       </AdminCard>
