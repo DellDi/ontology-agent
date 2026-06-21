@@ -7,7 +7,10 @@ import {
   normalizeQuestionText,
   validateQuestionText,
 } from '@/domain/analysis-session/models';
-import { extractAnalysisContext } from '@/domain/analysis-context/models';
+import {
+  extractAnalysisContext,
+  type AnalysisContext,
+} from '@/domain/analysis-context/models';
 import { hasScopedTargets, type AuthSession } from '@/domain/auth/models';
 
 import type { AnalysisSessionStore } from './ports';
@@ -131,6 +134,38 @@ export function createAnalysisSessionUseCases({
       }
 
       await analysisSessionStore.delete(sessionId);
+    },
+
+    async updateSavedContext({
+      sessionId,
+      owner,
+      context,
+    }: {
+      sessionId: string;
+      owner: AuthSession;
+      context: AnalysisContext;
+    }) {
+      const updated = await analysisSessionStore.updateSavedContext({
+        sessionId,
+        ownerUserId: owner.userId,
+        savedContext: context,
+        updatedAt: new Date().toISOString(),
+      });
+
+      if (!updated) {
+        return null;
+      }
+
+      if (
+        !isSessionAccessibleInScope(updated, {
+          userId: owner.userId,
+          scope: owner.scope,
+        })
+      ) {
+        return null;
+      }
+
+      return updated;
     },
   };
 }

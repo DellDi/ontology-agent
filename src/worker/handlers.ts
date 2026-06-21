@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import type { AnalysisSessionStore } from '@/application/analysis-session/ports';
 import { createAnalysisExecutionStreamUseCases } from '@/application/analysis-execution/stream-use-cases';
-import { buildToolInputs } from '@/application/analysis-execution/tool-input-builder';
+import {
+  buildToolInputs,
+  buildWorkerAuthSession,
+} from '@/application/analysis-execution/tool-input-builder';
 import { deriveCandidateFactorValidations } from '@/application/analysis-execution/candidate-factor-validation';
 import type { ToolExecutionEventEmitter } from '@/application/analysis-execution/use-cases';
 import {
@@ -15,6 +18,7 @@ import type {
   AnalysisToolName,
   OrchestrationStepExecutionResult,
 } from '@/domain/tooling/models';
+import type { ProjectEntityCatalogItem } from '@/domain/project-entity-resolution/models';
 import { createRedisAnalysisExecutionEventStore } from '@/infrastructure/analysis-execution/redis-analysis-execution-event-store';
 import { checkRedisHealth } from '@/infrastructure/redis/health';
 import type { RedisClientType } from 'redis';
@@ -84,6 +88,13 @@ type AnalysisExecutionUseCases = {
 type AnalysisExecutionHandlerDependencies = {
   analysisSessionStore: Pick<AnalysisSessionStore, 'getById'>;
   analysisExecutionUseCases: AnalysisExecutionUseCases;
+  listScopedProjects?: (input: {
+    sessionId: string;
+    ownerUserId: string;
+    organizationId: string;
+    projectIds: string[];
+    areaIds: string[];
+  }) => Promise<ProjectEntityCatalogItem[]>;
   analysisExecutionStreamUseCases?: AnalysisExecutionStreamPublisher;
   createAnalysisExecutionStreamUseCases?: (
     context: {
@@ -123,6 +134,13 @@ export function createAnalysisExecutionJobHandler(
     const streamUseCases = resolveStreamUseCases(dependencies, context);
     let processedStepCount = 0;
     const inferredIntentType = recognizeIntentFromQuestion(jobData.questionText).type;
+    const projectCatalog = await dependencies.listScopedProjects?.({
+      sessionId: jobData.sessionId,
+      ownerUserId: jobData.ownerUserId,
+      organizationId: jobData.organizationId,
+      projectIds: jobData.projectIds,
+      areaIds: jobData.areaIds,
+    });
 
     for (const step of jobData.plan.steps) {
       // Story 12-5: 细粒度 step-started 事件（先于既有 step-lifecycle）
@@ -261,6 +279,7 @@ export function createAnalysisExecutionJobHandler(
                 areaIds: jobData.areaIds,
                 questionText: jobData.questionText,
                 context: jobData.context ?? analysisSession.savedContext,
+                projectCatalog,
                 groundedContext: jobData.groundedContext,
                 step,
                 planSummary: jobData.plan.summary,
@@ -492,6 +511,17 @@ graphUseCases: (() => {
     analysisSessionStore:
       analysisSessionStoreModule.createPostgresAnalysisSessionStore(),
     analysisExecutionUseCases: toolingServices.analysisExecutionUseCases,
+    async listScopedProjects(input) {
+      return await erpReadUseCases.listProjects(
+        buildWorkerAuthSession({
+          sessionId: input.sessionId,
+          ownerUserId: input.ownerUserId,
+          organizationId: input.organizationId,
+          projectIds: input.projectIds,
+          areaIds: input.areaIds,
+        }),
+      );
+    },
     createAnalysisExecutionStreamUseCases(context) {
       if (!context.redis) {
         throw new Error('分析执行流式事件发布缺少 Redis 连接。');

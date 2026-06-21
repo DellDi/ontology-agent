@@ -63,6 +63,45 @@ test('P1-Finding-7 | granularity=month 时 12 行结果不截断', async () => {
   assert.equal(result.rowCount, 12, '月度数据 12 行应全部展示，不截断');
 });
 
+test('P1-Finding-7 | granularity=month 时生成趋势图 render block', async () => {
+  const result = await runTsSnippet(`
+    import presentationModule from './src/shared/tooling/tool-event-presentation.ts';
+    const { buildToolRenderBlocks } = presentationModule;
+
+    const event = ${JSON.stringify(buildCubeSuccessEvent({ granularity: 'month', rowCount: 6 }))};
+    const blocks = buildToolRenderBlocks(event);
+    const chartBlock = blocks.find((b) => b.type === 'chart');
+
+    console.log(JSON.stringify({
+      chartType: chartBlock?.chartType ?? null,
+      pointCount: chartBlock?.series?.[0]?.points?.length ?? 0,
+      firstPoint: chartBlock?.series?.[0]?.points?.[0] ?? null,
+      lastPoint: chartBlock?.series?.[0]?.points?.at(-1) ?? null,
+    }));
+  `);
+
+  assert.equal(result.chartType, 'line', '月度数据应生成折线趋势图');
+  assert.equal(result.pointCount, 6, '趋势图应包含全部月度点');
+  assert.deepEqual(result.firstPoint, { label: '2026-01', value: 90 });
+  assert.deepEqual(result.lastPoint, { label: '2026-06', value: 95 });
+});
+
+test('P1-Finding-7 | granularity=month 时工具摘要包含完整月度明细', async () => {
+  const result = await runTsSnippet(`
+    import presentationModule from './src/shared/tooling/tool-event-presentation.ts';
+    const { summarizeToolEvent } = presentationModule;
+
+    const event = ${JSON.stringify(buildCubeSuccessEvent({ granularity: 'month', rowCount: 6 }))};
+    const summary = summarizeToolEvent(event);
+
+    console.log(JSON.stringify({ summary }));
+  `);
+
+  assert.match(result.summary, /月度明细/, '月度摘要应显式包含月度明细');
+  assert.match(result.summary, /2026-01=90/, '应包含 1 月数值');
+  assert.match(result.summary, /2026-06=95/, '应包含 6 月数值');
+});
+
 test('P1-Finding-7 | granularity=day 时结果仍截断为 5 行', async () => {
   const result = await runTsSnippet(`
     import presentationModule from './src/shared/tooling/tool-event-presentation.ts';

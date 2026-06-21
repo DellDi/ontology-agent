@@ -107,7 +107,7 @@ export function buildMetricVariantSeeds(versionId: string, ts: string): CreateOn
 }
 
 // ---------------------------------------------------------------------------
-// Time Semantics — 三类时间语义
+// Time Semantics — 收费与服务工单场景的时间语义
 // ---------------------------------------------------------------------------
 
 export function buildTimeSemanticSeeds(versionId: string, ts: string): CreateOntologyTimeSemanticInput[] {
@@ -152,6 +152,32 @@ export function buildTimeSemanticSeeds(versionId: string, ts: string): CreateOnt
       calculationRule: null,
       defaultGranularity: 'month',
       metadata: {},
+    },
+    {
+      ...base,
+      id: `ts-created-at-${versionId}`,
+      businessKey: 'created-at',
+      displayName: '创建时间',
+      description: '按工单创建时间统计工单量、投诉量和响应时效。',
+      semanticType: 'event-created-at',
+      entityDateFieldMapping: { serviceOrder: 'createDateTime' },
+      cubeTimeDimensionMapping: { cubeDimension: 'ServiceOrders.createdAt' },
+      calculationRule: null,
+      defaultGranularity: 'month',
+      metadata: { intentTypes: ['work-order-analysis'] },
+    },
+    {
+      ...base,
+      id: `ts-completed-at-${versionId}`,
+      businessKey: 'completed-at',
+      displayName: '完成时间',
+      description: '按工单完成时间统计满意度和关闭时长。',
+      semanticType: 'event-completed-at',
+      entityDateFieldMapping: { serviceOrder: 'accomplishDate' },
+      cubeTimeDimensionMapping: { cubeDimension: 'ServiceOrders.completedAt' },
+      calculationRule: null,
+      defaultGranularity: 'month',
+      metadata: { intentTypes: ['work-order-analysis'] },
     },
   ];
 }

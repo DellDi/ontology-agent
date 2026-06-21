@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   createAnalysisToolRegistryUseCases,
 } from '@/application/tooling/use-cases';
+import type { MetricQueryResult } from '@/application/semantic-query/models';
 import {
   cubeSemanticQueryInputSchema,
   cubeSemanticQueryOutputSchema,
@@ -72,14 +73,7 @@ type AnalysisToolingDependencies = {
     runMetricQuery: (
       request: unknown,
       options?: { signal?: AbortSignal },
-    ) => Promise<{
-      metric: string;
-      rows: {
-        value: number | null;
-        time: string | null;
-        dimensions: Record<string, string | null>;
-      }[];
-    }>;
+    ) => Promise<MetricQueryResult>;
     checkHealth?: () => Promise<{
       ok: boolean;
       status: number;
@@ -229,6 +223,52 @@ function sanitizeRecords(records: Record<string, unknown>[]) {
       Object.entries(record).filter(([, value]) => value !== undefined),
     ),
   );
+}
+
+function getCubeRawDataLength(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return 0;
+  }
+
+  const data = (value as { data?: unknown }).data;
+
+  return Array.isArray(data) ? data.length : 0;
+}
+
+function buildMetricDiagnostics(result: MetricQueryResult) {
+  if (!/collection-rate/.test(result.metric)) {
+    return undefined;
+  }
+
+  const raw = result.raw as {
+    numerator?: unknown;
+    denominator?: unknown;
+  };
+  const numeratorRows = getCubeRawDataLength(raw.numerator);
+  const denominatorRows = getCubeRawDataLength(raw.denominator);
+  const rowsMissingNumerator = result.rows.filter((row) => {
+    const rowRaw = row.raw as { numerator?: unknown } | null;
+
+    return rowRaw?.numerator === null;
+  }).length;
+
+  if (denominatorRows === 0 && numeratorRows === 0 && rowsMissingNumerator === 0) {
+    return undefined;
+  }
+
+  const summary =
+    denominatorRows > 0 && numeratorRows === 0
+      ? `收缴率分母存在 ${denominatorRows} 行应收数据，但分子没有命中实收数据，当前结果会表现为 0。`
+      : `收缴率分子返回 ${numeratorRows} 行、分母返回 ${denominatorRows} 行，${rowsMissingNumerator} 行结果缺少匹配分子。`;
+
+  return {
+    summary,
+    ratio: {
+      numeratorRows,
+      denominatorRows,
+      rowsMissingNumerator,
+    },
+  };
 }
 
 export function createAnalysisToolingServices({
@@ -382,6 +422,7 @@ export function createAnalysisToolingServices({
             metric: result.metric,
             rowCount: result.rows.length,
             granularity: typedInput.granularity,
+            diagnostics: buildMetricDiagnostics(result),
             rows: result.rows.map((row) => ({
               value: row.value,
               time: row.time,

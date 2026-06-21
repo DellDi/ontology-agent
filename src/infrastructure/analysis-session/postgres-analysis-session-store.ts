@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 import type { AnalysisSessionStore } from '@/application/analysis-session/ports';
 import type { AnalysisSession } from '@/domain/analysis-session/models';
@@ -69,6 +69,31 @@ export function createPostgresAnalysisSessionStore(
         .orderBy(desc(analysisSessions.updatedAt));
 
       return rows.map(rowToAnalysisSession);
+    },
+
+    async updateSavedContext({
+      sessionId,
+      ownerUserId,
+      savedContext,
+      updatedAt,
+    }) {
+      const rows = await resolvedDb
+        .update(analysisSessions)
+        .set({
+          savedContext,
+          updatedAt: new Date(updatedAt),
+        })
+        .where(
+          and(
+            eq(analysisSessions.id, sessionId),
+            eq(analysisSessions.ownerUserId, ownerUserId),
+          ),
+        )
+        .returning();
+
+      const row = rows[0];
+
+      return row ? rowToAnalysisSession(row) : null;
     },
 
     async delete(sessionId: string) {

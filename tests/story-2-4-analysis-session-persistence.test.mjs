@@ -22,7 +22,7 @@ test('Story 2.4 工件存在：postgres-analysis-session-store.ts', async () => 
   );
 });
 
-test('postgres-analysis-session-store 实现 AnalysisSessionStore 接口（create / getById / listByOwner / delete）', async () => {
+test('postgres-analysis-session-store 实现 AnalysisSessionStore 接口（create / getById / listByOwner / updateSavedContext / delete）', async () => {
   const storeSource = await readRepoFile(
     'src/infrastructure/analysis-session/postgres-analysis-session-store.ts',
   );
@@ -32,6 +32,7 @@ test('postgres-analysis-session-store 实现 AnalysisSessionStore 接口（creat
   assert.match(storeSource, /async create\(/);
   assert.match(storeSource, /async getById\(/);
   assert.match(storeSource, /async listByOwner\(/);
+  assert.match(storeSource, /async updateSavedContext\(/);
   assert.match(storeSource, /async delete\(/);
 });
 
@@ -100,10 +101,10 @@ const consumerFiles = [
 ];
 
 for (const filePath of consumerFiles) {
-  test(`${filePath} 使用 createPostgresAnalysisSessionStore`, async () => {
+  test(`${filePath} 通过 composition root 使用 analysis session store`, async () => {
     const source = await readRepoFile(filePath);
 
-    assert.match(source, /createPostgresAnalysisSessionStore/);
+    assert.match(source, /createCompositionRoot/);
     assert.doesNotMatch(
       source,
       /createMemoryAnalysisSessionStore/,
@@ -141,16 +142,18 @@ test('分析会话消费者不使用浏览器客户端存储', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. 契约测试：AnalysisSessionStore port 接口未被修改
+// 4. 契约测试：AnalysisSessionStore port 接口支持会话上下文持久化
 // ---------------------------------------------------------------------------
 
-test('AnalysisSessionStore port 接口保持稳定并支持删除', async () => {
+test('AnalysisSessionStore port 接口支持 savedContext 更新并保留删除能力', async () => {
   const ports = await readRepoFile('src/application/analysis-session/ports.ts');
 
   assert.match(ports, /interface AnalysisSessionStore/);
   assert.match(ports, /create\(session: AnalysisSession\): Promise<AnalysisSession>/);
   assert.match(ports, /getById\(sessionId: string\): Promise<AnalysisSession \| null>/);
   assert.match(ports, /listByOwner\(ownerUserId: string\): Promise<AnalysisSession\[\]>/);
+  assert.match(ports, /updateSavedContext\(input: \{/);
+  assert.match(ports, /savedContext: AnalysisContext/);
   assert.match(ports, /delete\(sessionId: string\): Promise<void>/);
 });
 

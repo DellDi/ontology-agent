@@ -242,9 +242,10 @@ function matchTimeSemantic(
   return { status: 'failed', reason: `未能找到与 "${text}" 匹配的时间语义定义`, confidence: 0 };
 }
 
-function inferTimeSemanticFromMetricVariant(
+function inferTimeSemanticFromGroundedMetric(
   text: string,
   definitions: OntologyTimeSemantic[],
+  metricDefinition: OntologyMetricDefinition | null,
   metricVariant: OntologyMetricVariant | null,
 ): MatchResult<OntologyTimeSemantic> | null {
   if (!text.trim()) {
@@ -252,19 +253,31 @@ function inferTimeSemanticFromMetricVariant(
   }
 
   const inferredBusinessKey = (() => {
-    if (!metricVariant) {
-      return null;
+    if (metricVariant) {
+      if (/tail-arrears/.test(metricVariant.businessKey)) {
+        return 'billing-cycle-end-date';
+      }
+
+      if (/paid-amount/.test(metricVariant.businessKey)) {
+        return 'payment-date';
+      }
+
+      return 'receivable-accounting-period';
     }
 
-    if (/tail-arrears/.test(metricVariant.businessKey)) {
-      return 'billing-cycle-end-date';
+    switch (metricDefinition?.businessKey) {
+      case 'service-order-count':
+      case 'complaint-count':
+      case 'average-response-duration-hours':
+        return 'created-at';
+      case 'average-satisfaction':
+      case 'average-close-duration-hours':
+        return 'completed-at';
+      case 'collection-rate':
+        return 'receivable-accounting-period';
+      default:
+        return null;
     }
-
-    if (/paid-amount/.test(metricVariant.businessKey)) {
-      return 'payment-date';
-    }
-
-    return 'receivable-accounting-period';
   })();
 
   if (!inferredBusinessKey) {
@@ -449,9 +462,12 @@ export function createOntologyGroundingUseCases(
           );
           const inferredMatch =
             directMatch.status === 'failed'
-              ? inferTimeSemanticFromMetricVariant(
+              ? inferTimeSemanticFromGroundedMetric(
                   analysisContext.timeRange.value,
                   activeTimeSemantics,
+                  groundedMetrics.find(
+                    (metric) => metric.status === 'success' && metric.canonicalDefinition,
+                  )?.canonicalDefinition ?? null,
                   groundedMetrics.find(
                     (metric) => metric.status === 'success' && metric.variant,
                   )?.variant ?? null,
@@ -600,8 +616,7 @@ export function createOntologyGroundingUseCases(
           );
           const canTryNextPublishedVersion =
             !preferredVersionId &&
-            groundingStatus === 'failed' &&
-            successCount === 0 &&
+            failedItems.length > 0 &&
             candidateIndex < candidateVersions.length - 1;
 
           if (canTryNextPublishedVersion) {
@@ -937,7 +952,10 @@ export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependenc
         humanReadable: string;
       };
     }> {
-      const version = await deps.versionStore.findCurrentApproved();
+      const version =
+        typeof deps.versionStore.findCurrentPublished === 'function'
+          ? await deps.versionStore.findCurrentPublished()
+          : await deps.versionStore.findCurrentApproved();
 
       if (!version) {
         return {
@@ -947,7 +965,7 @@ export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependenc
           completeness: {
             isComplete: expectedMinimums ? false : null,
             missingCategories: [],
-            humanReadable: '当前环境没有任何 approved ontology version，需执行 bootstrap 初始化。',
+            humanReadable: '当前环境没有任何已发布的 approved ontology version，需执行 bootstrap 初始化。',
           },
         };
       }

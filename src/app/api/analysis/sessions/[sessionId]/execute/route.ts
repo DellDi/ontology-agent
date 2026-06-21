@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
+import {
+  buildMetricDictionaryFromOntology,
+  buildProjectNameDictionary,
+  summarizeOntologyForContextExtraction,
+} from '@/application/analysis-context-extraction';
 import { createAnalysisExecutionSubmissionUseCases } from '@/application/analysis-execution/submission-use-cases';
 import {
   buildGroundedPlanningArtifacts,
@@ -110,14 +115,21 @@ export async function POST(request: Request, { params }: RouteContext) {
   });
 
   try {
-    const scopedProjects = await root.erpReadUseCases.listProjects(authSession);
-    const projectNames = scopedProjects
-      .filter((p) => authSession.scope.projectIds.includes(p.id))
-      .map((p) => p.name);
+    const [scopedProjects, ontologyDefinitions] = await Promise.all([
+      root.erpReadUseCases.listProjects(authSession),
+      root.ontologyRuntimeServices.groundingUseCases.getCurrentApprovedDefinitions(),
+    ]);
+    const projectNames = buildProjectNameDictionary(scopedProjects);
+    const metricDictionary =
+      buildMetricDictionaryFromOntology(ontologyDefinitions);
 
     const extractionResult = await root.llmContextExtractionUseCases.extractContext({
       questionText: analysisSession.questionText,
-      projectNames,
+      projectNames: projectNames.length > 0 ? projectNames : undefined,
+      metricDictionary:
+        metricDictionary.length > 0 ? metricDictionary : undefined,
+      ontologyVersionSummary:
+        summarizeOntologyForContextExtraction(ontologyDefinitions),
     });
 
     if (extractionResult.source !== 'llm') {
@@ -140,11 +152,36 @@ export async function POST(request: Request, { params }: RouteContext) {
         },
       });
     } else {
-      await root.analysisContextUseCases.replaceInitialContextIfUnmodified({
+      const replacement =
+        await root.analysisContextUseCases.replaceInitialContextIfUnmodified({
+          sessionId: analysisSession.id,
+          ownerUserId: authSession.userId,
+          questionText: analysisSession.questionText,
+          newContext: extractionResult.context,
+        });
+      const updated = await root.analysisSessionUseCases.updateSavedContext({
         sessionId: analysisSession.id,
-        ownerUserId: authSession.userId,
-        questionText: analysisSession.questionText,
-        newContext: extractionResult.context,
+        owner: authSession,
+        context: replacement.context.context,
+      });
+
+      await root.auditUseCases.recordEvent({
+        userId: authSession.userId,
+        organizationId: authSession.scope.organizationId,
+        sessionId,
+        eventType: 'tool.invoked',
+        eventResult: updated ? 'succeeded' : 'failed',
+        eventSource: 'route-handler',
+        payload: {
+          tool: 'llm.context-extraction',
+          source: extractionResult.source,
+          confidence: extractionResult.confidence,
+          needsClarification: extractionResult.needsClarification,
+          projectDictionarySize: projectNames.length,
+          metricDictionarySize: metricDictionary.length,
+          persisted: Boolean(updated),
+          replacedInitialContext: replacement.replaced,
+        },
       });
     }
   } catch (error) {
@@ -165,7 +202,10 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   const [intent, contextReadModel, followUp] = await Promise.all([
-    root.analysisIntentUseCases.getIntentBySessionId(analysisSession.id),
+    root.analysisIntentUseCases.getOrRecognizeIntent({
+      sessionId: analysisSession.id,
+      questionText: analysisSession.questionText,
+    }),
     root.analysisContextUseCases.getCurrentContext({
       sessionId: analysisSession.id,
       questionText: analysisSession.questionText,
@@ -202,7 +242,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const candidateFactorReadModel =
     await root.factorExpansionUseCases.buildCandidateFactorReadModel({
-      intentType: intent?.type ?? 'general-analysis',
+      intentType: intent.type,
       questionText: executionQuestionText,
       contextReadModel: executionContextReadModel,
     });
@@ -246,7 +286,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       groundedArtifacts = await buildGroundedPlanningArtifacts({
         sessionId: analysisSession.id,
         ownerUserId: authSession.userId,
-        intentType: intent?.type ?? 'general-analysis',
+        intentType: intent.type,
         contextReadModel: executionContextReadModel,
         candidateFactorReadModel: mergedCandidateFactorReadModel,
         groundingUseCases: root.ontologyRuntimeServices.groundingUseCases,

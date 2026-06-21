@@ -369,6 +369,56 @@ test('归因结果模型会稳定生成排序原因、证据摘要和表格类�
   assert.ok(result.tableBlockTypes.includes('table'));
 });
 
+test('指标结果阶段会沉淀为可追问结论，避免完成态 causes 为空', async () => {
+  const result = await runTsSnippet(`
+    import resultModelsModule from './src/domain/analysis-result/models.ts';
+
+    const { buildAnalysisConclusionReadModel } = resultModelsModule;
+    const events = [
+      {
+        id: 'evt-metric',
+        sessionId: 'session-1',
+        executionId: 'exec-1',
+        sequence: 1,
+        kind: 'stage-result',
+        timestamp: '2026-06-21T00:00:00.000Z',
+        step: { id: 'return-metric-result', order: 2, title: '返回指标结果', status: 'completed' },
+        stage: { key: 'return-metric-result', label: '步骤 2', status: 'completed' },
+        message: '指标 project-collection-rate，返回 3 行，首条值 0',
+        renderBlocks: [
+          { type: 'status', title: '阶段状态', value: '已完成', tone: 'success' },
+          { type: 'table', title: '指标结果', columns: ['时间', '维度', '值'], rows: [['-', '六铺炕办公楼项目', '0']] },
+          {
+            type: 'kv-list',
+            title: '指标诊断',
+            items: [
+              { label: '诊断摘要', value: '收缴率分母存在 3 行应收数据，但分子没有命中实收数据，当前结果会表现为 0。' },
+            ],
+          },
+        ],
+      },
+    ];
+    const readModel = buildAnalysisConclusionReadModel(events);
+
+    console.log(JSON.stringify({
+      causeCount: readModel.causes.length,
+      firstTitle: readModel.causes[0]?.title ?? null,
+      firstSummary: readModel.causes[0]?.summary ?? null,
+      firstEvidence: readModel.causes[0]?.evidence.map((item) => item.summary) ?? [],
+      renderBlockTitles: readModel.renderBlocks.map((block) => block.title),
+    }));
+  `);
+
+  assert.equal(result.causeCount, 1);
+  assert.equal(result.firstTitle, '返回指标结果');
+  assert.match(result.firstSummary, /project-collection-rate/);
+  assert.ok(
+    result.firstEvidence.some((summary) => /分母存在 3 行应收数据/.test(summary)),
+  );
+  assert.ok(result.renderBlockTitles.includes('原因排序'));
+  assert.ok(result.renderBlockTitles.includes('指标结果'));
+});
+
 test('分析会话页会展示排序后的原因列表、关键证据和表格类结论块', async () => {
   const cookie = await login();
   const sessionId = await createSession(

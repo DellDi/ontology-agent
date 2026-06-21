@@ -135,6 +135,38 @@ function getConclusionCauseIdsFromSnapshot(
   return snapshot?.conclusionState?.causes?.map((cause) => cause.id) ?? [];
 }
 
+type SnapshotForConclusionReadModel =
+  Parameters<typeof buildExecutionStreamReadModelFromSnapshot>[0] & {
+    conclusionState?: AnalysisConclusionReadModel | null;
+  };
+
+function resolveConclusionReadModelFromSnapshot(
+  snapshot: SnapshotForConclusionReadModel | null,
+): AnalysisConclusionReadModel | null {
+  if (!snapshot) {
+    return null;
+  }
+
+  const storedConclusion = snapshot.conclusionState ?? null;
+
+  if (storedConclusion?.causes?.length) {
+    return storedConclusion;
+  }
+
+  const rebuiltConclusion = buildAnalysisConclusionReadModel(
+    buildExecutionStreamReadModelFromSnapshot(snapshot).events,
+  );
+
+  if (
+    rebuiltConclusion.causes.length > 0 ||
+    rebuiltConclusion.renderBlocks.length > 0
+  ) {
+    return rebuiltConclusion;
+  }
+
+  return storedConclusion;
+}
+
 // ---------------------------------------------------------------------------
 // Input / Output types
 // ---------------------------------------------------------------------------
@@ -223,9 +255,10 @@ export async function buildAnalysisSessionPageModel(
     return null;
   }
 
-  const intent = await root.analysisIntentUseCases.getIntentBySessionId(
-    analysisSession.id,
-  );
+  const intent = await root.analysisIntentUseCases.getOrRecognizeIntent({
+    sessionId: analysisSession.id,
+    questionText: analysisSession.questionText,
+  });
 
   await root.analysisContextUseCases.initializeContext({
     sessionId: analysisSession.id,
@@ -301,14 +334,14 @@ export async function buildAnalysisSessionPageModel(
 
   const baseCandidateFactorReadModel =
     await root.factorExpansionUseCases.buildCandidateFactorReadModel({
-      intentType: intent?.type ?? 'general-analysis',
+      intentType: intent.type,
       questionText: analysisSession.questionText,
       contextReadModel,
     });
 
   const planCandidateFactorReadModel = activeFollowUp
     ? await root.factorExpansionUseCases.buildCandidateFactorReadModel({
-        intentType: intent?.type ?? 'general-analysis',
+        intentType: intent.type,
         questionText: planQuestionText,
         contextReadModel: planContextReadModel,
       })
@@ -336,7 +369,7 @@ export async function buildAnalysisSessionPageModel(
 
     const followUpCandidateFactorReadModel =
       await root.factorExpansionUseCases.buildCandidateFactorReadModel({
-        intentType: intent?.type ?? 'general-analysis',
+        intentType: intent.type,
         questionText: followUp.questionText,
         contextReadModel: buildFollowUpContextReadModel(
           analysisSession.id,
@@ -427,7 +460,7 @@ export async function buildAnalysisSessionPageModel(
         await buildGroundedPlanningArtifacts({
           sessionId: analysisSession.id,
           ownerUserId: owner.userId,
-          intentType: intent?.type ?? 'general-analysis',
+          intentType: intent.type,
           contextReadModel: planContextReadModel,
           candidateFactorReadModel: mergedCandidateFactorReadModel,
           groundingUseCases: root.ontologyRuntimeServices.groundingUseCases,
@@ -461,9 +494,8 @@ export async function buildAnalysisSessionPageModel(
         : null);
 
   const conclusionReadModel =
-    sessionScopedRequestedExecutionSnapshot?.conclusionState ??
-    snapshotForDisplay?.conclusionState ??
-    null;
+    resolveConclusionReadModelFromSnapshot(sessionScopedRequestedExecutionSnapshot) ??
+    resolveConclusionReadModelFromSnapshot(snapshotForDisplay);
   const liveConclusionReadModel = conclusionReadModel
     ? conclusionReadModel
     : executionStreamReadModel
@@ -494,12 +526,14 @@ export async function buildAnalysisSessionPageModel(
     ? formatOntologyVersionBindingBadge(ontologyVersionBindingForDisplay)
     : null;
 
+  const latestExecutionConclusionReadModel =
+    resolveConclusionReadModelFromSnapshot(latestExecutionSnapshot);
   const latestFollowUpConclusion = activeFollowUp
     ? {
         title: activeFollowUp.referencedConclusionTitle,
         summary: activeFollowUp.referencedConclusionSummary,
       }
-    : (latestExecutionSnapshot?.conclusionState?.causes?.[0] ?? null);
+    : (latestExecutionConclusionReadModel?.causes?.[0] ?? null);
 
   const followUpInheritedContext = activeFollowUp?.mergedContext ?? contextReadModel.context;
 

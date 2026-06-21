@@ -52,6 +52,12 @@ function formatDimensions(dimensions: Record<string, string | null> | null | und
     .join(', ');
 }
 
+function formatTimeForSummary(value: string | null | undefined) {
+  if (!value) return '-';
+  const monthMatch = value.match(/^(\d{4}-\d{2})/);
+  return monthMatch?.[1] ?? value;
+}
+
 const NEO4J_RELATION_LABELS: Record<string, string> = {
   'contains': '包含',
   'belongs-to': '所属',
@@ -87,6 +93,14 @@ function buildSuccessPresentation(
         metric?: string;
         rowCount?: number;
         granularity?: string;
+        diagnostics?: {
+          summary?: string;
+          ratio?: {
+            numeratorRows?: number;
+            denominatorRows?: number;
+            rowsMissingNumerator?: number;
+          };
+        };
         rows?: {
           value: number | null;
           time: string | null;
@@ -98,6 +112,33 @@ function buildSuccessPresentation(
       const displayRows = isMonthly
         ? (output.rows ?? [])
         : (output.rows ?? []).slice(0, 5);
+      const monthlyDetail =
+        isMonthly && output.rows?.length
+          ? `月度明细 ${output.rows
+              .map((row) => `${formatTimeForSummary(row.time)}=${row.value ?? '-'}`)
+              .join('，')}`
+          : null;
+      const monthlyChartBlock =
+        isMonthly && output.rows?.some((row) => typeof row.value === 'number')
+          ? [
+              {
+                type: 'chart' as const,
+                title: '指标趋势',
+                chartType: 'line' as const,
+                series: [
+                  {
+                    name: output.metric ?? '指标',
+                    points: output.rows
+                      .filter((row) => typeof row.value === 'number')
+                      .map((row) => ({
+                        label: formatTimeForSummary(row.time),
+                        value: row.value as number,
+                      })),
+                  },
+                ],
+              },
+            ]
+          : [];
 
       return {
         summary: [
@@ -106,10 +147,13 @@ function buildSuccessPresentation(
           firstValue !== null && firstValue !== undefined
             ? `首条值 ${firstValue}`
             : null,
+          monthlyDetail,
+          output.diagnostics?.summary ?? null,
         ]
           .filter(Boolean)
           .join('，'),
         renderBlocks: [
+          ...monthlyChartBlock,
           {
             type: 'table',
             title: '指标结果',
@@ -120,6 +164,36 @@ function buildSuccessPresentation(
               row.value === null ? '-' : String(row.value),
             ]),
           },
+          ...(output.diagnostics?.summary
+            ? [
+                {
+                  type: 'kv-list' as const,
+                  title: '指标诊断',
+                  items: [
+                    {
+                      label: '诊断摘要',
+                      value: output.diagnostics.summary,
+                    },
+                    ...(output.diagnostics.ratio
+                      ? [
+                          {
+                            label: '分子行数',
+                            value: String(output.diagnostics.ratio.numeratorRows ?? 0),
+                          },
+                          {
+                            label: '分母行数',
+                            value: String(output.diagnostics.ratio.denominatorRows ?? 0),
+                          },
+                          {
+                            label: '缺少分子的结果行',
+                            value: String(output.diagnostics.ratio.rowsMissingNumerator ?? 0),
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              ]
+            : []),
         ],
       };
     }

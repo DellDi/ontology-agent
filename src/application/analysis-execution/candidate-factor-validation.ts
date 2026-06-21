@@ -151,8 +151,8 @@ export function deriveCandidateFactorValidations(input: {
     if (successEvidence.length > 0) {
       return {
         factorKey: factor.key,
-        status: 'supported' as const,
-        note: `验证步骤已执行，并返回了可用于核验「${factor.label}」的图谱或业务数据；该方向可以作为后续归因判断的有效候选。`,
+        status: 'inconclusive' as const,
+        note: `验证步骤已执行并返回了业务数据，但没有命中「${factor.label}」的因素级证据，不能判定为已支持。`,
       };
     }
 

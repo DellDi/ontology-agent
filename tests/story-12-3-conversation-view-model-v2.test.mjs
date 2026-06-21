@@ -531,6 +531,48 @@ test('AC8 | failed headline 使用业务语言', async () => {
   assert.ok(!result.headline.includes('执行'), 'headline 不应包含 执行');
 });
 
+test('AC8 | failed 状态应直接暴露可读失败原因', async () => {
+  const events = [
+    buildEvent({
+      sequence: 1,
+      kind: 'stage-result',
+      status: 'failed',
+      message: '步骤 return-metric-result 未匹配到可执行工具，且没有可用降级路径。',
+      step: {
+        id: 'return-metric-result',
+        order: 2,
+        title: '返回指标结果',
+        status: 'failed',
+      },
+      stage: {
+        key: 'return-metric-result',
+        label: '步骤 2',
+        status: 'failed',
+      },
+    }),
+  ];
+  const result = await runTsSnippet(`
+    ${IMPORTS}
+    const events = ${JSON.stringify(events)};
+    const projection = buildAiRuntimeProjection({
+      sessionId: 'session-1', executionId: 'exec-1', events, fallbackConclusion: null,
+    });
+    const vm = buildConversationViewModel({
+      questionText: '测试', projection, events, hasConnectionIssue: false,
+    });
+    console.log(JSON.stringify({
+      status: vm.assistantMessage.status,
+      errorSummary: vm.assistantMessage.errorSummary,
+    }));
+  `);
+
+  assert.equal(result.status, 'failed');
+  assert.equal(
+    result.errorSummary,
+    '步骤 return-metric-result 未匹配到可执行工具，且没有可用降级路径。',
+  );
+});
+
 // ---------------------------------------------------------------------------
 // AC9: 无 projection 时 toolTimeline 也能正确构建
 // ---------------------------------------------------------------------------

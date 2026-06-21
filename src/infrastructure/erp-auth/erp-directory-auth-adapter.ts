@@ -53,7 +53,9 @@ export function createErpDirectoryAuthAdapter({
     }
 
     const userId = String(user.sourceId);
-    const scope = await scopeResolver.resolveUserScope(userId, organizationId);
+    const scope = await scopeResolver.resolveUserScope(userId, organizationId, {
+      userAccount: user.userAccount,
+    });
 
     return {
       userId,
@@ -98,7 +100,9 @@ export function createErpDirectoryAuthAdapter({
       }
 
       const userId = String(user.sourceId);
-      const scope = await scopeResolver.resolveUserScope(userId, organizationId);
+      const scope = await scopeResolver.resolveUserScope(userId, organizationId, {
+        userAccount: user.userAccount,
+      });
 
       return {
         userId,

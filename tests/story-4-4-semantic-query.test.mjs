@@ -16,7 +16,15 @@ async function runTsSnippet(code) {
   const { stdout } = await execFileAsync(
     'node',
     ['--import', 'tsx', '--input-type=module', '-e', code],
-    { cwd: repoRoot },
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--conditions=react-server']
+          .filter(Boolean)
+          .join(' '),
+      },
+    },
   );
 
   return JSON.parse(stdout.trim());
@@ -232,6 +240,78 @@ test('项目口径实收指标会同时使用应收账期和实收日期两个�
     {
       dimension: 'FinancePayments.paymentDate',
       dateRange: ['2026-01-01', '2026-12-31'],
+    },
+  ]);
+});
+
+test('项目口径月度收缴率按应收账期聚合实收并按月份对齐分子分母', async () => {
+  const result = await runTsSnippet(`
+    import adapterModule from './src/infrastructure/cube/cube-semantic-query-adapter.ts';
+    const { combineRatioResults } = adapterModule;
+
+    const combined = combineRatioResults({
+      metric: 'project-collection-rate',
+      numerator: {
+        metric: 'project-paid-amount',
+        rows: [
+          {
+            value: 30,
+            time: '2026-01-01T00:00:00.000',
+            dimensions: { 'project-id': '10030' },
+            raw: { paymentMonth: '2026-01' },
+          },
+          {
+            value: 20,
+            time: '2026-01-01T00:00:00.000',
+            dimensions: { 'project-id': '10030' },
+            raw: { paymentMonth: '2026-02' },
+          },
+          {
+            value: 10,
+            time: '2026-02-01T00:00:00.000',
+            dimensions: { 'project-id': '10030' },
+            raw: { paymentMonth: '2026-02' },
+          },
+        ],
+        raw: {},
+      },
+      denominator: {
+        metric: 'project-receivable-amount',
+        rows: [
+          {
+            value: 100,
+            time: '2026-01-01T00:00:00.000',
+            dimensions: { 'project-id': '10030' },
+            raw: { receivableMonth: '2026-01' },
+          },
+          {
+            value: 200,
+            time: '2026-02-01T00:00:00.000',
+            dimensions: { 'project-id': '10030' },
+            raw: { receivableMonth: '2026-02' },
+          },
+        ],
+        raw: {},
+      },
+    });
+
+    console.log(JSON.stringify(combined.rows.map((row) => ({
+      time: row.time,
+      value: row.value,
+      numeratorRows: row.raw.numerator?.rows?.length ?? 0,
+    }))));
+  `);
+
+  assert.deepEqual(result, [
+    {
+      time: '2026-01-01T00:00:00.000',
+      value: 50,
+      numeratorRows: 2,
+    },
+    {
+      time: '2026-02-01T00:00:00.000',
+      value: 5,
+      numeratorRows: 1,
     },
   ]);
 });

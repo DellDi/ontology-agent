@@ -176,6 +176,8 @@ export type ConversationAssistantMessage = {
   status: ConversationAssistantStatus;
   /** 一句话人话状态 */
   headline: string;
+  /** 失败时直接展示给业务用户的原因摘要 */
+  errorSummary?: string;
   /** 进度标签，例如 "3/5 步已完成" */
   progressLabel?: string;
   /** 工具调用紧凑状态条 */
@@ -408,6 +410,49 @@ function resolveStatusHeadline(input: {
     case 'disconnected':
       return '实时连接中断，结果可能仍在后台继续生成';
   }
+}
+
+function normalizeFailureMessage(message: string | undefined) {
+  const trimmed = message?.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (/^步骤\s+\d+\s+失败\s+\(/u.test(trimmed)) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+function resolveFailureSummary(
+  events: readonly AnalysisExecutionStreamEvent[],
+): string | undefined {
+  for (const event of [...events].reverse()) {
+    if (event.kind === 'tool-failed' && event.tool?.error) {
+      const toolLabel = event.tool.label || translateToolName(event.tool.name);
+      return `${toolLabel}失败：${event.tool.error}`;
+    }
+
+    if (
+      (event.kind === 'stage-result' ||
+        event.kind === 'step-completed' ||
+        event.kind === 'step-lifecycle' ||
+        event.kind === 'execution-status') &&
+      (event.status === 'failed' ||
+        event.stage?.status === 'failed' ||
+        event.step?.status === 'failed')
+    ) {
+      const normalized = normalizeFailureMessage(event.message);
+
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -1324,6 +1369,8 @@ export function buildConversationViewModel(
     statusBannerMessage: statusBanner?.message ?? statusBanner?.label,
     currentStepTitle,
   });
+  const errorSummary =
+    status === 'failed' ? resolveFailureSummary(events) : undefined;
 
   const progressLabel = resolveProgressLabel(events);
 
@@ -1380,6 +1427,7 @@ export function buildConversationViewModel(
     assistantMessage: {
       status,
       headline,
+      errorSummary,
       progressLabel,
       toolActivities,
       result: resultSection,

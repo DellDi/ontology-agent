@@ -21,5 +21,11 @@ export type {
   NormalizedExtraction,
 } from './normalization';
 
+export {
+  buildMetricDictionaryFromOntology,
+  buildProjectNameDictionary,
+  summarizeOntologyForContextExtraction,
+} from './dictionaries';
+
 export { resolveAutoGuessDecision } from './auto-guess-strategy';
 export type { AutoGuessDecision } from './auto-guess-strategy';

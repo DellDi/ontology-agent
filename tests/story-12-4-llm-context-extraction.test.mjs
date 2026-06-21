@@ -119,6 +119,39 @@ test('Story 12.4 | 无效 LLM 输出（confidence 越界）未通过 Zod 校验'
   assert.equal(result.ok, false);
 });
 
+test('Story 12.4 | adapter 可对缺省契约字段做受控补齐后再走严格 schema', async () => {
+  const result = await runTsSnippet(`
+    import adapterModule from './src/infrastructure/analysis-context-extraction/llm-context-extraction-adapter.ts';
+    import schemaModule from './src/application/analysis-context-extraction/schemas.ts';
+    const { coerceLlmContextExtractionOutput } = adapterModule;
+    const { llmContextExtractionOutputSchema } = schemaModule;
+    const raw = {
+      targetMetric: { value: '收缴率' },
+      entity: { value: '六坑铺项目', kind: 'project' },
+      timeRange: { value: '今年' },
+      comparison: { type: 'none' },
+      filters: { project: '六坑铺项目' },
+      assumptions: [],
+      needsClarification: false,
+    };
+    const repaired = coerceLlmContextExtractionOutput(raw);
+    const validation = llmContextExtractionOutputSchema.safeParse(repaired);
+    console.log(JSON.stringify({
+      repaired: Boolean(repaired),
+      ok: validation.success,
+      metricConfidence: repaired?.targetMetric.confidence,
+      comparisonValue: repaired?.comparison.value,
+      filters: repaired?.filters ?? null,
+    }));
+  `);
+
+  assert.equal(result.repaired, true);
+  assert.equal(result.ok, true);
+  assert.equal(result.metricConfidence, 0.65);
+  assert.equal(result.comparisonValue, '无需比较');
+  assert.equal(result.filters, null, '错误形态的 filters 不应伪造成有效筛选条件');
+});
+
 test('Story 12.4 | 输入 schema 拒绝空 questionText', async () => {
   const result = await runTsSnippet(`
     import schemaModule from './src/application/analysis-context-extraction/schemas.ts';
@@ -192,6 +225,43 @@ test('Story 12.4 | 实体匹配 projectNames → confirmed 并生成项目约束
       (c) => c.label === '项目约束' && c.value === '丰和园小区项目',
     ),
     'constraints 应包含「项目约束: 丰和园小区项目」',
+  );
+});
+
+test('Story 12.4 | 实体错别字可通过 projectNames 字典归一化', async () => {
+  const result = await runTsSnippet(`
+    import normModule from './src/application/analysis-context-extraction/normalization.ts';
+    const { normalizeLlmExtractionOutput } = normModule;
+    const output = {
+      targetMetric: { value: '应收金额', confidence: 0.9 },
+      entity: { value: '六坑铺项目', kind: 'project', confidence: 0.8 },
+      timeRange: { value: '今年', confidence: 0.9 },
+      comparison: { value: '无需比较', type: 'none', confidence: 0.9 },
+      assumptions: [],
+      needsClarification: false,
+      overallConfidence: 0.86,
+    };
+    const { context } = normalizeLlmExtractionOutput(output, {
+      projectNames: ['六铺炕办公楼项目', '六铺炕员工餐厅', '六铺炕智慧餐厅'],
+      currentYear: 2026,
+    });
+    console.log(JSON.stringify({
+      entity: context.entity,
+      constraints: context.constraints,
+    }));
+  `);
+
+  assert.equal(result.entity.state, 'confirmed');
+  assert.equal(
+    result.entity.value,
+    '六铺炕办公楼项目 / 六铺炕员工餐厅 / 六铺炕智慧餐厅',
+  );
+  assert.ok(
+    result.constraints.some(
+      (c) =>
+        c.label === '项目约束' &&
+        c.value === '六铺炕办公楼项目 / 六铺炕员工餐厅 / 六铺炕智慧餐厅',
+    ),
   );
 });
 
@@ -504,6 +574,49 @@ test('Story 12.4 | 使用 mock port 集成测试完整流程（source=llm）', a
   assert.equal(result.needsClarification, false);
 });
 
+test('Story 12.4 | LLM 近义指标通过 ontology 字典归一到标准指标名', async () => {
+  const result = await runTsSnippet(`
+    import useCaseModule from './src/application/analysis-context-extraction/use-cases.ts';
+    const { createContextExtractionUseCases } = useCaseModule;
+    const mockPort = {
+      async extract() {
+        return {
+          targetMetric: {
+            value: '应收金额',
+            confidence: 0.72,
+            candidates: ['项目口径应收金额'],
+          },
+          entity: { value: '六坑铺', kind: 'project', confidence: 0.8 },
+          timeRange: { value: '今年', confidence: 0.9 },
+          comparison: { value: '无需比较', type: 'none', confidence: 0.9 },
+          assumptions: [],
+          needsClarification: false,
+          overallConfidence: 0.8,
+        };
+      },
+    };
+    const { extractContext } = createContextExtractionUseCases({ extractionPort: mockPort });
+    const r = await extractContext({
+      questionText: '查看一下六坑铺项目今年的应收金额',
+      projectNames: ['六铺炕办公楼项目'],
+      metricDictionary: ['收缴率', '项目口径应收金额', '尾欠口径应收金额'],
+    });
+    console.log(JSON.stringify({
+      metricValue: r.context.targetMetric.value,
+      metricState: r.context.targetMetric.state,
+      entityValue: r.context.entity.value,
+      entityState: r.context.entity.state,
+      timeRangeValue: r.context.timeRange.value,
+    }));
+  `);
+
+  assert.equal(result.metricValue, '项目口径应收金额');
+  assert.equal(result.metricState, 'confirmed');
+  assert.equal(result.entityValue, '六铺炕办公楼项目');
+  assert.equal(result.entityState, 'confirmed');
+  assert.equal(result.timeRangeValue, '2026年');
+});
+
 test('Story 12.4 | 使用 mock port 时输入透传给端口', async () => {
   const result = await runTsSnippet(`
     import useCaseModule from './src/application/analysis-context-extraction/use-cases.ts';
@@ -550,5 +663,8 @@ test('Story 12.4 | barrel index.ts 导出所有公共 API', async () => {
   assert.ok(result.keys.includes('llmContextExtractionInputSchema'));
   assert.ok(result.keys.includes('createContextExtractionUseCases'));
   assert.ok(result.keys.includes('normalizeLlmExtractionOutput'));
+  assert.ok(result.keys.includes('buildMetricDictionaryFromOntology'));
+  assert.ok(result.keys.includes('buildProjectNameDictionary'));
+  assert.ok(result.keys.includes('summarizeOntologyForContextExtraction'));
   assert.ok(result.keys.includes('resolveAutoGuessDecision'));
 });

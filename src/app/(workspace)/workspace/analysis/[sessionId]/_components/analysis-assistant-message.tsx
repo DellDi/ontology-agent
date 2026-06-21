@@ -47,6 +47,7 @@ function isBlockAlreadyVisualized(
 export function AnalysisAssistantMessage({
   status,
   headline,
+  errorSummary,
   progressLabel,
   toolActivities,
   result,
@@ -59,6 +60,7 @@ export function AnalysisAssistantMessage({
 }: {
   status: ConversationAssistantStatus;
   headline: string;
+  errorSummary?: string;
   progressLabel?: string;
   toolActivities: ToolActivitySummary[];
   result: AnalysisConversationViewModel['assistantMessage']['result'];
@@ -171,15 +173,18 @@ export function AnalysisAssistantMessage({
         {/* 失败状态 */}
         {status === 'failed' ? (
           <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
-            <p className="text-sm text-rose-900">
-              分析过程中遇到问题，请查看详细信息了解原因。
+            <p className="text-sm font-medium text-rose-900">
+              分析过程中遇到问题
+            </p>
+            <p className="mt-1 text-sm leading-6 text-rose-800">
+              {errorSummary ?? '系统暂时没有返回可展示的失败原因，请打开诊断信息查看事件明细。'}
             </p>
             <button
               className="mt-2 text-xs font-medium text-rose-700 underline underline-offset-2 hover:text-rose-900"
-              onClick={() => onOpenDetail('execution-log')}
+              onClick={() => onOpenDetail(hasDiagnostics ? 'diagnostics' : 'execution-log')}
               type="button"
             >
-              查看详细信息
+              查看诊断信息
             </button>
           </div>
         ) : null}

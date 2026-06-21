@@ -59,6 +59,36 @@ function parseNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function getPrimaryTimeDimension(
+  request: MetricQueryRequest,
+  definition: SemanticMetricDefinition,
+) {
+  const requestDateRanges = normalizeDateRanges(request);
+
+  if (requestDateRanges.length === 0) {
+    return null;
+  }
+
+  const primaryDateRange =
+    requestDateRanges.length > 1
+      ? requestDateRanges[0]
+      : requestDateRanges.find((range) => range.dimension === definition.defaultDateDimension) ??
+        requestDateRanges[0];
+  const dimension =
+    definition.dateDimensions[primaryDateRange.dimension] ??
+    definition.dateDimensions[definition.defaultDateDimension];
+
+  if (!dimension) {
+    return null;
+  }
+
+  return buildTimeDimensionKey({
+    dimension,
+    dateRange: [primaryDateRange.from, primaryDateRange.to],
+    granularity: request.granularity,
+  });
+}
+
 function createAbortController(timeoutMs: number, externalSignal?: AbortSignal) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -86,17 +116,7 @@ function mapRows(
   payload: CubeResponsePayload,
 ): MetricQueryResult {
   const rows = payload.data ?? [];
-  const requestDateRanges = normalizeDateRanges(request);
-  const timeKey =
-    requestDateRanges.length === 1
-      ? buildTimeDimensionKey({
-          dimension:
-            definition.dateDimensions[requestDateRanges[0].dimension] ??
-            definition.dateDimensions[definition.defaultDateDimension]!,
-          dateRange: [requestDateRanges[0].from, requestDateRanges[0].to],
-          granularity: request.granularity,
-        })
-      : null;
+  const timeKey = getPrimaryTimeDimension(request, definition);
 
   return {
     metric: request.metric,
@@ -266,19 +286,52 @@ function normalizeFinanceMeasureRequest(
 }
 
 function buildResultKey(row: MetricQueryRow) {
-  return JSON.stringify(row.dimensions);
+  return JSON.stringify({
+    time: row.time,
+    dimensions: row.dimensions,
+  });
 }
 
-function combineRatioResults(input: {
+function aggregateRowsByResultKey(rows: MetricQueryRow[]) {
+  const rowsByKey = new Map<string, MetricQueryRow>();
+
+  for (const row of rows) {
+    const key = buildResultKey(row);
+    const existing = rowsByKey.get(key);
+    const value = row.value ?? 0;
+
+    if (!existing) {
+      rowsByKey.set(key, {
+        ...row,
+        value,
+        raw: {
+          rows: [row.raw],
+        },
+      });
+      continue;
+    }
+
+    existing.value = (existing.value ?? 0) + value;
+    existing.raw = {
+      rows: [
+        ...((Array.isArray(existing.raw.rows) ? existing.raw.rows : []) as unknown[]),
+        row.raw,
+      ],
+    };
+  }
+
+  return rowsByKey;
+}
+
+export function combineRatioResults(input: {
   metric: SemanticMetricKey;
   numerator: MetricQueryResult;
   denominator: MetricQueryResult;
 }): MetricQueryResult {
-  const numeratorByKey = new Map(
-    input.numerator.rows.map((row) => [buildResultKey(row), row]),
-  );
+  const numeratorByKey = aggregateRowsByResultKey(input.numerator.rows);
+  const denominatorByKey = aggregateRowsByResultKey(input.denominator.rows);
 
-  const rows = input.denominator.rows.flatMap((denominatorRow) => {
+  const rows = [...denominatorByKey.values()].flatMap((denominatorRow) => {
     const denominatorValue = denominatorRow.value ?? 0;
 
     if (denominatorValue <= 0) {

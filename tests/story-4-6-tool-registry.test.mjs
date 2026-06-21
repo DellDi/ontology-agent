@@ -580,7 +580,7 @@ test('tool selection 未命中时会回退到步骤级保守映射', async () =>
   assert.match(result.strategy, /回退到步骤级保守映射/);
   assert.deepEqual(
     result.tools.map((tool) => tool.toolName),
-    ['neo4j.graph-query', 'erp.read-model', 'platform.capability-status'],
+    ['cube.semantic-query', 'neo4j.graph-query', 'erp.read-model'],
   );
 });
 
@@ -778,6 +778,263 @@ test('汇总归因步骤回退时仍会带上 llm 结构化分析工具', async 
   assert.ok(
     result.tools.some((tool) => tool.toolName === 'llm.structured-analysis'),
   );
+});
+
+test('汇总归因的 LLM 工具必须在数据工具之后执行并接收真实证据摘要', async () => {
+  const result = await runTsSnippet(`
+    import analysisExecutionModule from './src/application/analysis-execution/use-cases.ts';
+
+    const { createAnalysisExecutionUseCases } = analysisExecutionModule;
+    const invocationOrder = [];
+    let llmEvidenceSummary = null;
+
+    const useCases = createAnalysisExecutionUseCases({
+      toolRegistryUseCases: {
+        listToolDefinitions() {
+          return [
+            { name: 'llm.structured-analysis', availability: 'ready' },
+            { name: 'cube.semantic-query', availability: 'ready' },
+            { name: 'neo4j.graph-query', availability: 'ready' },
+          ];
+        },
+        async invokeTool({ toolName, input }) {
+          invocationOrder.push(toolName);
+          if (toolName === 'cube.semantic-query') {
+            return {
+              ok: true,
+              toolName,
+              correlationId: 'corr-summary-order',
+              startedAt: '2026-01-01T00:00:00.000Z',
+              finishedAt: '2026-01-01T00:00:01.000Z',
+              output: {
+                metric: 'service-order-count',
+                rowCount: 6,
+                granularity: 'month',
+                rows: [{ value: 758, time: '2026-01-01T00:00:00.000', dimensions: {} }],
+              },
+            };
+          }
+          if (toolName === 'neo4j.graph-query') {
+            return {
+              ok: true,
+              toolName,
+              correlationId: 'corr-summary-order',
+              startedAt: '2026-01-01T00:00:01.000Z',
+              finishedAt: '2026-01-01T00:00:02.000Z',
+              output: {
+                factors: [{
+                  factorLabel: '满意度评价信号',
+                  relationType: 'has-satisfaction',
+                  explanation: 'Project -> ServiceOrder -> Satisfaction',
+                }],
+              },
+            };
+          }
+          llmEvidenceSummary = input?.input?.evidenceSummary ?? null;
+          return {
+            ok: true,
+            toolName,
+            correlationId: 'corr-summary-order',
+            startedAt: '2026-01-01T00:00:02.000Z',
+            finishedAt: '2026-01-01T00:00:03.000Z',
+            output: {
+              value: {
+                summary: '已基于月度工单和满意度证据汇总。',
+                conclusion: '服务压力与满意度信号有关。',
+              },
+            },
+          };
+        },
+      },
+      analysisAiUseCases: {
+        async runTask() {
+          return {
+            ok: true,
+            value: {
+              strategy: '故意让 LLM 排在前面，验证执行器重排',
+              tools: [
+                { toolName: 'llm.structured-analysis', objective: '汇总结论', confidence: 0.9 },
+                { toolName: 'cube.semantic-query', objective: '查询月度工单', confidence: 0.8 },
+                { toolName: 'neo4j.graph-query', objective: '查询关联因素', confidence: 0.8 },
+              ],
+            },
+          };
+        },
+      },
+    });
+
+    const execution = await useCases.executeStep({
+      stepId: 'synthesize-attribution',
+      questionText: '丰和园小区项目2026年按月工单总量趋势如何？',
+      planSummary: '先查数据再汇总',
+      stepTitle: '汇总归因判断',
+      stepObjective: '基于证据汇总判断。',
+      selectionContext: {
+        userId: 'user-1',
+        organizationId: 'org-1',
+        purpose: 'analysis-execution',
+      },
+      invocationContext: {
+        correlationId: 'corr-summary-order',
+        source: 'worker',
+        userId: 'user-1',
+        organizationId: 'org-1',
+      },
+      toolInputsByName: {
+        'cube.semantic-query': {
+          metric: 'service-order-count',
+          scope: { organizationId: 'org-1', projectIds: ['10030'] },
+          granularity: 'month',
+        },
+        'neo4j.graph-query': {
+          intentType: 'work-order-analysis',
+          metric: '工单总量',
+          entity: '丰和园小区项目',
+          timeRange: '2026年',
+          questionText: '丰和园小区项目2026年按月工单总量趋势如何？',
+        },
+        'llm.structured-analysis': {
+          taskType: 'conclusion-summary',
+          input: {
+            questionText: '丰和园小区项目2026年按月工单总量趋势如何？',
+            evidenceSummary: '步骤：汇总归因判断',
+          },
+        },
+      },
+    });
+
+    console.log(JSON.stringify({
+      status: execution.status,
+      invocationOrder,
+      returnedTools: execution.tools.map((tool) => tool.toolName),
+      llmEvidenceSummary,
+    }));
+  `);
+
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(result.invocationOrder, [
+    'cube.semantic-query',
+    'neo4j.graph-query',
+    'llm.structured-analysis',
+  ]);
+  assert.deepEqual(result.returnedTools, result.invocationOrder);
+  assert.match(result.llmEvidenceSummary, /指标 service-order-count，返回 6 行/);
+  assert.match(result.llmEvidenceSummary, /Neo4j 返回 1 个候选因素/);
+});
+
+test('汇总归因支持同一 Cube 工具按多个因素证据指标连续执行', async () => {
+  const result = await runTsSnippet(`
+    import executionModule from './src/application/analysis-execution/use-cases.ts';
+
+    const { createAnalysisExecutionUseCases } = executionModule;
+    const invocationOrder = [];
+    let llmEvidenceSummary = '';
+
+    const useCases = createAnalysisExecutionUseCases({
+      toolRegistryUseCases: {
+        listToolDefinitions() {
+          return [
+            { name: 'llm.structured-analysis', availability: 'ready' },
+            { name: 'cube.semantic-query', availability: 'ready' },
+          ];
+        },
+        async invokeTool({ toolName, input }) {
+          invocationOrder.push(toolName + ':' + (input?.metric ?? input?.taskType ?? ''));
+          if (toolName === 'cube.semantic-query') {
+            return {
+              ok: true,
+              toolName,
+              output: {
+                metric: input.metric,
+                rowCount: 1,
+                rows: [{ value: input.metric === 'complaint-count' ? 9 : 5, time: null, dimensions: {} }],
+              },
+            };
+          }
+          llmEvidenceSummary = input.input.evidenceSummary;
+          return {
+            ok: true,
+            toolName,
+            output: {
+              ok: true,
+              taskType: 'conclusion-summary',
+              value: { summary: '已汇总', conclusion: '证据完整' },
+              issues: [],
+              provider: 'fake',
+              model: 'fake',
+              finishReason: 'stop',
+            },
+          };
+        },
+      },
+      analysisAiUseCases: {
+        async runTask() {
+          return {
+            ok: true,
+            value: {
+              strategy: '故意让 LLM 排在前面，验证多指标查询会先执行',
+              tools: [
+                { toolName: 'llm.structured-analysis', objective: '汇总结论', confidence: 0.9 },
+                { toolName: 'cube.semantic-query', objective: '补齐因素指标', confidence: 0.8 },
+              ],
+            },
+          };
+        },
+      },
+    });
+
+    const execution = await useCases.executeStep({
+      stepId: 'synthesize-attribution',
+      questionText: '丰和园小区项目2026年按月工单总量趋势如何？请说明投诉和满意度影响。',
+      planSummary: '先查指标再汇总',
+      stepTitle: '汇总归因判断',
+      stepObjective: '基于证据汇总判断。',
+      selectionContext: {
+        userId: 'user-1',
+        organizationId: 'org-1',
+        purpose: 'analysis-execution',
+      },
+      invocationContext: {
+        correlationId: 'corr-multi-cube',
+        source: 'worker',
+        userId: 'user-1',
+        organizationId: 'org-1',
+      },
+      toolInputsByName: {
+        'cube.semantic-query': [
+          { metric: 'service-order-count', scope: { organizationId: 'org-1', projectIds: ['10030'] } },
+          { metric: 'complaint-count', scope: { organizationId: 'org-1', projectIds: ['10030'] } },
+          { metric: 'average-satisfaction', scope: { organizationId: 'org-1', projectIds: ['10030'] } },
+        ],
+        'llm.structured-analysis': {
+          taskType: 'conclusion-summary',
+          input: {
+            questionText: '丰和园小区项目2026年按月工单总量趋势如何？请说明投诉和满意度影响。',
+            evidenceSummary: '步骤：汇总归因判断',
+          },
+        },
+      },
+    });
+
+    console.log(JSON.stringify({
+      status: execution.status,
+      invocationOrder,
+      eventCount: execution.events.length,
+      llmEvidenceSummary,
+    }));
+  `);
+
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(result.invocationOrder, [
+    'cube.semantic-query:service-order-count',
+    'cube.semantic-query:complaint-count',
+    'cube.semantic-query:average-satisfaction',
+    'llm.structured-analysis:conclusion-summary',
+  ]);
+  assert.equal(result.eventCount, 4);
+  assert.match(result.llmEvidenceSummary, /指标 service-order-count，返回 1 行/);
+  assert.match(result.llmEvidenceSummary, /指标 complaint-count，返回 1 行/);
+  assert.match(result.llmEvidenceSummary, /指标 average-satisfaction，返回 1 行/);
 });
 
 test('tooling services 暴露 AI runtime tool bridge，并复用既有 tool registry 可用性', async () => {

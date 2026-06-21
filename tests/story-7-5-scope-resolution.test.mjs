@@ -53,6 +53,47 @@ test('Story 7.5 组织 240 的目录 scope 解析必须展开出真实项目范�
   );
 });
 
+test('Story 7.5 目录 admin 账号默认具备平台管理员角色', async () => {
+  const result = await runTsSnippet(`
+    import scopeResolverModule from './src/infrastructure/erp-auth/erp-scope-resolver.ts';
+
+    const { createErpScopeResolver } = scopeResolverModule;
+    const scopeResolver = createErpScopeResolver();
+
+    const adminScope = await scopeResolver.resolveUserScope('admin-test-user', 240n, {
+      userAccount: ' admin ',
+    });
+    const normalScope = await scopeResolver.resolveUserScope('normal-test-user', 240n, {
+      userAccount: 'normal-user',
+    });
+
+    console.log(JSON.stringify({
+      adminRoleCodes: adminScope.roleCodes,
+      normalRoleCodes: normalScope.roleCodes,
+    }));
+  `);
+
+  assert.ok(
+    result.adminRoleCodes.includes('PROPERTY_ANALYST'),
+    'admin 账号仍应保留基础分析角色',
+  );
+  assert.ok(
+    result.adminRoleCodes.includes('PLATFORM_ADMIN'),
+    'admin 账号应默认获得平台管理员角色，作为 ONTOLOGY_VIEWER 的更高角色',
+  );
+  assert.equal(
+    result.adminRoleCodes.filter((roleCode) => roleCode === 'PLATFORM_ADMIN')
+      .length,
+    1,
+    '默认角色补齐不应重复写入 PLATFORM_ADMIN',
+  );
+  assert.deepEqual(
+    result.normalRoleCodes,
+    ['PROPERTY_ANALYST'],
+    '普通目录账号不应被提升为平台管理员',
+  );
+});
+
 test('Story 7.5 workspace 范围判断不再把 areaIds 当成有效分析范围', async () => {
   const result = await runTsSnippet(`
     import authModelsModule from './src/domain/auth/models.ts';

@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200" role="img" aria-labelledby="title desc">
+  <title id="title">分析上下文抽取、校准、执行完整架构流程图</title>
+  <desc id="desc">展示用户问题从会话创建、LLM 语义抽取、ERP 项目目录与 ontology 指标校准、上下文持久化、执行提交、worker 工具调用到结果回流的完整流程。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="55%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f4f8fb"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#17324d" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#34556f"/>
+    </marker>
+    <marker id="arrowAccent" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#126d7a"/>
+    </marker>
+    <style>
+      .title { font: 700 34px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #10283d; }
+      .subtitle { font: 400 17px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #5f7284; }
+      .lane-title { font: 700 19px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #1d3a53; }
+      .lane-note { font: 400 13px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #6d7f90; }
+      .box-title { font: 700 18px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #12283a; }
+      .box-text { font: 400 14px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #46596a; }
+      .small { font: 400 12px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #607487; }
+      .label { font: 700 13px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #126d7a; }
+      .pill { font: 700 12px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #375064; }
+      .box { fill: #ffffff; stroke: #d8e5ef; stroke-width: 1.5; rx: 10; filter: url(#shadow); }
+      .box-ai { fill: #f1fbfd; stroke: #9ed8df; stroke-width: 1.6; rx: 10; filter: url(#shadow); }
+      .box-store { fill: #f8fbf2; stroke: #c9dc9a; stroke-width: 1.6; rx: 10; filter: url(#shadow); }
+      .box-worker { fill: #fff8ee; stroke: #edcb92; stroke-width: 1.6; rx: 10; filter: url(#shadow); }
+      .lane { fill: #ffffff; stroke: #dce8f1; stroke-width: 1; rx: 14; }
+      .line { fill: none; stroke: #34556f; stroke-width: 2.2; marker-end: url(#arrow); }
+      .line-accent { fill: none; stroke: #126d7a; stroke-width: 2.5; marker-end: url(#arrowAccent); }
+      .line-dashed { fill: none; stroke: #7890a3; stroke-width: 2; stroke-dasharray: 7 7; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1200" fill="url(#bg)"/>
+
+  <text class="title" x="70" y="68">分析上下文抽取、校准、执行完整架构流程图</text>
+  <text class="subtitle" x="70" y="101">设计原则：LLM 负责语义理解，程序负责业务目录核验、权限边界、标准口径校准、事实持久化与可审计执行。</text>
+
+  <rect class="lane" x="50" y="135" width="1700" height="170"/>
+  <text class="lane-title" x="75" y="169">1. 用户入口与会话创建</text>
+  <text class="lane-note" x="75" y="192">Route Handler 只接收问题文本；身份、scope、审计全部从服务端会话解析。</text>
+
+  <rect class="lane" x="50" y="335" width="1700" height="250"/>
+  <text class="lane-title" x="75" y="369">2. AI 语义抽取与业务校准</text>
+  <text class="lane-note" x="75" y="392">LLM 输出结构化候选，程序用 ERP 项目目录与已发布 ontology 指标定义做归一化和置信度控制。</text>
+
+  <rect class="lane" x="50" y="615" width="1700" height="230"/>
+  <text class="lane-title" x="75" y="649">3. 执行规划与异步任务提交</text>
+  <text class="lane-note" x="75" y="672">执行前再次校准上下文，随后做 ontology grounding、计划生成和 worker job 提交。</text>
+
+  <rect class="lane" x="50" y="875" width="1700" height="230"/>
+  <text class="lane-title" x="75" y="909">4. Worker 工具执行与结果回流</text>
+  <text class="lane-note" x="75" y="932">Worker 按受控工具输入调用 Cube / Neo4j / ERP，事件与快照回写后由前端流式展示。</text>
+
+  <!-- Lane 1 -->
+  <rect class="box" x="85" y="215" width="230" height="70"/>
+  <text class="box-title" x="105" y="244">用户输入问题</text>
+  <text class="box-text" x="105" y="267">自然语言分析请求</text>
+
+  <rect class="box" x="365" y="205" width="270" height="90"/>
+  <text class="box-title" x="385" y="234">POST /analysis/sessions</text>
+  <text class="box-text" x="385" y="258">登录校验 / scope 快照</text>
+  <text class="box-text" x="385" y="278">问题规范化 / 审计入口</text>
+
+  <rect class="box-store" x="685" y="205" width="280" height="90"/>
+  <text class="box-title" x="705" y="234">createSession</text>
+  <text class="box-text" x="705" y="258">生成 sessionId</text>
+  <text class="box-text" x="705" y="278">基础规则上下文作为兜底</text>
+
+  <rect class="box-store" x="1015" y="205" width="315" height="90"/>
+  <text class="box-title" x="1035" y="234">Postgres: analysis_sessions</text>
+  <text class="box-text" x="1035" y="258">保存 question / scope</text>
+  <text class="box-text" x="1035" y="278">saved_context 是上下文事实源</text>
+
+  <rect class="box" x="1380" y="205" width="300" height="90"/>
+  <text class="box-title" x="1400" y="234">跳转分析页</text>
+  <text class="box-text" x="1400" y="258">/workspace/analysis/:sessionId</text>
+  <text class="box-text" x="1400" y="278">页面读取 saved_context</text>
+
+  <path class="line" d="M315 250 H365"/>
+  <path class="line" d="M635 250 H685"/>
+  <path class="line" d="M965 250 H1015"/>
+  <path class="line" d="M1330 250 H1380"/>
+
+  <!-- Lane 2 -->
+  <rect class="box" x="85" y="420" width="250" height="100"/>
+  <text class="box-title" x="105" y="450">加载业务字典</text>
+  <text class="box-text" x="105" y="474">ERP scoped projects</text>
+  <text class="box-text" x="105" y="494">已发布 ontology metrics</text>
+
+  <rect class="box-ai" x="390" y="410" width="280" height="120"/>
+  <text class="box-title" x="410" y="440">LLM 结构化抽取</text>
+  <text class="box-text" x="410" y="464">targetMetric / entity</text>
+  <text class="box-text" x="410" y="484">timeRange / comparison</text>
+  <text class="box-text" x="410" y="504">candidates / confidence</text>
+
+  <rect class="box-ai" x="725" y="410" width="315" height="120"/>
+  <text class="box-title" x="745" y="440">normalizeLlmExtractionOutput</text>
+  <text class="box-text" x="745" y="464">项目错别字与简称归一</text>
+  <text class="box-text" x="745" y="484">指标落到 ontology 标准口径</text>
+  <text class="box-text" x="745" y="504">时间范围转可执行语义</text>
+
+  <rect class="box-store" x="1095" y="410" width="285" height="120"/>
+  <text class="box-title" x="1115" y="440">updateSavedContext</text>
+  <text class="box-text" x="1115" y="464">写回 saved_context</text>
+  <text class="box-text" x="1115" y="484">刷新 / 换请求不丢</text>
+  <text class="box-text" x="1115" y="504">失败记录审计并保留兜底</text>
+
+  <rect class="box" x="1435" y="410" width="245" height="120"/>
+  <text class="box-title" x="1455" y="440">上下文面板</text>
+  <text class="box-text" x="1455" y="464">展示已确认 / 待确认</text>
+  <text class="box-text" x="1455" y="484">允许用户手动校准</text>
+  <text class="box-text" x="1455" y="504">PUT/DELETE 同步写回</text>
+
+  <path class="line-accent" d="M335 470 H390"/>
+  <path class="line-accent" d="M670 470 H725"/>
+  <path class="line-accent" d="M1040 470 H1095"/>
+  <path class="line" d="M1380 470 H1435"/>
+  <path class="line-dashed" d="M1235 410 V320 H1173 V295"/>
+
+  <!-- Lane 3 -->
+  <rect class="box" x="85" y="705" width="250" height="100"/>
+  <text class="box-title" x="105" y="735">POST /execute</text>
+  <text class="box-text" x="105" y="759">初始化执行上下文</text>
+  <text class="box-text" x="105" y="779">从 saved_context 读取</text>
+
+  <rect class="box-ai" x="390" y="705" width="280" height="100"/>
+  <text class="box-title" x="410" y="735">执行前二次校准</text>
+  <text class="box-text" x="410" y="759">重新加载 ERP / ontology</text>
+  <text class="box-text" x="410" y="779">只覆盖未手动修正初始版</text>
+
+  <rect class="box-ai" x="725" y="705" width="290" height="100"/>
+  <text class="box-title" x="745" y="735">Ontology Grounding</text>
+  <text class="box-text" x="745" y="759">指标 / 时间语义 / 工具绑定</text>
+  <text class="box-text" x="745" y="779">生成可执行 planning artifacts</text>
+
+  <rect class="box" x="1070" y="705" width="285" height="100"/>
+  <text class="box-title" x="1090" y="735">Execution Submission</text>
+  <text class="box-text" x="1090" y="759">executionId / plan snapshot</text>
+  <text class="box-text" x="1090" y="779">context / groundedContext</text>
+
+  <rect class="box-worker" x="1410" y="705" width="270" height="100"/>
+  <text class="box-title" x="1430" y="735">Redis Job Queue</text>
+  <text class="box-text" x="1430" y="759">异步任务入队</text>
+  <text class="box-text" x="1430" y="779">worker 轮询消费</text>
+
+  <path class="line" d="M335 755 H390"/>
+  <path class="line-accent" d="M670 755 H725"/>
+  <path class="line" d="M1015 755 H1070"/>
+  <path class="line" d="M1355 755 H1410"/>
+  <path class="line-dashed" d="M530 705 V560 H1238 V530"/>
+
+  <!-- Lane 4 -->
+  <rect class="box-worker" x="85" y="965" width="270" height="100"/>
+  <text class="box-title" x="105" y="995">Worker Handler</text>
+  <text class="box-text" x="105" y="1019">读取 session / job data</text>
+  <text class="box-text" x="105" y="1039">加载 scoped project catalog</text>
+
+  <rect class="box-worker" x="410" y="965" width="285" height="100"/>
+  <text class="box-title" x="430" y="995">buildToolInputs</text>
+  <text class="box-text" x="430" y="1019">项目约束解析为 projectIds</text>
+  <text class="box-text" x="430" y="1039">指标映射为 semantic metric</text>
+
+  <rect class="box" x="750" y="965" width="285" height="100"/>
+  <text class="box-title" x="770" y="995">Tool Registry</text>
+  <text class="box-text" x="770" y="1019">Cube semantic query</text>
+  <text class="box-text" x="770" y="1039">Neo4j graph / ERP read</text>
+
+  <rect class="box-store" x="1090" y="965" width="285" height="100"/>
+  <text class="box-title" x="1110" y="995">事件与快照持久化</text>
+  <text class="box-text" x="1110" y="1019">execution events</text>
+  <text class="box-text" x="1110" y="1039">snapshots / result blocks</text>
+
+  <rect class="box" x="1430" y="965" width="250" height="100"/>
+  <text class="box-title" x="1450" y="995">前端实时展示</text>
+  <text class="box-text" x="1450" y="1019">stream hydration</text>
+  <text class="box-text" x="1450" y="1039">结论 / 证据 / 可追问</text>
+
+  <path class="line" d="M355 1015 H410"/>
+  <path class="line" d="M695 1015 H750"/>
+  <path class="line" d="M1035 1015 H1090"/>
+  <path class="line" d="M1375 1015 H1430"/>
+  <path class="line-dashed" d="M1545 805 V920 H220 V965"/>
+
+  <!-- Side notes -->
+  <rect x="85" y="1130" width="390" height="36" rx="18" fill="#eef7ff" stroke="#c9dfef"/>
+  <text class="pill" x="110" y="1153">关键边界：Route Handler 不信任浏览器身份字段</text>
+
+  <rect x="515" y="1130" width="420" height="36" rx="18" fill="#f1fbfd" stroke="#b7dfe5"/>
+  <text class="pill" x="540" y="1153">AI 边界：LLM 只抽取语义，程序做核验与口径控制</text>
+
+  <rect x="975" y="1130" width="360" height="36" rx="18" fill="#f8fbf2" stroke="#cedfa1"/>
+  <text class="pill" x="1000" y="1153">事实源：analysis_sessions.saved_context</text>
+
+  <rect x="1375" y="1130" width="305" height="36" rx="18" fill="#fff8ee" stroke="#edcb92"/>
+  <text class="pill" x="1400" y="1153">异步执行：Redis + Worker + Tool Registry</text>
+</svg>
