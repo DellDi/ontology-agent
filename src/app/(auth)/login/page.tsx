@@ -6,6 +6,11 @@ import {
   isDirectoryAuthAvailable,
 } from '@/composition-root';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
+import { Badge } from '@/app/_components/workbench/badge';
+import { Button } from '@/app/_components/workbench/button';
+import { Field, FieldInput, FieldLabel } from '@/app/_components/workbench/field';
+import { StatusBanner } from '@/app/_components/workbench/status-banner';
+import { Surface, SurfaceBody, SurfaceHeader } from '@/app/_components/workbench/surface';
 
 type LoginPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -55,47 +60,43 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] text-[color:var(--ink-900)]">
-      <header className="border-b border-[#d8e0ec] bg-white">
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-background">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 md:px-8">
           <div>
             <p className="text-sm font-semibold tracking-[0.08em] text-[color:var(--brand-900)]">
               DIP3 · 智慧数据
             </p>
-            <p className="mt-0.5 text-xs text-[color:var(--ink-600)]">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               物业经营分析工作台
             </p>
           </div>
-          <span className="hidden rounded-[8px] border border-[#d8e0ec] bg-[#f8fafc] px-3 py-1.5 text-xs font-medium text-[color:var(--ink-600)] md:inline-flex">
+          <Badge tone="neutral" className="hidden md:inline-flex">
             ERP 目录账号登录
-          </span>
+          </Badge>
         </div>
       </header>
 
       <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-6 md:px-8 md:py-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
-        <section className="order-1 rounded-[8px] border border-[#d8e0ec] bg-white p-5 shadow-[0_14px_34px_rgb(15_23_42/0.06)] md:p-6 lg:order-2">
-          <div className="border-b border-[#e4e9f1] pb-5">
-            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
-              账号登录
-            </p>
-            <h1 className="mt-3 text-2xl font-semibold text-[color:var(--ink-900)]">
-              登录 DIP3 工作台
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-              使用 ERP 同步账号进入系统，权限范围由组织目录自动继承。
-            </p>
-          </div>
+        <Surface className="order-1 lg:order-2">
+          <SurfaceHeader
+            eyebrow="账号登录"
+            title="登录 DIP3 工作台"
+            description="使用 ERP 同步账号进入系统，权限范围由组织目录自动继承。"
+            className="border-b border-border"
+          />
 
-          <div className="mt-5 space-y-3">
+          <SurfaceBody className="pt-5">
+          <div className="space-y-3">
             {errorMessage ? (
-              <div className="rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm leading-6 text-[#991b1b]">
+              <StatusBanner tone="error">
                 {errorMessage}
-              </div>
+              </StatusBanner>
             ) : null}
             {loggedOut === '1' ? (
-              <div className="rounded-[8px] border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3 text-sm leading-6 text-[#166534]">
+              <StatusBanner tone="success">
                 已安全退出当前会话。
-              </div>
+              </StatusBanner>
             ) : null}
           </div>
 
@@ -107,12 +108,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             >
               <input type="hidden" name="next" value={nextPath} />
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-[color:var(--ink-900)]">
-                  账号
-                </span>
-                <input
-                  className="h-11 w-full rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-sm text-[color:var(--ink-900)] outline-none transition focus:border-[color:var(--brand-700)] focus:ring-4 focus:ring-blue-100"
+              <Field required>
+                <FieldLabel>账号</FieldLabel>
+                <FieldInput
                   type="text"
                   name="account"
                   placeholder="ERP 登录账号"
@@ -120,64 +118,60 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   autoComplete="username"
                   required
                 />
-              </label>
+              </Field>
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-[color:var(--ink-900)]">
-                  密码
-                </span>
-                <input
-                  className="h-11 w-full rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-sm text-[color:var(--ink-900)] outline-none transition focus:border-[color:var(--brand-700)] focus:ring-4 focus:ring-blue-100"
+              <Field required>
+                <FieldLabel>密码</FieldLabel>
+                <FieldInput
                   type="password"
                   name="password"
                   placeholder="ERP 登录密码"
                   autoComplete="current-password"
                   required
                 />
-              </label>
+              </Field>
 
-              <button
-                className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[color:var(--brand-900)] px-4 text-sm font-semibold text-white transition hover:bg-[color:var(--brand-700)] focus:ring-4 focus:ring-blue-100 focus:outline-none"
+              <Button
+                className="mt-2 w-full"
                 type="submit"
               >
                 进入 DIP3 工作台
-              </button>
+              </Button>
             </form>
           ) : null}
 
           {!directoryAvailable ? (
-            <div className="mt-5 rounded-[8px] border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-sm leading-6 text-[#92400e]">
+            <StatusBanner tone="warning" className="mt-5">
               {devAuthState.disabledMessage}
-            </div>
+            </StatusBanner>
           ) : null}
-        </section>
+          </SurfaceBody>
+        </Surface>
 
         <article className="order-2 space-y-6 lg:order-1">
-          <div className="rounded-[8px] border border-[#d8e0ec] bg-white p-6 shadow-[0_14px_34px_rgb(15_23_42/0.04)] md:p-8">
-            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
-              经营分析
-            </p>
-            <h2 className="mt-4 max-w-2xl text-3xl leading-tight font-semibold text-[color:var(--ink-900)] md:text-4xl">
-              把经营问题沉淀为可复盘的分析结论
-            </h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-[color:var(--ink-600)]">
-              DIP3 面向物业经营分析团队，把问题输入、证据链分析、归因结论和历史会话组织在同一个权限边界内。
-            </p>
-          </div>
+          <Surface>
+            <SurfaceHeader
+              eyebrow="经营分析"
+              title="把经营问题沉淀为可复盘的分析结论"
+              description="DIP3 面向物业经营分析团队，把问题输入、证据链分析、归因结论和历史会话组织在同一个权限边界内。"
+              className="[&>div]:max-w-2xl [&_h2]:text-3xl [&_h2]:md:text-4xl"
+            />
+          </Surface>
 
           <div className="grid gap-3">
             {businessCapabilities.map((capability) => (
-              <section
+              <Surface
                 key={capability.title}
-                className="rounded-[8px] border border-[#d8e0ec] bg-white p-5 shadow-[0_10px_24px_rgb(15_23_42/0.035)]"
+                variant="subtle"
+                className="p-5"
               >
-                <h3 className="text-base font-semibold text-[color:var(--ink-900)]">
+                <h3 className="text-base font-semibold text-foreground">
                   {capability.title}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {capability.description}
                 </p>
-              </section>
+              </Surface>
             ))}
           </div>
         </article>

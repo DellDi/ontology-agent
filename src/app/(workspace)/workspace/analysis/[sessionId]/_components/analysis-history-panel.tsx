@@ -39,7 +39,7 @@ export function AnalysisHistoryPanel({
   const selectedRound = readModel.selectedRound;
 
   return (
-    <article className="glass-panel p-6" data-testid="analysis-history-panel">
+    <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]" data-testid="analysis-history-panel">
       <div>
         <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
           多轮历史

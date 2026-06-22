@@ -1,15 +1,18 @@
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
 export function getToneClassName(tone: unknown) {
+  // 全部走 color-mix + 主题 token，自动响应 dark
   switch (tone) {
     case 'success':
-      return 'bg-emerald-50';
+      return 'bg-[color:color-mix(in_srgb,var(--success-500)_10%,transparent)] border border-[color:var(--success-500)]/30';
     case 'error':
-      return 'bg-rose-50';
+      return 'bg-[color:color-mix(in_srgb,var(--danger-500)_10%,transparent)] border border-[color:var(--danger-500)]/30';
+    case 'warning':
+      return 'bg-[color:color-mix(in_srgb,var(--warning-500)_12%,transparent)] border border-[color:var(--warning-500)]/30';
     case 'info':
-      return 'bg-sky-50';
+      return 'bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] border border-[color:var(--brand-300)]/40';
     default:
-      return 'bg-[color:var(--sky-50)]';
+      return 'bg-card border border-border';
   }
 }
 
@@ -40,9 +43,11 @@ export function getToolStatusLabel(status: unknown) {
 }
 
 export function renderTitle(block: AnalysisRenderedBlock, fallback?: string) {
+  const text = block.title ?? block.label ?? fallback;
+  if (!text) return null;
   return (
-    <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
-      {block.title ?? block.label ?? fallback}
+    <p className="text-xs font-semibold tracking-[0.1em] uppercase text-[color:var(--brand-700)]">
+      {text}
     </p>
   );
 }

@@ -9,6 +9,17 @@ import {
 } from '@/domain/analysis-context/models';
 import type { AnalysisContextReadModel } from '@/application/analysis-context/use-cases';
 
+import { Badge } from '@/app/_components/workbench/badge';
+import { Button } from '@/app/_components/workbench/button';
+import {
+  Field,
+  FieldInput,
+  FieldLabel,
+  FieldTextarea,
+} from '@/app/_components/workbench/field';
+import { StatusBanner } from '@/app/_components/workbench/status-banner';
+import { Surface, SurfaceBody, SurfaceHeader } from '@/app/_components/workbench/surface';
+
 type AnalysisContextPanelProps = {
   sessionId: string;
   initialReadModel: AnalysisContextReadModel;
@@ -32,16 +43,18 @@ const DEFAULT_DRAFT: CorrectionDraft = {
   note: '',
 };
 
-function getStateBadgeClassName(state: AnalysisContextFieldState) {
+function getStateBadgeTone(
+  state: AnalysisContextFieldState,
+): React.ComponentProps<typeof Badge>['tone'] {
   switch (state) {
     case 'confirmed':
-      return 'bg-emerald-100 text-emerald-700';
+      return 'success';
     case 'uncertain':
-      return 'bg-amber-100 text-amber-700';
+      return 'warning';
     case 'missing':
-      return 'bg-slate-100 text-slate-700';
+      return 'neutral';
     default:
-      return 'bg-slate-100 text-slate-700';
+      return 'neutral';
   }
 }
 
@@ -52,22 +65,18 @@ function ContextFieldCard({
   note,
 }: AnalysisContext['targetMetric']) {
   return (
-    <div className="rounded-lg bg-white p-5">
+    <div className="rounded-md border border-border bg-card p-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-[color:var(--ink-600)]">{label}</p>
-        <span
-          className={`rounded-md px-3 py-1 text-xs font-medium ${getStateBadgeClassName(state)}`}
-        >
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <Badge tone={getStateBadgeTone(state)}>
           {getContextFieldStateLabel(state)}
-        </span>
+        </Badge>
       </div>
-      <p className="mt-2 text-base font-medium text-[color:var(--ink-900)]">
+      <p className="mt-2 text-base font-medium break-words text-foreground">
         {value}
       </p>
       {note ? (
-        <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-          {note}
-        </p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{note}</p>
       ) : null}
     </div>
   );
@@ -129,18 +138,16 @@ function CorrectionField({
   onChange: (field: MutableFieldKey, value: string) => void;
 }) {
   return (
-    <label className="space-y-2">
-      <span className="field-label">{label}</span>
-      <input
-        className="field-input"
+    <Field disabled={disabled}>
+      <FieldLabel>{label}</FieldLabel>
+      <FieldInput
         type="text"
         name={field}
         placeholder={placeholder}
         value={value}
-        disabled={disabled}
         onChange={(event) => onChange(field, event.currentTarget.value)}
       />
-    </label>
+    </Field>
   );
 }
 
@@ -209,10 +216,15 @@ export function AnalysisContextPanel({
           tone: 'success',
           message: `已保存上下文修正，当前版本 v${data.version}。`,
         });
-      } catch {
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn('[analysis-context-panel] 提交上下文修正失败', {
+          sessionId,
+          detail,
+        });
         setFeedback({
           tone: 'error',
-          message: '上下文修正失败，请稍后重试。',
+          message: `上下文修正失败：${detail}。可重试或刷新页面。`,
         });
       }
     });
@@ -245,164 +257,173 @@ export function AnalysisContextPanel({
           tone: 'success',
           message: `已恢复到上一个确认版本，当前版本 v${data.version}。`,
         });
-      } catch {
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn('[analysis-context-panel] 撤销上下文失败', {
+          sessionId,
+          detail,
+        });
         setFeedback({
           tone: 'error',
-          message: '撤销失败，请稍后重试。',
+          message: `撤销失败：${detail}。可重试或刷新页面。`,
         });
       }
     });
   }
 
   return (
-    <article className="glass-panel p-6" data-testid="analysis-context-panel">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
-            分析上下文
-          </p>
-          <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
-            当前确认版本 v{readModel.version}
-          </h3>
-          <p className="mt-3 text-sm leading-6 text-[color:var(--ink-600)]">
-            原始问题保持不变，修正只会生成新的上下文版本，供后续规划与执行继续读取。
+    <Surface data-testid="analysis-context-panel">
+      <SurfaceHeader
+        eyebrow="分析上下文"
+        title={`当前确认版本 v${readModel.version}`}
+        description="原始问题保持不变，修正只会生成新的上下文版本，供后续规划与执行继续读取。"
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            type="button"
+            onClick={undoCorrection}
+            disabled={!readModel.canUndo || isPending}
+            loading={isPending && readModel.canUndo}
+          >
+            撤销上次修正
+          </Button>
+        }
+      />
+      <SurfaceBody className="space-y-4">
+        <div className="rounded-md border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground">原始问题文本</p>
+          <p className="mt-2 text-base leading-7 break-words text-foreground">
+            {readModel.originalQuestionText}
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={undoCorrection}
-          disabled={!readModel.canUndo || isPending}
-        >
-          撤销上次修正
-        </button>
-      </div>
 
-      <div className="mt-4 rounded-lg bg-white p-5">
-        <p className="text-xs text-[color:var(--ink-600)]">原始问题文本</p>
-        <p className="mt-2 text-base leading-7 text-[color:var(--ink-900)]">
-          {readModel.originalQuestionText}
-        </p>
-      </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <ContextFieldCard {...readModel.context.targetMetric} />
+          <ContextFieldCard {...readModel.context.entity} />
+          <ContextFieldCard {...readModel.context.timeRange} />
+          <ContextFieldCard {...readModel.context.comparison} />
+        </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <ContextFieldCard {...readModel.context.targetMetric} />
-        <ContextFieldCard {...readModel.context.entity} />
-        <ContextFieldCard {...readModel.context.timeRange} />
-        <ContextFieldCard {...readModel.context.comparison} />
-      </div>
-
-      <div className="mt-5 rounded-lg bg-white p-5">
-        <p className="text-xs text-[color:var(--ink-600)]">约束条件</p>
-        {readModel.context.constraints.length > 0 ? (
-          <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
-            {readModel.context.constraints.map((constraint) => (
-              <li key={`${constraint.label}-${constraint.value}`}>
-                {constraint.label}：{constraint.value}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-3 text-sm leading-6 text-[color:var(--ink-600)]">
-            未识别到明确约束条件（待补充）。
-          </p>
-        )}
-      </div>
-
-      <div className="mt-5 rounded-lg border border-[color:var(--line-200)] bg-white p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
-              修正上下文
+        <div className="rounded-md border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground">约束条件</p>
+          {readModel.context.constraints.length > 0 ? (
+            <ul className="mt-3 space-y-2 text-sm text-foreground">
+              {readModel.context.constraints.map((constraint) => (
+                <li key={`${constraint.label}-${constraint.value}`} className="break-words">
+                  {constraint.label}：{constraint.value}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              未识别到明确约束条件（待补充）。
             </p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
-              只填写你要修正的字段。保存后会生成新的确认版本，后续分析将基于最新版本继续。
-            </p>
-          </div>
-          {feedback ? (
-            <div className="status-banner" data-tone={feedback.tone}>
-              {feedback.message}
+          )}
+        </div>
+
+        <div className="rounded-md border border-border bg-card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.12em] uppercase text-[color:var(--brand-700)]">
+                修正上下文
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                只填写你要修正的字段。保存后会生成新的确认版本，后续分析将基于最新版本继续。
+              </p>
             </div>
-          ) : null}
-        </div>
+            {feedback ? (
+              <StatusBanner
+                tone={
+                  feedback.tone === 'error'
+                    ? 'error'
+                    : feedback.tone === 'success'
+                      ? 'success'
+                      : 'info'
+                }
+                className="max-w-md"
+              >
+                {feedback.message}
+              </StatusBanner>
+            ) : null}
+          </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <CorrectionField
-            label="目标指标"
-            field="targetMetric"
-            value={draft.targetMetric}
-            disabled={isPending}
-            placeholder={readModel.context.targetMetric.value}
-            onChange={updateDraft}
-          />
-          <CorrectionField
-            label="实体对象"
-            field="entity"
-            value={draft.entity}
-            disabled={isPending}
-            placeholder={readModel.context.entity.value}
-            onChange={updateDraft}
-          />
-          <CorrectionField
-            label="时间范围"
-            field="timeRange"
-            value={draft.timeRange}
-            disabled={isPending}
-            placeholder={readModel.context.timeRange.value}
-            onChange={updateDraft}
-          />
-          <CorrectionField
-            label="比较方式"
-            field="comparison"
-            value={draft.comparison}
-            disabled={isPending}
-            placeholder={readModel.context.comparison.value}
-            onChange={updateDraft}
-          />
-        </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <CorrectionField
+              label="目标指标"
+              field="targetMetric"
+              value={draft.targetMetric}
+              disabled={isPending}
+              placeholder={readModel.context.targetMetric.value}
+              onChange={updateDraft}
+            />
+            <CorrectionField
+              label="实体对象"
+              field="entity"
+              value={draft.entity}
+              disabled={isPending}
+              placeholder={readModel.context.entity.value}
+              onChange={updateDraft}
+            />
+            <CorrectionField
+              label="时间范围"
+              field="timeRange"
+              value={draft.timeRange}
+              disabled={isPending}
+              placeholder={readModel.context.timeRange.value}
+              onChange={updateDraft}
+            />
+            <CorrectionField
+              label="比较方式"
+              field="comparison"
+              value={draft.comparison}
+              disabled={isPending}
+              placeholder={readModel.context.comparison.value}
+              onChange={updateDraft}
+            />
+          </div>
 
-        <label className="mt-4 block space-y-2">
-          <span className="field-label">修正说明（可选）</span>
-          <textarea
-            className="field-input min-h-28 resize-y"
-            name="note"
-            placeholder="例如：把比较基线改成同比，或把指标口径限定为不含预缴。"
-            value={draft.note}
-            disabled={isPending}
-            onChange={(event) =>
-              setDraft((currentDraft) => ({
-                ...currentDraft,
-                note: event.currentTarget.value,
-              }))
-            }
-          />
-        </label>
+          <Field className="mt-4" disabled={isPending}>
+            <FieldLabel>修正说明（可选）</FieldLabel>
+            <FieldTextarea
+              name="note"
+              placeholder="例如：把比较基线改成同比，或把指标口径限定为不含预缴。"
+              value={draft.note}
+              onChange={(event) =>
+                setDraft((currentDraft) => ({
+                  ...currentDraft,
+                  note: event.currentTarget.value,
+                }))
+              }
+            />
+          </Field>
 
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            className="primary-button"
-            type="button"
-            onClick={submitCorrection}
-            disabled={isPending}
-          >
-            保存上下文修正
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => {
-              resetDraft();
-              setFeedback({
-                tone: 'info',
-                message: '已清空本次待提交的修正草稿。',
-              });
-            }}
-            disabled={isPending}
-          >
-            清空草稿
-          </button>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button
+              variant="primary"
+              type="button"
+              onClick={submitCorrection}
+              loading={isPending}
+            >
+              保存上下文修正
+            </Button>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                resetDraft();
+                setFeedback({
+                  tone: 'info',
+                  message: '已清空本次待提交的修正草稿。',
+                });
+              }}
+              disabled={isPending}
+            >
+              清空草稿
+            </Button>
+          </div>
         </div>
-      </div>
-    </article>
+      </SurfaceBody>
+    </Surface>
   );
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { ShellMenu } from './shell-menu';
 import type { ShellMenuItem } from './shell-menu-config';
+import { ThemeToggle } from './workbench/theme-toggle';
 
 type ShellLayoutProps = {
   menuItems: ShellMenuItem[];
@@ -19,21 +20,22 @@ export function ShellLayout({
   return (
     <div className="flex min-h-screen flex-col">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 border-b border-[color:var(--line-200)] bg-white">
+      <header className="sticky top-0 z-30 border-b border-border bg-background">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 lg:px-10">
           <div className="flex items-center gap-3">
             <span className="text-sm font-semibold tracking-[0.1em] text-[color:var(--brand-700)]">
               DIP3 · 智慧数据
             </span>
           </div>
-          <div className="flex items-center gap-4 text-sm text-[color:var(--ink-600)]">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <ThemeToggle />
             <span>{userDisplayName}</span>
-            <span className="text-[color:var(--line-300)]">|</span>
+            <span className="text-border">|</span>
             <span className="text-xs">{userId}</span>
             <form action="/api/auth/logout" method="post">
               <button
                 type="submit"
-                className="text-xs text-[color:var(--ink-500)] hover:text-[color:var(--ink-900)]"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 退出
               </button>

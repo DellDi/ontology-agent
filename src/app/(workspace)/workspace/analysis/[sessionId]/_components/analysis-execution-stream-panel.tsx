@@ -48,7 +48,7 @@ export function AnalysisExecutionStreamPanel({
       className={
         variant === 'side-sheet'
           ? 'flex h-full flex-col'
-          : 'glass-panel p-6'
+          : 'rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]'
       }
       data-testid="analysis-execution-stream-panel"
     >

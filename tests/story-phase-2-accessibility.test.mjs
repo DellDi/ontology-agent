@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 test('Phase 2c | drawer should have role="dialog"', () => {
   const source = readFileSync(
-    'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conversation-shell.tsx',
+    'src/app/_components/workbench/workbench-sheet.tsx',
     'utf-8',
   );
   assert.ok(source.includes('role="dialog"'), 'Drawer should have role="dialog"');
@@ -12,7 +12,7 @@ test('Phase 2c | drawer should have role="dialog"', () => {
 
 test('Phase 2c | drawer should have aria-modal="true"', () => {
   const source = readFileSync(
-    'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conversation-shell.tsx',
+    'src/app/_components/workbench/workbench-sheet.tsx',
     'utf-8',
   );
   assert.ok(source.includes('aria-modal="true"'), 'Drawer should have aria-modal="true"');
@@ -20,15 +20,18 @@ test('Phase 2c | drawer should have aria-modal="true"', () => {
 
 test('Phase 2c | drawer should have aria-label', () => {
   const source = readFileSync(
-    'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conversation-shell.tsx',
+    'src/app/_components/workbench/workbench-sheet.tsx',
     'utf-8',
   );
-  assert.ok(source.includes('aria-label'), 'Drawer should have aria-label');
+  assert.ok(
+    source.includes('aria-labelledby') || source.includes('aria-label'),
+    'Drawer should have an accessible label',
+  );
 });
 
 test('Phase 2c | drawer should implement focus trap (Tab key handling)', () => {
   const source = readFileSync(
-    'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conversation-shell.tsx',
+    'src/app/_components/workbench/workbench-sheet.tsx',
     'utf-8',
   );
   assert.ok(source.includes("event.key !== 'Tab'"), 'Should handle Tab key for focus trap');
@@ -37,7 +40,7 @@ test('Phase 2c | drawer should implement focus trap (Tab key handling)', () => {
 
 test('Phase 2c | drawer should use useRef for focus management', () => {
   const source = readFileSync(
-    'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conversation-shell.tsx',
+    'src/app/_components/workbench/workbench-sheet.tsx',
     'utf-8',
   );
   assert.ok(source.includes('useRef'), 'Should use useRef for drawer element');

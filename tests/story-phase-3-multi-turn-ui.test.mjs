@@ -38,7 +38,7 @@ test('Phase 3b | live shell should pass thread to conversation shell', () => {
 
 test('Phase 3b | page should build thread from multiple rounds', () => {
   const source = readFileSync(
-    'src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx',
+    'src/application/analysis-session/build-session-page-model.ts',
     'utf-8',
   );
   assert.ok(

@@ -14,13 +14,35 @@ import {
 import { formatScopeSummary } from '@/shared/permissions/format-scope-summary';
 import type { ErpProject } from '@/domain/erp-read/models';
 
+export type WorkspaceHomeAction = {
+  label: string;
+  description: string;
+  status: 'ready' | 'soon';
+  /** ready 状态下的可点击目标；soon 状态忽略 */
+  href?: string;
+};
+
+export type WorkspaceHomeMetric = {
+  id: string;
+  label: string;
+  value: string;
+  helper?: string;
+};
+
+export type WorkspaceHomeDegradedState = {
+  /** 一句话向用户解释当前数据可能不是最新 */
+  message: string;
+  /** 来源（'redis-fallback' | 'stream-fallback' | 'unknown'），用于诊断 */
+  source: string;
+  /** 最近一次失败时间 ISO */
+  occurredAt: string;
+};
+
 export type WorkspaceHomeModel = {
   greeting: string;
-  analysisActions: Array<{
-    label: string;
-    description: string;
-    status: 'ready' | 'soon';
-  }>;
+  analysisActions: WorkspaceHomeAction[];
+  metrics: WorkspaceHomeMetric[];
+  failedItems: WorkspaceHomeModel['historyItems'];
   historyItems: Array<{
     id: string;
     title: string;
@@ -55,6 +77,8 @@ export type WorkspaceHomeModel = {
       }
     | null;
   canCreateAnalysis: boolean;
+  /** 数据降级状态：当 Redis/stream fallback 失败时由调用方注入。 */
+  degradedState: WorkspaceHomeDegradedState | null;
 };
 
 export type DerivedSessionStatus = {
@@ -131,6 +155,7 @@ export function createWorkspaceHomeModel(
   historySessions: AnalysisSession[],
   scopedProjects: Pick<ErpProject, 'id' | 'name'>[] = [],
   latestSnapshots: Map<string, AnalysisExecutionSnapshot | null> = new Map(),
+  degradedState: WorkspaceHomeDegradedState | null = null,
 ): WorkspaceHomeModel {
   const scopeSummary = formatScopeSummary(session);
   const hasTargets = hasScopedTargets(session);
@@ -145,6 +170,63 @@ export function createWorkspaceHomeModel(
       ? `已覆盖 ${projectDisplayNames.length} 个项目`
       : '未分配';
 
+  const historyItems = historySessions.map((analysisSession) => {
+    const snapshot = latestSnapshots.get(analysisSession.id) ?? null;
+    const derived = deriveSessionStatus(snapshot);
+
+    return {
+      id: analysisSession.id,
+      title: createAnalysisSessionTitle(analysisSession.questionText),
+      statusLabel: derived.statusLabel,
+      statusTone: derived.statusTone,
+      derivedStatus: derived.derivedStatus,
+      latestExecutionId: derived.latestExecutionId,
+      summaryMetric: derived.summaryMetric,
+      failureMessage: derived.failureMessage,
+      updatedAtLabel: formatHistoryTimestamp(analysisSession.updatedAt),
+      href: `/workspace/analysis/${analysisSession.id}`,
+    };
+  });
+
+  const failedItems = historyItems.filter(
+    (item) => item.derivedStatus === 'failed',
+  );
+  const runningItems = historyItems.filter(
+    (item) => item.derivedStatus === 'running' || item.derivedStatus === 'pending',
+  );
+  const completedItems = historyItems.filter(
+    (item) => item.derivedStatus === 'completed',
+  );
+
+  const metrics: WorkspaceHomeMetric[] = [
+    {
+      id: 'recent-total',
+      label: '历史分析',
+      value: String(historyItems.length),
+      helper: '当前账号可见会话总数',
+    },
+    {
+      id: 'running',
+      label: '进行中',
+      value: String(runningItems.length),
+      helper: runningItems.length > 0 ? '可继续追问或查看' : '当前无进行中分析',
+    },
+    {
+      id: 'failed',
+      label: '失败待处理',
+      value: String(failedItems.length),
+      helper: failedItems.length > 0 ? '建议先排查失败原因' : '当前无失败任务',
+    },
+    {
+      id: 'completed',
+      label: '已完成',
+      value: String(completedItems.length),
+      helper: '可继续追问以下钻',
+    },
+  ];
+
+  const newAnalysisHref = hasTargets ? '/workspace' : undefined;
+
   return {
     greeting: `${session.displayName}，从你有权限的范围开始今天的分析`,
     analysisActions: [
@@ -152,30 +234,18 @@ export function createWorkspaceHomeModel(
         label: '新建分析',
         description: '准备进入下一条故事中的问题输入与分析会话创建。',
         status: hasTargets ? 'ready' : 'soon',
+        href: newAnalysisHref,
       },
       {
         label: '最近分析',
         description: '快速回看已经创建的分析会话，并延续你自己的问题上下文。',
         status: 'ready',
+        href: '#history',
       },
     ],
-    historyItems: historySessions.map((analysisSession) => {
-      const snapshot = latestSnapshots.get(analysisSession.id) ?? null;
-      const derived = deriveSessionStatus(snapshot);
-
-      return {
-        id: analysisSession.id,
-        title: createAnalysisSessionTitle(analysisSession.questionText),
-        statusLabel: derived.statusLabel,
-        statusTone: derived.statusTone,
-        derivedStatus: derived.derivedStatus,
-        latestExecutionId: derived.latestExecutionId,
-        summaryMetric: derived.summaryMetric,
-        failureMessage: derived.failureMessage,
-        updatedAtLabel: formatHistoryTimestamp(analysisSession.updatedAt),
-        href: `/workspace/analysis/${analysisSession.id}`,
-      };
-    }),
+    metrics,
+    failedItems,
+    historyItems,
     historyEmptyState:
       historySessions.length === 0
         ? {
@@ -199,6 +269,7 @@ export function createWorkspaceHomeModel(
           description: '请联系管理员补充分配项目权限，当前仍可确认组织与角色上下文。',
         },
     canCreateAnalysis: hasTargets,
+    degradedState,
   };
 }
 

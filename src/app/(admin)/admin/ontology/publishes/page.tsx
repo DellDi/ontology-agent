@@ -89,7 +89,7 @@ export default async function OntologyAdminPublishHistoryPage() {
                   </td>
                   <td>
                     {record.publishNote ? (
-                      <span className="text-sm text-[color:var(--ink-700)]">{record.publishNote}</span>
+                      <span className="text-sm text-muted-foreground">{record.publishNote}</span>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}

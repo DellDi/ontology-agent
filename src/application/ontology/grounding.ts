@@ -793,7 +793,7 @@ export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependenc
         id: requestedVersionId,
         semver: requestedSemver,
         displayName: `Bootstrap ${requestedSemver}`,
-        description: '通过 bootstrap 流程初始化的 canonical definitions',
+        description: '通过 bootstrap 流程初始化的一组标准定义数据',
         createdBy,
         createdAt: now,
         updatedAt: now,
