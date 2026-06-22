@@ -96,10 +96,22 @@ export default async function OntologyAdminChangeRequestsPage({
       />
 
       {error ? (
-        <div className="status-banner" data-tone="error">{decodeURIComponent(error)}</div>
+        <div
+          className="rounded-md border border-[color:var(--danger-500)]/40 bg-[color:color-mix(in_srgb,var(--danger-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+          role="alert"
+          aria-live="assertive"
+        >
+          {decodeURIComponent(error)}
+        </div>
       ) : null}
       {success ? (
-        <div className="status-banner" data-tone="success">{decodeURIComponent(success)}</div>
+        <div
+          className="rounded-md border border-[color:var(--success-500)]/40 bg-[color:color-mix(in_srgb,var(--success-500)_12%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          {decodeURIComponent(success)}
+        </div>
       ) : null}
 
       <AdminCard title="">
@@ -146,7 +158,7 @@ export default async function OntologyAdminChangeRequestsPage({
                   <td>
                     <div className="text-sm">
                       <span className="font-medium">{objectTypeLabel}</span>
-                      <span className="text-[color:var(--ink-500)]"> / {cr.targetObjectKey}</span>
+                      <span className="text-muted-foreground"> / {cr.targetObjectKey}</span>
                     </div>
                   </td>
                   <td>
@@ -161,10 +173,10 @@ export default async function OntologyAdminChangeRequestsPage({
                     <StatusBadge tone={statusLabel.tone}>{statusLabel.label}</StatusBadge>
                   </td>
                   <td>
-                    <span className="text-sm text-[color:var(--ink-600)]">{cr.submittedBy}</span>
+                    <span className="text-sm text-muted-foreground">{cr.submittedBy}</span>
                   </td>
                   <td>
-                    <span className="text-sm text-[color:var(--ink-600)]">
+                    <span className="text-sm text-muted-foreground">
                       {formatTimestamp(cr.updatedAt)}
                     </span>
                   </td>

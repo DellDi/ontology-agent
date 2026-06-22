@@ -8,7 +8,7 @@ export function CandidateFactorPanel({
   readModel,
 }: CandidateFactorPanelProps) {
   return (
-    <article className="glass-panel p-6" data-testid="candidate-factor-panel">
+    <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]" data-testid="candidate-factor-panel">
       <p className="text-sm font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
         {readModel.headline}
       </p>

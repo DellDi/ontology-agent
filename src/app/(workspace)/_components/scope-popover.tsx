@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Button } from '@/app/_components/workbench/button';
+
 import { ProjectScopeDialog } from './project-scope-dialog';
 
 type ScopePopoverProps = {
@@ -64,9 +66,10 @@ export function ScopePopover({
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <Button
         type="button"
-        className="inline-flex items-center gap-2 rounded-md border border-[color:var(--line-200)] bg-white px-4 py-2 text-sm font-medium text-[color:var(--brand-700)] shadow-[var(--shadow-soft)] transition-colors duration-150 hover:bg-[color:var(--surface-50)]"
+        variant="secondary"
+        size="sm"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
       >
@@ -83,39 +86,40 @@ export function ScopePopover({
             clipRule="evenodd"
           />
         </svg>
-        当前范围
-      </button>
+        查看项目详情
+      </Button>
 
       {isOpen ? (
-        <div className="absolute right-0 z-30 mt-3 w-[min(420px,calc(100vw-32px))] rounded-lg border border-[color:var(--line-200)] bg-white p-5 shadow-[var(--shadow-soft)]">
+        <div className="absolute right-0 z-30 mt-3 w-[min(420px,calc(100vw-32px))] rounded-md border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 当前权限范围
               </p>
-              <h3 className="mt-2 text-lg font-semibold text-[color:var(--ink-900)]">
+              <h3 className="mt-2 text-lg font-semibold text-foreground">
                 你当前可见的组织与作用域
               </h3>
             </div>
-            <button
+            <Button
               type="button"
-              className="rounded-md border border-[color:var(--line-200)] px-3 py-1 text-xs text-[color:var(--ink-600)]"
+              variant="ghost"
+              size="sm"
               onClick={close}
             >
               关闭
-            </button>
+            </Button>
           </div>
 
           <div className="mt-5 space-y-3">
-            <div className="rounded-lg bg-white p-4">
+            <div className="rounded-md bg-secondary/40 p-4">
               <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 组织
               </p>
-              <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
+              <p className="mt-2 text-base font-semibold text-foreground">
                 {organization}
               </p>
             </div>
-            <div className="rounded-lg bg-white p-4">
+            <div className="rounded-md bg-secondary/40 p-4">
               <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 项目
               </p>
@@ -124,49 +128,51 @@ export function ScopePopover({
                 projects={projectDisplayNames}
               />
             </div>
-            <div className="rounded-lg bg-white p-4">
+            <div className="rounded-md bg-secondary/40 p-4">
               <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
                 角色
               </p>
-              <p className="mt-2 text-base text-[color:var(--ink-900)]">
+              <p className="mt-2 text-base text-foreground">
                 {roles}
               </p>
             </div>
           </div>
 
-          <div className="mt-5 rounded-lg border border-[color:var(--line-200)] bg-white p-5">
+          <div className="mt-5 rounded-md border border-border bg-card p-5">
             <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
               范围说明
             </p>
             <div className="mt-4 space-y-4">
               <div>
-                <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
+                <h4 className="text-sm font-semibold text-foreground">
                   支持范围
                 </h4>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {boundaryGuidance.supported.join('、')}等物业分析主题。
                 </p>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
+                <h4 className="text-sm font-semibold text-foreground">
                   不支持范围
                 </h4>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {boundaryGuidance.unsupported.join('、')}等业务能力。
                 </p>
               </div>
-              <p className="rounded-lg bg-[color:var(--sky-50)] px-4 py-3 text-sm leading-6 text-[color:var(--ink-700)]">
+              <p className="rounded-md bg-secondary/50 px-4 py-3 text-sm leading-6 text-foreground">
                 {boundaryGuidance.note}
               </p>
             </div>
           </div>
 
           {emptyState ? (
-            <div className="mt-4 status-banner" data-tone="info">
-              <p className="font-semibold text-[color:var(--ink-900)]">
-                {emptyState.title}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+            <div
+              className="mt-4 rounded-md border border-[color:var(--brand-300)]/40 bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] px-4 py-3"
+              role="status"
+              data-tone="info"
+            >
+              <p className="font-semibold text-foreground">{emptyState.title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {emptyState.description}
               </p>
             </div>

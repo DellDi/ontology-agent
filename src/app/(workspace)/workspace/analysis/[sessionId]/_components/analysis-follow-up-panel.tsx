@@ -1,3 +1,5 @@
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
 import type { AnalysisContext } from '@/domain/analysis-context/models';
 import {
   buildFollowUpContextDiff,
@@ -5,6 +7,63 @@ import {
   type FollowUpContextChangeItem,
 } from '@/domain/analysis-session/follow-up-models';
 import { formatOntologyVersionBindingBadge } from '@/shared/ontology/version-binding-display';
+
+import { StatusBanner, type StatusBannerTone } from '@/app/_components/workbench/status-banner';
+
+// 该 panel 由 server component 渲染（用于无 JS 表单回退），不能引用 'use client' 组件。
+// 这里复用 workbench StatusBanner（纯样式可在 server 端渲染），同时定义两个轻量 button
+// 内联样式以避免 useState/forwardRef 类型在 server 边界上的麻烦。
+function FollowUpPrimaryButton({
+  className,
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) {
+  return (
+    <button
+      className={
+        'inline-flex min-h-[44px] items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60' +
+        (className ? ` ${className}` : '')
+      }
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FollowUpSecondaryButton({
+  className,
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) {
+  return (
+    <button
+      className={
+        'inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60' +
+        (className ? ` ${className}` : '')
+      }
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FollowUpStatusBanner({
+  tone,
+  className,
+  children,
+}: {
+  tone: StatusBannerTone;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <StatusBanner tone={tone} className={className}>
+      {children}
+    </StatusBanner>
+  );
+}
 
 type AnalysisFollowUpPanelProps = {
   sessionId: string;
@@ -77,7 +136,7 @@ export function AnalysisFollowUpPanel({
   const activeFollowUp = buildActiveFollowUp(followUps, activeFollowUpId);
 
   return (
-    <article className="glass-panel p-6" data-testid="analysis-follow-up-panel">
+    <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]" data-testid="analysis-follow-up-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
@@ -93,21 +152,21 @@ export function AnalysisFollowUpPanel({
       </div>
 
       {feedback ? (
-        <div
-          className="status-banner mt-4"
-          data-tone={feedback.tone === 'error' ? 'error' : 'success'}
+        <FollowUpStatusBanner
+          className="mt-4"
+          tone={feedback.tone === 'error' ? 'error' : 'success'}
         >
           {feedback.message}
-        </div>
+        </FollowUpStatusBanner>
       ) : null}
 
       {replanFeedback ? (
-        <div
-          className="status-banner mt-4"
-          data-tone={replanFeedback.tone === 'error' ? 'error' : 'success'}
+        <FollowUpStatusBanner
+          className="mt-4"
+          tone={replanFeedback.tone === 'error' ? 'error' : 'success'}
         >
           {replanFeedback.message}
-        </div>
+        </FollowUpStatusBanner>
       ) : null}
 
       <div className="mt-5 rounded-lg bg-white p-5">
@@ -138,18 +197,16 @@ export function AnalysisFollowUpPanel({
           <input name="parentFollowUpId" type="hidden" value={activeFollowUp.id} />
         ) : null}
         <label className="space-y-2">
-          <span className="field-label">追问问题</span>
+          <span className="block text-sm font-semibold text-foreground">追问问题</span>
           <textarea
-            className="field-input min-h-28 resize-y"
+            className="min-h-28 w-full resize-y rounded-md border border-input bg-card px-3.5 py-2.5 text-sm leading-7 text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
             name="question"
             placeholder="例如：那物业服务为什么波动？"
             required
           />
         </label>
         <div className="mt-4 flex justify-end">
-          <button className="primary-button" type="submit">
-            提交追问
-          </button>
+          <FollowUpPrimaryButton type="submit">提交追问</FollowUpPrimaryButton>
         </div>
       </form>
 
@@ -166,9 +223,9 @@ export function AnalysisFollowUpPanel({
             </div>
 
             {conflictItems.length > 0 ? (
-              <div className="status-banner mt-4" data-tone="error">
+              <FollowUpStatusBanner className="mt-4" tone="error">
                 发现冲突条件，确认后才会覆盖当前轮次上下文。
-              </div>
+              </FollowUpStatusBanner>
             ) : null}
 
             {conflictItems.length > 0 ? (
@@ -195,9 +252,9 @@ export function AnalysisFollowUpPanel({
               method="post"
             >
               <label className="space-y-2">
-                <span className="field-label">目标指标</span>
+                <span className="block text-sm font-semibold text-foreground">目标指标</span>
                 <input
-                  className="field-input"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.targetMetric ?? ''}
                   name="targetMetric"
                   placeholder={activeFollowUp.mergedContext.targetMetric.value}
@@ -205,9 +262,9 @@ export function AnalysisFollowUpPanel({
                 />
               </label>
               <label className="space-y-2">
-                <span className="field-label">实体对象</span>
+                <span className="block text-sm font-semibold text-foreground">实体对象</span>
                 <input
-                  className="field-input"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.entity ?? ''}
                   name="entity"
                   placeholder={activeFollowUp.mergedContext.entity.value}
@@ -215,9 +272,9 @@ export function AnalysisFollowUpPanel({
                 />
               </label>
               <label className="space-y-2">
-                <span className="field-label">时间范围</span>
+                <span className="block text-sm font-semibold text-foreground">时间范围</span>
                 <input
-                  className="field-input"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.timeRange ?? ''}
                   name="timeRange"
                   placeholder={activeFollowUp.mergedContext.timeRange.value}
@@ -225,9 +282,9 @@ export function AnalysisFollowUpPanel({
                 />
               </label>
               <label className="space-y-2">
-                <span className="field-label">比较方式</span>
+                <span className="block text-sm font-semibold text-foreground">比较方式</span>
                 <input
-                  className="field-input"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.comparison ?? ''}
                   name="comparison"
                   placeholder={activeFollowUp.mergedContext.comparison.value}
@@ -235,9 +292,9 @@ export function AnalysisFollowUpPanel({
                 />
               </label>
               <label className="space-y-2 md:col-span-2">
-                <span className="field-label">候选因素</span>
+                <span className="block text-sm font-semibold text-foreground">候选因素</span>
                 <input
-                  className="field-input"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.factor ?? ''}
                   name="factor"
                   placeholder="例如：物业服务"
@@ -245,18 +302,17 @@ export function AnalysisFollowUpPanel({
                 />
               </label>
               <div className="flex flex-wrap justify-end gap-3 md:col-span-2">
-                <button className="primary-button" type="submit">
+                <FollowUpPrimaryButton type="submit">
                   提交增量条件
-                </button>
+                </FollowUpPrimaryButton>
                 {conflictItems.length > 0 ? (
-                  <button
-                    className="secondary-button"
+                  <FollowUpSecondaryButton
                     name="confirmConflicts"
                     type="submit"
                     value="true"
                   >
                     确认覆盖冲突条件
-                  </button>
+                  </FollowUpSecondaryButton>
                 ) : null}
               </div>
             </form>
@@ -266,9 +322,9 @@ export function AnalysisFollowUpPanel({
               className="mt-4 flex justify-end"
               method="post"
             >
-              <button className="secondary-button" type="submit">
+              <FollowUpSecondaryButton type="submit">
                 重生成后续计划
-              </button>
+              </FollowUpSecondaryButton>
             </form>
           </section>
         ) : null}

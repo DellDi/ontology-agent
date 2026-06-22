@@ -50,7 +50,7 @@ export function AnalysisConclusionPanel({
     : null;
 
   return (
-    <article className="glass-panel p-6" data-testid="analysis-conclusion-panel">
+    <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]" data-testid="analysis-conclusion-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">

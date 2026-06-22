@@ -33,7 +33,7 @@ export function AdminPageHeader({
   trailing,
 }: AdminPageHeaderProps) {
   return (
-    <article className="hero-panel p-6 md:p-7">
+    <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)] md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl space-y-3">
           <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
@@ -183,32 +183,40 @@ type StatusProgressBarProps = {
 
 export function StatusProgressBar({ steps, currentIndex }: StatusProgressBarProps) {
   return (
-    <div className="status-progress-bar">
+    <div className="flex items-start gap-0 py-4">
       {steps.map((step, index) => {
         const isCompleted = index < currentIndex;
         const isCurrent = index === currentIndex;
         return (
-          <div key={step.status} className="status-progress-step">
-            <div className="status-progress-connector">
+          <div
+            key={step.status}
+            className="relative flex flex-1 flex-col items-center"
+          >
+            <div className="flex h-8 w-full items-center justify-center">
               {index > 0 && (
                 <div
-                  className={`status-progress-line ${isCompleted ? 'completed' : ''}`}
+                  className={cn(
+                    'h-0.5 w-full',
+                    isCompleted ? 'bg-primary' : 'bg-border',
+                  )}
                 />
               )}
             </div>
             <div
-              className={`status-progress-dot ${
+              className={cn(
+                'z-10 -mt-1.5 size-3 rounded-full border-2 bg-card',
                 isCompleted
-                  ? 'completed'
+                  ? 'border-primary bg-primary'
                   : isCurrent
-                    ? 'current'
-                    : 'pending'
-              }`}
+                    ? 'border-primary shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand-700)_18%,transparent)]'
+                    : 'border-input',
+              )}
             />
             <span
-              className={`status-progress-label ${
-                isCompleted || isCurrent ? 'active' : ''
-              }`}
+              className={cn(
+                'mt-2 whitespace-nowrap text-center text-xs text-muted-foreground',
+                (isCompleted || isCurrent) && 'font-semibold text-foreground',
+              )}
             >
               {step.label}
             </span>
@@ -230,15 +238,19 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
-    <div className="empty-state">
-      <div className="empty-state-icon">
+    <div className="flex flex-col items-center justify-center px-8 py-12 text-center">
+      <div className="mb-4 text-muted-foreground/55">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
           <polyline points="14 2 14 8 20 8" />
         </svg>
       </div>
-      <h4 className="empty-state-title">{title}</h4>
-      {description && <p className="empty-state-description">{description}</p>}
+      <h4 className="mb-2 text-base font-semibold text-foreground">{title}</h4>
+      {description ? (
+        <p className="max-w-96 text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
       {action && (
         <Button asChild className="mt-4">
           <Link href={action.href}>
@@ -263,18 +275,20 @@ type DataTableProps = {
 
 export function DataTable({ headers, children }: DataTableProps) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {headers.map((header) => (
-            <TableHead key={header.key} className={header.className}>
-              {header.label}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>{children}</TableBody>
-    </Table>
+    <div className="admin-table-wrapper">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {headers.map((header) => (
+              <TableHead key={header.key} className={cn('h-14 px-5 text-sm', header.className)}>
+                {header.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>{children}</TableBody>
+      </Table>
+    </div>
   );
 }
 
@@ -293,7 +307,7 @@ type TabBarProps = {
 
 export function TabBar({ tabs, activeKey, basePath, paramName = 'tab' }: TabBarProps) {
   return (
-    <div className="tab-bar">
+    <div className="flex flex-wrap border-b border-border">
       {tabs.map((tab) => {
         const isActive = tab.key === activeKey;
         const href = tab.key === 'all'
@@ -303,11 +317,25 @@ export function TabBar({ tabs, activeKey, basePath, paramName = 'tab' }: TabBarP
           <Link
             key={tab.key}
             href={href}
-            className={`tab-item ${isActive ? 'active' : ''}`}
+            className={cn(
+              '-mb-px inline-flex items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+              isActive
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
           >
             {tab.label}
             {tab.count !== undefined && (
-              <span className="tab-count">{tab.count}</span>
+              <span
+                className={cn(
+                  'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold',
+                  isActive
+                    ? 'bg-accent text-primary'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {tab.count}
+              </span>
             )}
           </Link>
         );

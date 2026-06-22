@@ -7,7 +7,13 @@ import {
 } from '@/domain/ontology/governance';
 import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
 import { Button } from '@/app/_components/button';
-import { FieldInput, FieldTextarea } from '@/app/_components/field';
+import {
+  Field,
+  FieldHelper,
+  FieldInput,
+  FieldLabel,
+  FieldTextarea,
+} from '@/app/_components/field';
 
 import {
   AdminCard,
@@ -17,6 +23,7 @@ import {
   COMPATIBILITY_LABELS,
   CHANGE_TYPE_LABELS,
   TARGET_OBJECT_TYPE_LABELS,
+  getVersionStatusLabel,
 } from '../../../../_lib/admin-labels';
 
 export default async function NewChangeRequestPage() {
@@ -89,74 +96,70 @@ export default async function NewChangeRequestPage() {
           action="/api/admin/ontology/change-requests"
           className="space-y-6"
         >
-          <div className="form-group">
-            <label className="block">
-              <span className="field-label">标题 <span className="text-destructive">*</span></span>
+          <Field required>
+            <FieldLabel>标题</FieldLabel>
               <FieldInput name="title" required maxLength={200} placeholder="简要描述本次变更的内容" />
-              <span className="field-helper">变更申请的标题，用于在列表中快速识别</span>
-            </label>
-          </div>
+            <FieldHelper>变更申请的标题，用于在列表中快速识别</FieldHelper>
+          </Field>
 
-          <div className="form-group">
-            <label className="block">
-              <span className="field-label">描述</span>
+          <Field>
+            <FieldLabel>描述</FieldLabel>
               <FieldTextarea name="description" placeholder="详细说明变更的背景、目的和预期效果" className="min-h-[100px]" />
-              <span className="field-helper">可选。提供更详细的变更说明，帮助审批人理解变更意图</span>
-            </label>
-          </div>
+            <FieldHelper>可选。提供更详细的变更说明，帮助审批人理解变更意图</FieldHelper>
+          </Field>
 
-          <div className="form-group-title">变更目标</div>
+          <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">变更目标</div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="field-label">目标版本 <span className="text-destructive">*</span></span>
-              <select className="field-input" name="ontologyVersionId" required>
+              <span className="block text-sm font-semibold text-foreground">目标版本 <span className="text-destructive">*</span></span>
+              <select className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40" name="ontologyVersionId" required>
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.semver} · {v.displayName} · {v.status}
+                    {v.semver} · {v.displayName} · {getVersionStatusLabel(v.status)}
                   </option>
                 ))}
               </select>
-              <span className="field-helper">变更将应用到的目标版本</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更将应用到的目标版本</span>
             </label>
 
             <label className="block">
-              <span className="field-label">目标对象类型 <span className="text-destructive">*</span></span>
-              <select className="field-input" name="targetObjectType" required>
+              <span className="block text-sm font-semibold text-foreground">目标对象类型 <span className="text-destructive">*</span></span>
+              <select className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40" name="targetObjectType" required>
                 {TARGET_OBJECT_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {TARGET_OBJECT_TYPE_LABELS[t] ?? t}
                   </option>
                 ))}
               </select>
-              <span className="field-helper">本次变更涉及的治理对象类型</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">本次变更涉及的治理对象类型</span>
             </label>
 
             <label className="block">
-              <span className="field-label">业务键 <span className="text-destructive">*</span></span>
+              <span className="block text-sm font-semibold text-foreground">业务键 <span className="text-destructive">*</span></span>
               <FieldInput name="targetObjectKey" required placeholder="如：metrics.revenue" />
-              <span className="field-helper">变更对象的唯一业务标识符</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更对象的唯一业务标识符</span>
             </label>
 
             <label className="block">
-              <span className="field-label">变更类型 <span className="text-destructive">*</span></span>
-              <select className="field-input" name="changeType" required>
+              <span className="block text-sm font-semibold text-foreground">变更类型 <span className="text-destructive">*</span></span>
+              <select className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40" name="changeType" required>
                 {CHANGE_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {CHANGE_TYPE_LABELS[t] ?? t}
                   </option>
                 ))}
               </select>
-              <span className="field-helper">本次变更的操作类型</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">本次变更的操作类型</span>
             </label>
           </div>
 
-          <div className="form-group-title">影响评估</div>
+          <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">影响评估</div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="field-label">兼容性 <span className="text-destructive">*</span></span>
-              <select className="field-input" name="compatibilityType" required>
+              <span className="block text-sm font-semibold text-foreground">兼容性 <span className="text-destructive">*</span></span>
+              <select className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40" name="compatibilityType" required>
                 {COMPATIBILITY_TYPES.map((t) => {
                   const compatLabel = COMPATIBILITY_LABELS[t];
                   return (
@@ -166,7 +169,7 @@ export default async function NewChangeRequestPage() {
                   );
                 })}
               </select>
-              <span className="field-helper">
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">
                 {COMPATIBILITY_TYPES.map((t) => {
                   const compatLabel = COMPATIBILITY_LABELS[t];
                   return compatLabel ? `${compatLabel.label}：${compatLabel.note}` : null;
@@ -175,41 +178,39 @@ export default async function NewChangeRequestPage() {
             </label>
 
             <label className="block">
-              <span className="field-label">影响范围</span>
+              <span className="block text-sm font-semibold text-foreground">影响范围</span>
               <FieldInput name="impactScope" placeholder="metrics.x, factors.y" />
-              <span className="field-helper">受本次变更影响的其他对象，多个用逗号或换行分隔</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">受本次变更影响的其他对象，多个用逗号或换行分隔</span>
             </label>
           </div>
 
-          <div className="form-group">
-            <label className="block">
-              <span className="field-label">兼容说明</span>
+          <Field>
+            <FieldLabel>兼容说明</FieldLabel>
               <FieldTextarea name="compatibilityNote" placeholder="说明兼容性评估的依据和注意事项" className="min-h-[80px]" />
-              <span className="field-helper">可选。对兼容性选择的补充说明</span>
-            </label>
-          </div>
+            <FieldHelper>可选。对兼容性选择的补充说明</FieldHelper>
+          </Field>
 
-          <div className="form-group-title">变更内容</div>
+          <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">变更内容</div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="field-label">变更前摘要</span>
+              <span className="block text-sm font-semibold text-foreground">变更前摘要</span>
               <FieldTextarea
                 name="beforeSummary"
                 placeholder='{"calculation":"by_amount"}'
                 className="min-h-[120px] font-mono text-xs"
               />
-              <span className="field-helper">变更前的配置或定义，JSON 格式</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更前的配置或定义，JSON 格式</span>
             </label>
 
             <label className="block">
-              <span className="field-label">变更后摘要</span>
+              <span className="block text-sm font-semibold text-foreground">变更后摘要</span>
               <FieldTextarea
                 name="afterSummary"
                 placeholder='{"calculation":"by_count"}'
                 className="min-h-[120px] font-mono text-xs"
               />
-              <span className="field-helper">变更后的配置或定义，JSON 格式</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更后的配置或定义，JSON 格式</span>
             </label>
           </div>
 

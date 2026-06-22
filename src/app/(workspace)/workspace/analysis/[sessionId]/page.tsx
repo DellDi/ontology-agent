@@ -199,7 +199,7 @@ export default async function AnalysisSessionPage({
                   <input name="followUpId" type="hidden" value={pageModel.activeFollowUpId} />
                 ) : null}
                 <button
-                  className="secondary-button"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={Boolean(pageModel.groundedPlanPreviewError)}
                   type="submit"
                 >

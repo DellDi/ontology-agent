@@ -36,9 +36,13 @@ export default async function OntologyAdminOverviewPage() {
       />
 
       {overview.riskNotes.length > 0 ? (
-        <article className="status-banner" data-tone="warning">
+        <article
+          className="rounded-md border border-[color:var(--warning-500)]/40 bg-[color:color-mix(in_srgb,var(--warning-500)_14%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+          role="alert"
+          aria-live="assertive"
+        >
           <p className="font-semibold text-foreground">需关注的治理风险</p>
-          <ul className="mt-2 list-disc pl-5 text-sm leading-6 text-[color:var(--ink-700)]">
+          <ul className="mt-2 list-disc pl-5 text-sm leading-6 text-muted-foreground">
             {overview.riskNotes.map((note) => (
               <li key={note}>{note}</li>
             ))}
@@ -69,7 +73,11 @@ export default async function OntologyAdminOverviewPage() {
               </p>
             </div>
           ) : (
-            <div className="status-banner" data-tone="info">
+            <div
+              className="rounded-md border border-[color:var(--brand-300)]/40 bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+              role="status"
+              aria-live="polite"
+            >
               当前没有任何已发布版本。请联系治理负责人通过变更申请 → 审批 → 发布的最小闭环创建首个版本。
             </div>
           )}
@@ -117,7 +125,13 @@ export default async function OntologyAdminOverviewPage() {
         description="只展示最近 10 条；完整列表与筛选请进入变更申请页面。"
       >
         {overview.recentChangeRequests.length === 0 ? (
-          <div className="status-banner" data-tone="info">还没有任何变更申请记录。</div>
+          <div
+            className="rounded-md border border-[color:var(--brand-300)]/40 bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            还没有任何变更申请记录。
+          </div>
         ) : (
           <div className="grid gap-3">
             {overview.recentChangeRequests.map((cr) => {

@@ -1,20 +1,44 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { buildAiRuntimeProjection, mergeAnalysisExecutionStreamEvents, resolveLiveShellCanonicalEvents, type AiRuntimeProjection } from '@/application/ai-runtime';
+import { useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
+
+import type { AiRuntimeProjection } from '@/application/ai-runtime';
 import { buildConversationViewModel } from '@/application/analysis-message-projection/conversation-view-model';
 import type { ConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
-import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisUiMessageProjectionStreamCursor } from '@/domain/analysis-message-projection/models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
-import type { ReactNode } from 'react';
+
+import { Button } from '@/app/_components/workbench/button';
+import { StatusBanner } from '@/app/_components/workbench/status-banner';
+
+import {
+  makeAnalysisStreamEventMerger,
+  useAnalysisExecutionStream,
+} from '../_hooks/use-analysis-execution-stream';
+import { useAnalysisProjectionState } from '../_hooks/use-analysis-projection-state';
+
 import { AnalysisConversationShell } from './analysis-conversation-shell';
-import { AnalysisExecutionStreamPanel } from './analysis-execution-stream-panel';
 import { AnalysisDiagnosticsPanel } from './analysis-diagnostics-panel';
-import { buildAnalysisExecutionStreamUrl } from '../analysis-execution-display';
-import { useRouter } from 'next/navigation';
+import { AnalysisExecutionStreamPanel } from './analysis-execution-stream-panel';
+
+// 抽离以便 tests 与外部模块复用
+export const PROCESS_BOARD_STORAGE_KEY_PREFIX = 'analysis-process-board-open-v2';
+
+export function buildProcessBoardStorageKey(ownerUserId: string) {
+  return `${PROCESS_BOARD_STORAGE_KEY_PREFIX}:${ownerUserId}`;
+}
+
+export function shouldRestoreProcessBoardOpenState(persistedValue: string | null) {
+  return persistedValue === '1';
+}
+
+export function shouldCloseProcessBoardOnKeydown(key: string) {
+  return key === 'Escape';
+}
 
 type AnalysisExecutionLiveShellProps = {
   sessionId: string;
@@ -37,22 +61,6 @@ type AnalysisExecutionLiveShellProps = {
   children?: ReactNode;
 };
 
-const SSE_MAX_DURATION_MS = 5 * 60 * 1000;
-
-export const PROCESS_BOARD_STORAGE_KEY_PREFIX = 'analysis-process-board-open-v2';
-
-export function buildProcessBoardStorageKey(ownerUserId: string) {
-  return `${PROCESS_BOARD_STORAGE_KEY_PREFIX}:${ownerUserId}`;
-}
-
-export function shouldRestoreProcessBoardOpenState(persistedValue: string | null) {
-  return persistedValue === '1';
-}
-
-export function shouldCloseProcessBoardOnKeydown(key: string) {
-  return key === 'Escape';
-}
-
 export function AnalysisExecutionLiveShell({
   sessionId,
   executionId,
@@ -72,40 +80,35 @@ export function AnalysisExecutionLiveShell({
   children,
 }: AnalysisExecutionLiveShellProps) {
   const router = useRouter();
-  const [events, setEvents] = useState<AnalysisExecutionStreamEvent[]>(initialReadModel.events);
-  const [hasReceivedLiveEvents, setHasReceivedLiveEvents] = useState(false);
-  const [streamConnectionIssue, setStreamConnectionIssue] = useState<{ message: string; occurredAt: string } | null>(null);
-  const [reconnectEpoch, setReconnectEpoch] = useState(0);
 
-  const handleReconnect = useCallback(() => {
-    setStreamConnectionIssue(null);
-    setHasReceivedLiveEvents(false);
-    setReconnectEpoch((epoch) => epoch + 1);
-  }, []);
-
-  const [trackedExecutionKey, setTrackedExecutionKey] = useState(() => `${sessionId}::${executionId}`);
-
-  const canonicalResolution = resolveLiveShellCanonicalEvents({
+  // 1) canonical events 与 projection（reset 已经迁入 effect 内部）
+  const { events, setEvents, projection } = useAnalysisProjectionState({
     sessionId,
     executionId,
-    previousTrackingKey: trackedExecutionKey,
-    previousEvents: events,
-    initialEventsForCurrentExecution: initialReadModel.events,
+    initialEvents: initialReadModel.events,
+    fallbackConclusion: initialConclusionReadModel,
+    initialProjection,
+    hasReceivedLiveEvents: false, // 由下方覆盖
   });
 
-  if (canonicalResolution.didReset) {
-    setTrackedExecutionKey(canonicalResolution.trackingKey);
-    setEvents(canonicalResolution.events as AnalysisExecutionStreamEvent[]);
-    setHasReceivedLiveEvents(false);
-    setStreamConnectionIssue(null);
-  }
-
-  const rebuiltProjection = useMemo(
-    () => buildAiRuntimeProjection({ sessionId, executionId, events, fallbackConclusion: initialConclusionReadModel }),
-    [sessionId, executionId, events, initialConclusionReadModel],
+  // 2) SSE 订阅 + 重连
+  const onEvent = useMemo(
+    () => makeAnalysisStreamEventMerger(setEvents, { sessionId, executionId }),
+    [setEvents, sessionId, executionId],
   );
-  const projection = initialProjection && !hasReceivedLiveEvents ? initialProjection : rebuiltProjection;
+  const { hasReceivedLiveEvents, streamConnectionIssue, reconnect } =
+    useAnalysisExecutionStream({
+      sessionId,
+      executionId,
+      resumeCursor,
+      enabled: enableLiveStream,
+      onEvent,
+    });
 
+  // 已收到 live 事件后，优先使用本地重建的 projection，避免回退到旧 initialProjection
+  const liveProjection = useMemo(() => projection, [projection]);
+
+  // 3) view model 派生（保留原 selector）
   const conclusionCauseIds = useMemo(
     () => initialConclusionReadModel?.causes?.map((cause) => cause.id) ?? [],
     [initialConclusionReadModel],
@@ -118,50 +121,42 @@ export function AnalysisExecutionLiveShell({
         intentLabel,
         ontologyVersion: ontologyVersionBadge,
         followUpLabel,
-        projection,
+        projection: hasReceivedLiveEvents
+          ? liveProjection
+          : (initialProjection ?? liveProjection),
         events,
         hasConnectionIssue: !!streamConnectionIssue,
         planAssumptions,
         candidateFactors,
         conclusionCauseIds,
       }),
-    [questionText, intentLabel, ontologyVersionBadge, followUpLabel, projection, events, streamConnectionIssue, planAssumptions, candidateFactors, conclusionCauseIds],
+    [
+      questionText,
+      intentLabel,
+      ontologyVersionBadge,
+      followUpLabel,
+      hasReceivedLiveEvents,
+      liveProjection,
+      initialProjection,
+      events,
+      streamConnectionIssue,
+      planAssumptions,
+      candidateFactors,
+      conclusionCauseIds,
+    ],
   );
 
-  useEffect(() => {
-    if (!enableLiveStream) return;
+  const handleManualRefresh = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
-    const eventSource = new EventSource(buildAnalysisExecutionStreamUrl({ sessionId, executionId, resumeCursor }));
-
-    const maxDurationTimer = setTimeout(() => {
-      eventSource.close();
-      setStreamConnectionIssue({ message: '分析执行时间较长，实时流已超时。您可以手动刷新查看最新状态。', occurredAt: new Date().toISOString() });
-    }, SSE_MAX_DURATION_MS);
-
-    eventSource.onmessage = (message) => {
-      const nextEvent = JSON.parse(message.data) as AnalysisExecutionStreamEvent;
-      setHasReceivedLiveEvents(true);
-      setStreamConnectionIssue(null);
-      setEvents((previousEvents) => mergeAnalysisExecutionStreamEvents(previousEvents, nextEvent, { sessionId, executionId, deduplicateBySequence: true }));
-      if (nextEvent.kind === 'execution-status' && (nextEvent.status === 'completed' || nextEvent.status === 'failed')) {
-        clearTimeout(maxDurationTimer);
-        eventSource.close();
-      }
-    };
-
-    eventSource.onerror = () => {
-      clearTimeout(maxDurationTimer);
-      setStreamConnectionIssue({ message: '事件流连接已中断，当前页面可能无法继续实时刷新。', occurredAt: new Date().toISOString() });
-      eventSource.close();
-    };
-
-    return () => { clearTimeout(maxDurationTimer); eventSource.close(); };
-  }, [enableLiveStream, executionId, resumeCursor, sessionId, reconnectEpoch]);
-
+  // 4) 抽屉内容拼装
   const { diagnostics } = conversationViewModel.assistantMessage;
   const mergedDrawerContents: Record<string, ReactNode> = {
     ...drawerContents,
-    'execution-log': <AnalysisExecutionStreamPanel events={events} variant="side-sheet" />,
+    'execution-log': (
+      <AnalysisExecutionStreamPanel events={events} variant="side-sheet" />
+    ),
     diagnostics: (
       <AnalysisDiagnosticsPanel
         timelineBlocks={diagnostics.timelineBlocks}
@@ -178,20 +173,59 @@ export function AnalysisExecutionLiveShell({
 
   return (
     <>
-      {streamConnectionIssue && (
+      {streamConnectionIssue ? (
         <div className="mx-auto mt-4 max-w-[860px] px-4">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <StatusBanner
+            tone="warning"
+            title="实时连接已中断"
+            action={
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={reconnect}
+                  type="button"
+                  data-testid="analysis-live-stream-reconnect"
+                >
+                  重新连接
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleManualRefresh}
+                  type="button"
+                  data-testid="analysis-live-stream-refresh"
+                >
+                  手动刷新
+                </Button>
+              </div>
+            }
+          >
             <p>{streamConnectionIssue.message}</p>
-            <div className="mt-2 flex gap-3">
-              <button onClick={handleReconnect} className="secondary-button" type="button">重新连接</button>
-              <button onClick={() => router.refresh()} className="secondary-button" type="button">手动刷新</button>
-            </div>
-          </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              出现时间：{formatLocalTime(streamConnectionIssue.occurredAt)}
+              {streamConnectionIssue.detail
+                ? ` · 细节：${streamConnectionIssue.detail}`
+                : ''}
+            </p>
+          </StatusBanner>
         </div>
-      )}
-      <AnalysisConversationShell viewModel={conversationViewModel} thread={thread} drawerContents={mergedDrawerContents}>
+      ) : null}
+      <AnalysisConversationShell
+        viewModel={conversationViewModel}
+        thread={thread}
+        drawerContents={mergedDrawerContents}
+      >
         {children}
       </AnalysisConversationShell>
     </>
   );
+}
+
+function formatLocalTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString('zh-CN', { hour12: false });
+  } catch {
+    return iso;
+  }
 }

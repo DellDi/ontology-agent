@@ -4,9 +4,15 @@ import { readFileSync } from 'node:fs';
 
 const LIVE_SHELL_PATH =
   'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-execution-live-shell.tsx';
+const STREAM_HOOK_PATH =
+  'src/app/(workspace)/workspace/analysis/[sessionId]/_hooks/use-analysis-execution-stream.ts';
 
 function readLiveShellSource() {
   return readFileSync(LIVE_SHELL_PATH, 'utf-8');
+}
+
+function readStreamHookSource() {
+  return readFileSync(STREAM_HOOK_PATH, 'utf-8');
 }
 
 // ---------------------------------------------------------------------------
@@ -14,7 +20,7 @@ function readLiveShellSource() {
 // ---------------------------------------------------------------------------
 
 test('Phase 0e | SSE_MAX_DURATION_MS 常量应为 5 分钟 (5 * 60 * 1000)', () => {
-  const source = readLiveShellSource();
+  const source = readStreamHookSource();
   assert.ok(
     source.includes('SSE_MAX_DURATION_MS'),
     '应声明 SSE_MAX_DURATION_MS 常量',
@@ -26,7 +32,7 @@ test('Phase 0e | SSE_MAX_DURATION_MS 常量应为 5 分钟 (5 * 60 * 1000)', () 
 });
 
 test('Phase 0e | useEffect 中应使用 setTimeout 设置最大连接时长定时器', () => {
-  const source = readLiveShellSource();
+  const source = readStreamHookSource();
   assert.ok(
     source.includes('setTimeout('),
     '应调用 setTimeout 以设置最大连接时长定时器',
@@ -42,7 +48,7 @@ test('Phase 0e | useEffect 中应使用 setTimeout 设置最大连接时长定�
 });
 
 test('Phase 0e | 正常完成 / 失败时应 clearTimeout(maxDurationTimer)', () => {
-  const source = readLiveShellSource();
+  const source = readStreamHookSource();
   // 在 onmessage 中完成 / 失败分支里应清理定时器
   assert.ok(
     source.includes('clearTimeout(maxDurationTimer)'),
@@ -58,7 +64,7 @@ test('Phase 0e | 正常完成 / 失败时应 clearTimeout(maxDurationTimer)', ()
 });
 
 test('Phase 0e | cleanup 函数应同时清理定时器和关闭 EventSource', () => {
-  const source = readLiveShellSource();
+  const source = readStreamHookSource();
   // cleanup 中应同时包含 clearTimeout 和 eventSource.close
   const cleanupBlockPattern = /return\s*\(\)\s*=>\s*\{[\s\S]*?clearTimeout\(maxDurationTimer\)[\s\S]*?eventSource\.close\(\)[\s\S]*?\}/;
   assert.ok(
@@ -68,7 +74,7 @@ test('Phase 0e | cleanup 函数应同时清理定时器和关闭 EventSource', (
 });
 
 test('Phase 0e | 超时后应设置 streamConnectionIssue 并携带超时提示文案', () => {
-  const source = readLiveShellSource();
+  const source = readStreamHookSource();
   // 在 setTimeout 回调中应调用 setStreamConnectionIssue
   assert.ok(
     source.includes('分析执行时间较长，实时流已超时'),
@@ -77,14 +83,16 @@ test('Phase 0e | 超时后应设置 streamConnectionIssue 并携带超时提示�
 });
 
 test('Phase 0e | 应渲染"重新连接"按钮以支持手动重连', () => {
-  const source = readLiveShellSource();
+  const shellSource = readLiveShellSource();
+  const hookSource = readStreamHookSource();
   assert.ok(
-    source.includes('重新连接'),
+    shellSource.includes('重新连接'),
     'UI 中应包含"重新连接"按钮文案',
   );
   assert.ok(
-    source.includes('handleReconnect'),
-    '应定义 handleReconnect 回调以处理重连逻辑',
+    hookSource.includes('const reconnect = useCallback(') &&
+      hookSource.includes('setReconnectEpoch'),
+    '应定义 reconnect 回调以处理重连逻辑',
   );
 });
 
@@ -105,13 +113,13 @@ test('Phase 0e | 应渲染"手动刷新"按钮并调用 router.refresh()', () =>
 });
 
 test('Phase 0e | reconnectEpoch 状态应被用于强制重新挂载 SSE effect', () => {
-  const source = readLiveShellSource();
+  const source = readStreamHookSource();
   assert.ok(
     source.includes('reconnectEpoch'),
     '应声明 reconnectEpoch 状态',
   );
   // reconnectEpoch 应出现在 useEffect 依赖数组中
-  const depsPattern = /\[enableLiveStream,\s*executionId,\s*resumeCursor,\s*sessionId,\s*reconnectEpoch\]/;
+  const depsPattern = /\[enabled,\s*sessionId,\s*executionId,\s*reconnectEpoch\]/;
   assert.ok(
     depsPattern.test(source),
     'reconnectEpoch 应被加入 SSE useEffect 的依赖数组',
@@ -121,12 +129,12 @@ test('Phase 0e | reconnectEpoch 状态应被用于强制重新挂载 SSE effect'
 test('Phase 0e | 连接问题横幅应在 streamConnectionIssue 存在时渲染', () => {
   const source = readLiveShellSource();
   assert.ok(
-    source.includes('streamConnectionIssue &&'),
+    source.includes('streamConnectionIssue ?'),
     '应在 JSX 中条件渲染 streamConnectionIssue 横幅',
   );
-  // 横幅样式使用 amber 色调
+  // 横幅使用统一 StatusBanner warning 语义，而不是散落 amber class
   assert.ok(
-    source.includes('border-amber-200') && source.includes('bg-amber-50'),
-    '横幅应使用 amber 色调以传达警告状态',
+    source.includes('<StatusBanner') && source.includes('tone="warning"'),
+    '横幅应使用 warning 语义以传达警告状态',
   );
 });

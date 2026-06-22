@@ -94,15 +94,27 @@ export default async function OntologyAdminChangeRequestDetailPage({
       )}
 
       {error ? (
-        <div className="status-banner" data-tone="error">{decodeURIComponent(error)}</div>
+        <div
+          className="rounded-md border border-[color:var(--danger-500)]/40 bg-[color:color-mix(in_srgb,var(--danger-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+          role="alert"
+          aria-live="assertive"
+        >
+          {decodeURIComponent(error)}
+        </div>
       ) : null}
       {success ? (
-        <div className="status-banner" data-tone="success">{decodeURIComponent(success)}</div>
+        <div
+          className="rounded-md border border-[color:var(--success-500)]/40 bg-[color:color-mix(in_srgb,var(--success-500)_12%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          {decodeURIComponent(success)}
+        </div>
       ) : null}
 
       {(canSubmit || canReview || canPublish) && (
         <AdminCard title="治理操作">
-          <div className="action-bar">
+          <div className="flex flex-wrap items-center gap-3 py-4">
             {canSubmit && (
               <form
                 method="post"
@@ -157,7 +169,7 @@ export default async function OntologyAdminChangeRequestDetailPage({
         {cr.compatibilityNote && (
           <div className="mt-4 rounded-lg bg-accent p-4 text-sm">
             <p className="text-xs font-semibold text-primary">兼容说明</p>
-            <p className="mt-1 text-[color:var(--ink-700)]">{cr.compatibilityNote}</p>
+            <p className="mt-1 text-muted-foreground">{cr.compatibilityNote}</p>
           </div>
         )}
       </AdminCard>
@@ -181,7 +193,13 @@ export default async function OntologyAdminChangeRequestDetailPage({
 
       <AdminCard title="审批记录">
         {approvalHistory.length === 0 ? (
-          <div className="status-banner" data-tone="info">该变更申请尚未产生审批记录。</div>
+          <div
+            className="rounded-md border border-[color:var(--brand-300)]/40 bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            该变更申请尚未产生审批记录。
+          </div>
         ) : (
           <div className="space-y-3">
             {approvalHistory.map((record) => (
@@ -199,7 +217,7 @@ export default async function OntologyAdminChangeRequestDetailPage({
                     </span>
                   </div>
                   {record.comment && (
-                    <p className="mt-2 text-sm leading-6 text-[color:var(--ink-700)]">
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
                       {record.comment}
                     </p>
                   )}

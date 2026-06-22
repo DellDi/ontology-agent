@@ -39,7 +39,10 @@ export function AnalysisPlanPanel({
     : null;
 
   return (
-    <article className="glass-panel p-6" data-testid="analysis-plan-panel">
+    <article
+      className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]"
+      data-testid="analysis-plan-panel"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
@@ -119,7 +122,12 @@ export function AnalysisPlanPanel({
             : '系统默认自动发起后台执行；你无需补齐所有细项后再手动启动。'}
         </p>
         {blockingMessage ? (
-          <div className="status-banner mt-4" data-tone="error">
+          <div
+            role="alert"
+            aria-live="assertive"
+            data-tone="error"
+            className="mt-4 rounded-md border border-[color:var(--danger-500)]/40 bg-[color:color-mix(in_srgb,var(--danger-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+          >
             {blockingMessage}
           </div>
         ) : null}
@@ -131,7 +139,11 @@ export function AnalysisPlanPanel({
           {followUpId ? (
             <input name="followUpId" type="hidden" value={followUpId} />
           ) : null}
-          <button className="primary-button" disabled={Boolean(blockingMessage)} type="submit">
+          <button
+            className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={Boolean(blockingMessage)}
+            type="submit"
+          >
             手动执行（兜底）
           </button>
         </form>

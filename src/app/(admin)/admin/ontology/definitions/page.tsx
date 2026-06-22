@@ -10,6 +10,7 @@ import {
   TabBar,
   formatTimestamp,
 } from '../../../_components/admin-shell';
+import { getVersionStatusLabel } from '../../../_lib/admin-labels';
 
 type DefinitionsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -94,7 +95,11 @@ export default async function OntologyAdminDefinitionsPage({
           title="本体定义查阅"
           description="查询当前生效版本下的实体、指标、因素、计划模板等正式定义。"
         />
-        <article className="status-banner" data-tone="info">
+        <article
+          className="rounded-md border border-[color:var(--brand-300)]/40 bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
+          role="status"
+          aria-live="polite"
+        >
           当前还没有任何 ontology version 可供查阅。请先通过 bootstrap 流程或正式的变更申请创建首个版本。
         </article>
       </section>
@@ -133,11 +138,11 @@ export default async function OntologyAdminDefinitionsPage({
               <select
                 name="versionId"
                 defaultValue={version.id}
-                className="field-input min-w-[200px] py-2 text-sm"
+                className="h-11 w-full min-w-[200px] rounded-md border border-input bg-card px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
               >
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.semver} · {v.displayName} · {v.status}
+                    {v.semver} · {v.displayName} · {getVersionStatusLabel(v.status)}
                   </option>
                 ))}
               </select>
@@ -146,7 +151,7 @@ export default async function OntologyAdminDefinitionsPage({
               </Button>
             </form>
             <StatusBadge tone="success">
-              {version.semver} · {version.status}
+              {version.semver} · {getVersionStatusLabel(version.status)}
             </StatusBadge>
           </div>
         }

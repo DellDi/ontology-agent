@@ -103,3 +103,14 @@ export function getCRStatusFlowIndex(status: string): number {
   const idx = CR_STATUS_FLOW.indexOf(status as (typeof CR_STATUS_FLOW)[number]);
   return idx >= 0 ? idx : -1;
 }
+
+export const VERSION_STATUS_LABELS: Record<string, string> = {
+  draft: '草稿',
+  approved: '已批准',
+  published: '已发布',
+  deprecated: '已废弃',
+};
+
+export function getVersionStatusLabel(status: string): string {
+  return VERSION_STATUS_LABELS[status] ?? status;
+}
