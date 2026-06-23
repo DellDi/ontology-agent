@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 
 import {
-  createCompositionRoot,
-} from '@/composition-root';
-
-import { authorizeGovernanceRequest, buildRedirect, describeGovernanceError } from '../../../_helpers';
+  authorizeGovernanceRequest,
+  buildJsonError,
+  buildJsonSuccess,
+  buildRedirect,
+  createRequestCompositionRoot,
+  describeGovernanceError,
+  statusForGovernanceReason,
+  wantsJson,
+} from '../../../_helpers';
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -18,10 +23,11 @@ function readString(formData: FormData, key: string) {
 export async function POST(request: Request, ctx: Context) {
   const { id } = await ctx.params;
 
-  const root = createCompositionRoot();
+  const root = await createRequestCompositionRoot();
   const auth = await authorizeGovernanceRequest(root, 'publish');
   if (auth instanceof NextResponse) return auth;
 
+  const jsonRequested = wantsJson(request);
   const { session } = auth;
   const formData = await request.formData();
   const publishNote = readString(formData, 'publishNote') || null;
@@ -51,7 +57,14 @@ export async function POST(request: Request, ctx: Context) {
     });
 
     const params = new URLSearchParams();
-    params.set('ok', '版本已发布并切换为当前生效版本。');
+    const message = '版本已发布并切换为当前生效版本。';
+    if (jsonRequested) {
+      return buildJsonSuccess({
+        publishRecord,
+        message,
+      });
+    }
+    params.set('ok', message);
     return buildRedirect(request, '/admin/ontology/publishes', params);
   } catch (error) {
     const desc = describeGovernanceError(error);
@@ -67,6 +80,13 @@ export async function POST(request: Request, ctx: Context) {
         reason: desc.reason,
       },
     });
+    if (jsonRequested) {
+      return buildJsonError(
+        desc.message,
+        statusForGovernanceReason(desc.reason),
+        desc.reason,
+      );
+    }
     const params = new URLSearchParams();
     params.set('error', desc.message);
     return buildRedirect(request, '/admin/ontology', params);

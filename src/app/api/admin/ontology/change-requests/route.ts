@@ -2,14 +2,21 @@ import { NextResponse } from 'next/server';
 
 import {
   CHANGE_TYPES,
+  CHANGE_REQUEST_STATUSES,
   COMPATIBILITY_TYPES,
   TARGET_OBJECT_TYPES,
 } from '@/domain/ontology/governance';
-import {
-  createCompositionRoot,
-} from '@/composition-root';
 
-import { authorizeGovernanceRequest, buildRedirect, describeGovernanceError } from '../_helpers';
+import {
+  authorizeGovernanceRequest,
+  buildJsonError,
+  buildJsonSuccess,
+  buildRedirect,
+  createRequestCompositionRoot,
+  describeGovernanceError,
+  statusForGovernanceReason,
+  wantsJson,
+} from '../_helpers';
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -50,11 +57,52 @@ function readImpactScope(formData: FormData): string[] {
     .filter((segment) => segment.length > 0);
 }
 
+function readStatus(value: string | null) {
+  if (!value || value === 'all') return undefined;
+  return CHANGE_REQUEST_STATUSES.find((status) => status === value);
+}
+
+export async function GET(request: Request) {
+  const root = await createRequestCompositionRoot();
+  const authResult = await authorizeGovernanceRequest(root, 'view');
+  if (authResult instanceof NextResponse) return authResult;
+
+  const url = new URL(request.url);
+  const requestedStatus = url.searchParams.get('status');
+  const validStatus = readStatus(requestedStatus);
+
+  if (requestedStatus && requestedStatus !== 'all' && !validStatus) {
+    return buildJsonError('变更申请状态筛选条件无效。', 400, 'invalid-status');
+  }
+
+  const { adminUseCases } = root.ontologyAdminRuntime;
+  const [items, allItems] = await Promise.all([
+    validStatus
+      ? adminUseCases.listChangeRequestsByStatus(validStatus)
+      : adminUseCases.listAllChangeRequests(100),
+    adminUseCases.listAllChangeRequests(100),
+  ]);
+
+  const statusCounts: Record<string, number> = {};
+  for (const item of allItems) {
+    statusCounts[item.status] = (statusCounts[item.status] ?? 0) + 1;
+  }
+
+  return buildJsonSuccess({
+    items,
+    allItems,
+    activeStatus: validStatus ?? 'all',
+    statusCounts,
+    capabilities: authResult.capabilities,
+  });
+}
+
 export async function POST(request: Request) {
-  const root = createCompositionRoot();
+  const root = await createRequestCompositionRoot();
   const authResult = await authorizeGovernanceRequest(root, 'author');
   if (authResult instanceof NextResponse) return authResult;
 
+  const jsonRequested = wantsJson(request);
   const { session } = authResult;
   const formData = await request.formData();
 
@@ -65,7 +113,7 @@ export async function POST(request: Request) {
   const compatibilityType = readString(formData, 'compatibilityType');
   const title = readString(formData, 'title');
 
-  const failFast = async (reason: string, message: string) => {
+  const failFast = async (reason: string, message: string, status = 400) => {
     await root.auditUseCases.recordEvent({
       userId: session.userId,
       organizationId: session.scope.organizationId,
@@ -79,6 +127,9 @@ export async function POST(request: Request) {
         reason,
       },
     });
+    if (jsonRequested) {
+      return buildJsonError(message, status, reason);
+    }
     const params = new URLSearchParams();
     params.set('error', message);
     return buildRedirect(request, '/admin/ontology/change-requests', params);
@@ -141,7 +192,17 @@ export async function POST(request: Request) {
     });
 
     const params = new URLSearchParams();
-    params.set('ok', `变更申请已创建：${cr.title}`);
+    const message = `变更申请已创建：${cr.title}`;
+    if (jsonRequested) {
+      return buildJsonSuccess(
+        {
+          changeRequest: cr,
+          message,
+        },
+        201,
+      );
+    }
+    params.set('ok', message);
     return buildRedirect(request, `/admin/ontology/change-requests/${cr.id}`, params);
   } catch (error) {
     const desc = describeGovernanceError(error);
@@ -158,6 +219,13 @@ export async function POST(request: Request) {
         reason: desc.reason,
       },
     });
+    if (jsonRequested) {
+      return buildJsonError(
+        desc.message,
+        statusForGovernanceReason(desc.reason),
+        desc.reason,
+      );
+    }
     const params = new URLSearchParams();
     params.set('error', desc.message);
     return buildRedirect(request, '/admin/ontology/change-requests', params);

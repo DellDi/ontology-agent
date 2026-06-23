@@ -7,9 +7,6 @@ import {
   OntologyVersionNotReadyForPublishError,
   resolveGovernanceCapabilities,
 } from '@/domain/ontology/governance';
-import {
-  getRequestSession,
-} from '@/composition-root';
 import type { CompositionRoot } from '@/composition-root';
 import type { AuthSession } from '@/domain/auth/models';
 
@@ -18,10 +15,16 @@ export type AuthorizedSession = {
   capabilities: ReturnType<typeof resolveGovernanceCapabilities>;
 };
 
+export async function createRequestCompositionRoot(): Promise<CompositionRoot> {
+  const { createCompositionRoot } = await import('@/composition-root');
+  return createCompositionRoot();
+}
+
 export async function authorizeGovernanceRequest(
   root: CompositionRoot,
   request: 'view' | 'author' | 'review' | 'publish',
 ): Promise<NextResponse | AuthorizedSession> {
+  const { getRequestSession } = await import('@/composition-root');
   const session = await getRequestSession();
   if (!session) {
     return NextResponse.json({ error: '未登录。' }, { status: 401 });
@@ -70,6 +73,43 @@ export function buildRedirect(request: Request, pathname: string, params: URLSea
   const url = new URL(pathname, request.url);
   params.forEach((value, key) => url.searchParams.set(key, value));
   return NextResponse.redirect(url, { status: 303 });
+}
+
+export function wantsJson(request: Request): boolean {
+  const accept = request.headers.get('accept') ?? '';
+  const requestedWith = request.headers.get('x-requested-with') ?? '';
+  return accept.includes('application/json') || requestedWith === 'XMLHttpRequest';
+}
+
+export function buildJsonSuccess<T>(data: T, status = 200) {
+  return NextResponse.json({ ok: true, data }, { status });
+}
+
+export function buildJsonError(message: string, status = 400, reason = 'bad-request') {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: {
+        message,
+        reason,
+      },
+    },
+    { status },
+  );
+}
+
+export function statusForGovernanceReason(reason: string): number {
+  switch (reason) {
+    case 'not-found':
+      return 404;
+    case 'forbidden':
+      return 403;
+    case 'invalid-transition':
+    case 'not-publishable':
+      return 409;
+    default:
+      return 400;
+  }
 }
 
 export function describeGovernanceError(error: unknown): {

@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 
 import {
-  createCompositionRoot,
-} from '@/composition-root';
-
-import { authorizeGovernanceRequest, buildRedirect, describeGovernanceError } from '../../../_helpers';
+  authorizeGovernanceRequest,
+  buildJsonError,
+  buildJsonSuccess,
+  buildRedirect,
+  createRequestCompositionRoot,
+  describeGovernanceError,
+  statusForGovernanceReason,
+  wantsJson,
+} from '../../../_helpers';
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -13,10 +18,11 @@ type Context = {
 export async function POST(request: Request, ctx: Context) {
   const { id } = await ctx.params;
 
-  const root = createCompositionRoot();
+  const root = await createRequestCompositionRoot();
   const auth = await authorizeGovernanceRequest(root, 'author');
   if (auth instanceof NextResponse) return auth;
 
+  const jsonRequested = wantsJson(request);
   const { session } = auth;
   const { governanceUseCases } = root.ontologyAdminRuntime;
 
@@ -39,7 +45,14 @@ export async function POST(request: Request, ctx: Context) {
     });
 
     const params = new URLSearchParams();
-    params.set('ok', '已提交进入审批。');
+    const message = '已提交进入审批。';
+    if (jsonRequested) {
+      return buildJsonSuccess({
+        changeRequest: cr,
+        message,
+      });
+    }
+    params.set('ok', message);
     return buildRedirect(request, `/admin/ontology/change-requests/${id}`, params);
   } catch (error) {
     const desc = describeGovernanceError(error);
@@ -56,6 +69,13 @@ export async function POST(request: Request, ctx: Context) {
         reason: desc.reason,
       },
     });
+    if (jsonRequested) {
+      return buildJsonError(
+        desc.message,
+        statusForGovernanceReason(desc.reason),
+        desc.reason,
+      );
+    }
     const params = new URLSearchParams();
     params.set('error', desc.message);
     return buildRedirect(request, `/admin/ontology/change-requests/${id}`, params);
