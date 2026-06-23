@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 
 import { cn } from '@/app/_lib/cn';
@@ -20,8 +21,11 @@ type ThemeToggleProps = {
  */
 export function ThemeToggle({ className, triState = false }: ThemeToggleProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const mounted = useHydrated();
 
   const handleClick = () => {
+    if (!mounted) return;
+
     if (triState) {
       if (theme === 'light') setTheme('dark');
       else if (theme === 'dark') setTheme('system');
@@ -30,6 +34,24 @@ export function ThemeToggle({ className, triState = false }: ThemeToggleProps) {
     }
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
   };
+
+  if (!mounted) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        aria-label="主题切换准备中"
+        disabled
+        className={cn('text-muted-foreground hover:text-foreground', className)}
+      >
+        <span aria-hidden className="inline-block">
+          <SystemIcon />
+        </span>
+        <span className="text-xs">主题</span>
+      </Button>
+    );
+  }
 
   const currentMode = theme ?? 'system';
   const isDark = resolvedTheme === 'dark';
@@ -47,7 +69,7 @@ export function ThemeToggle({ className, triState = false }: ThemeToggleProps) {
       onClick={handleClick}
       className={cn('text-muted-foreground hover:text-foreground', className)}
     >
-      <span aria-hidden className="inline-block" suppressHydrationWarning>
+      <span aria-hidden className="inline-block">
         {currentMode === 'system' ? (
           <SystemIcon />
         ) : isDark ? (
@@ -56,10 +78,30 @@ export function ThemeToggle({ className, triState = false }: ThemeToggleProps) {
           <SunIcon />
         )}
       </span>
-      <span className="text-xs" suppressHydrationWarning>
+      <span className="text-xs">
         {currentMode === 'system' ? '跟随系统' : isDark ? '夜间' : '日间'}
       </span>
     </Button>
+  );
+}
+
+function subscribeHydrated() {
+  return () => {};
+}
+
+function getHydratedSnapshot() {
+  return true;
+}
+
+function getServerHydratedSnapshot() {
+  return false;
+}
+
+function useHydrated() {
+  return useSyncExternalStore(
+    subscribeHydrated,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot,
   );
 }
 

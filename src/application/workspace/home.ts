@@ -14,6 +14,11 @@ import {
 import { formatScopeSummary } from '@/shared/permissions/format-scope-summary';
 import type { ErpProject } from '@/domain/erp-read/models';
 
+export type WorkspaceHomeSnapshotSummary = Pick<
+  AnalysisExecutionSnapshot,
+  'status' | 'executionId' | 'conclusionState' | 'failurePoint'
+>;
+
 export type WorkspaceHomeAction = {
   label: string;
   description: string;
@@ -95,7 +100,7 @@ export type DerivedSessionStatus = {
  * 纯函数：无快照时回退到 pending，有快照时按 JobStatus 映射。
  */
 export function deriveSessionStatus(
-  snapshot: AnalysisExecutionSnapshot | null,
+  snapshot: WorkspaceHomeSnapshotSummary | null,
 ): DerivedSessionStatus {
   if (!snapshot) {
     return {
@@ -154,7 +159,7 @@ export function createWorkspaceHomeModel(
   session: AuthSession,
   historySessions: AnalysisSession[],
   scopedProjects: Pick<ErpProject, 'id' | 'name'>[] = [],
-  latestSnapshots: Map<string, AnalysisExecutionSnapshot | null> = new Map(),
+  latestSnapshots: Map<string, WorkspaceHomeSnapshotSummary | null> = new Map(),
   degradedState: WorkspaceHomeDegradedState | null = null,
 ): WorkspaceHomeModel {
   const scopeSummary = formatScopeSummary(session);

@@ -173,6 +173,57 @@ function hasCanonicalEvents(input: {
   return Array.isArray(input.events);
 }
 
+function resolveCanonicalLastSequence(input: {
+  events: readonly AnalysisExecutionStreamEvent[];
+}) {
+  return input.events.reduce(
+    (lastSequence, event) => Math.max(lastSequence, event.sequence),
+    0,
+  );
+}
+
+function canonicalHasConclusion(input: {
+  fallbackConclusion?: AnalysisConclusionReadModel | null;
+}) {
+  return Boolean(
+    input.fallbackConclusion &&
+      (input.fallbackConclusion.causes.length > 0 ||
+        input.fallbackConclusion.renderBlocks.length > 0),
+  );
+}
+
+function projectionHasConclusion(projection: AiRuntimeProjection) {
+  return projection.messages.some((message) =>
+    message.parts.some((part) => part.kind === 'conclusion-card'),
+  );
+}
+
+function resolvePersistedProjectionRebuildReason(input: {
+  projection: AiRuntimeProjection;
+  canonical?: {
+    events: readonly AnalysisExecutionStreamEvent[];
+    fallbackConclusion?: AnalysisConclusionReadModel | null;
+  } | null;
+}) {
+  if (!input.canonical || !hasCanonicalEvents(input.canonical)) {
+    return null;
+  }
+
+  const canonicalLastSequence = resolveCanonicalLastSequence(input.canonical);
+  if (canonicalLastSequence > input.projection.lastSequence) {
+    return `canonical events newer than persisted projection: canonical=${canonicalLastSequence}, persisted=${input.projection.lastSequence}`;
+  }
+
+  if (
+    canonicalHasConclusion(input.canonical) &&
+    !projectionHasConclusion(input.projection)
+  ) {
+    return 'persisted projection is missing canonical conclusion';
+  }
+
+  return null;
+}
+
 export function filterAnalysisUiMessageProjectionResumeEvents(
   events: readonly AnalysisExecutionStreamEvent[],
   cursor: AnalysisUiMessageProjectionStreamCursor,
@@ -255,6 +306,19 @@ export function createAnalysisUiMessageProjectionUseCases({
 
         try {
           const projection = recordToProjection(persisted);
+          const rebuildReason = resolvePersistedProjectionRebuildReason({
+            projection,
+            canonical: input.canonical,
+          });
+
+          if (rebuildReason && input.canonical) {
+            return await rebuildFromCanonical({
+              scope,
+              canonical: input.canonical,
+              rebuildReason,
+            });
+          }
+
           return {
             source: 'persisted',
             projection,
