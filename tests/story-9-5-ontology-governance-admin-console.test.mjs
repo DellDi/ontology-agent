@@ -12,7 +12,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 
@@ -21,6 +22,11 @@ const execFileAsync = promisify(execFile);
 const TEST_DATABASE_URL =
   process.env.DATABASE_URL ??
   'postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent';
+const TEST_SESSION_SECRET = 'story-9-5-admin-json-test-secret';
+const ADMIN_SERVER_PORT = 3195;
+const ADMIN_BASE_URL = `http://127.0.0.1:${ADMIN_SERVER_PORT}`;
+
+let adminServerProcess;
 
 async function runTsSnippet(code) {
   const { stdout } = await execFileAsync(
@@ -31,12 +37,119 @@ async function runTsSnippet(code) {
       env: {
         ...process.env,
         DATABASE_URL: TEST_DATABASE_URL,
+        SESSION_SECRET: TEST_SESSION_SECRET,
       },
       timeout: 30_000,
     },
   );
   return JSON.parse(stdout.trim());
 }
+
+async function waitForServerReady(processHandle) {
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error('Story 9.5 admin JSON server did not become ready in time.'));
+      }
+    }, 45_000);
+
+    function finalize(error) {
+      clearTimeout(timeout);
+      processHandle.stdout?.off('data', onData);
+      processHandle.stderr?.off('data', onData);
+      processHandle.off('exit', onExit);
+      if (settled) return;
+      settled = true;
+      if (error) reject(error);
+      else resolve();
+    }
+
+    function onData(chunk) {
+      const output = chunk.toString();
+      if (output.includes('Ready in')) {
+        finalize();
+      }
+    }
+
+    function onExit(code) {
+      finalize(new Error(`Story 9.5 admin JSON server exited early with code ${code ?? 'unknown'}.`));
+    }
+
+    processHandle.stdout?.on('data', onData);
+    processHandle.stderr?.on('data', onData);
+    processHandle.on('exit', onExit);
+  });
+}
+
+async function ensureAdminServer() {
+  if (adminServerProcess) return;
+  adminServerProcess = spawn('pnpm', ['exec', 'next', 'dev', '--port', String(ADMIN_SERVER_PORT)], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DATABASE_URL: TEST_DATABASE_URL,
+      SESSION_SECRET: TEST_SESSION_SECRET,
+      NEXT_TELEMETRY_DISABLED: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await waitForServerReady(adminServerProcess);
+}
+
+async function createGovernanceCookie(roleCodes = ['PLATFORM_ADMIN']) {
+  const result = await runTsSnippet(`
+    import sessionStoreModule from './src/infrastructure/session/postgres-session-store.ts';
+    import sessionCookieModule from './src/infrastructure/session/session-cookie.ts';
+
+    const { createPostgresSessionStore } = sessionStoreModule;
+    const {
+      createSessionCookieValue,
+      getSessionCookieName,
+    } = sessionCookieModule;
+
+    const sessionStore = createPostgresSessionStore();
+    const session = await sessionStore.createSession({
+      userId: 'story-9-5-admin-json-user',
+      displayName: 'Story 9.5 Admin JSON User',
+      scope: {
+        organizationId: 'story-9-5-org',
+        projectIds: ['story-9-5-project'],
+        areaIds: ['story-9-5-area'],
+        roleCodes: ${JSON.stringify(roleCodes)},
+      },
+    });
+
+    console.log(JSON.stringify({
+      cookie: \`\${getSessionCookieName()}=\${createSessionCookieValue(session.sessionId)}\`,
+    }));
+    process.exit(0);
+  `);
+
+  return result.cookie;
+}
+
+function buildJsonChangeRequestForm(title) {
+  const formData = new FormData();
+  formData.set('ontologyVersionId', TEST_VERSION_ID);
+  formData.set('targetObjectType', 'metric_definition');
+  formData.set('targetObjectKey', `story-9-5-json-${randomUUID()}`);
+  formData.set('changeType', 'update');
+  formData.set('title', title);
+  formData.set('description', 'JSON API contract regression');
+  formData.set('compatibilityType', 'backward_compatible');
+  formData.set('impactScope', 'metrics.story-9-5-json');
+  formData.set('beforeSummary', '{"calculation":"old"}');
+  formData.set('afterSummary', '{"calculation":"new"}');
+  return formData;
+}
+
+test.after(async () => {
+  if (!adminServerProcess) return;
+  adminServerProcess.kill('SIGINT');
+  await once(adminServerProcess, 'exit');
+});
 
 const TEST_VERSION_ID = `test-9-5-${randomUUID()}`;
 const TEST_SEMVER = `99.5.${Date.now()}`;
@@ -381,6 +494,153 @@ test('AC2 admin 列表 use cases 返回数据形态稳定', async () => {
   assert.equal(result.submittedIsArray, true);
   assert.ok(result.versionsCount >= 1);
   assert.equal(result.versionsHasOurs, true, '版本列表应包含本测试版本');
+});
+
+// ---------------------------------------------------------------------------
+// AC2 + 性能专项：治理后台 JSON API 供客户端数据层复用，不能只依赖整页 redirect
+// ---------------------------------------------------------------------------
+
+test('AC2 JSON API 创建 change request 返回结构化响应而不是 303 redirect', async () => {
+  await ensureAdminServer();
+  const cookie = await createGovernanceCookie(['PLATFORM_ADMIN']);
+  const title = `Story 9.5 JSON 创建 ${randomUUID()}`;
+
+  const response = await fetch(`${ADMIN_BASE_URL}/api/admin/ontology/change-requests`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookie,
+    },
+    body: buildJsonChangeRequestForm(title),
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 201);
+  assert.match(response.headers.get('content-type') ?? '', /application\/json/);
+  assert.equal(response.headers.get('location'), null, 'JSON 请求不应通过 redirect 表达成功状态');
+
+  const body = await response.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.data.changeRequest.title, title);
+  assert.equal(body.data.changeRequest.status, 'draft');
+  assert.equal(body.data.message, `变更申请已创建：${title}`);
+});
+
+test('AC2 JSON API 列表支持按状态查询并返回 statusCounts', async () => {
+  await ensureAdminServer();
+  const cookie = await createGovernanceCookie(['PLATFORM_ADMIN']);
+
+  const response = await fetch(`${ADMIN_BASE_URL}/api/admin/ontology/change-requests?status=draft`, {
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookie,
+    },
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.data.activeStatus, 'draft');
+  assert.equal(Array.isArray(body.data.items), true);
+  assert.equal(typeof body.data.statusCounts, 'object');
+  assert.ok(
+    body.data.items.every((item) => item.status === 'draft'),
+    '按 draft 查询时，返回条目必须全部处于 draft 状态',
+  );
+});
+
+test('AC2 JSON API 详情返回 changeRequest、approvalHistory 与 version', async () => {
+  await ensureAdminServer();
+  const cookie = await createGovernanceCookie(['PLATFORM_ADMIN']);
+  const createResponse = await fetch(`${ADMIN_BASE_URL}/api/admin/ontology/change-requests`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookie,
+    },
+    body: buildJsonChangeRequestForm(`Story 9.5 JSON 详情 ${randomUUID()}`),
+  });
+  const created = await createResponse.json();
+  const changeRequestId = created.data.changeRequest.id;
+
+  const detailResponse = await fetch(
+    `${ADMIN_BASE_URL}/api/admin/ontology/change-requests/${changeRequestId}`,
+    {
+      headers: {
+        Accept: 'application/json',
+        Cookie: cookie,
+      },
+    },
+  );
+
+  assert.equal(detailResponse.status, 200);
+  const body = await detailResponse.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.data.changeRequest.id, changeRequestId);
+  assert.equal(Array.isArray(body.data.approvalHistory), true);
+  assert.equal(body.data.version.id, TEST_VERSION_ID);
+});
+
+test('AC2 JSON API 提交审批返回 submitted 状态并保留 form redirect 回退路径', async () => {
+  await ensureAdminServer();
+  const cookie = await createGovernanceCookie(['PLATFORM_ADMIN']);
+  const createResponse = await fetch(`${ADMIN_BASE_URL}/api/admin/ontology/change-requests`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookie,
+    },
+    body: buildJsonChangeRequestForm(`Story 9.5 JSON 提交 ${randomUUID()}`),
+  });
+  const created = await createResponse.json();
+  const changeRequestId = created.data.changeRequest.id;
+
+  const jsonSubmitResponse = await fetch(
+    `${ADMIN_BASE_URL}/api/admin/ontology/change-requests/${changeRequestId}/submit`,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(jsonSubmitResponse.status, 200);
+  assert.equal(jsonSubmitResponse.headers.get('location'), null);
+  const jsonBody = await jsonSubmitResponse.json();
+  assert.equal(jsonBody.ok, true);
+  assert.equal(jsonBody.data.changeRequest.status, 'submitted');
+  assert.equal(jsonBody.data.message, '已提交进入审批。');
+
+  const fallbackCreateResponse = await fetch(`${ADMIN_BASE_URL}/api/admin/ontology/change-requests`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookie,
+    },
+    body: buildJsonChangeRequestForm(`Story 9.5 form 回退 ${randomUUID()}`),
+  });
+  const fallbackCreated = await fallbackCreateResponse.json();
+  const fallbackId = fallbackCreated.data.changeRequest.id;
+
+  const formSubmitResponse = await fetch(
+    `${ADMIN_BASE_URL}/api/admin/ontology/change-requests/${fallbackId}/submit`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+      },
+      redirect: 'manual',
+    },
+  );
+
+  assert.equal(formSubmitResponse.status, 303);
+  assert.match(
+    formSubmitResponse.headers.get('location') ?? '',
+    new RegExp(`/admin/ontology/change-requests/${fallbackId}\\?ok=`),
+  );
 });
 
 // ---------------------------------------------------------------------------

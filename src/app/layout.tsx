@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { AppQueryProvider } from './_components/app-query-provider';
 import { ThemeProvider } from './_components/theme-provider';
 import './globals.css';
 
@@ -16,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <AppQueryProvider>{children}</AppQueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
