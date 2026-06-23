@@ -689,14 +689,18 @@ export async function buildAnalysisSessionPageModel(
 
     const threadStreamReadModel =
       buildExecutionStreamReadModelFromSnapshot(threadSnapshot);
+    const threadConclusionReadModel =
+      resolveConclusionReadModelFromSnapshot(threadSnapshot);
     const threadHydration =
       await root.analysisUiMessageProjectionUseCases.hydrateProjection({
         ownerUserId: owner.userId,
         sessionId: analysisSession.id,
         executionId: threadExecutionId,
         followUpId: threadSnapshot.followUpId,
+        historyRoundId: threadSnapshot.followUpId ?? 'session-root',
         canonical: {
           events: threadStreamReadModel.events,
+          fallbackConclusion: threadConclusionReadModel,
         },
       });
 

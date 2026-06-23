@@ -30,4 +30,10 @@ test('dark mode | ThemeProvider and ThemeToggle use data-theme semantics', () =>
   assert.ok(provider.includes('disableTransitionOnChange'), 'ThemeProvider should avoid transition flicker');
   assert.ok(toggle.includes('useTheme'), 'ThemeToggle should use next-themes');
   assert.ok(toggle.includes('setTheme'), 'ThemeToggle should change theme');
+  assert.ok(toggle.includes('mounted'), 'ThemeToggle should guard theme-dependent UI until mounted');
+  assert.ok(toggle.includes('useSyncExternalStore'), 'ThemeToggle should use a hydration-safe client mounted guard');
+  assert.ok(
+    !toggle.includes('suppressHydrationWarning'),
+    'ThemeToggle should avoid mismatching SVG subtrees instead of suppressing them',
+  );
 });

@@ -2,6 +2,7 @@ import { createCompositionRoot, requireWorkspaceSession } from '@/composition-ro
 import {
   createWorkspaceHomeModel,
   type WorkspaceHomeDegradedState,
+  type WorkspaceHomeSnapshotSummary,
 } from '@/application/workspace/home';
 
 import { WorkspaceHomeShell } from '../_components/workspace-home-shell';
@@ -25,12 +26,7 @@ type CompositionRoot = ReturnType<typeof createCompositionRoot>;
 
 type FallbackSnapshotEntry = readonly [
   string,
-  {
-    status: string;
-    failurePoint: null;
-    conclusionState: null;
-    mobileProjection: null;
-  },
+  WorkspaceHomeSnapshotSummary,
 ];
 
 type StreamFallbackResult = {
@@ -63,9 +59,12 @@ async function loadStreamFallbackSnapshots(
     const streamResults = await Promise.all(
       sessionsWithoutSnapshot.map(async (historySession): Promise<StreamFallbackSessionResult> => {
         try {
+          console.time(`[workspace-perf] stream-events:${historySession.id}`);
           const events = await root.analysisExecutionStreamUseCases.listExecutionEvents({
             sessionId: historySession.id,
-          });
+          }).finally(() =>
+            console.timeEnd(`[workspace-perf] stream-events:${historySession.id}`),
+          );
           const lastStatusEvent = [...events]
             .reverse()
             .find((event) => event.kind === 'execution-status' && event.status);
@@ -78,10 +77,10 @@ async function loadStreamFallbackSnapshots(
             entry: [
               historySession.id,
               {
+                executionId: lastStatusEvent.executionId,
                 status: lastStatusEvent.status,
                 failurePoint: null,
-                conclusionState: null,
-                mobileProjection: null,
+                conclusionState: { causes: [], renderBlocks: [] },
               },
             ] as const,
             degradedState: null,
@@ -133,6 +132,7 @@ async function loadStreamFallbackSnapshots(
 export default async function WorkspacePage({
   searchParams,
 }: WorkspacePageProps) {
+  console.time('[workspace-perf] TOTAL SERVER');
   const root = createCompositionRoot();
   const { session, accessDeniedMessage } = await requireWorkspaceSession(
     '/workspace',
@@ -140,34 +140,47 @@ export default async function WorkspacePage({
   const params = (await searchParams) ?? {};
 
   if (accessDeniedMessage) {
+    console.timeEnd('[workspace-perf] TOTAL SERVER');
     return null;
   }
 
-  const historySessions = await root.analysisSessionUseCases.listOwnedSessions(
-    session,
-  );
-  const scopedProjects = await root.erpReadUseCases.listProjects(session);
+  console.time('[workspace-perf] listOwnedSessions');
+  const historySessionsPromise = root.analysisSessionUseCases
+    .listOwnedSessions(session)
+    .finally(() => console.timeEnd('[workspace-perf] listOwnedSessions'));
 
-  const snapshotEntries = await Promise.all(
-    historySessions.map(async (historySession) => {
-      const snapshot = await root.analysisExecutionSnapshotStore.getLatestBySessionId(
-        historySession.id,
-      );
-      return [historySession.id, snapshot] as const;
-    }),
+  console.time('[workspace-perf] listProjects');
+  const scopedProjectsPromise = root.erpReadUseCases
+    .listProjects(session)
+    .finally(() => console.timeEnd('[workspace-perf] listProjects'));
+
+  const [historySessions, scopedProjects] = await Promise.all([
+    historySessionsPromise,
+    scopedProjectsPromise,
+  ]);
+
+  console.time('[workspace-perf] getLatestBySessionIds');
+  const latestSnapshots = new Map<string, WorkspaceHomeSnapshotSummary | null>(
+    await root.analysisExecutionSnapshotStore
+      .getLatestBySessionIds(
+        historySessions.map((historySession) => historySession.id),
+      )
+      .finally(() => console.timeEnd('[workspace-perf] getLatestBySessionIds')),
   );
-  const latestSnapshots = new Map(snapshotEntries);
 
   const sessionsWithoutSnapshot = historySessions.filter(
     (s) => !latestSnapshots.get(s.id),
   );
+  console.time('[workspace-perf] loadStreamFallbackSnapshots');
   const streamFallbackResult = await loadStreamFallbackSnapshots(
     root,
     sessionsWithoutSnapshot,
+  ).finally(() =>
+    console.timeEnd('[workspace-perf] loadStreamFallbackSnapshots'),
   );
 
   for (const entry of streamFallbackResult.entries) {
-    latestSnapshots.set(entry[0], entry[1] as never);
+    latestSnapshots.set(entry[0], entry[1]);
   }
 
   const model = createWorkspaceHomeModel(
@@ -181,6 +194,7 @@ export default async function WorkspacePage({
     streamFallbackResult.degradedState,
   );
 
+  console.timeEnd('[workspace-perf] TOTAL SERVER');
   return (
     <WorkspaceHomeShell
       model={model}

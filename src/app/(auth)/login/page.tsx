@@ -7,10 +7,9 @@ import {
 } from '@/composition-root';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
 import { Badge } from '@/app/_components/workbench/badge';
-import { Button } from '@/app/_components/workbench/button';
-import { Field, FieldInput, FieldLabel } from '@/app/_components/workbench/field';
 import { StatusBanner } from '@/app/_components/workbench/status-banner';
 import { Surface, SurfaceBody, SurfaceHeader } from '@/app/_components/workbench/surface';
+import { DirectoryLoginForm } from './_components/directory-login-form';
 
 type LoginPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -101,43 +100,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </div>
 
           {directoryAvailable ? (
-            <form
-              action="/api/auth/directory-login"
-              method="post"
-              className="mt-5 space-y-4"
-            >
-              <input type="hidden" name="next" value={nextPath} />
-
-              <Field required>
-                <FieldLabel>账号</FieldLabel>
-                <FieldInput
-                  type="text"
-                  name="account"
-                  placeholder="ERP 登录账号"
-                  defaultValue={prefillAccount}
-                  autoComplete="username"
-                  required
-                />
-              </Field>
-
-              <Field required>
-                <FieldLabel>密码</FieldLabel>
-                <FieldInput
-                  type="password"
-                  name="password"
-                  placeholder="ERP 登录密码"
-                  autoComplete="current-password"
-                  required
-                />
-              </Field>
-
-              <Button
-                className="mt-2 w-full"
-                type="submit"
-              >
-                进入 DIP3 工作台
-              </Button>
-            </form>
+            <DirectoryLoginForm
+              nextPath={nextPath}
+              prefillAccount={prefillAccount}
+            />
           ) : null}
 
           {!directoryAvailable ? (

@@ -38,6 +38,10 @@ export const analysisExecutionSnapshots = platformSchema.table(
   },
   (table) => [
     index('analysis_execution_snapshots_session_id_idx').on(table.sessionId),
+    index('analysis_execution_snapshots_session_updated_idx').on(
+      table.sessionId,
+      table.updatedAt.desc(),
+    ),
     index('analysis_execution_snapshots_owner_updated_idx').on(
       table.ownerUserId,
       table.updatedAt,

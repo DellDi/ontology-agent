@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -308,6 +309,316 @@ test('Story 10.3 AC3 | projection message tree 损坏时必须重建，不能把
   assert.match(result.rebuildReason, /message.*parts/);
   assert.notEqual(result.firstMessageId, 'damaged-message');
   assert.equal(result.partsIsArray, true);
+});
+
+test('Story 10.3 regression | canonical snapshot 比 persisted projection 更新时必须重建历史回放投影', async () => {
+  const events = buildEvents();
+  const staleEvents = events.slice(0, 1);
+  const result = await runTsSnippet(`
+    ${PROJECTION_IMPORT}
+    const staleProjection = buildAiRuntimeProjection({
+      sessionId: 'session-10-3',
+      executionId: 'exec-10-3',
+      events: ${JSON.stringify(staleEvents)},
+    });
+    const records = [];
+    const projectionStore = {
+      async save(record) {
+        records.splice(0, records.length, record);
+        return record;
+      },
+      async getByScope() {
+        if (records.length > 0) return records[0];
+        const savedAt = '2026-05-05T00:00:00.000Z';
+        return {
+          id: 'stale-record',
+          ownerUserId: 'owner-10-3',
+          sessionId: 'session-10-3',
+          executionId: 'exec-10-3',
+          followUpId: null,
+          historyRoundId: 'session-root',
+          projectionVersion: 1,
+          partSchemaVersion: AI_RUNTIME_SCHEMA_VERSION,
+          contractVersion: AI_RUNTIME_CONTRACT_VERSION,
+          status: staleProjection.status,
+          isTerminal: staleProjection.isTerminal,
+          streamCursor: { lastSequence: staleProjection.lastSequence, lastEventId: 'evt-1' },
+          messages: staleProjection.messages.map((message) => ({
+            id: message.id,
+            role: message.role,
+            parts: message.parts,
+            createdAt: message.createdAt,
+            updatedAt: message.updatedAt,
+          })),
+          recoveryMetadata: { source: 'stale-test' },
+          createdAt: savedAt,
+          updatedAt: savedAt,
+        };
+      },
+    };
+    const useCases = createAnalysisUiMessageProjectionUseCases({ projectionStore });
+    const hydrated = await useCases.hydrateProjection({
+      ownerUserId: 'owner-10-3',
+      sessionId: 'session-10-3',
+      executionId: 'exec-10-3',
+      followUpId: null,
+      historyRoundId: 'session-root',
+      canonical: {
+        events: ${JSON.stringify(events)},
+        fallbackConclusion: null,
+      },
+    });
+    console.log(JSON.stringify({
+      source: hydrated?.source,
+      rebuildReason: hydrated?.rebuildReason,
+      lastSequence: hydrated?.projection.lastSequence,
+      partKinds: hydrated?.projection.messages[0].parts.map((part) => part.kind),
+      persistedLastSequence: records[0]?.streamCursor.lastSequence,
+    }));
+  `);
+
+  assert.equal(result.source, 'rebuilt-from-canonical');
+  assert.match(result.rebuildReason, /canonical events newer/);
+  assert.equal(result.lastSequence, 2);
+  assert.equal(result.persistedLastSequence, 2);
+  assert.ok(result.partKinds.includes('conclusion-card'));
+});
+
+test('Story 10.3 regression | canonical conclusion 存在但 persisted projection 缺少结论时必须重建', async () => {
+  const events = buildEvents();
+  const fallbackConclusion = {
+    causes: [
+      {
+        id: 'cause-1',
+        rank: 1,
+        title: '收费趋势异常',
+        summary: '历史回放必须展示这条结论。',
+        confidence: 0.82,
+        evidence: [{ label: '关键证据', summary: '收费口径已校验。' }],
+      },
+    ],
+    renderBlocks: [
+      {
+        type: 'chart',
+        title: '月度工单趋势',
+        chartType: 'line',
+        series: [
+          {
+            name: '工单量',
+            points: [
+              { label: '2026-01', value: 12 },
+              { label: '2026-02', value: 18 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const result = await runTsSnippet(`
+    ${PROJECTION_IMPORT}
+    const savedAt = '2026-05-05T00:00:00.000Z';
+    const records = [{
+      id: 'missing-conclusion-record',
+      ownerUserId: 'owner-10-3',
+      sessionId: 'session-10-3',
+      executionId: 'exec-10-3',
+      followUpId: null,
+      historyRoundId: 'session-root',
+      projectionVersion: 1,
+      partSchemaVersion: AI_RUNTIME_SCHEMA_VERSION,
+      contractVersion: AI_RUNTIME_CONTRACT_VERSION,
+      status: 'completed',
+      isTerminal: true,
+      streamCursor: { lastSequence: 2, lastEventId: 'evt-2' },
+      messages: [
+        {
+          id: 'assistant-without-conclusion',
+          role: 'assistant',
+          parts: [
+            { id: 'status', kind: 'status-banner', status: 'completed', label: '分析完成' },
+            { id: 'resume', kind: 'resume-anchor', sessionId: 'session-10-3', executionId: 'exec-10-3', lastSequence: 2, status: 'completed', isTerminal: true },
+          ],
+          createdAt: savedAt,
+          updatedAt: savedAt,
+        },
+      ],
+      recoveryMetadata: { source: 'legacy-without-conclusion' },
+      createdAt: savedAt,
+      updatedAt: savedAt,
+    }];
+    const projectionStore = {
+      async save(record) {
+        records.splice(0, records.length, record);
+        return record;
+      },
+      async getByScope() {
+        return records[0] ?? null;
+      },
+    };
+    const useCases = createAnalysisUiMessageProjectionUseCases({ projectionStore });
+    const hydrated = await useCases.hydrateProjection({
+      ownerUserId: 'owner-10-3',
+      sessionId: 'session-10-3',
+      executionId: 'exec-10-3',
+      followUpId: null,
+      historyRoundId: 'session-root',
+      canonical: {
+        events: ${JSON.stringify(events)},
+        fallbackConclusion: ${JSON.stringify(fallbackConclusion)},
+      },
+    });
+    const conclusionPart = hydrated?.projection.messages[0].parts.find(
+      (part) => part.kind === 'conclusion-card'
+    );
+    console.log(JSON.stringify({
+      source: hydrated?.source,
+      rebuildReason: hydrated?.rebuildReason,
+      hasConclusionCard: Boolean(conclusionPart),
+      renderBlockTitles: conclusionPart?.readModel?.renderBlocks?.map((block) => block.title) ?? [],
+      recoverySource: records[0]?.recoveryMetadata?.source,
+    }));
+  `);
+
+  assert.equal(result.source, 'rebuilt-from-canonical');
+  assert.match(result.rebuildReason, /missing canonical conclusion/);
+  assert.equal(result.hasConclusionCard, true);
+  assert.ok(result.renderBlockTitles.includes('月度工单趋势'));
+  assert.equal(result.recoverySource, 'canonical-truth');
+});
+
+test('Story 10.3 regression | 重建后的历史投影必须驱动结果区和可视化回放', async () => {
+  const events = buildEvents();
+  const fallbackConclusion = {
+    causes: [
+      {
+        id: 'cause-1',
+        rank: 1,
+        title: '收费趋势异常',
+        summary: '历史回放必须展示可复盘的业务结论。',
+        confidence: 0.82,
+        evidence: [{ label: '关键证据', summary: '收费口径已校验。' }],
+      },
+    ],
+    renderBlocks: [
+      {
+        type: 'chart',
+        title: '历史月度工单趋势',
+        chartType: 'line',
+        series: [
+          {
+            name: '工单量',
+            points: [
+              { label: '2026-01', value: 12 },
+              { label: '2026-02', value: 18 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const result = await runTsSnippet(`
+    ${PROJECTION_IMPORT}
+    import threadModule from './src/application/analysis-message-projection/conversation-thread-view-model.ts';
+    const { buildConversationThreadViewModel } = threadModule;
+    const savedAt = '2026-05-05T00:00:00.000Z';
+    const records = [{
+      id: 'history-without-result-record',
+      ownerUserId: 'owner-10-3',
+      sessionId: 'session-10-3',
+      executionId: 'exec-10-3',
+      followUpId: null,
+      historyRoundId: 'session-root',
+      projectionVersion: 1,
+      partSchemaVersion: AI_RUNTIME_SCHEMA_VERSION,
+      contractVersion: AI_RUNTIME_CONTRACT_VERSION,
+      status: 'completed',
+      isTerminal: true,
+      streamCursor: { lastSequence: 2, lastEventId: 'evt-2' },
+      messages: [
+        {
+          id: 'assistant-without-result',
+          role: 'assistant',
+          parts: [
+            { id: 'status', kind: 'status-banner', status: 'completed', label: '分析完成' },
+            { id: 'timeline', kind: 'step-timeline', steps: [] },
+            { id: 'resume', kind: 'resume-anchor', sessionId: 'session-10-3', executionId: 'exec-10-3', lastSequence: 2, status: 'completed', isTerminal: true },
+          ],
+          createdAt: savedAt,
+          updatedAt: savedAt,
+        },
+      ],
+      recoveryMetadata: { source: 'legacy-without-result' },
+      createdAt: savedAt,
+      updatedAt: savedAt,
+    }];
+    const projectionStore = {
+      async save(record) {
+        records.splice(0, records.length, record);
+        return record;
+      },
+      async getByScope() {
+        return records[0] ?? null;
+      },
+    };
+    const useCases = createAnalysisUiMessageProjectionUseCases({ projectionStore });
+    const hydrated = await useCases.hydrateProjection({
+      ownerUserId: 'owner-10-3',
+      sessionId: 'session-10-3',
+      executionId: 'exec-10-3',
+      followUpId: null,
+      historyRoundId: 'session-root',
+      canonical: {
+        events: ${JSON.stringify(events)},
+        fallbackConclusion: ${JSON.stringify(fallbackConclusion)},
+      },
+    });
+    const thread = buildConversationThreadViewModel({
+      rounds: [
+        {
+          executionId: 'exec-10-3',
+          questionText: '历史问题',
+          projection: hydrated?.projection ?? null,
+          events: ${JSON.stringify(events)},
+        },
+      ],
+      activeTurnId: 'exec-10-3',
+    });
+    const assistant = thread.turns[0].viewModel.assistantMessage;
+    console.log(JSON.stringify({
+      source: hydrated?.source,
+      hasResult: Boolean(assistant.result),
+      primaryAnswer: assistant.primaryAnswer,
+      visualizationTitles: assistant.visualizations.map((item) => item.title),
+      persistedPartKinds: records[0].messages[0].parts.map((part) => part.kind),
+    }));
+  `);
+
+  assert.equal(result.source, 'rebuilt-from-canonical');
+  assert.equal(result.hasResult, true);
+  assert.match(result.primaryAnswer, /收费趋势异常/);
+  assert.ok(result.visualizationTitles.includes('历史月度工单趋势'));
+  assert.ok(result.persistedPartKinds.includes('conclusion-card'));
+});
+
+test('Story 10.3 regression | session page 为非当前历史轮次 hydrate canonical snapshot 和稳定 round scope', () => {
+  const source = readFileSync(
+    'src/application/analysis-session/build-session-page-model.ts',
+    'utf-8',
+  );
+
+  assert.ok(
+    source.includes('const threadConclusionReadModel =') &&
+      source.includes('resolveConclusionReadModelFromSnapshot(threadSnapshot)'),
+    'Thread hydration should derive fallback conclusion from historical snapshot',
+  );
+  assert.ok(
+    source.includes("historyRoundId: threadSnapshot.followUpId ?? 'session-root'"),
+    'Thread hydration should use stable historyRoundId for root and follow-up rounds',
+  );
+  assert.ok(
+    source.includes('fallbackConclusion: threadConclusionReadModel'),
+    'Thread hydration should pass fallbackConclusion so old persisted projections can be rebuilt',
+  );
 });
 
 test('Story 10.3 AC4/AC6 | projection scope mismatch 必须 fail loud，历史轮次 projection 互不覆盖', async () => {

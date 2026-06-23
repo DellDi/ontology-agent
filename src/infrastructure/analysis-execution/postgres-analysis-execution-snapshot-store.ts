@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 
 import type { AnalysisExecutionSnapshotStore } from '@/application/analysis-execution/persistence-ports';
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
@@ -113,6 +113,30 @@ export function createPostgresAnalysisExecutionSnapshotStore(
       const row = rows[0];
 
       return row ? rowToSnapshot(row) : null;
+    },
+
+    async getLatestBySessionIds(sessionIds) {
+      const uniqueSessionIds = [...new Set(sessionIds)].filter(Boolean);
+      const snapshots = new Map<string, AnalysisExecutionSnapshot>();
+
+      if (uniqueSessionIds.length === 0) {
+        return snapshots;
+      }
+
+      const rows = await resolvedDb
+        .selectDistinctOn([analysisExecutionSnapshots.sessionId])
+        .from(analysisExecutionSnapshots)
+        .where(inArray(analysisExecutionSnapshots.sessionId, uniqueSessionIds))
+        .orderBy(
+          analysisExecutionSnapshots.sessionId,
+          desc(analysisExecutionSnapshots.updatedAt),
+        );
+
+      for (const row of rows) {
+        snapshots.set(row.sessionId, rowToSnapshot(row));
+      }
+
+      return snapshots;
     },
 
     async listBySessionId(sessionId) {
