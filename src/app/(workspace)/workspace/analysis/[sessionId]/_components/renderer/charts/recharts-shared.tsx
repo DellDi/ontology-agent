@@ -14,21 +14,21 @@ import { cn } from '@/app/_lib/cn';
 import { EmptyState } from '@/app/_components/workbench/empty-state';
 
 export const CHART_PALETTE = [
-  'var(--brand-700)',
+  'var(--primary)',
   'var(--success-500)',
   'var(--warning-500)',
-  'var(--danger-500)',
-  'var(--brand-300)',
-  'var(--ink-500)',
+  'var(--destructive)',
+  'var(--ring)',
+  'var(--muted-foreground)',
 ];
 
 export const CHART_AXIS_TICK = {
-  fill: 'var(--ink-600)',
+  fill: 'var(--muted-foreground)',
   fontSize: 12,
 };
 
 export const CHART_GRID = {
-  stroke: 'var(--line-200)',
+  stroke: 'var(--border)',
   strokeDasharray: '4 4',
 };
 

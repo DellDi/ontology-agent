@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@/app/_components/workbench/badge';
+import { MarkdownContent } from '@/app/_components/markdown-content';
 
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
 
@@ -119,9 +120,11 @@ export function renderMarkdownBlock({
       className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
     >
       {renderTitle(renderedBlock)}
-      <p className="mt-2 text-sm leading-7 break-words whitespace-pre-wrap text-foreground/90">
-        {getString(renderedBlock.payload.content)}
-      </p>
+      <div className="mt-2 text-sm">
+        <MarkdownContent>
+          {getString(renderedBlock.payload.content)}
+        </MarkdownContent>
+      </div>
     </div>
   );
 }

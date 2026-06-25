@@ -14,7 +14,7 @@ export function CollapsibleSection({
   return (
     <div className="mt-4">
       <button
-        className="flex items-center gap-2 text-sm font-medium text-[color:var(--ink-600)] transition-colors hover:text-[color:var(--ink-900)]"
+        className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         onClick={() => setIsOpen(!isOpen)}
         type="button"
       >
@@ -26,7 +26,7 @@ export function CollapsibleSection({
         {title}
       </button>
       {isOpen ? (
-        <div className="mt-3 space-y-3 pl-4 border-l-2 border-[color:var(--line-200)]">
+        <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
           {children}
         </div>
       ) : null}

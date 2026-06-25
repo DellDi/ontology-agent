@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { TableCell, TableRow } from '@/components/ui/table';
 import {
   CHANGE_REQUEST_STATUSES,
   type ChangeRequestStatus,
@@ -15,7 +16,6 @@ import {
   StatusBadge,
   formatTimestamp,
 } from '../../../_components/admin-shell';
-import { Button } from '@/app/_components/button';
 import {
   getChangeTypeLabel,
   getCompatibilityLabel,
@@ -120,7 +120,7 @@ export function ChangeRequestListClient({
         </div>
       </AdminCard>
 
-      <AdminCard title="">
+      <AdminCard title="" flush>
         {data.items.length === 0 ? (
           <EmptyState
             title="暂无变更申请"
@@ -143,54 +143,42 @@ export function ChangeRequestListClient({
               const compatLabel = getCompatibilityLabel(cr.compatibilityType);
               const objectTypeLabel = getTargetObjectTypeLabel(cr.targetObjectType);
               return (
-                <tr key={cr.id}>
-                  <td>
+                <TableRow key={cr.id} className="border-border/20 transition-colors hover:bg-muted/30">
+                  <TableCell className="px-5 py-4 align-top">
                     <Link
                       href={`/admin/ontology/change-requests/${cr.id}`}
                       onMouseEnter={() => prefetchDetail(cr.id)}
                       onFocus={() => prefetchDetail(cr.id)}
-                      className="font-semibold text-[color:var(--brand-700)] hover:underline"
+                      className="font-semibold text-foreground hover:text-primary hover:underline"
                     >
                       {cr.title}
                     </Link>
-                  </td>
-                  <td>
-                    <div className="text-sm">
-                      <span className="font-medium">{objectTypeLabel}</span>
-                      <span className="text-muted-foreground"> / {cr.targetObjectKey}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="text-sm">{typeLabel}</span>
-                  </td>
-                  <td>
-                    <span className="text-sm">{compatLabel.label}</span>
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{objectTypeLabel}</span>
+                    <span> / {cr.targetObjectKey}</span>
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top text-sm text-muted-foreground">
+                    {typeLabel}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top text-sm text-muted-foreground">
+                    {compatLabel.label}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top">
                     <StatusBadge tone={statusLabel.tone}>{statusLabel.label}</StatusBadge>
-                  </td>
-                  <td>
-                    <span className="text-sm text-muted-foreground">{cr.submittedBy}</span>
-                  </td>
-                  <td>
-                    <span className="text-sm text-muted-foreground">
-                      {formatTimestamp(cr.updatedAt)}
-                    </span>
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top text-sm text-muted-foreground">
+                    {cr.submittedBy}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top text-sm text-muted-foreground tabular-nums">
+                    {formatTimestamp(cr.updatedAt)}
+                  </TableCell>
+                </TableRow>
               );
             })}
           </DataTable>
         )}
       </AdminCard>
-
-      {data.capabilities.canAuthor ? (
-        <div className="flex justify-end">
-          <Button asChild>
-            <Link href="/admin/ontology/change-requests/new">新建变更申请</Link>
-          </Button>
-        </div>
-      ) : null}
     </>
   );
 }

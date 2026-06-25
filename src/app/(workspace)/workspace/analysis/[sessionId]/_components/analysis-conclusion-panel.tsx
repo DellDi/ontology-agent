@@ -53,19 +53,19 @@ export function AnalysisConclusionPanel({
     <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]" data-testid="analysis-conclusion-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+          <p className="text-xs font-medium tracking-[0.12em] text-primary">
             归因结论
           </p>
-          <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
+          <h3 className="mt-2 text-2xl font-semibold text-foreground">
             排序后的原因列表
           </h3>
         </div>
-        <span className="rounded-md bg-[color:var(--sky-100)] px-4 py-2 text-sm font-medium text-[color:var(--brand-700)]">
+        <span className="rounded-md bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
           {readModel.causes.length} 个候选原因
         </span>
         {ontologyVersionBinding ? (
           <span
-            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-[color:var(--ink-600)]"
+            className="rounded-md bg-muted px-4 py-2 text-sm font-medium text-muted-foreground"
             data-testid="analysis-conclusion-ontology-version"
           >
             {formatOntologyVersionBindingBadge(ontologyVersionBinding)}
@@ -84,33 +84,33 @@ export function AnalysisConclusionPanel({
         {readModel.causes.map((cause) => (
           <section
             key={cause.id}
-            className="rounded-lg border border-[color:var(--line-200)] bg-white p-5"
+            className="rounded-lg border border-border bg-card p-5"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+                <p className="text-xs font-medium tracking-[0.12em] text-primary">
                   原因 {cause.rank}
                 </p>
-                <h4 className="mt-2 text-lg font-semibold text-[color:var(--ink-900)]">
+                <h4 className="mt-2 text-lg font-semibold text-foreground">
                   {cause.title}
                 </h4>
               </div>
-              <span className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              <span className="rounded-md bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                 {typeof cause.confidence === 'number'
                   ? `置信度 ${Math.round(cause.confidence * 100)}%`
                   : '证据评分待补充'}
               </span>
             </div>
 
-            <p className="mt-3 text-sm leading-7 text-[color:var(--ink-600)]">
+            <p className="mt-3 text-sm leading-7 text-muted-foreground">
               {cause.summary}
             </p>
 
-            <div className="mt-4 rounded-lg bg-[color:var(--sky-50)] p-4">
-              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+            <div className="mt-4 rounded-lg bg-muted p-4">
+              <p className="text-xs font-medium tracking-[0.12em] text-primary">
                 关键证据
               </p>
-              <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
+              <ul className="mt-3 space-y-2 text-sm text-foreground">
                 {cause.evidence.map((evidence) => (
                   <li key={`${cause.id}-${evidence.label}`}>
                     {evidence.label}：{evidence.summary}
@@ -133,7 +133,7 @@ export function AnalysisConclusionPanel({
 
         return (
           <AnalysisInteractionRenderedBlock
-            className="mt-6 border border-[color:var(--line-200)] bg-white"
+            className="mt-6 border border-border bg-card"
             key={part.id}
             renderedBlock={renderedBlock}
           />

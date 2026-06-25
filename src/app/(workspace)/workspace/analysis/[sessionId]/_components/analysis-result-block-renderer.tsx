@@ -1,6 +1,7 @@
 'use client';
 
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
+import { MarkdownContent } from '@/app/_components/markdown-content';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
 
 function formatConfidenceBadge(value: unknown): string | null {
@@ -32,27 +33,27 @@ function ConclusionSummaryBlock({
         return (
           <div
             key={`${cause.title}-${index}`}
-            className="rounded-lg border border-[color:var(--line-200)] bg-white p-4"
+            className="rounded-lg border border-border bg-card p-4"
           >
             <div className="flex items-start justify-between gap-3">
-              <h4 className="text-base font-semibold text-[color:var(--ink-900)]">
+              <h4 className="text-base font-semibold text-foreground">
                 {index + 1}. {cause.title}
               </h4>
               {confidenceLabel ? (
-                <span className="shrink-0 rounded-md bg-[color:var(--sky-100)] px-2.5 py-0.5 text-xs font-medium text-[color:var(--brand-700)]">
+                <span className="shrink-0 rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
                   置信度 {confidenceLabel}
                 </span>
               ) : null}
             </div>
-            <p className="mt-2 text-sm leading-7 text-[color:var(--ink-600)]">
-              {cause.summary}
-            </p>
+            <div className="mt-2 text-sm leading-7 text-muted-foreground">
+              <MarkdownContent>{cause.summary}</MarkdownContent>
+            </div>
             {evidenceItems.length > 0 ? (
               <ul className="mt-3 space-y-1">
                 {evidenceItems.map((item, evidenceIndex) => (
                   <li
                     key={evidenceIndex}
-                    className="text-xs text-[color:var(--ink-600)]"
+                    className="text-xs text-muted-foreground"
                   >
                     · <span className="font-medium">{item.label}</span>：{item.summary}
                   </li>

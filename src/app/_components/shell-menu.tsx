@@ -28,8 +28,8 @@ export function ShellMenu({ items }: { items: ShellMenuItem[] }) {
             href={item.href}
             className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
               active
-                ? 'bg-[color:var(--brand-100)] text-[color:var(--brand-800)]'
-                : 'text-[color:var(--ink-600)] hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             }`}
           >
             {item.label}

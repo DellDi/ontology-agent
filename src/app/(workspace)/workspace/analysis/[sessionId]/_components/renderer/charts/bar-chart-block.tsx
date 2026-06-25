@@ -58,18 +58,18 @@ export function BarChartBlock({ block }: { block: AnalysisRenderedBlock }) {
           <XAxis
             dataKey="shortLabel"
             tick={CHART_AXIS_TICK}
-            stroke="var(--line-300)"
+            stroke="var(--input)"
             interval={0}
             angle={data.length > 6 ? -20 : 0}
             textAnchor={data.length > 6 ? 'end' : 'middle'}
             height={data.length > 6 ? 50 : 30}
           />
-          <YAxis tick={CHART_AXIS_TICK} stroke="var(--line-300)" width={42} />
+          <YAxis tick={CHART_AXIS_TICK} stroke="var(--input)" width={42} />
           <Tooltip
-            cursor={{ fill: 'var(--surface-50)' }}
+            cursor={{ fill: 'var(--secondary)' }}
             contentStyle={{
               borderRadius: 8,
-              border: '1px solid var(--line-200)',
+              border: '1px solid var(--border)',
               background: 'var(--card)',
               color: 'var(--foreground)',
               fontSize: 12,

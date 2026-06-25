@@ -85,11 +85,11 @@ export function AnalysisAssistantMessage({
         {/* 状态行 */}
         <div className="flex items-center gap-2.5">
           {getStatusIcon(status)}
-          <p className="text-sm font-medium text-[color:var(--ink-900)]">
+          <p className="text-sm font-medium text-foreground">
             {headline}
           </p>
           {progressLabel ? (
-            <span className="text-xs text-[color:var(--ink-600)]">
+            <span className="text-xs text-muted-foreground">
               {progressLabel}
             </span>
           ) : null}
@@ -201,35 +201,35 @@ export function AnalysisAssistantMessage({
         {/* 底部信息入口（业务语言，不暴露工程术语） */}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => onOpenDetail('plan')}
             type="button"
           >
             分析计划
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => onOpenDetail('context')}
             type="button"
           >
             背景信息
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => onOpenDetail('history')}
             type="button"
           >
             历史问答
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => onOpenDetail('candidates')}
             type="button"
           >
             可能原因
           </button>
           <button
-            className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => onOpenDetail('execution-log')}
             type="button"
           >
@@ -237,7 +237,7 @@ export function AnalysisAssistantMessage({
           </button>
           {hasDiagnostics ? (
             <button
-              className="rounded-md px-2.5 py-1 text-xs text-[color:var(--ink-600)] transition-colors hover:bg-[color:var(--surface-50)] hover:text-[color:var(--ink-900)]"
+              className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               onClick={() => onOpenDetail('diagnostics')}
               type="button"
             >

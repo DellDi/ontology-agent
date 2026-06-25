@@ -32,12 +32,16 @@ test('workspace home | page avoids snapshot N+1 and loads independent data in pa
     'Workspace page should load history sessions and scoped projects in parallel',
   );
   assert.ok(
-    source.includes('getLatestBySessionIds'),
-    'Workspace page should batch latest snapshot reads instead of querying per history session',
+    source.includes('getLatestSummariesBySessionIds'),
+    'Workspace page should batch slim latest snapshot summary reads instead of loading full execution snapshots',
   );
   assert.ok(
     !source.includes('getLatestBySessionId('),
     'Workspace page should not call latest snapshot lookup once per session',
+  );
+  assert.ok(
+    !source.includes('.getLatestBySessionIds('),
+    'Workspace page should not load full snapshot JSON for home status cards',
   );
 });
 
@@ -47,6 +51,22 @@ test('workspace home | loading route gives immediate feedback while server data 
   assert.ok(source.includes('aria-busy="true"'), 'Loading route should expose busy state');
   assert.ok(source.includes('Skeleton'), 'Loading route should render skeleton UI');
   assert.ok(source.includes('正在加载你的工作台'), 'Loading route should use user-facing loading copy');
+});
+
+test('analysis detail | history rounds avoid full snapshot JSON on initial render', () => {
+  const source = readFileSync('src/application/analysis-session/build-session-page-model.ts', 'utf-8');
+  assert.ok(
+    source.includes('listSnapshotSummariesForSession'),
+    'Analysis detail page should load slim snapshot summaries for history rounds',
+  );
+  assert.ok(
+    !source.includes('listSnapshotsForSession'),
+    'Analysis detail page should not load all full snapshots for initial history rendering',
+  );
+  assert.ok(
+    source.includes('hydratePersistedProjectionOnly'),
+    'Analysis detail page should prefer persisted UI projection before loading canonical event JSON',
+  );
 });
 
 test('login | directory login form exposes pending state while navigating to workspace', () => {

@@ -1,6 +1,10 @@
 import { desc, eq, inArray } from 'drizzle-orm';
 
-import type { AnalysisExecutionSnapshotStore } from '@/application/analysis-execution/persistence-ports';
+import type {
+  AnalysisExecutionSnapshotStore,
+  AnalysisExecutionSnapshotHistorySummary,
+  AnalysisExecutionSnapshotSummary,
+} from '@/application/analysis-execution/persistence-ports';
 import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
 import {
   createOntologyVersionBinding,
@@ -44,6 +48,65 @@ function rowToSnapshot(
     mobileProjection:
       row.mobileProjection as AnalysisExecutionSnapshot['mobileProjection'],
     failurePoint: row.failurePoint as AnalysisExecutionSnapshot['failurePoint'],
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function rowToSnapshotSummary(row: {
+  sessionId: string;
+  executionId: string;
+  status: string;
+  conclusionState: unknown;
+  failurePoint: unknown;
+  updatedAt: Date;
+}): AnalysisExecutionSnapshotSummary {
+  return {
+    sessionId: row.sessionId,
+    executionId: row.executionId,
+    status: row.status as AnalysisExecutionSnapshotSummary['status'],
+    conclusionState:
+      row.conclusionState as AnalysisExecutionSnapshotSummary['conclusionState'],
+    failurePoint:
+      row.failurePoint as AnalysisExecutionSnapshotSummary['failurePoint'],
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function rowToSnapshotHistorySummary(row: {
+  executionId: string;
+  sessionId: string;
+  ownerUserId: string;
+  followUpId: string | null;
+  ontologyVersionId: string | null;
+  ontologyVersionBindingSource: string;
+  status: string;
+  planSnapshot: unknown;
+  conclusionState: unknown;
+  failurePoint: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}): AnalysisExecutionSnapshotHistorySummary {
+  return {
+    executionId: row.executionId,
+    sessionId: row.sessionId,
+    ownerUserId: row.ownerUserId,
+    followUpId: row.followUpId,
+    ontologyVersionId: row.ontologyVersionId,
+    ontologyVersionBinding: createOntologyVersionBinding(
+      row.ontologyVersionId,
+      normalizePersistedBindingSource(
+        row.ontologyVersionBindingSource,
+        Boolean(row.ontologyVersionId),
+      ),
+    ),
+    status: row.status as AnalysisExecutionSnapshotHistorySummary['status'],
+    planSnapshot:
+      row.planSnapshot as AnalysisExecutionSnapshotHistorySummary['planSnapshot'],
+    conclusionState:
+      row.conclusionState as AnalysisExecutionSnapshotHistorySummary['conclusionState'],
+    failurePoint:
+      row.failurePoint as AnalysisExecutionSnapshotHistorySummary['failurePoint'],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -139,6 +202,37 @@ export function createPostgresAnalysisExecutionSnapshotStore(
       return snapshots;
     },
 
+    async getLatestSummariesBySessionIds(sessionIds) {
+      const uniqueSessionIds = [...new Set(sessionIds)].filter(Boolean);
+      const snapshots = new Map<string, AnalysisExecutionSnapshotSummary>();
+
+      if (uniqueSessionIds.length === 0) {
+        return snapshots;
+      }
+
+      const rows = await resolvedDb
+        .selectDistinctOn([analysisExecutionSnapshots.sessionId], {
+          sessionId: analysisExecutionSnapshots.sessionId,
+          executionId: analysisExecutionSnapshots.executionId,
+          status: analysisExecutionSnapshots.status,
+          conclusionState: analysisExecutionSnapshots.conclusionState,
+          failurePoint: analysisExecutionSnapshots.failurePoint,
+          updatedAt: analysisExecutionSnapshots.updatedAt,
+        })
+        .from(analysisExecutionSnapshots)
+        .where(inArray(analysisExecutionSnapshots.sessionId, uniqueSessionIds))
+        .orderBy(
+          analysisExecutionSnapshots.sessionId,
+          desc(analysisExecutionSnapshots.updatedAt),
+        );
+
+      for (const row of rows) {
+        snapshots.set(row.sessionId, rowToSnapshotSummary(row));
+      }
+
+      return snapshots;
+    },
+
     async listBySessionId(sessionId) {
       const rows = await resolvedDb
         .select()
@@ -147,6 +241,30 @@ export function createPostgresAnalysisExecutionSnapshotStore(
         .orderBy(analysisExecutionSnapshots.createdAt);
 
       return rows.map(rowToSnapshot);
+    },
+
+    async listSummariesBySessionId(sessionId) {
+      const rows = await resolvedDb
+        .select({
+          executionId: analysisExecutionSnapshots.executionId,
+          sessionId: analysisExecutionSnapshots.sessionId,
+          ownerUserId: analysisExecutionSnapshots.ownerUserId,
+          followUpId: analysisExecutionSnapshots.followUpId,
+          ontologyVersionId: analysisExecutionSnapshots.ontologyVersionId,
+          ontologyVersionBindingSource:
+            analysisExecutionSnapshots.ontologyVersionBindingSource,
+          status: analysisExecutionSnapshots.status,
+          planSnapshot: analysisExecutionSnapshots.planSnapshot,
+          conclusionState: analysisExecutionSnapshots.conclusionState,
+          failurePoint: analysisExecutionSnapshots.failurePoint,
+          createdAt: analysisExecutionSnapshots.createdAt,
+          updatedAt: analysisExecutionSnapshots.updatedAt,
+        })
+        .from(analysisExecutionSnapshots)
+        .where(eq(analysisExecutionSnapshots.sessionId, sessionId))
+        .orderBy(analysisExecutionSnapshots.createdAt);
+
+      return rows.map(rowToSnapshotHistorySummary);
     },
 
     async getByExecutionId(executionId) {

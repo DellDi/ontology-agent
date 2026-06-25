@@ -64,11 +64,11 @@ export function WorkspaceHomeShell({
           title={model.greeting}
           description="在当前权限范围内发起经营问题分析，持续保留问题、计划、证据与结论。"
           action={
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge tone="info" className="font-medium">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* <Badge tone="info" className="font-medium">
                 {model.boundaryMessage}
-              </Badge>
-              <Badge tone="neutral">{model.projectScopeSummary}</Badge>
+              </Badge> */}
+              {/* <Badge tone="neutral">{model.projectScopeSummary}</Badge> */}
               <ScopePopover
                 organization={model.scopeSummary.organization}
                 projectScopeSummary={model.projectScopeSummary}
@@ -85,7 +85,7 @@ export function WorkspaceHomeShell({
       {/* 指标卡区：来自真实状态 */}
       {model.metrics.length > 0 ? (
         <div
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
           data-testid="workspace-metric-cards"
         >
           {model.metrics.map((metric) => (
@@ -164,7 +164,7 @@ export function WorkspaceHomeShell({
                 <li key={item.id}>
                   <Link
                     href={item.href}
-                    className="block rounded-md border border-[color:var(--danger-500)]/30 bg-[color:color-mix(in_srgb,var(--danger-500)_6%,transparent)] p-4 transition-colors hover:bg-[color:color-mix(in_srgb,var(--danger-500)_10%,transparent)]"
+                    className="block rounded-md border border-rose-500/30 bg-rose-500/6 p-4 transition-colors hover:bg-rose-500/10"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h4 className="text-base font-semibold text-foreground">
@@ -257,7 +257,7 @@ export function WorkspaceHomeShell({
                       </p>
                     ) : null}
                     {item.failureMessage ? (
-                      <p className="mt-1 text-sm leading-6 text-[color:var(--danger-500)]">
+                      <p className="mt-1 text-sm leading-6 text-rose-600 dark:text-rose-400">
                         {item.failureMessage}
                       </p>
                     ) : null}

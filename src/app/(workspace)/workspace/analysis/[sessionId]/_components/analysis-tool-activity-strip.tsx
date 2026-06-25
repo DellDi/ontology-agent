@@ -10,9 +10,9 @@ function getToolActivityStatusDotClass(status: ToolActivitySummary['status']) {
     case 'failed':
       return 'bg-rose-400';
     case 'running':
-      return 'bg-[color:var(--brand-500)] animate-pulse';
+      return 'bg-primary animate-pulse';
     default:
-      return 'bg-[color:var(--ink-600)]/40';
+      return 'bg-muted-foreground/40';
   }
 }
 
@@ -41,15 +41,15 @@ export function AnalysisToolActivityStrip({
       {activities.map((activity) => (
         <span
           key={`${activity.toolName}::${activity.objective}`}
-          className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1 text-xs text-[color:var(--ink-600)]"
+          className="inline-flex items-center gap-1.5 rounded-md bg-card px-3 py-1 text-xs text-muted-foreground"
         >
           <span
             className={`h-1.5 w-1.5 rounded-full ${getToolActivityStatusDotClass(activity.status)}`}
           />
-          <span className="font-medium text-[color:var(--ink-900)]">
+          <span className="font-medium text-foreground">
             {translateToolName(activity.toolName)}
           </span>
-          <span className="text-[color:var(--ink-600)]/70">·</span>
+          <span className="text-muted-foreground/70">·</span>
           <span>{getToolActivityStatusLabel(activity.status)}</span>
         </span>
       ))}

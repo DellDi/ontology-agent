@@ -9,9 +9,11 @@ import type { CandidateFactorReadModel } from '@/application/factor-expansion/us
 import type { AnalysisPlanReadModel } from '@/application/analysis-planning/use-cases';
 import type { AnalysisHistoryReadModel } from '@/application/analysis-history/use-cases';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
+import type { AnalysisExecutionSnapshotHistorySummary } from '@/application/analysis-execution/persistence-ports';
 import type { AnalysisUiMessageProjectionHydrationResult } from '@/application/analysis-message-projection/use-cases';
 import type { ConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
 import type { FollowUpContextChangeItem } from '@/domain/analysis-session/follow-up-models';
+import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
 
 import { analysisHistoryUseCases } from '@/application/analysis-history/use-cases';
 import { buildConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
@@ -28,7 +30,6 @@ import {
   getSessionScopedExecutionSnapshot,
   getSessionScopedExecutionJob,
   resolvePlanSnapshotForDisplay,
-  resolveExecutionProjectionDisplaySelection,
 } from '@/app/(workspace)/workspace/analysis/[sessionId]/analysis-execution-display';
 import { buildAnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 
@@ -135,10 +136,10 @@ function getConclusionCauseIdsFromSnapshot(
   return snapshot?.conclusionState?.causes?.map((cause) => cause.id) ?? [];
 }
 
-type SnapshotForConclusionReadModel =
-  Parameters<typeof buildExecutionStreamReadModelFromSnapshot>[0] & {
-    conclusionState?: AnalysisConclusionReadModel | null;
-  };
+type SnapshotForConclusionReadModel = {
+  stepResults?: Parameters<typeof buildExecutionStreamReadModelFromSnapshot>[0]['stepResults'];
+  conclusionState?: AnalysisConclusionReadModel | null;
+};
 
 function resolveConclusionReadModelFromSnapshot(
   snapshot: SnapshotForConclusionReadModel | null,
@@ -153,9 +154,11 @@ function resolveConclusionReadModelFromSnapshot(
     return storedConclusion;
   }
 
-  const rebuiltConclusion = buildAnalysisConclusionReadModel(
-    buildExecutionStreamReadModelFromSnapshot(snapshot).events,
-  );
+  if (!snapshot.stepResults) {
+    return storedConclusion;
+  }
+
+  const rebuiltConclusion = buildAnalysisConclusionReadModel(snapshot.stepResults);
 
   if (
     rebuiltConclusion.causes.length > 0 ||
@@ -165,6 +168,124 @@ function resolveConclusionReadModelFromSnapshot(
   }
 
   return storedConclusion;
+}
+
+function isTerminalSnapshotStatus(status: string | null | undefined) {
+  return status === 'completed' || status === 'failed';
+}
+
+function findLatestSnapshotSummary(
+  snapshots: AnalysisExecutionSnapshotHistorySummary[],
+) {
+  return snapshots.reduce<AnalysisExecutionSnapshotHistorySummary | null>(
+    (latest, snapshot) => {
+      if (!latest) {
+        return snapshot;
+      }
+
+      return snapshot.updatedAt > latest.updatedAt ? snapshot : latest;
+    },
+    null,
+  );
+}
+
+function findSnapshotSummaryByExecutionId(
+  snapshots: AnalysisExecutionSnapshotHistorySummary[],
+  executionId: string | null | undefined,
+) {
+  if (!executionId) {
+    return null;
+  }
+
+  return snapshots.find((snapshot) => snapshot.executionId === executionId) ?? null;
+}
+
+function projectionHasConclusionCard(
+  hydration: AnalysisUiMessageProjectionHydrationResult | null,
+) {
+  return Boolean(
+    hydration?.projection.messages.some((message) =>
+      message.parts.some((part) => part.kind === 'conclusion-card'),
+    ),
+  );
+}
+
+function snapshotSummaryHasConclusion(
+  snapshot: AnalysisExecutionSnapshotHistorySummary | null,
+) {
+  return Boolean(
+    snapshot?.conclusionState &&
+      (snapshot.conclusionState.causes.length > 0 ||
+        snapshot.conclusionState.renderBlocks.length > 0),
+  );
+}
+
+function isProjectionFreshForSnapshotSummary(input: {
+  hydration: AnalysisUiMessageProjectionHydrationResult | null;
+  snapshot: AnalysisExecutionSnapshotHistorySummary | null;
+}) {
+  if (!input.hydration || !input.snapshot) {
+    return false;
+  }
+
+  if (
+    Date.parse(input.hydration.record.updatedAt) < Date.parse(input.snapshot.updatedAt)
+  ) {
+    return false;
+  }
+
+  if (
+    snapshotSummaryHasConclusion(input.snapshot) &&
+    !projectionHasConclusionCard(input.hydration)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+async function hydratePersistedProjectionOnly(input: {
+  root: CompositionRoot;
+  ownerUserId: string;
+  sessionId: string;
+  executionId: string;
+  followUpId: string | null;
+  historyRoundId: string | null;
+}) {
+  try {
+    return await input.root.analysisUiMessageProjectionUseCases.hydrateProjection({
+      ownerUserId: input.ownerUserId,
+      sessionId: input.sessionId,
+      executionId: input.executionId,
+      followUpId: input.followUpId,
+      historyRoundId: input.historyRoundId,
+      canonical: null,
+    });
+  } catch (error) {
+    console.warn(
+      '[analysis-session-page] 持久化 UI projection 校验失败，将回退读取 canonical snapshot',
+      {
+        sessionId: input.sessionId,
+        executionId: input.executionId,
+        detail: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return null;
+  }
+}
+
+function buildProjectionOnlyReadModel(input: {
+  sessionId: string;
+  executionId: string;
+  status: AnalysisExecutionSnapshotHistorySummary['status'];
+}): AnalysisExecutionStreamReadModel {
+  return {
+    sessionId: input.sessionId,
+    executionId: input.executionId,
+    currentStatus: input.status,
+    hasEvents: false,
+    events: [],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -301,20 +422,19 @@ export async function buildAnalysisSessionPageModel(
     factor: readSearchParam(searchParams.factor),
   };
 
-  const latestExecutionSnapshot =
-    await root.analysisExecutionPersistenceUseCases.getLatestSnapshotForSession({
+  const [sessionSnapshotSummaries, followUps] = await Promise.all([
+    root.analysisExecutionPersistenceUseCases.listSnapshotSummariesForSession({
       sessionId: analysisSession.id,
       ownerUserId: owner.userId,
-    });
-  const sessionSnapshots =
-    await root.analysisExecutionPersistenceUseCases.listSnapshotsForSession({
+    }),
+    root.analysisFollowUpUseCases.listOwnedFollowUps({
       sessionId: analysisSession.id,
       ownerUserId: owner.userId,
-    });
-  const followUps = await root.analysisFollowUpUseCases.listOwnedFollowUps({
-    sessionId: analysisSession.id,
-    ownerUserId: owner.userId,
-  });
+    }),
+  ]);
+  const latestExecutionSnapshotSummary = findLatestSnapshotSummary(
+    sessionSnapshotSummaries,
+  );
 
   const activeFollowUp = resolveActiveFollowUpId(followUpId, followUps);
 
@@ -322,7 +442,7 @@ export async function buildAnalysisSessionPageModel(
     session: analysisSession,
     sessionContext: contextReadModel.context,
     followUps,
-    snapshots: sessionSnapshots,
+    snapshots: sessionSnapshotSummaries,
     selectedRoundId: historyRoundId || null,
   });
 
@@ -432,23 +552,100 @@ export async function buildAnalysisSessionPageModel(
     requestedExecutionRuntime.requestedExecutionJob?.executionId ??
     '';
 
-  const projectionDisplaySelection = resolveExecutionProjectionDisplaySelection({
-    requestedExecutionIdForDisplay,
-    sessionScopedRequestedExecutionSnapshot,
-    latestExecutionSnapshot,
-    sessionSnapshots,
-    selectedHistoryRound: historyRoundId
-      ? historyReadModel.selectedRound
-      : null,
-  });
+  const selectedHistoryRound = historyRoundId
+    ? historyReadModel.selectedRound
+    : null;
+  let snapshotSummaryForDisplay: AnalysisExecutionSnapshotHistorySummary | null =
+    null;
+  let snapshotForDisplay: AnalysisExecutionSnapshot | null =
+    sessionScopedRequestedExecutionSnapshot;
+  let resolvedExecutionId = '';
+  let followUpIdForProjection: string | null = null;
+  let historyRoundIdForProjection: string | null = null;
+  let enableLiveStream = false;
+  let isHistoryReplay = false;
 
-  const snapshotForDisplay = projectionDisplaySelection.snapshotForDisplay;
+  if (selectedHistoryRound?.executionId) {
+    snapshotSummaryForDisplay = findSnapshotSummaryByExecutionId(
+      sessionSnapshotSummaries,
+      selectedHistoryRound.executionId,
+    );
+    resolvedExecutionId = selectedHistoryRound.executionId;
+    followUpIdForProjection = selectedHistoryRound.followUpId;
+    historyRoundIdForProjection = selectedHistoryRound.id;
+    enableLiveStream = false;
+    isHistoryReplay = true;
+  } else if (requestedExecutionIdForDisplay) {
+    snapshotSummaryForDisplay = findSnapshotSummaryByExecutionId(
+      sessionSnapshotSummaries,
+      requestedExecutionIdForDisplay,
+    );
+    resolvedExecutionId = requestedExecutionIdForDisplay;
+    followUpIdForProjection =
+      sessionScopedRequestedExecutionSnapshot?.followUpId ??
+      snapshotSummaryForDisplay?.followUpId ??
+      null;
+    historyRoundIdForProjection =
+      sessionScopedRequestedExecutionSnapshot?.followUpId ??
+      snapshotSummaryForDisplay?.followUpId ??
+      'session-root';
+    enableLiveStream =
+      !sessionScopedRequestedExecutionSnapshot ||
+      !isTerminalSnapshotStatus(sessionScopedRequestedExecutionSnapshot.status);
+    isHistoryReplay = false;
+  } else if (latestExecutionSnapshotSummary) {
+    snapshotSummaryForDisplay = latestExecutionSnapshotSummary;
+    resolvedExecutionId = latestExecutionSnapshotSummary.executionId;
+    followUpIdForProjection = latestExecutionSnapshotSummary.followUpId;
+    historyRoundIdForProjection =
+      latestExecutionSnapshotSummary.followUpId ?? 'session-root';
+    enableLiveStream = !isTerminalSnapshotStatus(
+      latestExecutionSnapshotSummary.status,
+    );
+    isHistoryReplay = false;
+  }
+
+  let projectionHydration =
+    resolvedExecutionId && snapshotSummaryForDisplay
+      ? await hydratePersistedProjectionOnly({
+          root,
+          ownerUserId: owner.userId,
+          sessionId: analysisSession.id,
+          executionId: resolvedExecutionId,
+          followUpId: followUpIdForProjection,
+          historyRoundId: historyRoundIdForProjection,
+        })
+      : null;
+  const canRenderFromProjectionOnly =
+    isTerminalSnapshotStatus(snapshotSummaryForDisplay?.status) &&
+    isProjectionFreshForSnapshotSummary({
+      hydration: projectionHydration,
+      snapshot: snapshotSummaryForDisplay,
+    });
+
+  if (
+    !snapshotForDisplay &&
+    resolvedExecutionId &&
+    !canRenderFromProjectionOnly &&
+    !requestedExecutionRuntime.requestedExecutionStreamReadModel
+  ) {
+    const loadedSnapshot =
+      await root.analysisExecutionPersistenceUseCases.getSnapshotByExecutionId({
+        executionId: resolvedExecutionId,
+        ownerUserId: owner.userId,
+      });
+    snapshotForDisplay = getSessionScopedExecutionSnapshot(
+      loadedSnapshot,
+      analysisSession.id,
+    );
+  }
+
   const planSnapshotForDisplay = resolvePlanSnapshotForDisplay({
     sessionScopedRequestedExecutionSnapshot,
     requestedExecutionJob: requestedExecutionRuntime.requestedExecutionJob,
     activeFollowUpPlanSnapshot: activeFollowUp?.currentPlanSnapshot ?? null,
-    snapshotForDisplay,
-    isHistoryReplay: projectionDisplaySelection.isHistoryReplay,
+    snapshotForDisplay: snapshotForDisplay ?? snapshotSummaryForDisplay,
+    isHistoryReplay,
   });
 
   let groundedPlanPreviewError: Error | null = null;
@@ -483,43 +680,56 @@ export async function buildAnalysisSessionPageModel(
         groundedPlanPreviewError ?? new Error('治理化计划预览生成失败。'),
       );
 
-  const resolvedExecutionId = projectionDisplaySelection.resolvedExecutionId;
-  const executionStreamReadModel = sessionScopedRequestedExecutionSnapshot
-    ? buildExecutionStreamReadModelFromSnapshot(
-        sessionScopedRequestedExecutionSnapshot,
-      )
-    : requestedExecutionRuntime.requestedExecutionStreamReadModel ??
-      (snapshotForDisplay
-        ? buildExecutionStreamReadModelFromSnapshot(snapshotForDisplay)
-        : null);
+  const executionStreamReadModel =
+    canRenderFromProjectionOnly && snapshotSummaryForDisplay
+      ? buildProjectionOnlyReadModel({
+          sessionId: analysisSession.id,
+          executionId: resolvedExecutionId,
+          status: snapshotSummaryForDisplay.status,
+        })
+      : sessionScopedRequestedExecutionSnapshot
+        ? buildExecutionStreamReadModelFromSnapshot(
+            sessionScopedRequestedExecutionSnapshot,
+          )
+        : requestedExecutionRuntime.requestedExecutionStreamReadModel ??
+          (snapshotForDisplay
+            ? buildExecutionStreamReadModelFromSnapshot(snapshotForDisplay)
+            : null);
 
   const conclusionReadModel =
     resolveConclusionReadModelFromSnapshot(sessionScopedRequestedExecutionSnapshot) ??
-    resolveConclusionReadModelFromSnapshot(snapshotForDisplay);
+    resolveConclusionReadModelFromSnapshot(snapshotForDisplay) ??
+    resolveConclusionReadModelFromSnapshot(snapshotSummaryForDisplay);
   const liveConclusionReadModel = conclusionReadModel
     ? conclusionReadModel
     : executionStreamReadModel
       ? buildAnalysisConclusionReadModel(executionStreamReadModel.events)
       : null;
 
-  const projectionHydration =
-    resolvedExecutionId && executionStreamReadModel
-      ? await root.analysisUiMessageProjectionUseCases.hydrateProjection({
-          ownerUserId: owner.userId,
-          sessionId: analysisSession.id,
-          executionId: resolvedExecutionId,
-          followUpId: projectionDisplaySelection.followUpIdForProjection,
-          historyRoundId: projectionDisplaySelection.historyRoundIdForProjection,
-          canonical: {
-            events: executionStreamReadModel.events,
-            fallbackConclusion: liveConclusionReadModel,
-          },
-        })
-      : null;
+  if (
+    resolvedExecutionId &&
+    executionStreamReadModel &&
+    (!projectionHydration || !canRenderFromProjectionOnly)
+  ) {
+    projectionHydration =
+      await root.analysisUiMessageProjectionUseCases.hydrateProjection({
+        ownerUserId: owner.userId,
+        sessionId: analysisSession.id,
+        executionId: resolvedExecutionId,
+        followUpId: followUpIdForProjection,
+        historyRoundId: historyRoundIdForProjection,
+        canonical: {
+          events: executionStreamReadModel.events,
+          fallbackConclusion: liveConclusionReadModel,
+        },
+      });
+  }
 
   const ontologyVersionBindingForDisplay =
     resolveOntologyVersionBindingForDisplay({
-      snapshotBinding: snapshotForDisplay?.ontologyVersionBinding ?? null,
+      snapshotBinding:
+        (snapshotForDisplay ?? snapshotSummaryForDisplay)
+          ?.ontologyVersionBinding ?? null,
       followUpBinding: activeFollowUp?.ontologyVersionBinding ?? null,
     });
   const ontologyVersionBadgeText = ontologyVersionBindingForDisplay
@@ -527,7 +737,7 @@ export async function buildAnalysisSessionPageModel(
     : null;
 
   const latestExecutionConclusionReadModel =
-    resolveConclusionReadModelFromSnapshot(latestExecutionSnapshot);
+    resolveConclusionReadModelFromSnapshot(latestExecutionSnapshotSummary);
   const latestFollowUpConclusion = activeFollowUp
     ? {
         title: activeFollowUp.referencedConclusionTitle,
@@ -581,7 +791,7 @@ export async function buildAnalysisSessionPageModel(
         }
       : null;
 
-  const hasSessionExecution = Boolean(latestExecutionSnapshot);
+  const hasSessionExecution = Boolean(latestExecutionSnapshotSummary);
   const hasActiveFollowUpExecution = Boolean(activeFollowUp?.resultExecutionId);
   const shouldAutoExecuteBase =
     !requestedExecutionIdForDisplay &&
@@ -611,7 +821,9 @@ export async function buildAnalysisSessionPageModel(
   const shouldRefreshPendingExecution =
     !executionStreamReadModel &&
     !pendingExecutionBlockerMessage &&
-    (shouldAutoExecute || Boolean(requestedExecutionIdForDisplay) || !latestExecutionSnapshot);
+    (shouldAutoExecute ||
+      Boolean(requestedExecutionIdForDisplay) ||
+      !latestExecutionSnapshotSummary);
 
   const executionFeedbackStatus =
     executionStreamReadModel?.currentStatus ??
@@ -639,7 +851,7 @@ export async function buildAnalysisSessionPageModel(
       .filter((id): id is string => Boolean(id)),
   );
   const initialExecutionSnapshot =
-    sessionSnapshots.find(
+    sessionSnapshotSummaries.find(
       (snapshot) => !followUpResultExecutionIds.has(snapshot.executionId),
     ) ?? null;
 
@@ -650,7 +862,7 @@ export async function buildAnalysisSessionPageModel(
   for (const followUp of followUps) {
     if (
       followUp.resultExecutionId &&
-      sessionSnapshots.some(
+      sessionSnapshotSummaries.some(
         (snapshot) => snapshot.executionId === followUp.resultExecutionId,
       )
     ) {
@@ -675,7 +887,7 @@ export async function buildAnalysisSessionPageModel(
       continue;
     }
 
-    const threadSnapshot = sessionSnapshots.find(
+    const threadSnapshot = sessionSnapshotSummaries.find(
       (snapshot) => snapshot.executionId === threadExecutionId,
     );
 
@@ -687,26 +899,28 @@ export async function buildAnalysisSessionPageModel(
       continue;
     }
 
-    const threadStreamReadModel =
-      buildExecutionStreamReadModelFromSnapshot(threadSnapshot);
-    const threadConclusionReadModel =
-      resolveConclusionReadModelFromSnapshot(threadSnapshot);
-    const threadHydration =
-      await root.analysisUiMessageProjectionUseCases.hydrateProjection({
-        ownerUserId: owner.userId,
-        sessionId: analysisSession.id,
-        executionId: threadExecutionId,
-        followUpId: threadSnapshot.followUpId,
-        historyRoundId: threadSnapshot.followUpId ?? 'session-root',
-        canonical: {
-          events: threadStreamReadModel.events,
-          fallbackConclusion: threadConclusionReadModel,
+    const threadHydration = await hydratePersistedProjectionOnly({
+      root,
+      ownerUserId: owner.userId,
+      sessionId: analysisSession.id,
+      executionId: threadExecutionId,
+      followUpId: threadSnapshot.followUpId,
+      historyRoundId: threadSnapshot.followUpId ?? 'session-root',
+    });
+
+    if (!threadHydration) {
+      console.warn(
+        '[analysis-session-page] 折叠历史轮次缺少持久化 projection，首屏不回退读取大 snapshot',
+        {
+          sessionId: analysisSession.id,
+          executionId: threadExecutionId,
         },
-      });
+      );
+    }
 
     threadExecutionData.set(threadExecutionId, {
       projection: threadHydration?.projection ?? null,
-      events: threadStreamReadModel.events,
+      events: [],
     });
   }
 
@@ -733,7 +947,7 @@ export async function buildAnalysisSessionPageModel(
 
   for (const followUp of followUps) {
     const followUpSnapshot = followUp.resultExecutionId
-      ? sessionSnapshots.find(
+      ? sessionSnapshotSummaries.find(
           (snapshot) => snapshot.executionId === followUp.resultExecutionId,
         )
       : null;
@@ -788,7 +1002,7 @@ export async function buildAnalysisSessionPageModel(
     executionStreamReadModel,
     liveConclusionReadModel,
     projectionHydration,
-    enableLiveStream: projectionDisplaySelection.enableLiveStream,
+    enableLiveStream,
 
     ontologyVersionBindingForDisplay,
     ontologyVersionBadgeText,

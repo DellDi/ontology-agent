@@ -14,19 +14,19 @@ function CandidateValidationStatusBadge({
     { className: string; label: string }
   > = {
     supported: {
-      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
       label: '已核验',
     },
     'not-supported': {
-      className: 'bg-rose-50 text-rose-700 border-rose-200',
+      className: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
       label: '未发现支持数据',
     },
     inconclusive: {
-      className: 'bg-amber-50 text-amber-700 border-amber-200',
+      className: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
       label: '需人工确认',
     },
     'not-validated': {
-      className: 'bg-slate-50 text-slate-500 border-slate-200',
+      className: 'bg-muted text-muted-foreground border-border',
       label: '尚未核验',
     },
   };
@@ -73,10 +73,10 @@ export function AnalysisDiagnosticsPanel({
     <div className="space-y-6">
       {candidateValidation.validations.length > 0 ? (
         <section data-testid="candidate-validation-section">
-          <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
+          <h4 className="text-sm font-semibold text-foreground">
             候选原因核验结果
           </h4>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             系统已经对 {candidateValidation.totalFactors} 个候选方向做了数据核验；
             {completedCount} 个已有明确核验结果，
             {candidateValidation.includedCount} 个进入了最终判断。
@@ -85,10 +85,10 @@ export function AnalysisDiagnosticsPanel({
             {candidateValidation.validations.map((validation) => (
               <div
                 key={validation.factorKey}
-                className="rounded-lg border border-[color:var(--line-200)] bg-white p-4"
+                className="rounded-lg border border-border bg-card p-4"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-[color:var(--ink-900)]">
+                  <span className="text-sm font-medium text-foreground">
                     {validation.factorLabel}
                   </span>
                   <CandidateValidationStatusBadge
@@ -96,19 +96,19 @@ export function AnalysisDiagnosticsPanel({
                   />
                 </div>
                 {validation.validationNote ? (
-                  <p className="mt-3 text-sm leading-6 text-[color:var(--ink-600)]">
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
                     {validation.validationNote}
                   </p>
                 ) : null}
                 {validation.evidence.length > 0 ? (
-                  <ul className="mt-3 space-y-1 text-xs leading-5 text-[color:var(--ink-500)]">
+                  <ul className="mt-3 space-y-1 text-xs leading-5 text-muted-foreground/80">
                     {validation.evidence.slice(0, 2).map((item, index) => (
                       <li key={index}>• {item}</li>
                     ))}
                   </ul>
                 ) : null}
                 {validation.includedInFinalConclusion ? (
-                  <p className="mt-3 text-xs font-medium text-emerald-700">
+                  <p className="mt-3 text-xs font-medium text-emerald-600">
                     已纳入最终判断
                   </p>
                 ) : null}
@@ -145,7 +145,7 @@ export function AnalysisDiagnosticsPanel({
       {/* 执行时间线 */}
       {timelineBlocks.length > 0 ? (
         <section>
-          <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
+          <h4 className="text-sm font-semibold text-foreground">
             核验过程
           </h4>
           <div className="mt-2 space-y-2">
@@ -161,7 +161,7 @@ export function AnalysisDiagnosticsPanel({
       {/* 流程看板 */}
       {processBoardBlocks.length > 0 ? (
         <section>
-          <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
+          <h4 className="text-sm font-semibold text-foreground">
             流程看板
           </h4>
           <div className="mt-2 space-y-2">
@@ -177,7 +177,7 @@ export function AnalysisDiagnosticsPanel({
       {/* 其他诊断块 */}
       {otherBlocks.length > 0 ? (
         <section>
-          <h4 className="text-sm font-semibold text-[color:var(--ink-900)]">
+          <h4 className="text-sm font-semibold text-foreground">
             其他核验记录
           </h4>
           <div className="mt-2 space-y-2">
@@ -190,8 +190,8 @@ export function AnalysisDiagnosticsPanel({
         </section>
       ) : null}
 
-      <details className="rounded-lg border border-[color:var(--line-200)] bg-white p-4 text-xs text-[color:var(--ink-600)]">
-        <summary className="cursor-pointer font-medium text-[color:var(--ink-900)]">
+      <details className="rounded-lg border border-border bg-card p-4 text-xs text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground">
           技术信息
         </summary>
         <div className="mt-3 space-y-1">

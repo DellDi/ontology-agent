@@ -1,16 +1,16 @@
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
 export function getToneClassName(tone: unknown) {
-  // 全部走 color-mix + 主题 token，自动响应 dark
+  // 全部走 shadcn 语义色 + 透明度，自动响应 dark
   switch (tone) {
     case 'success':
-      return 'bg-[color:color-mix(in_srgb,var(--success-500)_10%,transparent)] border border-[color:var(--success-500)]/30';
+      return 'bg-emerald-500/10 border border-emerald-500/30';
     case 'error':
-      return 'bg-[color:color-mix(in_srgb,var(--danger-500)_10%,transparent)] border border-[color:var(--danger-500)]/30';
+      return 'bg-rose-500/10 border border-rose-500/30';
     case 'warning':
-      return 'bg-[color:color-mix(in_srgb,var(--warning-500)_12%,transparent)] border border-[color:var(--warning-500)]/30';
+      return 'bg-amber-500/10 border border-amber-500/30';
     case 'info':
-      return 'bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] border border-[color:var(--brand-300)]/40';
+      return 'bg-primary/10 border border-primary/30';
     default:
       return 'bg-card border border-border';
   }
@@ -46,7 +46,7 @@ export function renderTitle(block: AnalysisRenderedBlock, fallback?: string) {
   const text = block.title ?? block.label ?? fallback;
   if (!text) return null;
   return (
-    <p className="text-xs font-semibold tracking-[0.1em] uppercase text-[color:var(--brand-700)]">
+    <p className="text-xs font-semibold tracking-[0.1em] uppercase text-primary">
       {text}
     </p>
   );

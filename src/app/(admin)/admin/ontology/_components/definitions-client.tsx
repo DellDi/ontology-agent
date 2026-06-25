@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { Button } from '@/app/_components/button';
+import { TableCell, TableRow } from '@/components/ui/table';
 import {
   AdminCard,
   DataTable,
@@ -86,9 +87,9 @@ export function DefinitionsClient({
   }, [activeTab, groups, normalizedSearch]);
 
   const tableHeaders = [
-    { key: 'name', label: '名称' },
-    { key: 'key', label: '业务键' },
-    { key: 'status', label: '状态' },
+    { key: 'name', label: '名称', className: 'w-[35%]' },
+    { key: 'key', label: '业务键', className: 'w-[50%]' },
+    { key: 'status', label: '状态', className: 'w-[15%]' },
   ];
 
   return (
@@ -185,22 +186,23 @@ export function DefinitionsClient({
             key={group.key}
             title={group.title}
             description={`共 ${group.items.length} 条`}
+            flush
           >
-            <DataTable headers={tableHeaders}>
+            <DataTable headers={tableHeaders} fixedLayout>
               {group.items.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <span className="font-semibold text-foreground">{item.displayName}</span>
-                  </td>
-                  <td>
-                    <span className="font-mono text-sm text-muted-foreground">{item.businessKey}</span>
-                  </td>
-                  <td>
+                <TableRow key={item.id} className="border-border/20 transition-colors hover:bg-muted/30">
+                  <TableCell className="px-5 py-4 align-top">
+                    <span className="font-medium text-foreground">{item.displayName}</span>
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top font-mono text-sm text-muted-foreground">
+                    {item.businessKey}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 align-top">
                     <StatusBadge tone={getStatusTone(item.status)}>
                       {getStatusLabel(item.status)}
                     </StatusBadge>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
             </DataTable>
           </AdminCard>

@@ -325,7 +325,7 @@ export function AnalysisContextPanel({
         <div className="rounded-md border border-border bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold tracking-[0.12em] uppercase text-[color:var(--brand-700)]">
+              <p className="text-xs font-semibold tracking-[0.12em] uppercase text-primary">
                 修正上下文
               </p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">

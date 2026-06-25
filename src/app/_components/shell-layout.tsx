@@ -21,17 +21,17 @@ export function ShellLayout({
     <div className="flex min-h-screen flex-col">
       {/* Top bar */}
       <header className="sticky top-0 z-30 border-b border-border bg-background">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 lg:px-10">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-10">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-[0.1em] text-[color:var(--brand-700)]">
+            <span className="text-sm font-semibold tracking-[0.1em] text-primary">
               DIP3 · 智慧数据
             </span>
           </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground sm:gap-4">
             <ThemeToggle />
-            <span>{userDisplayName}</span>
-            <span className="text-border">|</span>
-            <span className="text-xs">{userId}</span>
+            <span className="hidden sm:inline">{userDisplayName}</span>
+            <span className="hidden text-border sm:inline">|</span>
+            <span className="hidden text-xs sm:inline">{userId}</span>
             <form action="/api/auth/logout" method="post">
               <button
                 type="submit"
@@ -45,11 +45,11 @@ export function ShellLayout({
       </header>
 
       {/* Body: sidebar + main */}
-      <div className="mx-auto grid w-full max-w-7xl flex-1 gap-6 px-6 py-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-10">
+      <div className="mx-auto grid w-full max-w-7xl flex-1 gap-4 px-4 py-6 sm:gap-6 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-10 lg:py-8">
         <aside className="space-y-1">
           <ShellMenu items={menuItems} />
         </aside>
-        <section>{children}</section>
+        <section className="min-w-0">{children}</section>
       </div>
     </div>
   );
