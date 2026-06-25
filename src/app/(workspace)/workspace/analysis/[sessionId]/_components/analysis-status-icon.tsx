@@ -8,8 +8,8 @@ export function getStatusIcon(status: ConversationAssistantStatus): ReactNode {
     case 'running':
       return (
         <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--brand-500)] opacity-40" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[color:var(--brand-500)]" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
         </span>
       );
     case 'completed':
@@ -27,7 +27,7 @@ export function getStatusIcon(status: ConversationAssistantStatus): ReactNode {
     case 'queued':
     default:
       return (
-        <span className="flex h-2.5 w-2.5 rounded-full bg-[color:var(--ink-600)]/30" />
+        <span className="flex h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
       );
   }
 }

@@ -666,6 +666,22 @@ test('失败或中断的执行快照会保留失败位置、结果块和移动�
         async getLatestBySessionId() {
           return savedSnapshot;
         },
+        async getLatestBySessionIds() {
+          return savedSnapshot
+            ? new Map([[savedSnapshot.sessionId, savedSnapshot]])
+            : new Map();
+        },
+        async getLatestSummariesBySessionIds() {
+          return savedSnapshot
+            ? new Map([[savedSnapshot.sessionId, savedSnapshot]])
+            : new Map();
+        },
+        async listBySessionId() {
+          return savedSnapshot ? [savedSnapshot] : [];
+        },
+        async listSummariesBySessionId() {
+          return savedSnapshot ? [savedSnapshot] : [];
+        },
         async getByExecutionId() {
           return savedSnapshot;
         },

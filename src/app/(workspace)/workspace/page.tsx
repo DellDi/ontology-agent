@@ -11,6 +11,61 @@ type WorkspacePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+type WorkspacePerfMeasure = {
+  name: string;
+  ms: number;
+};
+
+const WORKSPACE_PERF_ENABLED =
+  process.env.NODE_ENV !== 'production' ||
+  process.env.WORKSPACE_PERF_LOG === '1';
+
+function createWorkspacePerfLogger() {
+  const requestId = Math.random().toString(36).slice(2, 8);
+  const startedAt = performance.now();
+  const measures: WorkspacePerfMeasure[] = [];
+
+  function record(name: string, started: number) {
+    measures.push({
+      name,
+      ms: Number((performance.now() - started).toFixed(1)),
+    });
+  }
+
+  return {
+    async measure<T>(name: string, run: () => Promise<T>): Promise<T> {
+      const started = performance.now();
+      try {
+        return await run();
+      } finally {
+        record(name, started);
+      }
+    },
+    measureSync<T>(name: string, run: () => T): T {
+      const started = performance.now();
+      try {
+        return run();
+      } finally {
+        record(name, started);
+      }
+    },
+    done(extra: Record<string, unknown> = {}) {
+      if (!WORKSPACE_PERF_ENABLED) {
+        return;
+      }
+
+      console.info('[workspace-perf]', {
+        requestId,
+        totalMs: Number((performance.now() - startedAt).toFixed(1)),
+        measures,
+        ...extra,
+      });
+    },
+  };
+}
+
+type WorkspacePerfLogger = ReturnType<typeof createWorkspacePerfLogger>;
+
 function readSearchParam(
   value: string | string[] | undefined,
   fallback = '',
@@ -48,6 +103,7 @@ function isFallbackSnapshotEntry(
 async function loadStreamFallbackSnapshots(
   root: CompositionRoot,
   sessionsWithoutSnapshot: { id: string }[],
+  perf: WorkspacePerfLogger,
 ): Promise<StreamFallbackResult> {
   if (sessionsWithoutSnapshot.length === 0) {
     return { entries: [], degradedState: null };
@@ -59,11 +115,11 @@ async function loadStreamFallbackSnapshots(
     const streamResults = await Promise.all(
       sessionsWithoutSnapshot.map(async (historySession): Promise<StreamFallbackSessionResult> => {
         try {
-          console.time(`[workspace-perf] stream-events:${historySession.id}`);
-          const events = await root.analysisExecutionStreamUseCases.listExecutionEvents({
-            sessionId: historySession.id,
-          }).finally(() =>
-            console.timeEnd(`[workspace-perf] stream-events:${historySession.id}`),
+          const events = await perf.measure(
+            `stream-events:${historySession.id}`,
+            () => root.analysisExecutionStreamUseCases.listExecutionEvents({
+              sessionId: historySession.id,
+            }),
           );
           const lastStatusEvent = [...events]
             .reverse()
@@ -132,74 +188,94 @@ async function loadStreamFallbackSnapshots(
 export default async function WorkspacePage({
   searchParams,
 }: WorkspacePageProps) {
-  console.time('[workspace-perf] TOTAL SERVER');
-  const root = createCompositionRoot();
-  const { session, accessDeniedMessage } = await requireWorkspaceSession(
-    '/workspace',
-  );
-  const params = (await searchParams) ?? {};
+  const perf = createWorkspacePerfLogger();
 
-  if (accessDeniedMessage) {
-    console.timeEnd('[workspace-perf] TOTAL SERVER');
-    return null;
-  }
+  try {
+    const root = perf.measureSync('createCompositionRoot', () =>
+      createCompositionRoot(),
+    );
+    const { session, accessDeniedMessage } = await perf.measure(
+      'requireWorkspaceSession',
+      () => requireWorkspaceSession('/workspace'),
+    );
+    const params = await perf.measure(
+      'searchParams',
+      async () => (await searchParams) ?? {},
+    );
 
-  console.time('[workspace-perf] listOwnedSessions');
-  const historySessionsPromise = root.analysisSessionUseCases
-    .listOwnedSessions(session)
-    .finally(() => console.timeEnd('[workspace-perf] listOwnedSessions'));
+    if (accessDeniedMessage) {
+      perf.done({ outcome: 'access-denied' });
+      return null;
+    }
 
-  console.time('[workspace-perf] listProjects');
-  const scopedProjectsPromise = root.erpReadUseCases
-    .listProjects(session)
-    .finally(() => console.timeEnd('[workspace-perf] listProjects'));
+    const [historySessions, scopedProjects] = await perf.measure(
+      'parallel:sessions+projects',
+      () => Promise.all([
+        perf.measure('listOwnedSessions', () =>
+          root.analysisSessionUseCases.listOwnedSessions(session),
+        ),
+        perf.measure('listProjects', () =>
+          root.erpReadUseCases.listProjects(session),
+        ),
+      ]),
+    );
 
-  const [historySessions, scopedProjects] = await Promise.all([
-    historySessionsPromise,
-    scopedProjectsPromise,
-  ]);
-
-  console.time('[workspace-perf] getLatestBySessionIds');
-  const latestSnapshots = new Map<string, WorkspaceHomeSnapshotSummary | null>(
-    await root.analysisExecutionSnapshotStore
-      .getLatestBySessionIds(
+    const latestSnapshotEntries = await perf.measure(
+      'getLatestSummariesBySessionIds',
+      () => root.analysisExecutionSnapshotStore.getLatestSummariesBySessionIds(
         historySessions.map((historySession) => historySession.id),
-      )
-      .finally(() => console.timeEnd('[workspace-perf] getLatestBySessionIds')),
-  );
+      ),
+    );
+    const latestSnapshots = new Map<string, WorkspaceHomeSnapshotSummary | null>(
+      latestSnapshotEntries,
+    );
 
-  const sessionsWithoutSnapshot = historySessions.filter(
-    (s) => !latestSnapshots.get(s.id),
-  );
-  console.time('[workspace-perf] loadStreamFallbackSnapshots');
-  const streamFallbackResult = await loadStreamFallbackSnapshots(
-    root,
-    sessionsWithoutSnapshot,
-  ).finally(() =>
-    console.timeEnd('[workspace-perf] loadStreamFallbackSnapshots'),
-  );
+    const sessionsWithoutSnapshot = historySessions.filter(
+      (s) => !latestSnapshots.get(s.id),
+    );
+    const streamFallbackResult = await perf.measure(
+      'loadStreamFallbackSnapshots',
+      () => loadStreamFallbackSnapshots(root, sessionsWithoutSnapshot, perf),
+    );
 
-  for (const entry of streamFallbackResult.entries) {
-    latestSnapshots.set(entry[0], entry[1]);
+    for (const entry of streamFallbackResult.entries) {
+      latestSnapshots.set(entry[0], entry[1]);
+    }
+
+    const model = perf.measureSync('createWorkspaceHomeModel', () =>
+      createWorkspaceHomeModel(
+        session,
+        historySessions,
+        scopedProjects.map((project) => ({
+          id: project.id,
+          name: project.name,
+        })),
+        latestSnapshots,
+        streamFallbackResult.degradedState,
+      ),
+    );
+
+    perf.done({
+      outcome: 'ok',
+      historyCount: historySessions.length,
+      projectCount: scopedProjects.length,
+      snapshotCount: latestSnapshots.size,
+      sessionsWithoutSnapshot: sessionsWithoutSnapshot.length,
+      degradedSource: streamFallbackResult.degradedState?.source ?? null,
+    });
+
+    return (
+      <WorkspaceHomeShell
+        model={model}
+        creationError={readSearchParam(params.error)}
+        draftQuestion={readSearchParam(params.draft)}
+      />
+    );
+  } catch (error) {
+    perf.done({
+      outcome: 'error',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-
-  const model = createWorkspaceHomeModel(
-    session,
-    historySessions,
-    scopedProjects.map((project) => ({
-      id: project.id,
-      name: project.name,
-    })),
-    latestSnapshots,
-    streamFallbackResult.degradedState,
-  );
-
-  console.timeEnd('[workspace-perf] TOTAL SERVER');
-  return (
-    <WorkspaceHomeShell
-      model={model}
-      creationError={readSearchParam(params.error)}
-      draftQuestion={readSearchParam(params.draft)}
-    />
-  );
 }

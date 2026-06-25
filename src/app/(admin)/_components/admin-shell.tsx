@@ -36,7 +36,7 @@ export function AdminPageHeader({
     <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)] md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl space-y-3">
-          <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--brand-700)]">
+          <p className="text-xs font-semibold tracking-[0.12em] text-primary">
             {eyebrow}
           </p>
           <h2 className="font-display text-2xl leading-tight font-semibold text-foreground md:text-3xl">
@@ -60,6 +60,7 @@ type AdminCardProps = {
   children: ReactNode;
   trailing?: ReactNode;
   className?: string;
+  flush?: boolean;
 };
 
 export function AdminCard({
@@ -68,11 +69,18 @@ export function AdminCard({
   children,
   trailing,
   className,
+  flush = false,
 }: AdminCardProps) {
+  const contentPadding = flush ? '' : 'p-6 md:p-7';
+  const headerPadding = flush ? 'p-6 pb-0 md:p-7 md:pb-0' : 'p-6 md:p-7';
+  const contentTopPadding = flush ? '' : 'pt-0 md:pt-0';
+
+  const cardClassName = cn('border-border/40 shadow-none', className);
+
   if (!title && !description) {
     return (
-      <Card className={className}>
-        <CardContent className="p-6 md:p-7">
+      <Card className={cardClassName}>
+        <CardContent className={contentPadding}>
           {children}
         </CardContent>
       </Card>
@@ -80,8 +88,8 @@ export function AdminCard({
   }
 
   return (
-    <Card className={className}>
-      <CardHeader className="flex-row items-start justify-between space-y-0 p-6 md:p-7">
+    <Card className={cardClassName}>
+      <CardHeader className={cn('flex-row items-start justify-between space-y-0', headerPadding)}>
         <div>
           <CardTitle className="text-xl">{title}</CardTitle>
           {description ? (
@@ -90,7 +98,7 @@ export function AdminCard({
         </div>
         {trailing}
       </CardHeader>
-      <CardContent className="p-6 pt-0 md:p-7 md:pt-0">
+      <CardContent className={cn(contentPadding, contentTopPadding)}>
         {children}
       </CardContent>
     </Card>
@@ -109,10 +117,10 @@ const toneVariantMap: Record<StatusTone, BadgeProps['variant']> = {
 
 const toneClassMap: Record<StatusTone, string> = {
   neutral: '',
-  success: 'bg-success-500/14 text-[rgb(18_96_69)] hover:bg-success-500/20',
-  warning: 'bg-warning-500/18 text-[rgb(143_96_22)] hover:bg-warning-500/24',
-  danger: 'bg-destructive/14 text-destructive-foreground hover:bg-destructive/20',
-  info: 'bg-primary/14 text-[rgb(30_71_168)] hover:bg-primary/20',
+  success: 'bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/18 dark:text-emerald-400',
+  warning: 'bg-amber-500/14 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400',
+  danger: 'bg-rose-500/12 text-rose-700 hover:bg-rose-500/18 dark:text-rose-400',
+  info: 'bg-primary/12 text-primary hover:bg-primary/18',
 };
 
 export function StatusBadge({
@@ -187,6 +195,7 @@ export function StatusProgressBar({ steps, currentIndex }: StatusProgressBarProp
       {steps.map((step, index) => {
         const isCompleted = index < currentIndex;
         const isCurrent = index === currentIndex;
+        const isReached = index <= currentIndex;
         return (
           <div
             key={step.status}
@@ -196,25 +205,25 @@ export function StatusProgressBar({ steps, currentIndex }: StatusProgressBarProp
               {index > 0 && (
                 <div
                   className={cn(
-                    'h-0.5 w-full',
-                    isCompleted ? 'bg-primary' : 'bg-border',
+                    'h-0.5 w-full transition-colors',
+                    isReached ? 'bg-primary' : 'bg-border',
                   )}
                 />
               )}
             </div>
             <div
               className={cn(
-                'z-10 -mt-1.5 size-3 rounded-full border-2 bg-card',
+                'z-10 -mt-1.5 size-3 rounded-full border-2 bg-card transition-colors',
                 isCompleted
                   ? 'border-primary bg-primary'
                   : isCurrent
-                    ? 'border-primary shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand-700)_18%,transparent)]'
+                    ? 'border-primary shadow-[0_0_0_3px_hsl(var(--primary)/0.18)]'
                     : 'border-input',
               )}
             />
             <span
               className={cn(
-                'mt-2 whitespace-nowrap text-center text-xs text-muted-foreground',
+                'mt-2 text-center text-xs text-muted-foreground',
                 (isCompleted || isCurrent) && 'font-semibold text-foreground',
               )}
             >
@@ -271,16 +280,24 @@ type TableHeader = {
 type DataTableProps = {
   headers: TableHeader[];
   children: ReactNode;
+  fixedLayout?: boolean;
+  className?: string;
 };
 
-export function DataTable({ headers, children }: DataTableProps) {
+export function DataTable({ headers, children, fixedLayout = false, className }: DataTableProps) {
   return (
-    <div className="admin-table-wrapper">
-      <Table>
+    <div className="w-full overflow-x-auto">
+      <Table className={cn(fixedLayout && 'table-fixed', className)}>
         <TableHeader>
-          <TableRow>
+          <TableRow className="border-border/30 bg-muted/30 hover:bg-muted/30">
             {headers.map((header) => (
-              <TableHead key={header.key} className={cn('h-14 px-5 text-sm', header.className)}>
+              <TableHead
+                key={header.key}
+                className={cn(
+                  'h-10 px-5 py-2.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase',
+                  header.className,
+                )}
+              >
                 {header.label}
               </TableHead>
             ))}

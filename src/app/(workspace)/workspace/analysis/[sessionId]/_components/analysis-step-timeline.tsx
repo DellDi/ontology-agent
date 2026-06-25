@@ -21,19 +21,19 @@ function StepStatusIndicator({
     case 'running':
       return (
         <span className="relative flex h-3 w-3">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--brand-500)] opacity-40" />
-          <span className="relative inline-flex h-3 w-3 rounded-full bg-[color:var(--brand-500)]" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
+          <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
         </span>
       );
     case 'completed':
       return (
-        <span className="flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500 text-[8px] text-white">
+        <span className="flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500 text-[8px] text-primary-foreground">
           ✓
         </span>
       );
     case 'failed':
       return (
-        <span className="flex h-3 w-3 items-center justify-center rounded-full bg-rose-500 text-[8px] text-white">
+        <span className="flex h-3 w-3 items-center justify-center rounded-full bg-rose-500 text-[8px] text-primary-foreground">
           ✕
         </span>
       );
@@ -44,7 +44,7 @@ function SubStepStatusIndicator({ status }: { status: SubStepEntry['status'] }) 
   switch (status) {
     case 'running':
       return (
-        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--brand-500)]" />
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
       );
     case 'completed':
       return (
@@ -75,7 +75,7 @@ function JsonDetail({
   return (
     <div className="mt-1">
       <button
-        className="text-[10px] text-[color:var(--ink-600)]/60 hover:text-[color:var(--brand-700)]"
+        className="text-[10px] text-muted-foreground/60 hover:text-primary"
         onClick={(e) => {
           e.stopPropagation();
           setExpanded((prev) => !prev);
@@ -85,7 +85,7 @@ function JsonDetail({
         {expanded ? '收起' : `查看${label}`}
       </button>
       {expanded ? (
-        <pre className="mt-1 max-h-48 overflow-auto rounded bg-[color:var(--ink-900)]/5 p-2 text-[10px] leading-4 text-[color:var(--ink-600)]">
+        <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted p-2 text-[10px] leading-4 text-muted-foreground">
           {JSON.stringify(value, null, 2)}
         </pre>
       ) : null}
@@ -101,29 +101,29 @@ function SubStepRow({ subStep }: { subStep: SubStepEntry }) {
   const displayName = subStep.toolLabel || translateToolName(subStep.toolName);
 
   return (
-    <li className="flex items-start gap-2 text-xs text-[color:var(--ink-600)]">
+    <li className="flex items-start gap-2 text-xs text-muted-foreground">
       <span className="mt-1.5">
         <SubStepStatusIndicator status={subStep.status} />
       </span>
       <div className="flex-1">
         <p className="leading-6">
-          <span className="font-medium text-[color:var(--ink-900)]">
+          <span className="font-medium text-foreground">
             {displayName}
           </span>
           {subStep.objective && subStep.objective !== displayName ? (
             <>
-              <span className="mx-1 text-[color:var(--ink-600)]/60">·</span>
+              <span className="mx-1 text-muted-foreground/60">·</span>
               <span>{subStep.objective}</span>
             </>
           ) : null}
           {subStep.duration ? (
-            <span className="ml-2 text-[11px] text-[color:var(--ink-600)]/70">
+            <span className="ml-2 text-[11px] text-muted-foreground/70">
               {subStep.duration}
             </span>
           ) : null}
         </p>
         {subStep.result ? (
-          <p className="mt-0.5 text-[11px] leading-5 text-[color:var(--ink-600)]/80">
+          <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground/80">
             {subStep.result}
           </p>
         ) : null}
@@ -156,7 +156,7 @@ function TimelineStepRow({ entry }: { entry: ToolTimelineEntry }) {
       {/* 垂直连线 */}
       <span
         aria-hidden
-        className="absolute left-[5px] top-3 bottom-0 w-px bg-[color:var(--line-200)] last:hidden"
+        className="absolute left-[5px] top-3 bottom-0 w-px bg-border last:hidden"
       />
 
       {/* 状态点 */}
@@ -168,8 +168,8 @@ function TimelineStepRow({ entry }: { entry: ToolTimelineEntry }) {
       <button
         className={`flex w-full items-center gap-2 text-left text-sm ${
           hasSubSteps
-            ? 'cursor-pointer text-[color:var(--ink-900)] hover:text-[color:var(--brand-700)]'
-            : 'cursor-default text-[color:var(--ink-900)]'
+            ? 'cursor-pointer text-foreground hover:text-primary'
+            : 'cursor-default text-foreground'
         }`}
         onClick={() => {
           if (hasSubSteps) setExpanded((prev) => !prev);
@@ -179,13 +179,13 @@ function TimelineStepRow({ entry }: { entry: ToolTimelineEntry }) {
       >
         <span className="flex-1 font-medium leading-6">{entry.stepName}</span>
         {entry.duration ? (
-          <span className="text-xs text-[color:var(--ink-600)]">
+          <span className="text-xs text-muted-foreground">
             {entry.duration}
           </span>
         ) : null}
         {hasSubSteps ? (
           <span
-            className={`text-[color:var(--ink-600)] transition-transform ${
+            className={`text-muted-foreground transition-transform ${
               expanded ? 'rotate-90' : ''
             }`}
             aria-hidden
@@ -197,7 +197,7 @@ function TimelineStepRow({ entry }: { entry: ToolTimelineEntry }) {
 
       {/* 详情（展开后可见） */}
       {expanded && hasSubSteps ? (
-        <ul className="mt-2 space-y-1.5 border-l border-dashed border-[color:var(--line-200)] pl-3">
+        <ul className="mt-2 space-y-1.5 border-l border-dashed border-border pl-3">
           {entry.subSteps.map((subStep, index) => (
             <SubStepRow
               key={`${subStep.toolName}::${subStep.objective}::${index}`}
@@ -208,7 +208,7 @@ function TimelineStepRow({ entry }: { entry: ToolTimelineEntry }) {
       ) : null}
 
       {entry.details ? (
-        <p className="mt-1 text-xs leading-5 text-[color:var(--ink-600)]/80">
+        <p className="mt-1 text-xs leading-5 text-muted-foreground/80">
           {entry.details}
         </p>
       ) : null}
@@ -228,8 +228,8 @@ export function AnalysisStepTimeline({
   if (entries.length === 0) return null;
 
   return (
-    <div className="mt-4 rounded-lg border border-[color:var(--line-200)] bg-white px-4 py-3">
-      <p className="mb-2 text-xs font-medium tracking-[0.1em] text-[color:var(--ink-600)]">
+    <div className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
+      <p className="mb-2 text-xs font-medium tracking-[0.1em] text-muted-foreground">
         分析过程
       </p>
       <ol className="space-y-0">

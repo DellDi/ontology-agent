@@ -99,7 +99,10 @@ test('AC1 execution snapshot 保存时从 groundedContext 绑定 ontology versio
           return snapshot;
         },
         async getLatestBySessionId() { return null; },
+        async getLatestBySessionIds() { return new Map(); },
+        async getLatestSummariesBySessionIds() { return new Map(); },
         async listBySessionId() { return []; },
+        async listSummariesBySessionId() { return []; },
         async getByExecutionId() { return null; },
       },
     });

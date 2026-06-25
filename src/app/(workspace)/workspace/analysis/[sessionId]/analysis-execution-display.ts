@@ -108,10 +108,13 @@ export function buildLiveConclusionReadModel({
 }
 
 export function resolvePlanSnapshotForDisplay(input: {
-  sessionScopedRequestedExecutionSnapshot: AnalysisExecutionSnapshot | null;
+  sessionScopedRequestedExecutionSnapshot: Pick<
+    AnalysisExecutionSnapshot,
+    'planSnapshot'
+  > | null;
   requestedExecutionJob: SessionScopedExecutionJob | null;
   activeFollowUpPlanSnapshot?: AnalysisExecutionPlanSnapshot | null;
-  snapshotForDisplay: AnalysisExecutionSnapshot | null;
+  snapshotForDisplay: Pick<AnalysisExecutionSnapshot, 'planSnapshot'> | null;
   isHistoryReplay: boolean;
 }): AnalysisExecutionPlanSnapshot | null {
   if (input.sessionScopedRequestedExecutionSnapshot) {

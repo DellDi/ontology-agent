@@ -174,6 +174,18 @@ export function createAnalysisExecutionPersistenceUseCases({
       return snapshots.filter((snapshot) => snapshot.ownerUserId === ownerUserId);
     },
 
+    async listSnapshotSummariesForSession({
+      sessionId,
+      ownerUserId,
+    }: {
+      sessionId: string;
+      ownerUserId: string;
+    }) {
+      const snapshots = await snapshotStore.listSummariesBySessionId(sessionId);
+
+      return snapshots.filter((snapshot) => snapshot.ownerUserId === ownerUserId);
+    },
+
     async getSnapshotByExecutionId({
       executionId,
       ownerUserId,

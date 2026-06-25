@@ -93,7 +93,7 @@ type AnalysisFollowUpPanelProps = {
 function renderOntologyVersionBadge(followUp: AnalysisSessionFollowUp) {
   return (
     <span
-      className="rounded-md bg-white px-3 py-1 text-xs font-medium text-[color:var(--ink-600)]"
+      className="rounded-md bg-muted px-3 py-1 text-xs font-medium text-muted-foreground"
       data-testid="follow-up-ontology-version-badge"
     >
       {formatOntologyVersionBindingBadge(followUp.ontologyVersionBinding)}
@@ -139,13 +139,13 @@ export function AnalysisFollowUpPanel({
     <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]" data-testid="analysis-follow-up-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+          <p className="text-xs font-medium tracking-[0.12em] text-primary">
             继续追问
           </p>
-          <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink-900)]">
+          <h3 className="mt-2 text-2xl font-semibold text-foreground">
             在当前结论上继续下钻
           </h3>
-          <p className="mt-3 text-sm leading-6 text-[color:var(--ink-600)]">
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
             默认沿用上一轮已确认的上下文，并把新问题附着在当前会话里，不会新建独立分析记录。
           </p>
         </div>
@@ -169,19 +169,19 @@ export function AnalysisFollowUpPanel({
         </FollowUpStatusBanner>
       ) : null}
 
-      <div className="mt-5 rounded-lg bg-white p-5">
-        <p className="text-xs text-[color:var(--ink-600)]">当前承接结论</p>
-        <p className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
+      <div className="mt-5 rounded-lg bg-muted p-5">
+        <p className="text-xs text-muted-foreground">当前承接结论</p>
+        <p className="mt-2 text-base font-semibold text-foreground">
           {latestConclusionTitle ?? '未命名结论'}
         </p>
-        <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
           {latestConclusionSummary ?? '系统将默认承接上一轮的主结论继续追问。'}
         </p>
       </div>
 
-      <div className="mt-4 rounded-lg bg-white p-5">
-        <p className="text-xs text-[color:var(--ink-600)]">默认沿用上下文</p>
-        <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
+      <div className="mt-4 rounded-lg bg-muted p-5">
+        <p className="text-xs text-muted-foreground">默认沿用上下文</p>
+        <ul className="mt-3 space-y-2 text-sm text-foreground">
           {renderContextSummary(inheritedContext).map((item) => (
             <li key={item}>{item}</li>
           ))}
@@ -190,7 +190,7 @@ export function AnalysisFollowUpPanel({
 
       <form
         action={`/api/analysis/sessions/${sessionId}/follow-ups`}
-        className="mt-5 rounded-lg border border-[color:var(--line-200)] bg-white p-5"
+        className="mt-5 rounded-lg border border-border bg-card p-5"
         method="post"
       >
         {activeFollowUp ? (
@@ -199,7 +199,7 @@ export function AnalysisFollowUpPanel({
         <label className="space-y-2">
           <span className="block text-sm font-semibold text-foreground">追问问题</span>
           <textarea
-            className="min-h-28 w-full resize-y rounded-md border border-input bg-card px-3.5 py-2.5 text-sm leading-7 text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+            className="min-h-28 w-full resize-y rounded-md border border-input bg-card px-3.5 py-2.5 text-sm leading-7 text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
             name="question"
             placeholder="例如：那物业服务为什么波动？"
             required
@@ -212,12 +212,12 @@ export function AnalysisFollowUpPanel({
 
       <div className="mt-5 space-y-4">
         {activeFollowUp ? (
-          <section className="rounded-lg border border-[color:var(--line-200)] bg-white p-5">
+          <section className="rounded-lg border border-border bg-card p-5">
             <div>
-              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+              <p className="text-xs font-medium tracking-[0.12em] text-primary">
                 补充因素或缩小范围
               </p>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 只补充本轮新增条件。系统会在服务端合并到当前轮次上下文，并明确标识新增项与覆盖项。
               </p>
             </div>
@@ -229,16 +229,16 @@ export function AnalysisFollowUpPanel({
             ) : null}
 
             {conflictItems.length > 0 ? (
-              <div className="mt-4 space-y-3 rounded-lg bg-white p-5">
+              <div className="mt-4 space-y-3 rounded-lg bg-muted p-5">
                 {conflictItems.map((conflict) => (
                   <div key={`${conflict.key}-${conflict.nextValue}`} className="space-y-1">
-                    <p className="text-sm font-medium text-[color:var(--ink-900)]">
+                    <p className="text-sm font-medium text-foreground">
                       {conflict.label}
                     </p>
-                    <p className="text-sm text-[color:var(--ink-600)]">
+                    <p className="text-sm text-muted-foreground">
                       当前值：{conflict.previousValue}
                     </p>
-                    <p className="text-sm text-[color:var(--ink-600)]">
+                    <p className="text-sm text-muted-foreground">
                       拟更新为：{conflict.nextValue}
                     </p>
                   </div>
@@ -254,7 +254,7 @@ export function AnalysisFollowUpPanel({
               <label className="space-y-2">
                 <span className="block text-sm font-semibold text-foreground">目标指标</span>
                 <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.targetMetric ?? ''}
                   name="targetMetric"
                   placeholder={activeFollowUp.mergedContext.targetMetric.value}
@@ -264,7 +264,7 @@ export function AnalysisFollowUpPanel({
               <label className="space-y-2">
                 <span className="block text-sm font-semibold text-foreground">实体对象</span>
                 <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.entity ?? ''}
                   name="entity"
                   placeholder={activeFollowUp.mergedContext.entity.value}
@@ -274,7 +274,7 @@ export function AnalysisFollowUpPanel({
               <label className="space-y-2">
                 <span className="block text-sm font-semibold text-foreground">时间范围</span>
                 <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.timeRange ?? ''}
                   name="timeRange"
                   placeholder={activeFollowUp.mergedContext.timeRange.value}
@@ -284,7 +284,7 @@ export function AnalysisFollowUpPanel({
               <label className="space-y-2">
                 <span className="block text-sm font-semibold text-foreground">比较方式</span>
                 <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.comparison ?? ''}
                   name="comparison"
                   placeholder={activeFollowUp.mergedContext.comparison.value}
@@ -294,7 +294,7 @@ export function AnalysisFollowUpPanel({
               <label className="space-y-2 md:col-span-2">
                 <span className="block text-sm font-semibold text-foreground">候选因素</span>
                 <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-[color:var(--ink-500)] transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                   defaultValue={adjustmentDraft?.factor ?? ''}
                   name="factor"
                   placeholder="例如：物业服务"
@@ -330,10 +330,10 @@ export function AnalysisFollowUpPanel({
         ) : null}
 
         <div>
-          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+          <p className="text-xs font-medium tracking-[0.12em] text-primary">
             已提交追问
           </p>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--ink-600)]">
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             追问仍然归属于当前 session，后续故事会继续在这里承接多轮执行和历史回放。
           </p>
         </div>
@@ -346,7 +346,7 @@ export function AnalysisFollowUpPanel({
             />
           ))
         ) : (
-          <p className="rounded-lg bg-white p-5 text-sm leading-6 text-[color:var(--ink-600)]">
+          <p className="rounded-lg bg-muted p-5 text-sm leading-6 text-muted-foreground">
             尚未发起追问。
           </p>
         )}
@@ -369,35 +369,35 @@ function FollowUpCard({
 
   return (
     <section
-      className="rounded-lg border border-[color:var(--line-200)] bg-white p-5"
+      className="rounded-lg border border-border bg-card p-5"
       data-active={active ? 'true' : 'false'}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-base font-semibold text-[color:var(--ink-900)]">
+        <p className="text-base font-semibold text-foreground">
           {followUp.questionText}
         </p>
         {active ? (
-          <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+          <span className="rounded-md bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             最新追问
           </span>
         ) : null}
       </div>
-      <p className="mt-3 text-sm text-[color:var(--ink-600)]">
+      <p className="mt-3 text-sm text-muted-foreground">
         承接结论：{followUp.referencedConclusionTitle ?? '未命名结论'}
       </p>
       <div className="mt-3">{renderOntologyVersionBadge(followUp)}</div>
-      <ul className="mt-3 space-y-2 text-sm text-[color:var(--ink-900)]">
+      <ul className="mt-3 space-y-2 text-sm text-foreground">
         {renderContextSummary(followUp.mergedContext).map((item) => (
           <li key={`${followUp.id}-${item}`}>{item}</li>
         ))}
       </ul>
 
       {diff.added.length > 0 ? (
-        <div className="mt-4 rounded-lg bg-[color:var(--sky-50)] p-4">
-          <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+        <div className="mt-4 rounded-lg bg-muted p-4">
+          <p className="text-xs font-medium tracking-[0.12em] text-primary">
             新增条件
           </p>
-          <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+          <ul className="mt-2 space-y-1 text-sm text-foreground">
             {diff.added.map((item) => (
               <li key={`${followUp.id}-added-${item.key}-${item.nextValue}`}>
                 {item.label}：{item.nextValue}
@@ -408,11 +408,11 @@ function FollowUpCard({
       ) : null}
 
       {diff.overridden.length > 0 ? (
-        <div className="mt-4 rounded-lg bg-amber-50 p-4">
-          <p className="text-xs font-medium tracking-[0.12em] text-amber-700">
+        <div className="mt-4 rounded-lg bg-amber-500/10 p-4">
+          <p className="text-xs font-medium tracking-[0.12em] text-amber-600">
             已覆盖条件
           </p>
-          <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+          <ul className="mt-2 space-y-1 text-sm text-foreground">
             {diff.overridden.map((item) => (
               <li key={`${followUp.id}-override-${item.key}-${item.nextValue}`}>
                 {item.label}：{item.previousValue} -&gt; {item.nextValue}
@@ -423,22 +423,22 @@ function FollowUpCard({
       ) : null}
 
       {followUp.planVersion && followUp.currentPlanDiff ? (
-        <div className="mt-4 space-y-4 rounded-lg border border-[color:var(--line-200)] bg-white p-4">
+        <div className="mt-4 space-y-4 rounded-lg border border-border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-[color:var(--ink-900)]">
+            <p className="text-sm font-semibold text-foreground">
               计划版本 v{followUp.planVersion}
             </p>
-            <p className="text-sm text-[color:var(--ink-600)]">
+            <p className="text-sm text-muted-foreground">
               {followUp.currentPlanDiff.reason}
             </p>
           </div>
 
           {followUp.currentPlanDiff.reusedSteps.length > 0 ? (
             <div>
-              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+              <p className="text-xs font-medium tracking-[0.12em] text-primary">
                 可复用步骤
               </p>
-              <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+              <ul className="mt-2 space-y-1 text-sm text-foreground">
                 {followUp.currentPlanDiff.reusedSteps.map((step) => (
                   <li key={`${followUp.id}-reused-${step.stepId}`}>{step.title}</li>
                 ))}
@@ -448,10 +448,10 @@ function FollowUpCard({
 
           {followUp.currentPlanDiff.invalidatedSteps.length > 0 ? (
             <div>
-              <p className="text-xs font-medium tracking-[0.12em] text-amber-700">
+              <p className="text-xs font-medium tracking-[0.12em] text-amber-600">
                 失效步骤
               </p>
-              <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+              <ul className="mt-2 space-y-1 text-sm text-foreground">
                 {followUp.currentPlanDiff.invalidatedSteps.map((step) => (
                   <li key={`${followUp.id}-invalid-${step.stepId}`}>{step.title}</li>
                 ))}
@@ -461,10 +461,10 @@ function FollowUpCard({
 
           {followUp.currentPlanDiff.addedSteps.length > 0 ? (
             <div>
-              <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+              <p className="text-xs font-medium tracking-[0.12em] text-primary">
                 新增步骤
               </p>
-              <ul className="mt-2 space-y-1 text-sm text-[color:var(--ink-900)]">
+              <ul className="mt-2 space-y-1 text-sm text-foreground">
                 {followUp.currentPlanDiff.addedSteps.map((step) => (
                   <li key={`${followUp.id}-added-step-${step.stepId}-${step.reason}`}>
                     {step.title}

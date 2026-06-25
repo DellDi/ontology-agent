@@ -66,18 +66,18 @@ export function AnalysisExecutionStreamPanel({
 
         {reduceEventsToStepCards({ events, executionStatus }).map((card) => (
             <section
-              className="rounded-lg border border-[color:var(--line-200)] bg-white p-5"
+              className="rounded-lg border border-border bg-card p-5"
               key={card.stepId}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+                  <p className="text-xs font-medium tracking-[0.12em] text-primary">
                     {card.stageLabel}
                   </p>
-                  <h4 className="mt-2 text-base font-semibold text-[color:var(--ink-900)]">
+                  <h4 className="mt-2 text-base font-semibold text-foreground">
                     {card.stepLabel}
                   </h4>
-                  <p className="mt-1 text-xs text-[color:var(--ink-600)]">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(card.startedAt).toLocaleString('zh-CN', {
                       hour12: false,
                     })}
@@ -86,10 +86,10 @@ export function AnalysisExecutionStreamPanel({
                 <span
                   className={`rounded-md px-3 py-1 text-xs font-medium ${
                     card.status === 'completed'
-                      ? 'bg-emerald-100 text-emerald-700'
+                      ? 'bg-emerald-500/10 text-emerald-600'
                       : card.status === 'failed'
-                        ? 'bg-rose-100 text-rose-700'
-                        : 'bg-sky-100 text-[color:var(--brand-700)]'
+                        ? 'bg-rose-500/10 text-rose-600'
+                        : 'bg-primary/10 text-primary'
                   }`}
                 >
                   {card.status === 'completed'

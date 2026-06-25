@@ -28,51 +28,51 @@ export function renderProcessBoardBlock({
 
   return (
     <section
-      className={`${className} rounded-lg border border-[color:var(--line-200)] bg-white p-5`}
+      className={`${className} rounded-lg border border-border bg-card p-5`}
       data-testid="analysis-process-board"
     >
       {renderTitle(renderedBlock, '执行流程看板')}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-[color:var(--ink-600)]">
+        <p className="text-sm text-muted-foreground">
           实时状态与过程摘要
         </p>
-        <span className="rounded-md bg-[color:var(--sky-100)] px-3 py-1 text-xs font-medium text-[color:var(--brand-700)]">
+        <span className="rounded-md bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
           {eventCount} 条事件
         </span>
       </div>
 
       <div className="mt-4">
-        <div className="h-2 w-full rounded-full bg-slate-100">
+        <div className="h-2 w-full rounded-full bg-muted">
           <div
-            className="h-2 rounded-full bg-[color:var(--brand-500)] transition-all"
+            className="h-2 rounded-full bg-primary transition-all"
             style={{ width: `${percent}%` }}
           />
         </div>
-        <p className="mt-2 text-sm text-[color:var(--ink-600)]">
+        <p className="mt-2 text-sm text-muted-foreground">
           {getString(progress?.label, '正在初始化执行流程')}
         </p>
       </div>
 
       {steps.length === 0 || total <= 0 ? (
-        <p className="mt-4 text-sm leading-7 text-[color:var(--ink-600)]">
+        <p className="mt-4 text-sm leading-7 text-muted-foreground">
           {emptyMessage}
         </p>
       ) : (
         <div className="mt-4 space-y-2">
           {steps.map((item) => (
             <div
-              className="flex items-center justify-between gap-3 rounded-lg bg-[color:var(--sky-50)] px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2"
               key={getString(item.id)}
             >
-              <p className="text-sm text-[color:var(--ink-900)]">
+              <p className="text-sm text-foreground">
                 {String(item.order)}. {getString(item.title)}
               </p>
               <span
                 className={`rounded-md px-3 py-1 text-xs font-medium ${item.status === 'completed'
-                  ? 'bg-emerald-100 text-emerald-700'
+                  ? 'bg-emerald-500/10 text-emerald-600'
                   : item.status === 'failed'
-                    ? 'bg-rose-100 text-rose-700'
-                    : 'bg-sky-100 text-[color:var(--brand-700)]'}`}
+                    ? 'bg-rose-500/10 text-rose-600'
+                    : 'bg-primary/10 text-primary'}`}
               >
                 {item.status === 'completed'
                   ? '完成'

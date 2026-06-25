@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
       <main className="min-h-screen px-6 py-10 lg:px-10">
         <section className="mx-auto max-w-3xl">
           <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)] md:p-7">
-            <p className="text-xs font-semibold tracking-[0.12em] text-[color:var(--warning-500)]">
+            <p className="text-xs font-semibold tracking-[0.12em] text-amber-600 dark:text-amber-400">
               访问受限
             </p>
             <h1 className="mt-3 text-2xl font-semibold text-foreground">

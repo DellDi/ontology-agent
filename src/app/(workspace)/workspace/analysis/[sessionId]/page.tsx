@@ -151,8 +151,8 @@ export default async function AnalysisSessionPage({
           data-testid="analysis-pending-conversation"
         >
           <div className="flex justify-end">
-            <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-[color:var(--brand-700)] px-5 py-3.5">
-              <p className="text-base leading-7 text-white">
+            <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-primary px-5 py-3.5">
+              <p className="text-base leading-7 text-primary-foreground">
                 {pageModel.questionText}
               </p>
             </div>
@@ -164,10 +164,10 @@ export default async function AnalysisSessionPage({
                   className={`flex h-2.5 w-2.5 rounded-full ${
                     pageModel.pendingExecutionBlockerMessage
                       ? 'bg-rose-400'
-                      : 'bg-[color:var(--ink-600)]/30'
+                      : 'bg-muted-foreground/30'
                   }`}
                 />
-                <p className="text-sm font-medium text-[color:var(--ink-900)]">
+                <p className="text-sm font-medium text-foreground">
                   {pageModel.pendingExecutionHeadline}
                 </p>
               </div>
@@ -185,7 +185,7 @@ export default async function AnalysisSessionPage({
                   </p>
                 </div>
               ) : (
-                <p className="mt-3 text-sm leading-6 text-[color:var(--ink-600)]">
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
                   如果页面没有自动跳转到执行结果，可以手动提交当前计划。
                 </p>
               )}
@@ -208,10 +208,10 @@ export default async function AnalysisSessionPage({
               </form>
 
               <details
-                className="mt-4 rounded-lg border border-[color:var(--line-200)] bg-white p-4"
+                className="mt-4 rounded-lg border border-border bg-card p-4"
                 data-testid="analysis-pending-plan-details"
               >
-                <summary className="cursor-pointer text-sm font-medium text-[color:var(--ink-700)]">
+                <summary className="cursor-pointer text-sm font-medium text-foreground">
                   查看执行计划与阻断原因
                 </summary>
                 <div className="mt-4">

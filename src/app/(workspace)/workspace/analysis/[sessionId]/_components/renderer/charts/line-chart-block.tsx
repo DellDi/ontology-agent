@@ -89,14 +89,14 @@ export function LineChartBlock({ block }: { block: AnalysisRenderedBlock }) {
           <XAxis
             dataKey="shortLabel"
             tick={CHART_AXIS_TICK}
-            stroke="var(--line-300)"
+            stroke="var(--input)"
             interval="preserveStartEnd"
           />
-          <YAxis tick={CHART_AXIS_TICK} stroke="var(--line-300)" width={42} />
+          <YAxis tick={CHART_AXIS_TICK} stroke="var(--input)" width={42} />
           <Tooltip
             contentStyle={{
               borderRadius: 8,
-              border: '1px solid var(--line-200)',
+              border: '1px solid var(--border)',
               background: 'var(--card)',
               color: 'var(--foreground)',
               fontSize: 12,
@@ -108,7 +108,7 @@ export function LineChartBlock({ block }: { block: AnalysisRenderedBlock }) {
           />
           {seriesNames.length > 1 ? (
             <Legend
-              wrapperStyle={{ fontSize: 12, color: 'var(--ink-600)' }}
+              wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }}
             />
           ) : null}
           {seriesNames.map((name, index) => (

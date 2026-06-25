@@ -14,7 +14,7 @@ function MetricTrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
     case 'down':
       return <span aria-hidden className="text-rose-500">↓</span>;
     case 'stable':
-      return <span aria-hidden className="text-[color:var(--ink-600)]">→</span>;
+      return <span aria-hidden className="text-muted-foreground">→</span>;
   }
 }
 
@@ -26,19 +26,19 @@ export function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
       {cards.map((card, index) => (
         <div
           key={`${card.label}-${index}`}
-          className="rounded-lg border border-[color:var(--line-200)] bg-white px-4 py-3 shadow-sm"
+          className="rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
         >
-          <p className="text-xs text-[color:var(--ink-600)]">{card.label}</p>
-          <p className="mt-1 flex items-baseline gap-1.5 text-2xl font-semibold text-[color:var(--ink-900)]">
+          <p className="text-xs text-muted-foreground">{card.label}</p>
+          <p className="mt-1 flex items-baseline gap-1.5 text-2xl font-semibold text-foreground">
             <span>{card.value}</span>
             {card.unit ? (
-              <span className="text-sm font-normal text-[color:var(--ink-600)]">
+              <span className="text-sm font-normal text-muted-foreground">
                 {card.unit}
               </span>
             ) : null}
           </p>
           {card.trend ? (
-            <p className="mt-1 flex items-center gap-1 text-xs text-[color:var(--ink-600)]">
+            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
               <MetricTrendIcon trend={card.trend} />
               {card.trendLabel ? <span>{card.trendLabel}</span> : null}
             </p>
@@ -80,13 +80,13 @@ export function VisualizationBlock({
   return (
     <div className="mt-4">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h4 className="text-sm font-medium text-[color:var(--ink-900)]">
+        <h4 className="text-sm font-medium text-foreground">
           {visualization.title}
         </h4>
       </div>
       {registry.render({ renderedBlock: block })}
       {visualization.summary ? (
-        <p className="mt-2 text-xs leading-5 text-[color:var(--ink-600)]">
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">
           {visualization.summary}
         </p>
       ) : null}
@@ -98,8 +98,8 @@ export function PrimaryAnswerBlock({ answer }: { answer: string }) {
   if (!answer) return null;
 
   return (
-    <div className="mt-3 rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-[color:var(--line-200)]">
-      <p className="text-base leading-7 text-[color:var(--ink-900)]">{answer}</p>
+    <div className="mt-3 rounded-lg bg-card px-4 py-3 shadow-sm ring-1 ring-border">
+      <p className="text-base leading-7 text-foreground">{answer}</p>
     </div>
   );
 }

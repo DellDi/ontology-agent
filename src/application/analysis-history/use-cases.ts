@@ -13,6 +13,16 @@ type ContextSummarySource = {
   timeRange: { value: string };
 };
 
+type AnalysisHistorySnapshot = Pick<
+  AnalysisExecutionSnapshot,
+  | 'executionId'
+  | 'followUpId'
+  | 'ontologyVersionBinding'
+  | 'status'
+  | 'planSnapshot'
+  | 'conclusionState'
+>;
+
 export type AnalysisHistoryRoundReadModel = {
   id: string;
   kind: 'initial' | 'follow-up';
@@ -59,7 +69,7 @@ function buildRound(input: {
   questionText: string;
   createdAt: string;
   followUpId: string | null;
-  snapshot: AnalysisExecutionSnapshot | null;
+  snapshot: AnalysisHistorySnapshot | null;
   followUp?: AnalysisSessionFollowUp | null;
   inputSummary: string[];
 }): AnalysisHistoryRoundReadModel {
@@ -101,7 +111,7 @@ export function createAnalysisHistoryUseCases() {
       session: AnalysisSession;
       sessionContext: ContextSummarySource;
       followUps: AnalysisSessionFollowUp[];
-      snapshots: AnalysisExecutionSnapshot[];
+      snapshots: AnalysisHistorySnapshot[];
       selectedRoundId?: string | null;
     }): AnalysisHistoryReadModel {
       const snapshotByExecutionId = new Map(

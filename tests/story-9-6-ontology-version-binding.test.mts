@@ -119,7 +119,16 @@ test('Story 9.6 AC1 | saveExecutionSnapshot writes execution-time ontology versi
       async getLatestBySessionId() {
         return null;
       },
+      async getLatestBySessionIds() {
+        return new Map();
+      },
+      async getLatestSummariesBySessionIds() {
+        return new Map();
+      },
       async listBySessionId() {
+        return [];
+      },
+      async listSummariesBySessionId() {
         return [];
       },
       async getByExecutionId() {
@@ -161,7 +170,16 @@ test('Story 9.6 AC1 | snapshot falls back to plan _groundedSource, not current o
       async getLatestBySessionId() {
         return null;
       },
+      async getLatestBySessionIds() {
+        return new Map();
+      },
+      async getLatestSummariesBySessionIds() {
+        return new Map();
+      },
       async listBySessionId() {
+        return [];
+      },
+      async listSummariesBySessionId() {
         return [];
       },
       async getByExecutionId() {
@@ -380,7 +398,16 @@ test('Story 9.6 Review D3 | snapshot persistence rejects unpublished ontology ve
       async getLatestBySessionId() {
         return null;
       },
+      async getLatestBySessionIds() {
+        return new Map();
+      },
+      async getLatestSummariesBySessionIds() {
+        return new Map();
+      },
       async listBySessionId() {
+        return [];
+      },
+      async listSummariesBySessionId() {
         return [];
       },
       async getByExecutionId() {

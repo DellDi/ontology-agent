@@ -158,14 +158,14 @@ export function AnalysisAutoExecuteGate({
       </form>
 
       <div
-        className="flex items-center gap-2 text-xs text-[color:var(--ink-600)]"
+        className="flex items-center gap-2 text-xs text-muted-foreground"
         data-testid="analysis-auto-execution-gate"
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--brand-500)] animate-pulse" />
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
         <span>{statusText}</span>
         {isPreparing ? (
           <button
-            className="text-[color:var(--brand-700)] underline"
+            className="text-primary underline"
             onClick={() => submitFormRef.current?.requestSubmit()}
             type="button"
           >
