@@ -33,44 +33,27 @@
 - **多轮会话支持** — 支持追问、修正因素、重新规划，完整保留历史上下文
 - **企业级权限** — 四维权限模型（组织/项目/区域/角色），服务端授权强制
 - **可扩展架构** — Clean Architecture + 六边形架构，领域与基础设施完全解耦
-- **异步任务队列** — Redis 队列 + Worker 处理长时间分析任务
+- **异步任务队列** — PostgreSQL durable job ledger + Redis 唤醒 + Java Worker 处理长时间分析任务
 
 ## 🏗️ 技术架构
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         App Layer (Next.js)                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
-│  │  (auth)  │  │(workspace)│  │   API    │  │  Analysis    │   │
-│  │  Login   │  │   Home   │  │  Routes  │  │   Sessions   │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Infrastructure Layer                        │
-│  ┌─────────────┐ ┌───────────┐ ┌───────────┐ ┌────────────┐   │
-│  │   Postgres  │ │   Redis   │ │  Session  │ │ERP Auth ACL│   │
-│  │  (Drizzle)  │ │   Cache   │ │   Store   │ │  Adapter   │   │
-│  └─────────────┘ └───────────┘ └───────────┘ └────────────┘   │
-│  ┌─────────────┐ ┌───────────┐ ┌───────────┐ ┌────────────┐   │
-│  │Job Queue    │ │ Neo4j     │ │ Cube.js   │ │ LLM        │   │
-│  │ (Redis)    │ │ (Graph)   │ │ Semantic  │ │ Providers  │   │
-│  └─────────────┘ └───────────┘ └───────────┘ └────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Application Layer                            │
-│                    (Use Cases & Ports)                         │
-│         Analysis Session  │  Auth  │  Job Queue  │  Workspace  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Domain Layer                               │
-│              Pure Models, Business Rules, Policies             │
-└─────────────────────────────────────────────────────────────────┘
+Next.js 16 / React 19
+  ├─ Web 工作台
+  └─ 透明 API Adapter
+          │
+          ▼
+Java 21 / Spring Boot 4.1 / Spring AI 2.0
+  ├─ Main Agent ──唯一一次 tool call──▶ Analysis Workflow
+  ├─ Analysis / Follow-up / Ontology / Graph Sync / Read API
+  └─ Domain → Application Ports → Infrastructure Adapters
+          │
+          ├─ PostgreSQL（业务与任务事实源）
+          ├─ Redis（任务唤醒）
+          ├─ Cube（语义指标）
+          ├─ Neo4j（受权限约束的图上下文）
+          ├─ ERP（组织、项目与 ACL）
+          └─ OpenAI-compatible / Alibaba DashScope Provider
 ```
 
 ## 🚀 快速开始
@@ -78,7 +61,8 @@
 ### 前置要求
 
 - **Node.js** ≥ 24
-- **pnpm** ≥ 9
+- **pnpm** 11.7.0（由 `packageManager` + Corepack 固定）
+- **JDK** 21（推荐由 mise 管理）
 - **Docker** & **Docker Compose**
 
 ### 1. 克隆与安装
@@ -99,8 +83,8 @@ cp .env.example .env
 ### 3. 启动基础设施
 
 ```bash
-# 后台启动 PostgreSQL + Redis
-docker compose up -d postgres redis
+# 后台启动 PostgreSQL + Redis + Cube + Neo4j
+docker compose up -d postgres redis cube neo4j
 ```
 
 ### 4. 数据库迁移
@@ -115,8 +99,8 @@ pnpm db:migrate
 # 终端 1: Web 服务
 pnpm dev
 
-# 终端 2: Worker 队列处理器
-pnpm worker:dev
+# 终端 2: Java API + Worker（JDK 21）
+mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run
 ```
 
 访问 <http://localhost:3000> 🎉
@@ -124,11 +108,11 @@ pnpm worker:dev
 ### 全容器模式
 
 ```bash
-# 一键启动全部服务 (Web + Worker + Postgres + Redis)
+# 一键启动全部服务（Web + Java backend/worker + 基础设施）
 docker compose up -d
 
 # 查看日志
-docker compose logs -f web worker
+docker compose logs -f web backend
 
 # 停止并清理
 docker compose down -v
@@ -137,39 +121,18 @@ docker compose down -v
 ## 📁 项目结构
 
 ```tree
-
 ontology-agent/
 ├── src/
-│   ├── app/                    # Next.js App Router (表现层)
-│   │   ├── (auth)/login/       # 认证入口
-│   │   ├── (workspace)/        # 工作台路由组
-│   │   │   ├── workspace/      # 分析会话主界面
-│   │   │   └── _components/    # 工作台私有组件
-│   │   └── api/                # API 路由
-│   │       ├── auth/           # 登录/登出/回调
-│   │       └── analysis/       # 分析会话 API
-│   ├── domain/                 # 领域层 — 纯模型与策略
-│   │   ├── auth/               # 认证模型 & 错误定义
-│   │   ├── analysis-session/   # 分析会话聚合根
-│   │   └── scope-boundary/     # 数据权限边界策略
-│   ├── application/            # 应用层 — 用例与端口
-│   │   ├── auth/               # ports.ts + use-cases.ts
-│   │   ├── analysis-session/   # 分析会话用例
-│   │   └── job/                # 任务队列用例
-│   ├── infrastructure/         # 基础设施层 — 适配器实现
-│   │   ├── postgres/           # Drizzle client & schema
-│   │   ├── redis/              # Redis 客户端与队列
-│   │   ├── session/            # 会话存储 (memory/postgres)
-│   │   └── erp-auth/           # ERP 认证开发适配器
-│   ├── shared/                 # 共享工具
-│   │   └── permissions/        # 权限摘要格式化
-│   └── worker/                   # 后台任务处理器
-│       ├── main.ts             # Worker 入口
-│       └── handlers/           # 任务处理器注册表
-├── drizzle/                    # 数据库迁移文件
-├── tests/                      # Story-based 测试
-├── docs/                       # 项目文档
-└── compose.yaml                # Docker Compose 编排
+│   ├── app/                             # Next.js UI、认证与 Java API 透明代理
+│   ├── infrastructure/java-backend/     # Java API 客户端与跨端契约
+│   └── infrastructure/postgres/schema/  # 与 Java 共用的 Drizzle schema
+├── backend-java/src/main/java/          # Java features、ports 与 adapters
+├── contracts/backend/                   # Web / Java 共享契约
+├── drizzle/                             # 数据库迁移
+├── tests/                               # 跨端契约与历史 story 验证
+├── docs/                                # 架构、运行与部署文档
+├── compose.yaml                         # 本地联调拓扑
+└── compose.prod.yaml                    # 生产容器拓扑
 ```
 
 ## ⚙️ 环境变量
@@ -184,16 +147,19 @@ ontology-agent/
 | `LLM_PROVIDER_BASE_URL` | OpenAI-compatible API 基础 URL | `https://api.openai.com/v1` |
 | `LLM_PROVIDER_API_KEY` | Provider API Key (必填) | - |
 | `LLM_PROVIDER_MODEL` | 主模型 (必填) | - |
-| `LLM_FALLBACK_MODELS` | 降级模型列表，逗号分隔 | 空 |
-| `LLM_REQUEST_TIMEOUT_MS` | 请求超时 | `15000` |
-| `LLM_RATE_LIMIT_MAX_REQUESTS` | 速率限制 | `20/60s` |
+| `LLM_PROVIDER_MODE` | `openai-compatible` 或 `dashscope` | `openai-compatible` |
+| `LLM_PROVIDER_TOOL_CALLING` | Main Agent tool calling 能力门禁 | `true` |
+| `LLM_PROVIDER_STRUCTURED_OUTPUT` | 结构化输出模式 | `native-json-schema` |
+| `JAVA_BACKEND_URL` | Next.js 调用 Java API 的地址 | `http://127.0.0.1:8080` |
+| `CUBE_API_URL` / `NEO4J_URI` | Java backend 的数据适配器地址 | 见 `.env.example` |
+| `GRAPH_SYNC_OPS_SECRET` | 图同步运维接口密钥 | - |
 
 ## 🧪 常用命令
 
 ```bash
 # 开发
 pnpm dev                    # 启动 Next.js 开发服务器
-pnpm worker:dev             # 启动 Worker 队列处理器
+mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run
 
 # 数据库
 pnpm db:generate            # 生成 Drizzle 迁移
@@ -204,6 +170,10 @@ pnpm db:studio              # 打开 Drizzle Studio 数据浏览器
 pnpm lint                   # ESLint 检查
 pnpm lint:fix               # 自动修复 lint 问题
 pnpm build                  # 生产构建
+pnpm test                   # Java + 当前 Web/Java 契约门禁
+pnpm test:web               # Web / Java 契约与切换边界
+pnpm test:container         # 完整生产容器验收
+pnpm test:live:analysis     # 真实 Provider / Cube / Neo4j 分析门禁
 
 # 容器
 docker compose up -d        # 后台启动全部容器
@@ -214,15 +184,17 @@ docker compose down -v      # 停止并清理数据卷
 
 | 原则 | 说明 |
 | --- | --- |
-| **Clean Architecture** | `domain` → `application` → `infrastructure` → `app` 单向依赖 |
-| **Ports & Adapters** | 应用层定义接口(ports)，基础设施层提供适配器实现 |
-| **双存储策略** | Session 和 AnalysisSession 均支持 memory (开发) 和 postgres (生产) |
+| **Feature + Ports & Adapters** | Java 按业务 feature 组织，业务规则只依赖 application ports |
+| **单一事实源** | PostgreSQL 保存会话、执行与任务事实；Redis 只负责唤醒，不保存 canonical job data |
+| **Main Agent + Workflow Tool** | Main Agent 只调用一次 workflow tool，确定性工作流负责权限、取数和持久化 |
+| **Fail Loud** | Provider、契约、权限或数据错误明确失败，不切模型、不生成替代答案、不返回伪成功 |
+| **前端边界** | Next.js 负责展示、认证和透明代理，不承载 Agent、Workflow、Cube 或 Neo4j 业务实现 |
 | **安全边界** | `sanitizeNextPath()` 防 Open Redirect；服务端强制授权 |
 | **中文优先** | 错误消息面向终端用户，使用中文；代码标识符使用英文 |
 
 ## 🧪 测试
 
-测试采用 Story-based 命名规范:
+后端测试位于 `backend-java/src/test/java`；Web / Java 边界测试位于 `tests/java-*.test.mjs`；仍有效的前端行为测试继续采用 Story-based 命名：
 
 ```bash
 tests/story-{epic}-{story}-{name}.test.mjs
@@ -230,17 +202,14 @@ tests/story-{epic}-{story}-{name}.test.mjs
 
 **已覆盖场景:**
 
-- Story 1.1-1.6: 基础功能 (认证、工作台、分析会话、历史、权限边界)
-- Story 2.1-2.7: 基础设施 (Docker、Drizzle、会话持久化、Worker 骨架)
-- Story 3.1-3.5: 分析意图 (结构化意图、上下文提取、因素扩展、分析计划)
-- Story 4.1-4.6: 数据集成 (LLM 适配器、ERP ACL、Cube 语义层、Neo4j 图适配)
-- Story 5.1-5.4: 执行引擎 (计划提交、流式进度、因果结论、结果持久化)
-- Story 6.1-6.4: 多轮对话 (追问、修正、重新规划、历史保留)
-- Story 7.6-7.8: 图谱同步运行化支线 (运行元数据、增量扫描、调度补偿与一致性巡检)
+- Java：Main Agent、Workflow、首次分析、追问、持久化、权限、Ontology Governance 与 Graph Sync。
+- 真实基础设施：PostgreSQL 17、Neo4j 5、Redis job wakeup 与生产 Compose。
+- 跨端契约：Draft 2020-12 JSON Schema、Next Zod、透明 Route Adapter 与移动端 view model。
+- 前端：认证、工作台、SSE、历史轮次、权限展示与管理页面交互。
 
 ## 📝 更新日志
 
-查看 [CLAUDE.md](./CLAUDE.md) 获取详细的项目架构说明和开发规范。
+查看 [AGENTS.md](./AGENTS.md) 获取工程规范；三阶段目标与验收证据见 [Java 后端三阶段收口](./docs/java-backend-phase-3-operational-closure.md)。
 
 ## 🤝 贡献
 

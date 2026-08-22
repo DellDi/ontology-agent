@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: ontology-agent-backend
+  datasource:
+    url: ${JAVA_DATABASE_URL:jdbc:postgresql://127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}}
+    username: ${JAVA_DATABASE_USERNAME:${POSTGRES_USER}}
+    password: ${JAVA_DATABASE_PASSWORD:${POSTGRES_PASSWORD}}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-init-sql: SET TIME ZONE 'Asia/Taipei'
+  data:
+    redis:
+      url: ${REDIS_URL}
+  ai:
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: never
+    tools:
+      throw-exception-on-error: true
+    openai:
+      base-url: ${LLM_PROVIDER_BASE_URL}
+      api-key: ${LLM_PROVIDER_API_KEY}
+      chat:
+        model: ${LLM_PROVIDER_MODEL}
+        max-retries: 0
+        parallel-tool-calls: false
+  threads:
+    virtual:
+      enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+dip3:
+  ai:
+    provider:
+      mode: ${LLM_PROVIDER_MODE}
+      tool-calling: ${LLM_PROVIDER_TOOL_CALLING}
+      structured-output: ${LLM_PROVIDER_STRUCTURED_OUTPUT}
+  session-secret: ${SESSION_SECRET}
+  redis-key-prefix: ${REDIS_KEY_PREFIX:dip3}
+  cube:
+    api-url: ${CUBE_API_URL}
+    api-secret: ${CUBE_API_SECRET}
+    timeout: ${CUBE_QUERY_TIMEOUT_MS:15000}ms
+  neo4j:
+    uri: ${NEO4J_URI}
+    username: ${NEO4J_USERNAME}
+    password: ${NEO4J_PASSWORD}
+    database: ${NEO4J_DATABASE:neo4j}
+  worker:
+    enabled: ${JAVA_WORKER_ENABLED:true}
+    poll-delay: ${JAVA_WORKER_POLL_DELAY:250ms}
+  graph-sync:
+    enabled: ${JAVA_GRAPH_SYNC_ENABLED:false}
+    poll-delay: ${JAVA_GRAPH_SYNC_POLL_DELAY:5m}
+    sources: ${JAVA_GRAPH_SYNC_SOURCES:erp.organizations,erp.projects,erp.owners,erp.charge_items,erp.receivables,erp.payments,erp.service_orders}
+  stream:
+    poll-delay: ${JAVA_STREAM_POLL_DELAY:300ms}
+    timeout: ${JAVA_STREAM_TIMEOUT:5m}

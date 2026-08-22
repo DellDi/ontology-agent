@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 import nextEnv from '@next/env';
 import { Pool } from 'pg';
 
@@ -130,8 +130,7 @@ test.after(async () => {
     return;
   }
 
-  serverProcess.kill('SIGINT');
-  await once(serverProcess, 'exit');
+  await stopProcessTree(serverProcess);
   await pool.end();
 });
 

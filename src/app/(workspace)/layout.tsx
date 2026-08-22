@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 
-import { getWorkspaceSessionState } from '@/composition-root';
+import {
+  getCurrentViewer,
+  JavaBackendHttpError,
+} from '@/infrastructure/java-backend';
 
 import { ShellLayout } from '../_components/shell-layout';
 import { WORKSPACE_MENU } from '../_components/shell-menu-config';
@@ -12,15 +15,17 @@ type WorkspaceLayoutProps = {
 export default async function WorkspaceLayout({
   children,
 }: WorkspaceLayoutProps) {
-  const workspaceSessionState = await getWorkspaceSessionState();
-
-  if (!workspaceSessionState) {
-    return <>{children}</>;
+  let viewer;
+  try {
+    viewer = await getCurrentViewer();
+  } catch (error) {
+    if (error instanceof JavaBackendHttpError && error.status === 401) {
+      return <>{children}</>;
+    }
+    throw error;
   }
 
-  const { session, accessDeniedMessage } = workspaceSessionState;
-
-  if (accessDeniedMessage) {
+  if (!viewer.workspaceAccess) {
     return (
       <main className="min-h-screen px-6 py-10 lg:px-10">
         <section className="mx-auto max-w-3xl">
@@ -32,7 +37,7 @@ export default async function WorkspaceLayout({
               当前账号已登录，但还没有可用的分析范围
             </h1>
             <p className="mt-4 text-sm leading-6 text-muted-foreground">
-              {accessDeniedMessage}
+              当前账号暂无可用分析权限，请联系管理员开通项目范围。
             </p>
             <div className="mt-6">
               <form action="/api/auth/logout" method="post">
@@ -50,8 +55,8 @@ export default async function WorkspaceLayout({
   return (
     <ShellLayout
       menuItems={WORKSPACE_MENU}
-      userDisplayName={session.displayName}
-      userId={session.userId}
+      userDisplayName={viewer.displayName}
+      userId={viewer.userId}
     >
       {children}
     </ShellLayout>

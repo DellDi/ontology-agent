@@ -2,12 +2,12 @@
 
 ## 目标
 
-当前本地基础设施基线通过一个 Compose 配置启动 `web`、`worker`、`postgres`、`redis`、`cube`、`neo4j` 六个服务，让代码、环境变量、文档和真实依赖保持一致。
+当前 Compose 支持 `web`、`backend`、一次性 `migrate`、`postgres`、`redis`、`cube`、`neo4j` 的完整联调拓扑。日常开发默认只在容器中运行四个基础设施服务，Next.js 与 Java API/Worker 在宿主机运行。
 
 当前阶段的职责划分：
 
-- `web` 继续运行现有 Next.js App Router 工程
-- `worker` 独立进程消费 Redis 任务队列，与 web 进程职责分离
+- `web` 运行现有 Next.js App Router 展示层与 Java 透明代理
+- `backend` 同一 Spring Boot 应用承载 Java API 与独立调度的异步 Worker
 - `postgres` 承接平台表与 `erp_staging` schema
 - `redis` 提供队列、限流和短时缓存
 - `cube` 提供治理后的语义指标只读 API
@@ -32,7 +32,7 @@ cp .env.example .env
 - `SESSION_SECRET` 需要在本地 `.env` 中设置为自定义值
 - `LLM_PROVIDER_API_KEY` 只允许存在于服务端环境变量中，不能下沉到浏览器端代码或公开配置
 - `CUBE_API_SECRET` 用于本地 Cube 服务签发 JWT；本地开发建议在复制 `.env.example` 后先设置一个固定值
-- Web / Worker 会基于 `CUBE_API_SECRET` 自动签发 Cube API JWT；本地开发不需要维护额外的 Cube 鉴权环境变量
+- Java backend 会基于 `CUBE_API_SECRET` 自动签发 Cube API JWT；本地开发不需要维护额外的 Cube 鉴权环境变量
 
 ## 常用命令
 
@@ -70,10 +70,10 @@ docker compose logs -f cube
 docker compose logs -f neo4j
 ```
 
-运行真实 Neo4j smoke test：
+运行 Java Graph Sync 的 PostgreSQL + Neo4j Testcontainers 验证：
 
 ```bash
-pnpm test:smoke:neo4j
+pnpm test:java
 ```
 
 停止服务：
@@ -107,7 +107,7 @@ Postgres 与 Redis 的端口默认只绑定到本机回环地址，避免在本�
 - 仓库源码通过 bind mount 挂载到 `/workspace`
 - `node_modules` 与 `pnpm` store 使用独立命名卷，避免污染宿主依赖目录
 - `web` 会在 `postgres` 与 `redis` 健康检查通过后再启动
-- `web` 与 `worker` 现在都会等待 `cube` 与 `neo4j` 达到健康状态，避免代码声称接入但本地服务并不存在
+- `web` 与 `backend` 都会等待 `cube` 与 `neo4j` 达到健康状态，避免代码声称接入但本地服务并不存在
 - Postgres 18 官方镜像建议把命名卷挂到 `/var/lib/postgresql`，避免沿用旧数据目录布局时触发启动失败
 - Neo4j 使用 `5.26.x community` 线，Cube 使用 `v1.6.x` 线，两个镜像都固定为明确版本标签，不使用 `latest`
 - `cube/conf/.cubestore/` 属于运行时缓存目录，不应纳入 Git；当前已通过 Compose volume 与 `.gitignore` 双重隔离
@@ -163,14 +163,13 @@ Worker job queue 使用 Postgres-backed durable ledger + Redis Streams consumer 
 - 重复信号：若 Redis 重投递已完成、失败或 dead-letter 的 job，worker 只 ack 并忽略，不重复执行
 - 超过重试上限：job 在 `platform.jobs` 标记为 `dead_letter`，并在 `platform.job_events` 记录原因
 
-真实回归测试：
+Java durable job ledger 与 Redis wakeup 回归测试：
 
 ```bash
-pnpm test:real:redis-queue
-pnpm test:real:job-ledger
+pnpm test:java
 ```
 
-这些测试会使用唯一 `REDIS_KEY_PREFIX` / job id 隔离数据，只清理本次测试数据，不会 `FLUSHDB`。Postgres ledger 测试要求先运行 `pnpm db:migrate`。
+Java 测试使用 Testcontainers 隔离数据库与图实例；不会清理本地开发库，也不会执行 `FLUSHDB`。
 
 当前语义是 `at-least-once dispatch + Postgres-authoritative execution state`，不是 exactly-once。业务 handler 仍应以 `job.id` / `executionId` 做幂等边界。
 
@@ -187,12 +186,10 @@ const result = await checkRedisHealth(redis);
 
 ### 服务端接入边界
 
-- 所有模型调用统一走 `src/application/llm/` + `src/infrastructure/llm/`，不要在 `src/app/` 页面或 Route Handler 中零散直连 provider。
-- 当前实现采用 OpenAI-compatible HTTP 接口，默认约定：
-  - `POST {LLM_PROVIDER_BASE_URL}/responses`
-  - `POST {LLM_PROVIDER_BASE_URL}/chat/completions`
-  - `GET {LLM_PROVIDER_BASE_URL}/models` 为可选能力；健康检查以真实模型调用为准，`/responses` 不可用时会尝试 `/chat/completions`
-- Provider 密钥只通过 `LLM_PROVIDER_API_KEY` 在服务端注入。
+- 所有模型调用只经过 Java `MainAgent` / `ConclusionProvider` ports，由 Spring AI 2.0 的 adapter 实现。
+- Next.js 页面和 Route Handler 只通过 `JAVA_BACKEND_URL` 调用 Java API，不持有 Provider、Cube 或 Neo4j 凭据。
+- Main Agent 必须且只允许调用一次 `analysis_workflow` tool；workflow 完成确定性取数后，再由结论模型生成结构化结论，不进入第二轮自主 tool loop。
+- Provider 失败会写入任务和执行事件并明确失败；不切换模型、不生成规则式替代答案、不返回伪成功。
 
 ### 环境变量
 
@@ -200,48 +197,31 @@ const result = await checkRedisHealth(redis);
 LLM_PROVIDER_BASE_URL=https://api.openai.com/v1
 LLM_PROVIDER_API_KEY=replace-with-a-real-provider-key
 LLM_PROVIDER_MODEL=replace-with-provider-model
-LLM_FALLBACK_MODELS=
-LLM_REQUEST_TIMEOUT_MS=15000
-LLM_MAX_RETRIES=2
-LLM_RATE_LIMIT_MAX_REQUESTS=20
-LLM_RATE_LIMIT_WINDOW_SECONDS=60
+LLM_PROVIDER_MODE=openai-compatible
+LLM_PROVIDER_TOOL_CALLING=true
+LLM_PROVIDER_STRUCTURED_OUTPUT=native-json-schema
 ```
 
-- `LLM_PROVIDER_BASE_URL` 应填写 OpenAI-compatible base URL，例如 `https://api.openai.com/v1` 或私有网关的 `/v1` 根路径。
-- 如果误填完整 endpoint（如 `/chat/completions`、`/responses`、`/models`），配置层会规范化为 base URL。
-- `LLM_PROVIDER_API_KEY` 是统一密钥变量；仅接入 OpenAI 官方 API 时，也可以使用 `OPENAI_API_KEY` 作为兼容别名。
-- `LLM_PROVIDER_MODEL` 必须显式配置，模型名按 provider 实际要求原样传递，不再做厂商前缀改写。
-- `LLM_FALLBACK_MODELS` 可留空；需要多模型兜底时使用逗号分隔。
-
-### 限流约定
-
-- 模型限流复用 Redis，共享 `redisKeys.rate(...)` 体系。
-- 当前 key 维度为 `userId + organizationId + purpose`，保证“按用户 + 按组织”的服务端节流边界。
-- Provider 返回 `429`、请求超时、结构错误、不可用错误，都应在 adapter 层转成稳定的服务端错误，而不是把原始 provider 报错直接抛给页面层。
+- `openai-compatible` 模式支持 `native-json-schema` 或 `json-object` 结构化输出。
+- Alibaba DashScope 作为重点跟踪对象时，使用已验证兼容的 base URL，并把结构化输出设置为 `json-object`。
+- Java adapter 固定 `max-retries=0`，关闭 parallel tool calls，不接受 fallback model 列表。
+- `LLM_PROVIDER_MODEL` 必须显式配置；模型能力必须满足 tool calling 与所选 structured output 模式。
 
 ### 真实 LLM Provider Smoke Test
 
-如需验证本地环境变量是否真的能打通 OpenAI-compatible provider，可执行：
+配置真实 Provider 凭据后执行：
 
 ```bash
-pnpm test:smoke:llm
+mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml verify -Plive-integration
 ```
 
-约定：
-
-- 该命令会显式设置 `RUN_LLM_PROVIDER_SMOKE_TEST=1`
-- 测试会复用当前 LLM adapter，并对真实 provider 配置执行一次健康检查与一次最小文本生成
-- 默认全量回归不会执行这条测试，避免把外部 provider 波动引入日常开发反馈
+没有真实凭据时不要执行，也不要用 mock 或 fallback 将该门禁标记为通过。
 
 ## 后续扩展位
 
-当前 `compose.yaml` 已定义 `web`、`worker`、`postgres`、`redis`、`cube`、`neo4j` 六个服务。
+当前 `compose.yaml` 已定义完整 Web/Java 联调拓扑；日常宿主机开发只需启动 `postgres`、`redis`、`cube`、`neo4j`。
 
-后续故事扩展建议：
-
-- 若需要把 Cube 做成更完整的本地语义层环境，可继续补 refresh worker、seed 数据和更细的 model
-- 若需要把 Neo4j 做成更接近试点环境，可继续补索引、APOC 策略和更完整的同步命令
-- 持久化迁移仍由 Story 2.2 到 2.5 的数据库故事逐步完成
+后续扩展应沿 Java feature package 与 ports/adapters 边界增加，不再向旧 TypeScript Worker 增加正式能力。数据库 schema 变更必须同步生成并提交 Drizzle migration。
 
 ## Cube 本地语义层
 
@@ -260,7 +240,7 @@ pnpm test:smoke:llm
 
 ### Cube API 签名
 
-复制 `.env.example` 为 `.env` 并设置 `CUBE_API_SECRET` 后，Web / Worker 会自动签发 Cube API JWT。
+复制 `.env.example` 为 `.env` 并设置 `CUBE_API_SECRET` 后，Java backend 会自动签发 Cube API JWT。
 
 当前 Compose 中的 Cube 仍启用 `CUBEJS_DEV_MODE=true`，这样本地联调不会因为外部调试请求缺少鉴权头而完全阻塞；应用侧会始终用 `CUBE_API_SECRET` 自动签发请求头。
 
@@ -301,44 +281,37 @@ docker compose exec neo4j \
   cypher-shell -u "$NEO4J_USERNAME" -p "$NEO4J_PASSWORD" 'RETURN 1;'
 ```
 
-## Worker 进程
+## Java API 与 Worker
 
 ### 角色
 
-Worker 是独立于 web 的后台进程，负责消费 Redis 任务队列中的 job 并执行。web 进程只负责投递任务，不在 Route Handler 内同步执行长任务。
+Java Worker 与 HTTP 请求线程使用同一个 Spring Boot 部署单元，但通过独立 scheduler 领取 PostgreSQL job 并执行。Next.js 只调用 Java API，不在 Route Handler 内同步执行长任务。
 
 ### 任务契约
 
-任务通过 `src/domain/job-contract/models.ts` 定义显式类型：
-
-- **JobType**: 支持的任务类型（当前仅 `health-check`）
-- **JobPayload**: 任务载荷，包含 `type` 和 `data`
-- **JobStatus**: 状态流转 `pending → processing → completed / failed`
-- **Job**: 完整任务记录，包含 id、状态、结果、错误信息和时间戳
-
-非法 payload 通过 `validateJobPayload()` 拒绝，抛出 `InvalidJobPayloadError`。
+Java execution package 定义 `java-initial-v1` 与 `java-follow-up-v1` 两类正式 contract。任务载荷固定绑定 session、execution、follow-up（如有）、权限范围与 ontology version；不符合 contract 的任务会明确失败，不进入旧 TypeScript Worker。
 
 ### 队列机制
 
 使用 Postgres durable job ledger 作为任务事实源，Redis Streams 只做唤醒/分发：
 
-- Web 侧通过 `JobQueue.submit()` 投递任务
-- Worker 通过 `JobQueue.consume()` 消费任务
+- Java application service 在同一数据库事务中创建 job 与 outbox
+- Java Worker 先通过 PostgreSQL 原子 claim 获取租约，再执行 Main Agent
 - 任务元数据、状态、结果、错误、attempt 和 lease 存储在 `platform.jobs`
 - Redis stream entry 只携带 `jobId`
 
 ### 本地运行
 
 ```bash
-# 单独启动 worker（需要 Redis 已启动）
-pnpm worker:dev
+# 启动 Java API 与 Worker（需要 PostgreSQL、Redis、Cube、Neo4j 已启动）
+mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run
 
-# 通过 Docker Compose 启动（包含 Redis 依赖）
-docker compose up -d worker
+# 通过 Docker Compose 启动 Java backend
+docker compose up -d backend
 ```
 
 ### 扩展新任务类型
 
-1. 在 `src/domain/job-contract/models.ts` 的 `JOB_TYPES` 添加新类型
-2. 在 `src/worker/handlers.ts` 注册对应 handler
-3. 补充测试覆盖
+1. 在 `backend-java` 的 execution feature 中增加明确的 contract 与状态语义
+2. 由 `AnalysisWorker` 注册处理边界，并保持 Main Agent → Workflow Tool 的唯一智能链路
+3. 补充租约、事务、事件、失败与 contract 测试

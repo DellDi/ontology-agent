@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 import net from 'node:net';
 import { promisify } from 'node:util';
 
@@ -192,8 +192,7 @@ test.after(async () => {
     return;
   }
 
-  serverProcess.kill('SIGINT');
-  await once(serverProcess, 'exit');
+  await stopProcessTree(serverProcess);
 });
 
 test('Story 7.1 统一权限策略会在服务端显式约束 owner 与 scope', async () => {

@@ -4,7 +4,7 @@ import { sanitizeNextPath } from '@/domain/auth/models';
 import {
   createSessionFromUrlBridge,
   mapDirectoryAuthErrorToMessage,
-} from '@/composition-root';
+} from '@/infrastructure/session/server-auth';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

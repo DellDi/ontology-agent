@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, jsonb, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 import { platformSchema } from './auth-sessions';
 
@@ -29,6 +29,8 @@ export const analysisExecutionSnapshots = platformSchema.table(
       .notNull()
       .default(sql`'{}'::jsonb`),
     failurePoint: jsonb('failure_point'),
+    errorCode: text('error_code'),
+    traceId: text('trace_id'),
     createdAt: timestamp('created_at', {
       withTimezone: true,
     }).notNull(),
@@ -47,8 +49,12 @@ export const analysisExecutionSnapshots = platformSchema.table(
       table.updatedAt,
     ),
     index('analysis_execution_snapshots_follow_up_id_idx').on(table.followUpId),
+    uniqueIndex('analysis_execution_snapshots_follow_up_id_uidx')
+      .on(table.followUpId)
+      .where(sql`follow_up_id is not null`),
     index('analysis_execution_snapshots_ontology_version_idx').on(
       table.ontologyVersionId,
     ),
+    index('analysis_execution_snapshots_trace_id_idx').on(table.traceId),
   ],
 );

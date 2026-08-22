@@ -4,113 +4,128 @@
 
 | 服务 | 镜像来源 | 用途 |
 |---|---|---|
-| `web` | `Dockerfile`（multi-stage） | Next.js Web 工作台，`next start` 生产模式 |
-| `worker` | `Dockerfile.worker` | 异步任务执行 worker |
-| `migrate` | `Dockerfile.worker`（一次性） | 数据库迁移，完成后退出 |
-| `postgres` | `postgres:18.2-bookworm` | 主数据库 |
-| `redis` | `redis:8.2.5-bookworm` | 会话存储 + 任务队列 |
-| `cube` | `cubejs/cube:v1.6.31` | 指标查询引擎 |
-| `neo4j` | `neo4j:5.26.24-community-ubi9` | 组织图数据库 |
+| `web` | `Dockerfile` | Next.js 展示层、Cookie/状态码透明代理与尚未迁移的非关键管理入口 |
+| `backend` | `Dockerfile.java` | Java 21 + Spring Boot 4.1 API、Spring AI Agent 与异步 Worker |
+| `migrate` | `Dockerfile.migrate` | 一次性执行 Drizzle migration；镜像不包含旧 TypeScript Worker 入口 |
+| `postgres` | `postgres:18.2-bookworm` | 业务、任务、事件、治理、图同步与审计事实源 |
+| `redis` | `redis:8.2.5-bookworm` | Java Worker 唤醒；不是任务事实源 |
+| `cube` | `cubejs/cube:v1.6.31` | 受治理指标查询 |
+| `cubestore-router` | `cubejs/cubestore:v1.6.31` | Cube Store 查询路由与元数据节点 |
+| `cubestore-worker` | `cubejs/cubestore:v1.6.31` | Cube Store 单机工作节点；与 Router 共享持久卷 |
+| `neo4j` | `neo4j:5.26.24-community-ubi10` | 可重建图投影 |
 
-## 快速部署
+生产拓扑不再启动 `src/worker/main.ts`。新 root/follow-up execution 只由 Java 领取；Node ledger 对
+`java-initial-v1` 和 `java-follow-up-v1` 的所有 claim、terminal mutation 与 lease recovery 均拒绝处理。
 
-### 1. 准备环境变量
+## 发布顺序
+
+1. 从模板创建生产配置并填写全部占位值：
+
+   ```bash
+   cp .env.prod.example .env.prod
+   docker compose -f compose.prod.yaml --env-file .env.prod config --quiet
+   ```
+
+2. 在停止旧 Node Worker 后，先启动目标 PostgreSQL，再通过同一 Compose 网络执行只读切换检查。
+   不需要暴露数据库端口，也不依赖模板中不存在的宿主机 `DATABASE_URL`：
+
+   ```bash
+   docker compose -f compose.prod.yaml --env-file .env.prod up -d postgres
+   docker compose -f compose.prod.yaml --env-file .env.prod run --rm preflight
+   ```
+
+   检查项包括 0004/0005 唯一索引的历史重复、多个 current ontology、仍活跃的 legacy analysis job、
+   未结束的 graph sync run、重复 dirty scope，以及 follow-up 与 snapshot 绑定不一致。脚本不自动修数据；
+   必须先确认业务事实后再处理根因。全新空数据库会明确输出 `fresh database`；若已有 `platform`
+   schema 但结构不完整，检查会直接失败，不会把半迁移数据库当成空库。
+
+3. 构建并启动：
+
+   ```bash
+   docker compose -f compose.prod.yaml --env-file .env.prod up -d --build
+   docker compose -f compose.prod.yaml --env-file .env.prod ps
+   docker compose -f compose.prod.yaml --env-file .env.prod logs backend web --tail=100
+   ```
+
+`migrate` 必须成功退出后 `backend` 才启动，`web` 又必须等待 `backend` 健康。生产模式的 Cube
+显式依赖独立的 Cube Store Router/Worker，不能依赖开发模式内置缓存。Next 容器只通过
+`JAVA_BACKEND_URL=http://backend:8080` 访问 Java，不使用宿主机回环地址。
+
+4. 全新事实库只通过 Java 初始化固定 Ontology baseline，再从 backend 容器内执行 system-only Graph
+   bootstrap。Graph system API 不经过 Next，运维密钥不会下沉到 Web：
+
+   ```bash
+   curl --fail --silent --request POST \
+     --header "Cookie: dip3_session=${DIP3_SESSION_COOKIE}" \
+     "http://127.0.0.1:${APP_PORT:-3000}/api/admin/ontology/bootstrap"
+
+   docker compose -f compose.prod.yaml --env-file .env.prod exec -T backend \
+     sh -lc 'curl --fail --silent --request POST --header "X-Graph-Sync-Ops-Secret: ${GRAPH_SYNC_OPS_SECRET}" http://127.0.0.1:8080/api/system/graph-sync/bootstrap'
+   ```
+
+   `DIP3_SESSION_COOKIE` 必须来自已登录的 `PLATFORM_ADMIN` 会话。Ontology API 仅在 registry 全空时写入；
+   完整 current 重复调用只读返回，半成品或多 current 会明确失败。Graph bootstrap 捕获七类 ERP watermark，
+   只有所有组织成功后才一次性初始化 cursors；失败 parent/child run 保留在 PostgreSQL 供诊断。
+
+## 必填配置
+
+- `SESSION_SECRET`：共享 Cookie 签名密钥，必须是生产随机值。
+- `POSTGRES_*`、`REDIS_KEY_PREFIX`：容器内部地址由 Compose 固定，不填写宿主机地址。
+- `CUBE_API_SECRET`、`NEO4J_*`：Java evidence 与 Graph Sync 使用。
+- `LLM_PROVIDER_BASE_URL/API_KEY/MODEL`：真实模型配置。
+- `LLM_PROVIDER_MODE`：仅 `openai-compatible` 或 `dashscope`。
+- `LLM_PROVIDER_TOOL_CALLING=true`。
+- `LLM_PROVIDER_STRUCTURED_OUTPUT`：通用 Provider 可用 `native-json-schema` 或 `json-object`；
+  DashScope 必须是 `json-object`。
+- `JAVA_GRAPH_SYNC_ENABLED=true`：生产启用 Java 增量图同步；本地模板默认关闭，避免开发机意外扫描共享 ERP。
+- `JAVA_GRAPH_SYNC_POLL_DELAY` 与 `JAVA_GRAPH_SYNC_SOURCES`：显式控制扫描频率和七类 ERP 来源。
+- `GRAPH_SYNC_OPS_SECRET`：仅 Java system-only full bootstrap 使用的长随机密钥；不配置时接口直接拒绝执行。
+
+Provider 声明、HTTPS 地址、零重试和禁用并行工具调用在 Java 启动时校验；不符合时容器直接失败，
+不会切换模型或返回降级答案。
+
+## 本地开发
+
+日常开发推荐只容器化 PostgreSQL、Redis、Cube、Neo4j，宿主机分别运行 `pnpm dev` 与
+`mvn -f backend-java/pom.xml spring-boot:run`。需要验证完整容器边界时才运行：
 
 ```bash
-cp .env.prod.example .env.prod
-# 编辑 .env.prod，填写所有 replace-with-* 占位符
+docker compose --env-file .env.example up -d --build
 ```
 
-**关键配置说明：**
-- `DATABASE_URL` / `REDIS_URL`：**不要填宿主机地址**，容器内部通过服务名互通（`postgres:5432`、`redis:6379`）
-- `SESSION_SECRET`：必须使用强随机值，不得与开发环境共用
-- `ENABLE_DEV_ERP_AUTH`：生产环境固定为 `0`，`compose.prod.yaml` 已硬编码
-- `ERP_API_BASE_URL`：必须填写真实 ERP 加密接口地址
+开发 Compose 同样使用 Java backend，不再启动 Node Worker。Java 容器固定 `Asia/Taipei` JVM 时区；
+生产也使用相同边界，避免 PostgreSQL/Cube 日期口径随宿主机漂移。
 
-### 2. 构建并启动
+## 健康与诊断
+
+- `web`：`http://127.0.0.1:3000/`
+- `backend`：容器内 `/actuator/health`
+- 任务事实：`platform.jobs`、`platform.job_events`、`platform.analysis_execution_events`
+- Graph Sync：`platform.graph_sync_runs/cursors/dirty_scopes`
+- Graph Sync 管理 API：经 Web 透明代理访问 `/api/admin/graph-sync/status`、组织 rebuild/status 与
+  consistency sweep；全局 source incremental 只由 Java scheduler 执行，组织操作只接受同组织 `PLATFORM_ADMIN`。
+- 关键失败响应：`code + traceId`；日志按同一 correlation ID 检索。
+
+`llmProvider` health 在未真实探测上游时返回 `UNKNOWN`，不会泄露 API key/base URL，也不会伪报 `UP`。
+真实 Tool Calling、Structured Output 和 evidence grounding 必须由 `live-integration` profile 验证。
+
+## 验证与回滚
+
+发布前至少执行：
 
 ```bash
-docker compose -f compose.prod.yaml --env-file .env.prod up -d --build
-```
-
-### 3. 验证配置正确性（不启动容器）
-
-```bash
+mvn -f backend-java/pom.xml test
+pnpm test:web
+pnpm exec tsc --noEmit
+pnpm build
 docker compose -f compose.prod.yaml --env-file .env.prod config --quiet
 ```
 
-### 4. 查看服务状态
+有真实 Provider、Cube、Neo4j 与业务数据凭据时再执行：
 
 ```bash
-docker compose -f compose.prod.yaml ps
-docker compose -f compose.prod.yaml logs web --tail=50
+mvn -f backend-java/pom.xml verify -Plive-integration
 ```
 
-## 开发环境
-
-开发环境使用 `compose.yaml` + `Dockerfile.dev`，挂载源码、运行热更新：
-
-```bash
-cp .env.example .env
-# 编辑 .env，设置 ENABLE_DEV_ERP_AUTH=1（本地联调）
-docker compose up -d
-```
-
-## 关键差异：开发 vs 生产
-
-| 项目 | 开发（`compose.yaml`） | 生产（`compose.prod.yaml`） |
-|---|---|---|
-| 源码挂载 | 是（实时热更新） | 否（镜像内已编译） |
-| Next.js 模式 | `next dev` | `next start`（standalone） |
-| `ENABLE_DEV_ERP_AUTH` | `1`（可手填 scope） | `0`（强制 ERP 目录认证） |
-| Cube.js 开发模式 | `CUBEJS_DEV_MODE=true` | `CUBEJS_DEV_MODE=false` |
-| 端口对外暴露 | 宿主机 `127.0.0.1:PORT` | 宿主机 `127.0.0.1:PORT` |
-| `restart` 策略 | 无（默认） | `unless-stopped` |
-
-## Kubernetes 演进路径
-
-当前 compose.prod.yaml 的边界设计与 K8s Deployment 对齐：
-- `web` → Deployment（可横向扩展）
-- `worker` → Deployment（可横向扩展）
-- `migrate` → Job（`restartPolicy: OnFailure`）
-- `postgres` / `redis` → StatefulSet 或外部托管服务
-- `cube` / `neo4j` → StatefulSet 或外部托管服务
-
-迁移时，环境变量名称保持不变，改为 ConfigMap + Secret 注入即可。
-
-## 健康检查
-
-当前已为 `web`、`postgres`、`redis`、`cube`、`neo4j` 配置 `healthcheck`。
-`worker` 暂未单独配置 `healthcheck`，当前依赖进程退出与 `restart: unless-stopped` 暴露故障；
-`web` 服务等待 `migrate` 完成后才启动（`service_completed_successfully`）。
-
-检查健康状态：
-```bash
-docker inspect ontology-agent-prod-web-1 --format='{{.State.Health.Status}}'
-```
-
-## Job Queue 持久性
-
-Worker job queue 使用 Postgres-backed durable ledger + Redis Streams consumer group。
-
-- Postgres `platform.jobs` 是 job 状态、attempt、lease、结果、错误和 dead-letter 的最终事实源。
-- Redis Streams 只负责唤醒/分发，message 只携带 `jobId`。
-- worker 获取 Redis signal 后必须先在 Postgres claim 成功，才会执行 handler。
-- terminal job 的重复 Redis signal 会被 ack 并忽略，不会重复执行 handler。
-
-生产部署要求：
-
-- 发布前必须先执行 `pnpm db:migrate`，确保 `platform.jobs`、`platform.job_events`、`platform.job_dispatch_outbox` 已存在。
-- Redis 建议继续启用 AOF 或托管 Redis 的等价持久化配置，但 Redis 不再承担 job canonical ledger 职责。
-- worker 横向扩展时必须共享同一个 `REDIS_URL` 和 `REDIS_KEY_PREFIX`，consumer name 由进程自动生成。
-- 运维排障应优先查询 Postgres ledger 和 `platform.job_events`，不要再把 `{REDIS_KEY_PREFIX}:worker:{jobId}:data` 当成新任务事实源。
-- 从旧 Redis-only 队列切换时，应先停止旧 worker 并 drain 已在 Redis 中的 in-flight jobs；旧 Redis-only job 没有可靠无损迁移保证。
-
-发布前可在目标环境执行：
-
-```bash
-pnpm test:real:redis-queue
-pnpm test:real:job-ledger
-```
-
-这些测试验证 Redis Streams 基线、Postgres ledger 状态机、Redis `jobId` signal 分发和 terminal duplicate ack。测试只清理自身测试前缀 / job id 下的数据。
+回滚应用镜像不得回滚数据库 migration。若必须恢复旧 Node Worker，先停止 Java backend，确认不存在
+活跃 Java contract job，并明确评审共享表 ownership；不能让两个 Worker 同时领取 `analysis-execution`。

@@ -83,6 +83,7 @@ function buildAnalysisSession(overrides = {}) {
     areaIds: overrides.areaIds ?? ['area-1'],
     questionText: overrides.questionText ?? '为什么本月收费率下降了？',
     savedContext: overrides.savedContext ?? {
+      _executionContract: 'java-initial-v1',
       projectIds: ['project-1'],
       areaIds: ['area-1'],
       dateRange: { start: '2026-01-01', end: '2026-05-31' },
@@ -163,6 +164,19 @@ test('AC4 | 无快照时派生为 "待执行"，statusTone 为 neutral', async (
   assert.equal(result.statusLabel, '待执行');
   assert.equal(result.statusTone, 'neutral');
   assert.equal(result.latestExecutionId, undefined);
+});
+
+test('AC4b | 旧执行无 Java 快照时明确显示待迁移且不计为待执行', async () => {
+  const result = await runTsSnippet(`
+    ${IMPORTS}
+    const derived = deriveSessionStatus(null, 'legacy-not-migrated');
+    console.log(JSON.stringify(derived));
+  `);
+
+  assert.equal(result.derivedStatus, 'unavailable');
+  assert.equal(result.statusLabel, '旧执行待迁移');
+  assert.equal(result.statusTone, 'neutral');
+  assert.match(result.failureMessage, /不会自动重跑/);
 });
 
 test('AC5 | dead_letter 快照派生为 "失败"', async () => {
@@ -324,4 +338,29 @@ test('AC8 | 无 latestSnapshots 参数时所有会话回退为 pending', async (
   assert.equal(result[0].derivedStatus, 'pending');
   assert.equal(result[0].statusLabel, '待执行');
   assert.equal(result[0].statusTone, 'neutral');
+});
+
+test('AC9 | 旧后端会话明确标记待迁移且不计入进行中', async () => {
+  const session = buildSession();
+  const sessions = [buildAnalysisSession({
+    id: 'legacy-1',
+    savedContext: { legacy: true },
+  })];
+
+  const result = await runTsSnippet(`
+    ${IMPORTS}
+    const model = createWorkspaceHomeModel(
+      ${JSON.stringify(session)},
+      ${JSON.stringify(sessions)},
+    );
+    console.log(JSON.stringify({
+      item: model.historyItems[0],
+      running: model.metrics.find(metric => metric.id === 'running').value,
+    }));
+  `);
+
+  assert.equal(result.item.derivedStatus, 'unavailable');
+  assert.equal(result.item.statusLabel, '旧执行待迁移');
+  assert.match(result.item.failureMessage, /不会自动重跑/);
+  assert.equal(result.running, '0');
 });

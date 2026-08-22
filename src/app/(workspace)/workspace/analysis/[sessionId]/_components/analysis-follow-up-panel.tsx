@@ -88,6 +88,8 @@ type AnalysisFollowUpPanelProps = {
     tone: 'success' | 'error';
     message: string;
   } | null;
+  showComposer?: boolean;
+  showCards?: boolean;
 };
 
 function renderOntologyVersionBadge(followUp: AnalysisSessionFollowUp) {
@@ -132,6 +134,8 @@ export function AnalysisFollowUpPanel({
   conflictItems = [],
   feedback,
   replanFeedback,
+  showComposer = true,
+  showCards = true,
 }: AnalysisFollowUpPanelProps) {
   const activeFollowUp = buildActiveFollowUp(followUps, activeFollowUpId);
 
@@ -188,7 +192,7 @@ export function AnalysisFollowUpPanel({
         </ul>
       </div>
 
-      <form
+      {showComposer ? <form
         action={`/api/analysis/sessions/${sessionId}/follow-ups`}
         className="mt-5 rounded-lg border border-border bg-card p-5"
         method="post"
@@ -208,10 +212,10 @@ export function AnalysisFollowUpPanel({
         <div className="mt-4 flex justify-end">
           <FollowUpPrimaryButton type="submit">提交追问</FollowUpPrimaryButton>
         </div>
-      </form>
+      </form> : null}
 
       <div className="mt-5 space-y-4">
-        {activeFollowUp ? (
+        {activeFollowUp && !activeFollowUp.resultExecutionId ? (
           <section className="rounded-lg border border-border bg-card p-5">
             <div>
               <p className="text-xs font-medium tracking-[0.12em] text-primary">
@@ -327,17 +331,21 @@ export function AnalysisFollowUpPanel({
               </FollowUpSecondaryButton>
             </form>
           </section>
+        ) : activeFollowUp ? (
+          <FollowUpStatusBanner tone="info">
+            本轮追问已经提交执行，上下文与计划已冻结。执行完成后，可基于本轮结果继续追问。
+          </FollowUpStatusBanner>
         ) : null}
 
-        <div>
+        {showCards ? <div>
           <p className="text-xs font-medium tracking-[0.12em] text-primary">
             已提交追问
           </p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            追问仍然归属于当前 session，后续故事会继续在这里承接多轮执行和历史回放。
+            每轮追问都归属于当前会话，并保留独立的计划、证据、结论与失败记录。
           </p>
-        </div>
-        {followUps.length > 0 ? (
+        </div> : null}
+        {showCards && followUps.length > 0 ? (
           followUps.map((followUp) => (
             <FollowUpCard
               active={followUp.id === activeFollowUpId}
@@ -345,11 +353,11 @@ export function AnalysisFollowUpPanel({
               key={followUp.id}
             />
           ))
-        ) : (
+        ) : showCards ? (
           <p className="rounded-lg bg-muted p-5 text-sm leading-6 text-muted-foreground">
             尚未发起追问。
           </p>
-        )}
+        ) : null}
       </div>
     </article>
   );

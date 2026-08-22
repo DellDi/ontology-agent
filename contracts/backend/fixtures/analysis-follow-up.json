@@ -1,0 +1,99 @@
+{
+  "id": "follow-up-1",
+  "sessionId": "session-1",
+  "ownerUserId": "user-1",
+  "questionText": "把范围收窄到项目一，并解释欠费因素",
+  "parentFollowUpId": null,
+  "referencedExecutionId": "execution-1",
+  "referencedConclusionTitle": "综合证据结论",
+  "referencedConclusionSummary": "授权项目范围收缴率为 80%。",
+  "resultExecutionId": "execution-2",
+  "ontologyVersionId": "ontology-v1",
+  "ontologyVersionBinding": {
+    "ontologyVersionId": "ontology-v1",
+    "source": "inherited"
+  },
+  "inheritedContext": {
+    "targetMetric": { "label": "目标指标", "value": "project-collection-rate", "state": "confirmed" },
+    "entity": { "label": "实体对象", "value": "project-1", "state": "confirmed" },
+    "timeRange": { "label": "时间范围", "value": "2026-07-01/2026-07-31", "state": "confirmed" },
+    "comparison": { "label": "比较方式", "value": "无需比较", "state": "confirmed" },
+    "constraints": [
+      { "label": "实体 business key", "value": "project" },
+      { "label": "指标定义 business key", "value": "collection-rate" },
+      { "label": "指标口径 business key", "value": "project-collection-rate" },
+      { "label": "时间语义 business key", "value": "receivable-accounting-period" },
+      { "label": "项目 ID", "value": "project-1" }
+    ]
+  },
+  "mergedContext": {
+    "targetMetric": { "label": "目标指标", "value": "project-collection-rate", "state": "confirmed" },
+    "entity": { "label": "实体对象", "value": "project-1", "state": "confirmed" },
+    "timeRange": { "label": "时间范围", "value": "2026-07-01/2026-07-31", "state": "confirmed" },
+    "comparison": { "label": "比较方式", "value": "无需比较", "state": "confirmed" },
+    "constraints": [
+      { "label": "实体 business key", "value": "project" },
+      { "label": "指标定义 business key", "value": "collection-rate" },
+      { "label": "指标口径 business key", "value": "project-collection-rate" },
+      { "label": "时间语义 business key", "value": "receivable-accounting-period" },
+      { "label": "项目 ID", "value": "project-1" },
+      { "label": "候选因素", "value": "欠费" }
+    ]
+  },
+  "planVersion": 2,
+  "currentPlanSnapshot": {
+    "mode": "multi-step",
+    "summary": "追问重规划：基于本轮确认上下文重新执行，不复用上一轮步骤结果。",
+    "steps": [
+      { "id": "confirm-analysis-scope", "order": 1, "title": "确认分析口径", "objective": "校验用户范围与本体绑定", "dependencyIds": [] },
+      { "id": "inspect-metric-change", "order": 2, "title": "校验核心指标波动", "objective": "读取 Cube 受治理指标", "dependencyIds": ["confirm-analysis-scope"] }
+    ],
+    "_executionContract": "java-follow-up-v1",
+    "_groundedSource": "ontology-v1",
+    "_groundingStatus": "grounded",
+    "_executionAssumptions": [],
+    "_followUpId": "follow-up-1",
+    "_referencedExecutionId": "execution-1",
+    "_resolvedContext": {
+      "entityKey": "project",
+      "metricDefinitionKey": "collection-rate",
+      "metricVariantKey": "project-collection-rate",
+      "timeSemanticKey": "receivable-accounting-period",
+      "projectIds": ["project-1"],
+      "from": "2026-07-01",
+      "to": "2026-07-31"
+    }
+  },
+  "previousPlanSnapshot": {
+    "mode": "multi-step",
+    "summary": "首次分析 Workflow",
+    "steps": [
+      { "id": "confirm-analysis-scope", "order": 1, "title": "确认分析口径", "objective": "校验用户范围与本体绑定", "dependencyIds": [] },
+      { "id": "inspect-metric-change", "order": 2, "title": "校验核心指标波动", "objective": "读取 Cube 受治理指标", "dependencyIds": ["confirm-analysis-scope"] }
+    ],
+    "_executionContract": "java-initial-v1",
+    "_groundedSource": "ontology-v1",
+    "_groundingStatus": "grounded",
+    "_executionAssumptions": [],
+    "_resolvedContext": {
+      "entityKey": "project",
+      "metricDefinitionKey": "collection-rate",
+      "metricVariantKey": "project-collection-rate",
+      "timeSemanticKey": "receivable-accounting-period",
+      "projectIds": ["project-1"],
+      "from": "2026-07-01",
+      "to": "2026-07-31"
+    }
+  },
+  "currentPlanDiff": {
+    "reason": "用户追问或纠正后的上下文触发计划重算。",
+    "reusedSteps": [],
+    "invalidatedSteps": [
+      { "stepId": "confirm-analysis-scope", "title": "确认分析口径", "reason": "追问上下文已变更，需要重新执行。" },
+      { "stepId": "inspect-metric-change", "title": "校验核心指标波动", "reason": "追问上下文已变更，需要重新执行。" }
+    ],
+    "addedSteps": []
+  },
+  "createdAt": "2026-08-09T10:01:00Z",
+  "updatedAt": "2026-08-09T10:01:02Z"
+}

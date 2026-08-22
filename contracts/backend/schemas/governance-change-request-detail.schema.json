@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "governance-change-request-detail.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["changeRequest", "approvals", "capabilities"],
+  "properties": {
+    "changeRequest": { "$ref": "governance-shared.schema.json#/$defs/changeRequest" },
+    "approvals": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/approval" } },
+    "capabilities": { "$ref": "governance-shared.schema.json#/$defs/capabilities" }
+  }
+}

@@ -53,22 +53,6 @@ test('workspace home | loading route gives immediate feedback while server data 
   assert.ok(source.includes('正在加载你的工作台'), 'Loading route should use user-facing loading copy');
 });
 
-test('analysis detail | history rounds avoid full snapshot JSON on initial render', () => {
-  const source = readFileSync('src/application/analysis-session/build-session-page-model.ts', 'utf-8');
-  assert.ok(
-    source.includes('listSnapshotSummariesForSession'),
-    'Analysis detail page should load slim snapshot summaries for history rounds',
-  );
-  assert.ok(
-    !source.includes('listSnapshotsForSession'),
-    'Analysis detail page should not load all full snapshots for initial history rendering',
-  );
-  assert.ok(
-    source.includes('hydratePersistedProjectionOnly'),
-    'Analysis detail page should prefer persisted UI projection before loading canonical event JSON',
-  );
-});
-
 test('login | directory login form exposes pending state while navigating to workspace', () => {
   const source = readFileSync('src/app/(auth)/login/_components/directory-login-form.tsx', 'utf-8');
   const page = readFileSync('src/app/(auth)/login/page.tsx', 'utf-8');

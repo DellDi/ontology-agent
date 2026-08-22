@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 
 const PORT = 3105;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -95,8 +95,7 @@ test.after(async () => {
     return;
   }
 
-  serverProcess.kill('SIGINT');
-  await once(serverProcess, 'exit');
+  await stopProcessTree(serverProcess);
 });
 
 test('工作台会明确展示支持范围与不支持范围说明', async () => {

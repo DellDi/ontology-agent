@@ -13,7 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 
@@ -147,8 +147,7 @@ function buildJsonChangeRequestForm(title) {
 
 test.after(async () => {
   if (!adminServerProcess) return;
-  adminServerProcess.kill('SIGINT');
-  await once(adminServerProcess, 'exit');
+  await stopProcessTree(adminServerProcess);
 });
 
 const TEST_VERSION_ID = `test-9-5-${randomUUID()}`;

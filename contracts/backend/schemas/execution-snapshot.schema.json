@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution-snapshot.schema.json",
+  "type": "object",
+  "required": ["executionId", "sessionId", "ownerUserId", "followUpId", "ontologyVersionId", "ontologyVersionBinding", "status", "planSnapshot", "stepResults", "conclusionState", "resultBlocks", "mobileProjection", "failurePoint", "errorCode", "traceId", "createdAt", "updatedAt"],
+  "properties": {
+    "executionId": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "ownerUserId": { "type": "string", "minLength": 1 },
+    "followUpId": { "type": ["string", "null"] },
+    "ontologyVersionId": { "type": ["string", "null"] },
+    "ontologyVersionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ontologyVersionId", "source"],
+      "properties": {
+        "ontologyVersionId": { "type": ["string", "null"] },
+        "source": { "enum": ["grounded-context", "inherited", "switched", "legacy/unknown"] }
+      }
+    },
+    "status": { "enum": ["pending", "processing", "completed", "failed"] },
+    "planSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "summary", "steps", "_executionContract", "_resolvedContext"],
+      "properties": {
+        "mode": { "enum": ["minimal", "multi-step"] },
+        "summary": { "type": "string", "minLength": 1 },
+        "steps": { "type": "array" },
+        "_executionContract": { "enum": ["java-initial-v1", "java-follow-up-v1"] },
+        "_followUpId": { "type": "string", "minLength": 1 },
+        "_referencedExecutionId": { "type": "string", "minLength": 1 },
+        "_groundedSource": { "type": "string", "minLength": 1 },
+        "_groundingStatus": { "enum": ["success", "failed", "ambiguous", "partial", "grounded"] },
+        "_toolBindings": { "type": "object" },
+        "_executionAssumptions": { "type": "array", "items": { "type": "string" } },
+        "_resolvedContext": { "type": "object" }
+      }
+    },
+    "stepResults": { "type": "array", "items": { "$ref": "execution-event.schema.json" } },
+    "conclusionState": { "$ref": "conclusion-state.schema.json" },
+    "resultBlocks": { "type": "array", "items": { "$ref": "conclusion-state.schema.json#/$defs/renderBlock" } },
+    "mobileProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "status", "updatedAt"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pending", "processing", "completed", "failed"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "failurePoint": { "type": ["object", "null"] },
+    "errorCode": { "type": ["string", "null"] },
+    "traceId": { "type": ["string", "null"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "followUpId": { "type": "null" },
+                "planSnapshot": {
+                  "type": "object",
+                  "required": ["_executionContract"],
+                  "properties": { "_executionContract": { "const": "java-initial-v1" } },
+                  "not": {
+                    "anyOf": [
+                      { "properties": { "_followUpId": true }, "required": ["_followUpId"] },
+                      { "properties": { "_referencedExecutionId": true }, "required": ["_referencedExecutionId"] }
+                    ]
+                  }
+            }
+          }
+        },
+        {
+          "properties": {
+            "followUpId": { "type": "string", "minLength": 1 },
+                "planSnapshot": {
+                  "type": "object",
+                  "required": ["_executionContract", "_followUpId", "_referencedExecutionId"],
+              "properties": {
+                "_executionContract": { "const": "java-follow-up-v1" },
+                "_followUpId": { "type": "string", "minLength": 1 },
+                "_referencedExecutionId": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "if": { "type": "object", "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "planSnapshot": {
+                "type": "object",
+                "properties": {
+                  "steps": { "type": "array", "minItems": 1 },
+                  "_resolvedContext": {
+                    "type": "object",
+                    "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"],
+                    "properties": {
+                      "entityKey": { "type": "string", "minLength": 1 },
+                      "metricDefinitionKey": { "type": "string", "minLength": 1 },
+                      "metricVariantKey": { "type": "string", "minLength": 1 },
+                      "timeSemanticKey": { "type": "string", "minLength": 1 },
+                      "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                      "from": { "type": "string", "format": "date" },
+                      "to": { "type": "string", "format": "date" }
+                    }
+                  }
+                }
+              },
+          "conclusionState": {
+            "allOf": [
+              { "$ref": "conclusion-state.schema.json" },
+              {
+                "type": "object",
+                "required": ["evidence", "claims"],
+                "properties": {
+                  "evidence": { "type": "array", "minItems": 3, "maxItems": 3 },
+                  "claims": { "type": "array", "minItems": 1 }
+                }
+              }
+            ]
+          },
+          "resultBlocks": { "type": "array", "minItems": 5 }
+        }
+      }
+    }
+  ]
+}

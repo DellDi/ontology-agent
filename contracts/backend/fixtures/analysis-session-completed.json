@@ -1,0 +1,231 @@
+{
+  "session": {
+    "id": "session-1",
+    "questionText": "分析项目一 2026 年 7 月收缴率变化",
+    "status": "pending",
+    "scope": { "organizationId": "org-1", "projectIds": ["project-1"], "areaIds": ["area-1"] },
+    "savedContext": {
+      "_executionContract": "java-initial-v1",
+      "targetMetric": { "label": "目标指标", "value": "待由 Agent 基于已发布本体确认", "state": "missing" },
+      "entity": { "label": "分析对象", "value": "待由 Agent 基于已发布本体确认", "state": "missing" },
+      "timeRange": { "label": "时间范围", "value": "待由 Agent 基于已发布本体确认", "state": "missing" },
+      "comparison": { "label": "比较基线", "value": "待由 Agent 基于已发布本体确认", "state": "missing" },
+      "constraints": []
+    },
+    "createdAt": "2026-08-09T10:00:00Z",
+    "updatedAt": "2026-08-09T10:00:02Z"
+  },
+  "followUps": [],
+  "history": [
+    {
+      "id": "initial",
+      "kind": "initial",
+      "questionText": "分析项目一 2026 年 7 月收缴率变化",
+      "followUpId": null,
+      "executionId": "execution-1",
+      "status": "completed",
+      "ontologyVersionId": "ontology-v1",
+      "ontologyVersionBindingSource": "grounded-context",
+      "planSnapshot": {
+        "mode": "multi-step",
+        "summary": "首次分析 Workflow",
+        "steps": [{ "id": "confirm-analysis-scope", "order": 1, "title": "确认分析口径", "objective": "校验用户范围与本体绑定", "dependencyIds": [] }],
+        "_executionContract": "java-initial-v1",
+        "_groundedSource": "ontology-v1",
+        "_groundingStatus": "grounded",
+        "_executionAssumptions": [],
+        "_resolvedContext": { "entityKey": "project", "metricDefinitionKey": "collection-rate", "metricVariantKey": "project-collection-rate", "timeSemanticKey": "receivable-accounting-period", "projectIds": ["project-1"], "from": "2026-07-01", "to": "2026-07-31" }
+      },
+      "conclusionState": null,
+      "createdAt": "2026-08-09T10:00:00Z"
+    }
+  ],
+  "job": {
+    "executionId": "execution-1",
+    "status": "completed",
+    "result": {
+      "workflowInvocations": 1,
+      "ontologyVersionId": "ontology-v1",
+      "evidenceSources": ["erp-staging", "cube", "neo4j"]
+    },
+    "error": null,
+    "attemptCount": 1,
+    "maxAttempts": 2,
+    "dispatchStatus": "published",
+    "traceId": "trace-1",
+    "createdAt": "2026-08-09T10:00:00Z",
+    "updatedAt": "2026-08-09T10:00:02Z",
+    "startedAt": "2026-08-09T10:00:00Z",
+    "completedAt": "2026-08-09T10:00:02Z",
+    "failedAt": null
+  },
+  "events": [
+    {
+      "id": "event-1",
+      "sessionId": "session-1",
+      "executionId": "execution-1",
+      "sequence": 1,
+      "kind": "execution-status",
+      "timestamp": "2026-08-09T10:00:00Z",
+      "status": "processing",
+      "message": "分析执行已开始",
+      "renderBlocks": [{ "type": "status", "title": "执行状态", "value": "处理中", "tone": "info" }],
+      "metadata": {},
+      "errorCode": null,
+      "traceId": "trace-1"
+    },
+    {
+      "id": "event-2",
+      "sessionId": "session-1",
+      "executionId": "execution-1",
+      "sequence": 2,
+      "kind": "tool-completed",
+      "timestamp": "2026-08-09T10:00:01Z",
+      "status": "processing",
+      "message": "erp.read-model 已完成",
+      "renderBlocks": [{ "type": "status", "title": "工具状态", "value": "erp.read-model 已完成", "tone": "success" }],
+      "metadata": { "toolName": "erp.read-model" },
+      "errorCode": null,
+      "traceId": "trace-1"
+    },
+    {
+      "id": "event-3",
+      "sessionId": "session-1",
+      "executionId": "execution-1",
+      "sequence": 3,
+      "kind": "execution-status",
+      "timestamp": "2026-08-09T10:00:02Z",
+      "status": "completed",
+      "message": "分析执行已完成",
+      "renderBlocks": [
+        { "type": "markdown", "title": "证据约束结论", "content": "授权项目范围收缴率为 80%。ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。" },
+        { "type": "evidence-card", "title": "关键证据", "summary": "来自 ERP、Cube 与 Neo4j 的受治理证据", "evidence": [{ "label": "ERP 范围内收费事实", "summary": "返回 1 条受范围约束的证据" }, { "label": "Cube 受治理语义指标", "summary": "返回 1 条受范围约束的证据" }, { "label": "受范围约束的收费项目结构关系", "summary": "返回 1 条受范围约束的证据" }] },
+        { "type": "table", "title": "ERP 范围内收费事实", "columns": ["projectId", "projectName", "receivableAmount", "paidAmount", "arrearsAmount"], "rows": [["project-1", "项目一", "1000", "800", "200"]] },
+        { "type": "table", "title": "Cube 受治理语义指标", "columns": ["metricDefinition", "metricVariant", "value", "numerator", "denominator", "from", "to"], "rows": [["collection-rate", "project-collection-rate", "80.0", "800.0", "1000.0", "2026-07-01", "2026-07-31"]] },
+        { "type": "table", "title": "受范围约束的收费项目结构关系", "columns": ["rootId", "rootLabel", "factorKey", "factorLabel", "factType", "relationType", "direction", "explanation", "source"], "rows": [["project-1", "项目一", "property-fee", "物业费", "has-receivable", "belongs-to", "outbound", "项目应收属于物业费", "erp-derived"]] }
+      ],
+      "metadata": { "ontologyVersionId": "ontology-v1" },
+      "errorCode": null,
+      "traceId": "trace-1"
+    }
+  ],
+  "snapshot": {
+    "executionId": "execution-1",
+    "sessionId": "session-1",
+    "followUpId": null,
+    "ontologyVersionId": "ontology-v1",
+    "ontologyVersionBindingSource": "grounded-context",
+    "status": "completed",
+    "planSnapshot": {
+      "mode": "multi-step",
+      "summary": "首次分析 Workflow",
+      "steps": [{ "id": "confirm-analysis-scope", "order": 1, "title": "确认分析口径", "objective": "校验用户范围与本体绑定", "dependencyIds": [] }],
+      "_executionContract": "java-initial-v1",
+      "_groundedSource": "ontology-v1",
+      "_groundingStatus": "grounded",
+      "_executionAssumptions": [],
+      "_resolvedContext": { "entityKey": "project", "metricDefinitionKey": "collection-rate", "metricVariantKey": "project-collection-rate", "timeSemanticKey": "receivable-accounting-period", "projectIds": ["project-1"], "from": "2026-07-01", "to": "2026-07-31" }
+    },
+    "stepResults": [
+      {
+        "id": "event-1",
+        "sessionId": "session-1",
+        "executionId": "execution-1",
+        "sequence": 1,
+        "kind": "execution-status",
+        "timestamp": "2026-08-09T10:00:00Z",
+        "status": "processing",
+        "message": "分析执行已开始",
+        "renderBlocks": [{ "type": "status", "title": "执行状态", "value": "处理中", "tone": "info" }],
+        "metadata": {},
+        "errorCode": null,
+        "traceId": "trace-1"
+      },
+      {
+        "id": "event-2",
+        "sessionId": "session-1",
+        "executionId": "execution-1",
+        "sequence": 2,
+        "kind": "tool-completed",
+        "timestamp": "2026-08-09T10:00:01Z",
+        "status": "processing",
+        "message": "erp.read-model 已完成",
+        "renderBlocks": [{ "type": "status", "title": "工具状态", "value": "erp.read-model 已完成", "tone": "success" }],
+        "metadata": { "toolName": "erp.read-model" },
+        "errorCode": null,
+        "traceId": "trace-1"
+      },
+      {
+        "id": "event-3",
+        "sessionId": "session-1",
+        "executionId": "execution-1",
+        "sequence": 3,
+        "kind": "execution-status",
+        "timestamp": "2026-08-09T10:00:02Z",
+        "status": "completed",
+        "message": "分析执行已完成",
+        "renderBlocks": [
+          { "type": "markdown", "title": "证据约束结论", "content": "授权项目范围收缴率为 80%。ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。" },
+          { "type": "evidence-card", "title": "关键证据", "summary": "来自 ERP、Cube 与 Neo4j 的受治理证据", "evidence": [{ "label": "ERP 范围内收费事实", "summary": "返回 1 条受范围约束的证据" }, { "label": "Cube 受治理语义指标", "summary": "返回 1 条受范围约束的证据" }, { "label": "受范围约束的收费项目结构关系", "summary": "返回 1 条受范围约束的证据" }] },
+          { "type": "table", "title": "ERP 范围内收费事实", "columns": ["projectId", "projectName", "receivableAmount", "paidAmount", "arrearsAmount"], "rows": [["project-1", "项目一", "1000", "800", "200"]] },
+          { "type": "table", "title": "Cube 受治理语义指标", "columns": ["metricDefinition", "metricVariant", "value", "numerator", "denominator", "from", "to"], "rows": [["collection-rate", "project-collection-rate", "80.0", "800.0", "1000.0", "2026-07-01", "2026-07-31"]] },
+          { "type": "table", "title": "受范围约束的收费项目结构关系", "columns": ["rootId", "rootLabel", "factorKey", "factorLabel", "factType", "relationType", "direction", "explanation", "source"], "rows": [["project-1", "项目一", "property-fee", "物业费", "has-receivable", "belongs-to", "outbound", "项目应收属于物业费", "erp-derived"]] }
+        ],
+        "metadata": { "ontologyVersionId": "ontology-v1" },
+        "errorCode": null,
+        "traceId": "trace-1"
+      }
+    ],
+    "conclusionState": {
+      "causes": [
+        {
+          "id": "cause-1",
+          "rank": 1,
+          "title": "综合证据结论",
+          "summary": "授权项目范围收缴率为 80%。ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。",
+          "confidence": null,
+          "evidence": [{ "label": "ERP 范围内收费事实", "summary": "返回 1 条受范围约束的证据" }, { "label": "Cube 受治理语义指标", "summary": "返回 1 条受范围约束的证据" }, { "label": "受范围约束的收费项目结构关系", "summary": "返回 1 条受范围约束的证据" }]
+        }
+      ],
+      "claims": [
+        { "text": "授权项目范围收缴率为 80%。", "evidenceRefs": [{ "source": "cube", "row": 0, "field": "value", "value": 80.0 }] },
+        { "text": "ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。", "evidenceRefs": [{ "source": "erp-staging", "row": 0, "field": "projectName", "value": "项目一" }, { "source": "erp-staging", "row": 0, "field": "receivableAmount", "value": 1000 }, { "source": "erp-staging", "row": 0, "field": "paidAmount", "value": 800 }, { "source": "erp-staging", "row": 0, "field": "arrearsAmount", "value": 200 }] },
+        { "text": "Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。", "evidenceRefs": [{ "source": "neo4j", "row": 0, "field": "rootLabel", "value": "项目一" }, { "source": "neo4j", "row": 0, "field": "factorLabel", "value": "物业费" }, { "source": "neo4j", "row": 0, "field": "factType", "value": "has-receivable" }, { "source": "neo4j", "row": 0, "field": "relationType", "value": "belongs-to" }] }
+      ],
+      "renderBlocks": [
+        { "type": "markdown", "title": "证据约束结论", "content": "授权项目范围收缴率为 80%。ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。" },
+        { "type": "evidence-card", "title": "关键证据", "summary": "来自 ERP、Cube 与 Neo4j 的受治理证据", "evidence": [{ "label": "ERP 范围内收费事实", "summary": "返回 1 条受范围约束的证据" }, { "label": "Cube 受治理语义指标", "summary": "返回 1 条受范围约束的证据" }, { "label": "受范围约束的收费项目结构关系", "summary": "返回 1 条受范围约束的证据" }] },
+        { "type": "table", "title": "ERP 范围内收费事实", "columns": ["projectId", "projectName", "receivableAmount", "paidAmount", "arrearsAmount"], "rows": [["project-1", "项目一", "1000", "800", "200"]] },
+        { "type": "table", "title": "Cube 受治理语义指标", "columns": ["metricDefinition", "metricVariant", "value", "numerator", "denominator", "from", "to"], "rows": [["collection-rate", "project-collection-rate", "80.0", "800.0", "1000.0", "2026-07-01", "2026-07-31"]] },
+        { "type": "table", "title": "受范围约束的收费项目结构关系", "columns": ["rootId", "rootLabel", "factorKey", "factorLabel", "factType", "relationType", "direction", "explanation", "source"], "rows": [["project-1", "项目一", "property-fee", "物业费", "has-receivable", "belongs-to", "outbound", "项目应收属于物业费", "erp-derived"]] }
+      ],
+      "evidence": [
+        { "source": "erp-staging", "title": "ERP 范围内收费事实", "rowCount": 1, "rows": [{ "projectId": "project-1", "projectName": "项目一", "receivableAmount": 1000, "paidAmount": 800, "arrearsAmount": 200 }] },
+        { "source": "cube", "title": "Cube 受治理语义指标", "rowCount": 1, "rows": [{ "metricDefinition": "collection-rate", "metricVariant": "project-collection-rate", "value": 80.0, "numerator": 800.0, "denominator": 1000.0, "from": "2026-07-01", "to": "2026-07-31" }] },
+        { "source": "neo4j", "title": "受范围约束的收费项目结构关系", "rowCount": 1, "rows": [{ "rootId": "project-1", "rootLabel": "项目一", "factorKey": "property-fee", "factorLabel": "物业费", "factType": "has-receivable", "relationType": "belongs-to", "direction": "outbound", "explanation": "项目应收属于物业费", "source": "erp-derived" }] }
+      ]
+    },
+    "resultBlocks": [
+      { "type": "markdown", "title": "证据约束结论", "content": "授权项目范围收缴率为 80%。ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。" },
+      { "type": "evidence-card", "title": "关键证据", "summary": "来自 ERP、Cube 与 Neo4j 的受治理证据", "evidence": [{ "label": "ERP 范围内收费事实", "summary": "返回 1 条受范围约束的证据" }, { "label": "Cube 受治理语义指标", "summary": "返回 1 条受范围约束的证据" }, { "label": "受范围约束的收费项目结构关系", "summary": "返回 1 条受范围约束的证据" }] },
+      { "type": "table", "title": "ERP 范围内收费事实", "columns": ["projectId", "projectName", "receivableAmount", "paidAmount", "arrearsAmount"], "rows": [["project-1", "项目一", "1000", "800", "200"]] },
+      { "type": "table", "title": "Cube 受治理语义指标", "columns": ["metricDefinition", "metricVariant", "value", "numerator", "denominator", "from", "to"], "rows": [["collection-rate", "project-collection-rate", "80.0", "800.0", "1000.0", "2026-07-01", "2026-07-31"]] },
+      { "type": "table", "title": "受范围约束的收费项目结构关系", "columns": ["rootId", "rootLabel", "factorKey", "factorLabel", "factType", "relationType", "direction", "explanation", "source"], "rows": [["project-1", "项目一", "property-fee", "物业费", "has-receivable", "belongs-to", "outbound", "项目应收属于物业费", "erp-derived"]] }
+    ],
+    "mobileProjection": { "summary": "授权项目范围收缴率为 80%。ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。", "status": "completed", "updatedAt": "2026-08-09T10:00:02Z" },
+    "failurePoint": null,
+    "errorCode": null,
+    "traceId": "trace-1",
+    "createdAt": "2026-08-09T10:00:00Z",
+    "updatedAt": "2026-08-09T10:00:02Z"
+  },
+  "runtime": {
+    "requestedExecutionId": "execution-1",
+    "resolvedExecutionId": "execution-1",
+    "status": "completed",
+    "autoExecute": false,
+    "streamEnabled": false,
+    "terminal": true,
+    "resumeAfterSequence": 3
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution-event.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "sessionId", "executionId", "sequence", "kind", "timestamp", "status", "message", "renderBlocks", "metadata", "errorCode", "traceId"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "executionId": { "type": "string", "minLength": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "kind": { "enum": ["execution-status", "step-lifecycle", "stage-result", "step-started", "tool-started", "tool-completed", "tool-failed", "step-completed"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "status": { "type": ["string", "null"], "enum": ["pending", "processing", "completed", "failed", null] },
+    "message": { "type": ["string", "null"] },
+    "renderBlocks": { "type": "array", "items": { "$ref": "conclusion-state.schema.json#/$defs/renderBlock" } },
+    "metadata": { "type": "object" },
+    "errorCode": { "type": ["string", "null"] },
+    "traceId": { "type": "string", "minLength": 1 }
+  }
+}

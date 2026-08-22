@@ -9,4 +9,6 @@ node_modules
 .gitignore
 coverage
 dist
+backend-java/target
+_bmad-output
 .DS_Store

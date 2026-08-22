@@ -4,7 +4,7 @@ import {
   getDevAuthPageState,
   getRequestSession,
   isDirectoryAuthAvailable,
-} from '@/composition-root';
+} from '@/infrastructure/session/server-auth';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
 import { Badge } from '@/app/_components/workbench/badge';
 import { StatusBanner } from '@/app/_components/workbench/status-banner';

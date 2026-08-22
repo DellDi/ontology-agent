@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 
 const PORT = 3132;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -134,8 +134,7 @@ test.after(async () => {
     return;
   }
 
-  serverProcess.kill('SIGINT');
-  await once(serverProcess, 'exit');
+  await stopProcessTree(serverProcess);
 });
 
 test('会话页展示目标指标、实体、时间范围、比较方式和约束条件', async () => {

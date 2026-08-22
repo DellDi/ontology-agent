@@ -2,22 +2,31 @@ import {
   createAnalysisSessionTitle,
   type AnalysisSession,
 } from '@/domain/analysis-session/models';
-import type { AnalysisExecutionSnapshot } from '@/domain/analysis-execution/persistence-models';
+import type { JobStatus } from '@/domain/job-contract/models';
 import {
   SUPPORTED_ANALYSIS_TOPICS,
   UNSUPPORTED_ANALYSIS_AREAS,
 } from '@/domain/scope-boundary/policy';
 import {
   hasScopedTargets,
-  type AuthSession,
+  type AuthIdentity,
 } from '@/domain/auth/models';
 import { formatScopeSummary } from '@/shared/permissions/format-scope-summary';
 import type { ErpProject } from '@/domain/erp-read/models';
 
-export type WorkspaceHomeSnapshotSummary = Pick<
-  AnalysisExecutionSnapshot,
-  'status' | 'executionId' | 'conclusionState' | 'failurePoint'
->;
+export type WorkspaceHomeSnapshotSummary = {
+  status: JobStatus;
+  executionId: string;
+  conclusionState: { causes: { title: string }[] } | null;
+  failurePoint: { title: string } | null;
+};
+
+export type WorkspaceHomeSessionSummary = Pick<
+  AnalysisSession,
+  'id' | 'questionText' | 'updatedAt'
+> & {
+  savedContext: Record<string, unknown>;
+};
 
 export type WorkspaceHomeAction = {
   label: string;
@@ -53,7 +62,7 @@ export type WorkspaceHomeModel = {
     title: string;
     statusLabel: string;
     statusTone: 'neutral' | 'info' | 'success' | 'error';
-    derivedStatus: 'pending' | 'running' | 'completed' | 'failed';
+    derivedStatus: 'pending' | 'running' | 'completed' | 'failed' | 'unavailable';
     latestExecutionId?: string;
     summaryMetric?: string;
     failureMessage?: string;
@@ -87,7 +96,7 @@ export type WorkspaceHomeModel = {
 };
 
 export type DerivedSessionStatus = {
-  derivedStatus: 'pending' | 'running' | 'completed' | 'failed';
+  derivedStatus: 'pending' | 'running' | 'completed' | 'failed' | 'unavailable';
   statusLabel: string;
   statusTone: 'neutral' | 'info' | 'success' | 'error';
   summaryMetric?: string;
@@ -97,12 +106,21 @@ export type DerivedSessionStatus = {
 
 /**
  * 从执行快照派生首页会话状态。
- * 纯函数：无快照时回退到 pending，有快照时按 JobStatus 映射。
+ * 纯函数：Java 新会话无快照时为 pending；旧执行无 Java 快照时明确标记待迁移。
  */
 export function deriveSessionStatus(
   snapshot: WorkspaceHomeSnapshotSummary | null,
+  executionContract: unknown = 'java-initial-v1',
 ): DerivedSessionStatus {
   if (!snapshot) {
+    if (executionContract !== 'java-initial-v1') {
+      return {
+        derivedStatus: 'unavailable',
+        statusLabel: '旧执行待迁移',
+        statusTone: 'neutral',
+        failureMessage: '该会话由旧后端执行，本切片不会自动重跑。',
+      };
+    }
     return {
       derivedStatus: 'pending',
       statusLabel: '待执行',
@@ -156,8 +174,8 @@ export function deriveSessionStatus(
 }
 
 export function createWorkspaceHomeModel(
-  session: AuthSession,
-  historySessions: AnalysisSession[],
+  session: AuthIdentity,
+  historySessions: WorkspaceHomeSessionSummary[],
   scopedProjects: Pick<ErpProject, 'id' | 'name'>[] = [],
   latestSnapshots: Map<string, WorkspaceHomeSnapshotSummary | null> = new Map(),
   degradedState: WorkspaceHomeDegradedState | null = null,
@@ -167,7 +185,13 @@ export function createWorkspaceHomeModel(
   const projectsById = new Map(
     scopedProjects.map((project) => [project.id, project.name]),
   );
-  const projectDisplayNames = session.scope.projectIds.map(
+  const displayProjectIds = [...new Set([
+    ...session.scope.projectIds,
+    ...(session.scope.areaIds.length > 0
+      ? scopedProjects.map((project) => project.id)
+      : []),
+  ])];
+  const projectDisplayNames = displayProjectIds.map(
     (projectId) => projectsById.get(projectId) ?? projectId,
   );
   const projectScopeSummary =
@@ -177,7 +201,10 @@ export function createWorkspaceHomeModel(
 
   const historyItems = historySessions.map((analysisSession) => {
     const snapshot = latestSnapshots.get(analysisSession.id) ?? null;
-    const derived = deriveSessionStatus(snapshot);
+    const derived = deriveSessionStatus(
+      snapshot,
+      analysisSession.savedContext._executionContract ?? null,
+    );
 
     return {
       id: analysisSession.id,

@@ -1,0 +1,11 @@
+{
+  "userId": "user-1",
+  "displayName": "测试用户",
+  "workspaceAccess": true,
+  "scope": {
+    "organizationId": "org-1",
+    "projectIds": ["project-1"],
+    "areaIds": ["area-1"],
+    "roleCodes": ["analyst"]
+  }
+}

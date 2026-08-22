@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-import { getOntologyAdminSessionState } from '@/composition-root';
+import {
+  getJavaOntologyAdminSessionState,
+  JavaBackendHttpError,
+} from '@/infrastructure/java-backend';
 
 import { ShellLayout } from '../_components/shell-layout';
 import { ADMIN_MENU } from '../_components/shell-menu-config';
@@ -11,7 +14,15 @@ type AdminLayoutProps = {
 };
 
 export default async function AdminLayout({ children }: AdminLayoutProps) {
-  const state = await getOntologyAdminSessionState();
+  let state;
+  try {
+    state = await getJavaOntologyAdminSessionState();
+  } catch (error) {
+    if (error instanceof JavaBackendHttpError && error.status === 401) {
+      return <>{children}</>;
+    }
+    throw error;
+  }
 
   if (!state) {
     return <>{children}</>;
@@ -47,13 +58,13 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     );
   }
 
-  const { session } = state;
+  const { viewer } = state;
 
   return (
     <ShellLayout
       menuItems={ADMIN_MENU}
-      userDisplayName={session.displayName}
-      userId={session.userId}
+      userDisplayName={viewer.displayName}
+      userId={viewer.userId}
     >
       {children}
     </ShellLayout>

@@ -193,6 +193,8 @@ export type AnalysisExecutionStreamEvent = {
   tool?: ExecutionToolSnapshot;
   renderBlocks?: ExecutionRenderBlock[];
   metadata?: Record<string, unknown>;
+  errorCode?: string;
+  traceId?: string;
 };
 
 export class InvalidAnalysisExecutionStreamEventError extends Error {
@@ -769,6 +771,10 @@ export function validateAnalysisExecutionStreamEvent(
       !Array.isArray(candidate.metadata)
         ? (candidate.metadata as Record<string, unknown>)
         : undefined,
+    errorCode:
+      typeof candidate.errorCode === 'string' ? candidate.errorCode : undefined,
+    traceId:
+      typeof candidate.traceId === 'string' ? candidate.traceId : undefined,
   };
 }
 

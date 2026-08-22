@@ -128,69 +128,6 @@ test('Story 12.6 | 提交执行时把候选因素写入 job payload', async () =
   ]);
 });
 
-test('Story 12.6 | renderer 为验证步骤 stage-result 写入 validatedFactors metadata', async () => {
-  const result = await runTsSnippet(`
-    import validationModule from './src/application/analysis-execution/candidate-factor-validation.ts';
-    import rendererModule from './src/worker/analysis-execution-renderer.ts';
-    const { deriveCandidateFactorValidations } = validationModule;
-    const { buildStepResultEvent } = rendererModule;
-    const stepResult = {
-      status: 'completed',
-      strategy: '测试策略',
-      tools: [
-        { toolName: 'neo4j.graph-query', objective: '验证候选因素', confidence: 0.9 },
-      ],
-      events: [
-        {
-          ok: true,
-          toolName: 'neo4j.graph-query',
-          correlationId: 'corr-1',
-          startedAt: '2026-06-07T00:00:00.000Z',
-          finishedAt: '2026-06-07T00:00:01.000Z',
-          output: {
-            factors: [
-              {
-                factorLabel: '应收余额变化',
-                relationType: 'has-receivable',
-                explanation: '应收余额变化与收缴率波动相关',
-              },
-            ],
-          },
-        },
-      ],
-    };
-    const validatedFactors = deriveCandidateFactorValidations({
-      candidateFactors: [
-        { key: 'receivable-factor', label: '应收余额变化' },
-        { key: 'service-order-factor', label: '工单响应时效' },
-      ],
-      result: stepResult,
-    });
-    const event = buildStepResultEvent({
-      sessionId: 'session-1',
-      executionId: 'exec-1',
-      step: {
-        id: 'validate-candidate-factors',
-        order: 3,
-        title: '验证候选因素',
-      },
-      result: stepResult,
-      processedStepCount: 3,
-      totalStepCount: 4,
-      metadata: { validatedFactors },
-    });
-    console.log(JSON.stringify(event.metadata.validatedFactors));
-  `);
-
-  assert.equal(result.length, 2);
-  assert.equal(result[0].factorKey, 'receivable-factor');
-  assert.equal(result[0].status, 'supported');
-  assert.match(result[0].note, /应收余额变化/);
-  assert.equal(result[1].factorKey, 'service-order-factor');
-  assert.equal(result[1].status, 'inconclusive');
-  assert.match(result[1].note, /没有命中/);
-});
-
 test('Story 12.6 | 工具明确空结果时逐因素标记为 not-supported', async () => {
   const result = await runTsSnippet(`
     import validationModule from './src/application/analysis-execution/candidate-factor-validation.ts';

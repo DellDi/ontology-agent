@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "conclusion-state.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["causes", "renderBlocks"],
+  "properties": {
+    "causes": { "type": "array", "items": { "$ref": "#/$defs/cause" } },
+    "renderBlocks": { "type": "array", "items": { "$ref": "#/$defs/renderBlock" } },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidenceProjection" } },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "evidenceRefs": {
+                "type": "array",
+                "contains": {
+                  "type": "object",
+                  "properties": { "source": { "const": "erp-staging" } },
+                  "required": ["source"]
+                }
+              }
+            },
+            "required": ["evidenceRefs"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "evidenceRefs": {
+                "type": "array",
+                "contains": {
+                  "type": "object",
+                  "properties": { "source": { "const": "cube" } },
+                  "required": ["source"]
+                }
+              }
+            },
+            "required": ["evidenceRefs"]
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "evidenceRefs": {
+                "type": "array",
+                "contains": {
+                  "type": "object",
+                  "properties": { "source": { "const": "neo4j" } },
+                  "required": ["source"]
+                }
+              }
+            },
+            "required": ["evidenceRefs"]
+          }
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "evidenceRefs"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "evidenceRefs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "row", "field", "value"],
+              "properties": {
+                "source": { "enum": ["erp-staging", "cube", "neo4j"] },
+                "row": { "type": "integer", "minimum": 0 },
+                "field": { "type": "string", "minLength": 1 },
+                "value": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "cause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "rank", "title", "summary", "confidence", "evidence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "rank": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "summary"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "summary": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "evidenceProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "title", "rowCount", "rows"],
+      "properties": {
+        "source": { "enum": ["erp-staging", "cube", "neo4j"] },
+        "title": { "type": "string", "minLength": 1 },
+        "rowCount": { "type": "integer", "minimum": 1 },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "object", "minProperties": 1 }
+        }
+      }
+    },
+    "renderBlock": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "title", "value", "tone"],
+          "properties": {
+            "type": { "const": "status" },
+            "title": { "type": "string", "minLength": 1 },
+            "value": { "type": "string", "minLength": 1 },
+            "tone": { "enum": ["neutral", "info", "success", "error"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "title", "content"],
+          "properties": {
+            "type": { "const": "markdown" },
+            "title": { "type": "string", "minLength": 1 },
+            "content": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "title", "summary", "evidence"],
+          "properties": {
+            "type": { "const": "evidence-card" },
+            "title": { "type": "string", "minLength": 1 },
+            "summary": { "type": "string", "minLength": 1 },
+            "evidence": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "summary"],
+                "properties": {
+                  "label": { "type": "string", "minLength": 1 },
+                  "summary": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "title", "columns", "rows"],
+          "properties": {
+            "type": { "const": "table" },
+            "title": { "type": "string", "minLength": 1 },
+            "columns": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "rows": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "title", "items"],
+          "properties": {
+            "type": { "const": "kv-list" },
+            "title": { "type": "string", "minLength": 1 },
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "value"],
+                "properties": {
+                  "label": { "type": "string", "minLength": 1 },
+                  "value": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

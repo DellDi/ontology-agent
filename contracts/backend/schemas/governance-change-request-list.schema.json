@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "governance-change-request-list.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["items", "capabilities"],
+  "properties": {
+    "items": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/changeRequest" } },
+    "capabilities": { "$ref": "governance-shared.schema.json#/$defs/capabilities" }
+  }
+}

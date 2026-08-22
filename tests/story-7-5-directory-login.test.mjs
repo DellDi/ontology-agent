@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 
@@ -172,8 +172,7 @@ test.before(async () => {
 
 test.after(async () => {
   if (serverProcess) {
-    serverProcess.kill('SIGINT');
-    await once(serverProcess, 'exit');
+  await stopProcessTree(serverProcess);
   }
 });
 

@@ -1,6 +1,9 @@
 import Link from 'next/link';
 
-import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import {
+  getGovernanceOverview,
+  requireJavaOntologyAdminSession,
+} from '@/infrastructure/java-backend';
 import { Button } from '@/app/_components/button';
 
 import {
@@ -12,13 +15,12 @@ import {
 import { getCRStatusLabel } from '../../_lib/admin-labels';
 
 export default async function OntologyAdminOverviewPage() {
-  const state = await requireOntologyAdminSession('/admin/ontology');
+  const state = await requireJavaOntologyAdminSession('/admin/ontology');
   if (state.accessDeniedMessage) {
     return null;
   }
 
-  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
-  const overview = await adminUseCases.loadOverview();
+  const overview = await getGovernanceOverview();
 
   return (
     <section className="space-y-6">
@@ -34,21 +36,6 @@ export default async function OntologyAdminOverviewPage() {
           </div>
         }
       />
-
-      {overview.riskNotes.length > 0 ? (
-        <article
-          className="rounded-md border border-[color:var(--warning-500)]/40 bg-[color:color-mix(in_srgb,var(--warning-500)_14%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
-          role="alert"
-          aria-live="assertive"
-        >
-          <p className="font-semibold text-foreground">需关注的治理风险</p>
-          <ul className="mt-2 list-disc pl-5 text-sm leading-6 text-muted-foreground">
-            {overview.riskNotes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </article>
-      ) : null}
 
       <article className="grid gap-4 md:grid-cols-2">
         <AdminCard
@@ -90,14 +77,14 @@ export default async function OntologyAdminOverviewPage() {
           <div className="rounded-lg bg-muted p-5 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">待审批变更</span>
-              <StatusBadge tone={overview.pendingChangeRequests.length > 0 ? 'warning' : 'neutral'}>
-                {overview.pendingChangeRequests.length}
+              <StatusBadge tone={overview.pendingReviewCount > 0 ? 'warning' : 'neutral'}>
+                {overview.pendingReviewCount}
               </StatusBadge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">已审批待发布</span>
-              <StatusBadge tone={overview.approvedAwaitingPublish.length > 0 ? 'info' : 'neutral'}>
-                {overview.approvedAwaitingPublish.length}
+              <StatusBadge tone={overview.approvedAwaitingPublishCount > 0 ? 'info' : 'neutral'}>
+                {overview.approvedAwaitingPublishCount}
               </StatusBadge>
             </div>
             <div className="flex items-center justify-between">

@@ -1,6 +1,11 @@
 import { notFound } from 'next/navigation';
 
-import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import {
+  getGovernanceChangeRequest,
+  getGovernanceVersions,
+  JavaBackendHttpError,
+  requireJavaOntologyAdminSession,
+} from '@/infrastructure/java-backend';
 import { ChangeRequestDetailClient } from '../../_components/change-request-detail-client';
 
 type CRDetailPageProps = {
@@ -15,21 +20,27 @@ export default async function OntologyAdminChangeRequestDetailPage({
   const { id } = await params;
   await searchParams;
 
-  const state = await requireOntologyAdminSession(`/admin/ontology/change-requests/${id}`);
+  const state = await requireJavaOntologyAdminSession(`/admin/ontology/change-requests/${id}`);
   if (state.accessDeniedMessage) return null;
 
-  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
-  const detail = await adminUseCases.getChangeRequestDetail(id);
-  if (!detail) {
-    notFound();
+  let detail;
+  try {
+    detail = await getGovernanceChangeRequest(id);
+  } catch (error) {
+    if (error instanceof JavaBackendHttpError && error.status === 404) notFound();
+    throw error;
   }
+  const versions = await getGovernanceVersions(100);
 
   return (
     <ChangeRequestDetailClient
       changeRequestId={id}
       initialData={{
-        ...detail,
-        capabilities: state.capabilities,
+        changeRequest: detail.changeRequest,
+        approvalHistory: detail.approvals,
+        version: versions.items.find((version) =>
+          version.id === detail.changeRequest.ontologyVersionId) ?? null,
+        capabilities: detail.capabilities,
       }}
     />
   );

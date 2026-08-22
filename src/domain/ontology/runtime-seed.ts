@@ -10,7 +10,7 @@
  *
  * 边界：
  * - 本文件只定义对象的值，不执行 DB 操作。
- * - 新环境 bootstrap 由 `scripts/ontology-bootstrap.mts` 装配并调用
+ * - 新环境 bootstrap 已迁移到 Java Ontology Bootstrap API；这里仅保留旧 TypeScript 领域测试所需定义
  *   `createOntologyBootstrapUseCases(...).bootstrapCanonicalDefinitions({ ... })`。
  * - 本 baseline 不等同于"生产永久定义"——后续 `9.4` 的 change request / approval / publish
  *   流程仍是唯一合法的版本演进路径；本 seed 只负责新环境能被稳定拉起来。
@@ -349,7 +349,7 @@ export type OntologyRuntimeSeedPackage = {
  * 组装首个可运行 ontology version 的完整 seed package。
  *
  * 用于：
- * - operator CLI (`scripts/ontology-bootstrap.mts`)
+ * - legacy TypeScript tests; production bootstrap is owned by the Java backend
  * - 集成测试中需要真实运行时 baseline 的场景（非测试专用 snippet）
  *
  * 不包含 toolBindings —— 后者由 `bootstrapCanonicalDefinitions` 内部

@@ -1,0 +1,31 @@
+{
+  "id": "graph-bootstrap-1",
+  "mode": "full-bootstrap",
+  "status": "completed",
+  "scopeType": "all",
+  "scopeKey": "all",
+  "triggerType": "system",
+  "triggeredBy": "system-ops",
+  "cursorSnapshot": {
+    "capturedAt": "2026-08-22T01:00:00Z",
+    "correlationId": "trace-graph-bootstrap-1",
+    "watermarks": {
+      "erp.organizations": { "cursorTime": "2026-08-22T00:59:00Z", "cursorPk": "org-9", "invalidRows": 0 },
+      "erp.projects": { "cursorTime": "2026-08-22T00:59:00Z", "cursorPk": "project-9", "invalidRows": 0 },
+      "erp.owners": { "cursorTime": "2026-08-22T00:59:00Z", "cursorPk": "owner-9", "invalidRows": 0 },
+      "erp.charge_items": { "cursorTime": "2026-08-22T00:59:00Z", "cursorPk": "charge-9", "invalidRows": 0 },
+      "erp.receivables": { "cursorTime": "2026-08-22T00:59:00Z", "cursorPk": "receivable-9", "invalidRows": 0 },
+      "erp.payments": { "cursorTime": "2026-08-22T00:59:00Z", "cursorPk": "payment-9", "invalidRows": 0 },
+      "erp.service_orders": { "cursorTime": "2026-08-22T00:59:00Z", "cursorPk": "service-order-9", "invalidRows": 0 }
+    },
+    "fencingToken": 42
+  },
+  "nodesWritten": 120,
+  "edgesWritten": 180,
+  "errorSummary": null,
+  "errorDetail": null,
+  "startedAt": "2026-08-22T01:00:01Z",
+  "finishedAt": "2026-08-22T01:00:09Z",
+  "createdAt": "2026-08-22T01:00:00Z",
+  "updatedAt": "2026-08-22T01:00:09Z"
+}

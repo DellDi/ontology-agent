@@ -1,0 +1,21 @@
+{
+  "created": true,
+  "status": {
+    "state": "ready",
+    "ready": true,
+    "currentVersionId": "ontology-java-baseline-v1",
+    "semver": "1.0.0",
+    "definitionCounts": {
+      "entities": 1,
+      "metrics": 1,
+      "metricVariants": 3,
+      "factors": 1,
+      "causalityEdges": 1,
+      "planStepTemplates": 4,
+      "toolBindings": 4,
+      "timeSemantics": 2,
+      "evidenceTypes": 1
+    }
+  },
+  "correlationId": "trace-ontology-bootstrap-1"
+}

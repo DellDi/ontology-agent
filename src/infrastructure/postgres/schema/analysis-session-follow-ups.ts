@@ -1,4 +1,5 @@
-import { bigint, index, integer, jsonb, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigint, index, integer, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 import { platformSchema } from './auth-sessions';
 
@@ -50,6 +51,9 @@ export const analysisSessionFollowUps = platformSchema.table(
     index('analysis_session_follow_ups_result_execution_idx').on(
       table.resultExecutionId,
     ),
+    uniqueIndex('analysis_session_follow_ups_result_execution_uidx')
+      .on(table.resultExecutionId)
+      .where(sql`result_execution_id is not null`),
     index('analysis_session_follow_ups_ontology_version_idx').on(
       table.ontologyVersionId,
     ),

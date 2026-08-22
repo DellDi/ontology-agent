@@ -58,7 +58,46 @@ test('workspace home model 应输出项目数量摘要与项目名称列表，�
   assert.deepEqual(result.projectDisplayNames, ['丰和园小区项目', '访客模式']);
 });
 
-test('workspace 首页应显示项目数量摘要和查看详情入口，不应直接平铺项目 ID', async () => {
+test('area-only workspace 使用 Java home 返回的 scopedProjects', async () => {
+  const result = await runTsSnippet(`
+    import workspaceHomeModule from './src/application/workspace/home.ts';
+
+    const { createWorkspaceHomeModel } = workspaceHomeModule;
+    const model = createWorkspaceHomeModel(
+      {
+        userId: 'u-area',
+        displayName: '区域分析员',
+        scope: {
+          organizationId: '240',
+          projectIds: [],
+          areaIds: ['area-east'],
+          roleCodes: [],
+        },
+      },
+      [],
+      [
+        { id: '10030', name: '丰和园小区项目' },
+        { id: '10040', name: '访客模式' },
+      ],
+    );
+
+    console.log(JSON.stringify({
+      canCreateAnalysis: model.canCreateAnalysis,
+      actionStatus: model.analysisActions[0].status,
+      emptyState: model.emptyState,
+      projectScopeSummary: model.projectScopeSummary,
+      projectDisplayNames: model.projectDisplayNames,
+    }));
+  `);
+
+  assert.equal(result.canCreateAnalysis, true);
+  assert.equal(result.actionStatus, 'ready');
+  assert.equal(result.emptyState, null);
+  assert.equal(result.projectScopeSummary, '已覆盖 2 个项目');
+  assert.deepEqual(result.projectDisplayNames, ['丰和园小区项目', '访客模式']);
+});
+
+test('workspace 首页应显示项目详情入口，不应直接平铺项目 ID', async () => {
   const result = await runTsSnippet(`
     import React from 'react';
     import { renderToStaticMarkup } from 'react-dom/server';
@@ -96,7 +135,6 @@ test('workspace 首页应显示项目数量摘要和查看详情入口，不应�
     console.log(JSON.stringify({ html }));
   `);
 
-  assert.match(result.html, /已覆盖 3 个项目/);
   assert.match(result.html, /查看项目详情/);
   assert.doesNotMatch(result.html, />10030</);
   assert.doesNotMatch(result.html, />10040</);
