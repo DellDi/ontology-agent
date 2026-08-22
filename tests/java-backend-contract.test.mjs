@@ -616,3 +616,50 @@ test('Next adapter fails explicitly when JAVA_BACKEND_URL is absent', async () =
     traceId: 'trace-missing',
   });
 });
+
+test('Next auth routes are pure Java proxies and Set-Cookie passes through', async (context) => {
+  for (const path of [
+    'src/app/api/auth/login/route.ts',
+    'src/app/api/auth/logout/route.ts',
+    'src/app/api/auth/callback/route.ts',
+    'src/app/api/auth/directory-login/route.ts',
+    'src/app/api/auth/bridge/route.ts',
+    'src/app/api/auth/me/route.ts',
+  ]) {
+    const source = await readFile(new URL(path, root), 'utf8');
+    assert.match(source, /forwardJavaBackendRequest\(request\)/, `${path} 必须是 Java 代理`);
+    assert.doesNotMatch(source, /server-auth|getRequestSession|NextResponse/, `${path} 不得持有 Node 会话逻辑`);
+  }
+
+  const loginPage = await readFile(new URL('src/app/(auth)/login/page.tsx', root), 'utf8');
+  assert.match(loginPage, /getCurrentViewer/, '登录页通过 Java viewer 判断会话');
+  assert.match(loginPage, /getAuthConfig/, '登录页通过 Java config 读取能力状态');
+  assert.doesNotMatch(loginPage, /server-auth/, '登录页不得引用 Node 会话模块');
+
+  const server = createServer((request, response) => {
+    response.statusCode = 303;
+    response.setHeader('Location', '/workspace?loggedIn=1');
+    response.setHeader('Set-Cookie',
+      'dip3_session=payload.sig; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800');
+    response.end();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => server.close());
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  process.env.JAVA_BACKEND_URL = `http://127.0.0.1:${address.port}`;
+
+  const login = await forwardJavaBackendRequest(new Request('http://next.local/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-correlation-id': 'trace-auth' },
+    body: 'employeeId=u-1&organizationId=org-1',
+  }));
+  assert.equal(login.status, 303);
+  assert.equal(login.headers.get('location'), '/workspace?loggedIn=1');
+  assert.equal(
+    login.headers.get('set-cookie'),
+    'dip3_session=payload.sig; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800',
+    'Set-Cookie 必须原样透传到浏览器',
+  );
+});

@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
 
 import {
-  getDevAuthPageState,
-  getRequestSession,
-  isDirectoryAuthAvailable,
-} from '@/infrastructure/session/server-auth';
+  getAuthConfig,
+  getCurrentViewer,
+  JavaBackendHttpError,
+} from '@/infrastructure/java-backend';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
 import { Badge } from '@/app/_components/workbench/badge';
 import { StatusBanner } from '@/app/_components/workbench/status-banner';
@@ -32,13 +32,27 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const errorMessage = readSearchParam(params.error);
   const loggedOut = readSearchParam(params.loggedOut);
   const prefillAccount = readSearchParam(params.account);
-  const session = await getRequestSession();
-  const devAuthState = getDevAuthPageState();
-  const directoryAvailable = isDirectoryAuthAvailable();
+  const authConfig = await getAuthConfig();
+  const directoryAvailable = authConfig.directoryAuthAvailable;
 
-  if (session && hasWorkspaceAccess(session)) {
+  let viewer: Awaited<ReturnType<typeof getCurrentViewer>> | null = null;
+  try {
+    viewer = await getCurrentViewer();
+  } catch (error) {
+    if (!(error instanceof JavaBackendHttpError && error.status === 401)) {
+      throw error;
+    }
+  }
+
+  if (viewer && hasWorkspaceAccess(viewer)) {
     redirect(nextPath);
   }
+
+  const devAuthState = {
+    devErpAuthEnabled: authConfig.devAuthEnabled,
+    disabledMessage:
+      '当前环境未开放开发联调登录入口，请改用真实 ERP 登录流程或显式开启开发认证开关。',
+  };
 
   const businessCapabilities = [
     {

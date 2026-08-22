@@ -1,17 +1,5 @@
-import { NextResponse } from 'next/server';
+import { forwardJavaBackendRequest } from '@/infrastructure/java-backend';
 
-import { getRequestSession } from '@/infrastructure/session/server-auth';
-
-export async function GET() {
-  const session = await getRequestSession();
-
-  if (!session) {
-    return NextResponse.json({ error: '未登录' }, { status: 401 });
-  }
-
-  return NextResponse.json({
-    userId: session.userId,
-    displayName: session.displayName,
-    scope: session.scope,
-  });
+export async function GET(request: Request) {
+  return forwardJavaBackendRequest(request);
 }

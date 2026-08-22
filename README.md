@@ -5,7 +5,9 @@
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react" alt="React 19">
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript" alt="TypeScript 5">
   <img src="https://img.shields.io/badge/TailwindCSS-4-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind CSS 4">
-  <img src="https://img.shields.io/badge/Drizzle%20ORM-0.45-C5F74F?style=flat-square&logo=drizzle" alt="Drizzle ORM">
+  <img src="https://img.shields.io/badge/Java%2021-ED8B00?style=flat-square&logo=openjdk" alt="Java 21">
+  <img src="https://img.shields.io/badge/Spring%20Boot%204.1-6DB33F?style=flat-square&logo=spring" alt="Spring Boot 4.1">
+  <img src="https://img.shields.io/badge/Flyway-CC0200?style=flat-square&logo=flyway" alt="Flyway">
   <img src="https://img.shields.io/badge/PostgreSQL-18-336791?style=flat-square&logo=postgresql" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Redis-8-DC382D?style=flat-square&logo=redis" alt="Redis">
 </p>
@@ -38,17 +40,18 @@
 ## 🏗️ 技术架构
 
 ```
-Next.js 16 / React 19
+Next.js 16 / React 19（仅页面渲染、Java BFF、Web 观测与 UI 映射）
   ├─ Web 工作台
-  └─ 透明 API Adapter
+  └─ 透明 API Adapter（含全部认证路由）
           │
           ▼
 Java 21 / Spring Boot 4.1 / Spring AI 2.0
+  ├─ 认证：登录 / 退出 / ERP 目录与权限范围解析 / Session
   ├─ Main Agent ──唯一一次 tool call──▶ Analysis Workflow
   ├─ Analysis / Follow-up / Ontology / Graph Sync / Read API
   └─ Domain → Application Ports → Infrastructure Adapters
           │
-          ├─ PostgreSQL（业务与任务事实源）
+          ├─ PostgreSQL（业务与任务事实源，Flyway 迁移）
           ├─ Redis（任务唤醒）
           ├─ Cube（语义指标）
           ├─ Neo4j（受权限约束的图上下文）
@@ -89,9 +92,14 @@ docker compose up -d postgres redis cube neo4j
 
 ### 4. 数据库迁移
 
+数据库所有权归 Java backend：迁移脚本位于 `backend-java/src/main/resources/db/migration/`（V1~V6 由原 Drizzle 迁移收编，后续只新增 V7+），由 Flyway 独立入口执行（应用启动不自动迁移）。
+
 ```bash
-pnpm db:migrate
+pnpm db:migrate   # 等价于 mvn -f backend-java/pom.xml spring-boot:run -Dspring-boot.run.profiles=migrate
 ```
+
+> 老库（Drizzle 已迁移）会先严格核对 V1~V6 落库状态，再显式 `baseline 6`，之后只执行 V7+；
+> 全新库直接全量执行 V1~V6；中间态（部分迁移）会 fail loud 拒绝继续。
 
 ### 5. 启动开发服务器
 
@@ -123,15 +131,15 @@ docker compose down -v
 ```tree
 ontology-agent/
 ├── src/
-│   ├── app/                             # Next.js UI、认证与 Java API 透明代理
+│   ├── app/                             # Next.js UI 与 Java API 透明代理（含认证路由）
 │   ├── infrastructure/java-backend/     # Java API 客户端与跨端契约
-│   └── infrastructure/postgres/schema/  # 与 Java 共用的 Drizzle schema
-├── backend-java/src/main/java/          # Java features、ports 与 adapters
+│   └── infrastructure/observability/    # Web 观测
+├── backend-java/src/main/java/          # Java features、ports 与 adapters（含认证）
+├── backend-java/src/main/resources/db/migration/  # Flyway V1~V6（数据库唯一事实源）
 ├── contracts/backend/                   # Web / Java 共享契约
-├── drizzle/                             # 数据库迁移
-├── tests/                               # 跨端契约与历史 story 验证
+├── tests/                               # 跨端契约与仍有效的前端行为验证
 ├── docs/                                # 架构、运行与部署文档
-├── compose.yaml                         # 本地联调拓扑
+├── compose.yaml                         # 本地联调拓扑（migrate 走 Java Flyway）
 └── compose.prod.yaml                    # 生产容器拓扑
 ```
 
@@ -140,10 +148,12 @@ ontology-agent/
 | 变量 | 说明 | 默认值 |
 | --- | --- | --- |
 | `APP_PORT` | 应用端口 | `3000` |
-| `DATABASE_URL` | PostgreSQL 连接字符串 | 见 `.env.example` |
-| `REDIS_URL` | Redis 连接字符串 | `redis://127.0.0.1:6379` |
-| `SESSION_SECRET` | 会话签名密钥 (必填) | - |
-| `ENABLE_DEV_ERP_AUTH` | 开发联调登录开关 | `1` |
+| `JAVA_DATABASE_URL` | Java backend PostgreSQL 连接（`POSTGRES_*` 派生） | 见 `.env.example` |
+| `REDIS_URL` | Redis 连接字符串（仅供 Java backend） | `redis://127.0.0.1:6379` |
+| `SESSION_SECRET` | 会话签名密钥 (必填，Java backend) | - |
+| `ENABLE_DEV_ERP_AUTH` | 开发联调登录开关（Java backend） | `0` |
+| `ERP_API_BASE_URL` | ERP 目录认证接口（Java backend，登录必需） | - |
+| `COOKIE_SECURE` | 会话 Cookie 是否 Secure（生产置 `true`） | `false` |
 | `LLM_PROVIDER_BASE_URL` | OpenAI-compatible API 基础 URL | `https://api.openai.com/v1` |
 | `LLM_PROVIDER_API_KEY` | Provider API Key (必填) | - |
 | `LLM_PROVIDER_MODEL` | 主模型 (必填) | - |
@@ -161,10 +171,8 @@ ontology-agent/
 pnpm dev                    # 启动 Next.js 开发服务器
 mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run
 
-# 数据库
-pnpm db:generate            # 生成 Drizzle 迁移
-pnpm db:migrate             # 执行数据库迁移
-pnpm db:studio              # 打开 Drizzle Studio 数据浏览器
+# 数据库（Flyway，Java 独立迁移入口）
+pnpm db:migrate             # 执行迁移（新库全量 V1~V6 / 老库 baseline 6 后 V7+）
 
 # 代码质量
 pnpm lint                   # ESLint 检查
@@ -188,7 +196,7 @@ docker compose down -v      # 停止并清理数据卷
 | **单一事实源** | PostgreSQL 保存会话、执行与任务事实；Redis 只负责唤醒，不保存 canonical job data |
 | **Main Agent + Workflow Tool** | Main Agent 只调用一次 workflow tool，确定性工作流负责权限、取数和持久化 |
 | **Fail Loud** | Provider、契约、权限或数据错误明确失败，不切模型、不生成替代答案、不返回伪成功 |
-| **前端边界** | Next.js 负责展示、认证和透明代理，不承载 Agent、Workflow、Cube 或 Neo4j 业务实现 |
+| **前端边界** | Next.js 只负责展示、Java BFF 透明代理、Web 观测与 UI 映射；认证、数据库与全部业务实现由 Java 承载 |
 | **安全边界** | `sanitizeNextPath()` 防 Open Redirect；服务端强制授权 |
 | **中文优先** | 错误消息面向终端用户，使用中文；代码标识符使用英文 |
 
@@ -202,10 +210,17 @@ tests/story-{epic}-{story}-{name}.test.mjs
 
 **已覆盖场景:**
 
-- Java：Main Agent、Workflow、首次分析、追问、持久化、权限、Ontology Governance 与 Graph Sync。
+- Java：认证（登录/退出/ERP 目录与权限范围解析/Session）、Main Agent、Workflow、首次分析、追问、持久化、权限、Ontology Governance 与 Graph Sync；Flyway V1~V6 与 baseline 6 迁移策略。
 - 真实基础设施：PostgreSQL 17、Neo4j 5、Redis job wakeup 与生产 Compose。
-- 跨端契约：Draft 2020-12 JSON Schema、Next Zod、透明 Route Adapter 与移动端 view model。
-- 前端：认证、工作台、SSE、历史轮次、权限展示与管理页面交互。
+- 跨端契约：Draft 2020-12 JSON Schema、Next Zod、透明 Route Adapter（含认证路由与 Set-Cookie 透传）与移动端 view model。
+- 前端：登录、工作台、SSE、历史轮次、权限展示与管理页面交互。
+
+## 🔒 安全说明
+
+`scripts/pgloader/migrate-node-fast.mjs` 曾包含硬编码的远端 MySQL 连接凭据，该文件已从仓库移除，但
+**凭据已进入 Git 历史**。请立即轮换对应 MySQL 账号/密码（以及历史 PostgreSQL 开发账号密码），
+并确认该连接串未出现在任何第三方日志、CI 缓存或公开镜像中。仓库未重写 Git 历史；若需要彻底清除，
+需使用 `git filter-repo` 并协调所有协作者强制更新远端。
 
 ## 📝 更新日志
 

@@ -11,6 +11,7 @@ export {
 } from './governance-client';
 export {
   getAnalysisSession,
+  getAuthConfig,
   getCurrentViewer,
   getWorkspaceHome,
   JavaBackendHttpError,

@@ -96,16 +96,19 @@ test('AC1 Dockerfile.java 使用 Java 21 多阶段构建并启动正式 Spring B
   assert.ok(content.includes('/app/application.jar'), 'Java 镜像必须启动 Spring Boot JAR');
 });
 
-test('AC1 migrate 镜像与 Node Worker 运行入口彻底分离', async () => {
-  assert.ok(existsSync(path.join(ROOT, 'Dockerfile.migrate')), 'Dockerfile.migrate 必须存在');
+test('AC1 数据库迁移由 Java Flyway 独占，Drizzle 与 Node Worker 入口彻底移除', async () => {
+  assert.equal(existsSync(path.join(ROOT, 'Dockerfile.migrate')), false, 'Dockerfile.migrate 必须删除（迁移归 Java 所有）');
   assert.equal(existsSync(path.join(ROOT, 'Dockerfile.worker')), false, '不得保留可误启动的 Node Worker 镜像');
-  const migrate = await readFile(path.join(ROOT, 'Dockerfile.migrate'), 'utf8');
+  assert.equal(existsSync(path.join(ROOT, 'drizzle')), false, 'drizzle 目录必须删除');
+  assert.equal(existsSync(path.join(ROOT, 'drizzle.config.ts')), false, 'drizzle.config.ts 必须删除');
   const pkg = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
-  assert.match(migrate, /drizzle-kit/);
-  assert.doesNotMatch(migrate, /src\/worker\/main\.ts/);
-  assert.doesNotMatch(migrate, /COPY src \.\/src/, '迁移镜像不得复制整个 src 或旧 Worker 源码');
-  assert.match(migrate, /COPY src\/infrastructure\/postgres\/schema \.\/src\/infrastructure\/postgres\/schema/);
+  const backendPom = await readFile(path.join(ROOT, 'backend-java/pom.xml'), 'utf8');
+  assert.match(backendPom, /flyway-core/, 'Java 工程必须声明 Flyway');
+  assert.match(backendPom, /flyway-database-postgresql/, 'Java 工程必须声明 PostgreSQL 方言');
   assert.equal(pkg.scripts['worker:dev'], undefined);
+  assert.equal(pkg.scripts['db:generate'], undefined, '不得再暴露 drizzle generate 入口');
+  assert.equal(pkg.scripts['db:studio'], undefined, '不得再暴露 drizzle studio 入口');
+  assert.match(pkg.scripts['db:migrate'], /spring-boot\.run\.profiles=migrate/, 'db:migrate 必须走 Java migrate profile');
 });
 
 test('Node 工具链固定 pnpm 版本并显式许可所需原生构建', async () => {
@@ -141,12 +144,20 @@ test('AC2 生产 Web 容器不持有 Cube、Neo4j 或模型 Provider 凭据', as
   assert.doesNotMatch(webBlock, /CUBE_API_SECRET|NEO4J_PASSWORD|LLM_PROVIDER_API_KEY/);
 });
 
-test('AC2 生产 compose ENABLE_DEV_ERP_AUTH 强制为 0', async () => {
+test('AC2 生产 compose ENABLE_DEV_ERP_AUTH 强制为 0，认证配置只注入 Java backend', async () => {
   const content = await readFile(path.join(ROOT, 'compose.prod.yaml'), 'utf8');
+  const backendBlock = content.match(/^  backend:\r?\n[\s\S]*?(?=^  migrate:)/m)?.[0];
+  assert.ok(backendBlock, '应能定位生产 backend service 配置');
   assert.ok(
-    content.includes('ENABLE_DEV_ERP_AUTH: "0"'),
-    'compose.prod.yaml 必须将 ENABLE_DEV_ERP_AUTH 固定为 "0"',
+    backendBlock.includes('ENABLE_DEV_ERP_AUTH: "0"'),
+    'Java backend 必须将 ENABLE_DEV_ERP_AUTH 固定为 "0"',
   );
+  assert.match(backendBlock, /ERP_API_BASE_URL: \$\{ERP_API_BASE_URL\}/);
+  assert.match(backendBlock, /COOKIE_SECURE: "true"/, '生产会话 Cookie 必须 Secure');
+  const webBlock = content.match(/^  web:\r?\n[\s\S]*?(?=^  backend:)/m)?.[0];
+  assert.ok(webBlock, '应能定位生产 web service 配置');
+  assert.doesNotMatch(webBlock, /ENABLE_DEV_ERP_AUTH|ERP_API_BASE_URL|SESSION_SECRET/,
+    'Web 容器不得再持有认证相关配置');
 });
 
 test('AC3 生产 compose 定义 web/backend/postgres/redis 四个核心边界', async () => {
@@ -158,7 +169,8 @@ test('AC3 生产 compose 定义 web/backend/postgres/redis 四个核心边界', 
   assert.match(content, /JAVA_BACKEND_URL: http:\/\/backend:8080/);
   assert.match(content, /JAVA_GRAPH_SYNC_ENABLED: \$\{JAVA_GRAPH_SYNC_ENABLED:-true\}/);
   assert.match(content, /GRAPH_SYNC_OPS_SECRET: \$\{GRAPH_SYNC_OPS_SECRET\}/);
-  assert.match(content, /dockerfile: Dockerfile\.migrate/);
+  assert.match(content, /dockerfile: Dockerfile\.java/, 'migrate 必须使用 Java 镜像');
+  assert.match(content, /--spring\.profiles\.active=migrate/, 'migrate 必须走 Java migrate profile');
   assert.match(content, /^  preflight:/m, '生产拓扑必须提供同网络的一次性 preflight 服务');
   assert.match(content, /preflight-java-cutover\.sql:\/opt\/ontology-agent\/preflight\.sql:ro/);
 });
@@ -251,7 +263,7 @@ test('AC1 migrate 服务能成功运行（退出码 0）', { skip: !RUN_CONTAINE
 
     // 运行 migrate（one-shot，等待完成）
     const { stdout, stderr } = await dc('run', '--rm', '--no-deps', 'migrate');
-    // drizzle-kit 输出到 stderr，stdout 可能为空
+    // Flyway 迁移输出到 stdout/stderr
     const combined = stdout + stderr;
     assert.ok(
       !combined.toLowerCase().includes('error') || combined.includes('No changes'),

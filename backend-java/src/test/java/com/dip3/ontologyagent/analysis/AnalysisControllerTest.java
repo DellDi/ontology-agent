@@ -51,7 +51,8 @@ class AnalysisControllerTest {
                 new BackendProperties.Cube("http://cube", "secret", Duration.ofSeconds(1)),
                 new BackendProperties.Neo4j("bolt://neo4j", "neo4j", "secret", "neo4j"),
                 new BackendProperties.Worker(false, Duration.ofSeconds(1)),
-                new BackendProperties.Stream(Duration.ofMillis(1), Duration.ofSeconds(1)));
+                new BackendProperties.Stream(Duration.ofMillis(1), Duration.ofSeconds(1)),
+                "", "", false, false, false);
         mvc = MockMvcBuilders.standaloneSetup(
                         new AnalysisController(auth, analyses, new JsonCodec(), properties, followUps))
                 .setControllerAdvice(new ApiExceptionHandler()).build();

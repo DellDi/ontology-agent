@@ -10,17 +10,9 @@ services:
         condition: service_completed_successfully
       backend:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       APP_PORT: ${APP_PORT}
       JAVA_BACKEND_URL: http://backend:8080
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379
-      SESSION_SECRET: ${SESSION_SECRET}
-      ENABLE_DEV_ERP_AUTH: ${ENABLE_DEV_ERP_AUTH}
     ports:
       - "127.0.0.1:${APP_PORT}:${APP_PORT}"
     volumes:
@@ -53,23 +45,15 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.java
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    volumes:
-      - .:/workspace
-      - web-node-modules:/workspace/node_modules
-      - pnpm-store:/pnpm/store
-    working_dir: /workspace
-    command:
-      [
-        "bash",
-        "-lc",
-        "echo 'Running database migrations...' && ./scripts/docker/ensure-node-modules.sh && pnpm db:migrate && echo 'Migrations complete'",
-      ]
+      JAVA_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      JAVA_DATABASE_USERNAME: ${POSTGRES_USER}
+      JAVA_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["--spring.profiles.active=migrate"]
     restart: "no"
 
   redis:
@@ -108,6 +92,10 @@ services:
       REDIS_URL: redis://redis:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX}
       SESSION_SECRET: ${SESSION_SECRET}
+      ERP_API_BASE_URL: ${ERP_API_BASE_URL}
+      ENABLE_DEV_ERP_AUTH: ${ENABLE_DEV_ERP_AUTH}
+      ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CUBE_API_URL: http://cube:4000/cubejs-api/v1
       CUBE_API_SECRET: ${CUBE_API_SECRET}
       CUBE_QUERY_TIMEOUT_MS: ${CUBE_QUERY_TIMEOUT_MS}

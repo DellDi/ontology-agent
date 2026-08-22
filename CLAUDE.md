@@ -7,38 +7,25 @@
 ```
 ontology-agent/
 ├── src/
-│   ├── app/                        # Next.js App Router (presentation)
-│   │   ├── (admin)/                # 管理后台路由组 (planned)
-│   │   ├── (auth)/login/           # 登录页
+│   ├── app/                        # Next.js App Router (presentation + Java BFF 代理)
+│   │   ├── (auth)/login/           # 登录页（Java /api/auth/me + /api/auth/config 驱动）
 │   │   ├── (workspace)/            # 工作台路由组 + layout
-│   │   │   ├── workspace/          # 工作台首页 & 分析会话页
-│   │   │   └── _components/        # 工作台私有组件
 │   │   ├── api/
-│   │   │   ├── auth/               # 认证 API (login, logout, callback)
-│   │   │   └── analysis/sessions/  # 分析会话 API
-│   │   ├── layout.tsx              # Root layout (lang=zh-CN)
-│   │   └── globals.css             # Tailwind CSS 入口
-│   ├── domain/                     # 领域层 — 纯模型与策略
-│   │   ├── auth/                   # 认证模型 & 错误
-│   │   ├── analysis-session/       # 分析会话模型
-│   │   └── scope-boundary/         # 数据权限边界策略
-│   ├── application/                # 应用层 — 用例与端口
-│   │   ├── auth/                   # ports.ts + use-cases.ts
-│   │   ├── analysis-session/       # ports.ts + use-cases.ts
-│   │   └── workspace/             # home.ts
-│   ├── infrastructure/             # 基础设施层 — 适配器实现
-│   │   ├── postgres/               # Drizzle client & schema
-│   │   ├── session/                # 会话存储 (memory / postgres / cookie)
-│   │   ├── analysis-session/       # 分析会话存储 (memory / postgres)
-│   │   └── erp-auth/               # ERP 认证开发适配器
+│   │   │   ├── auth/               # 认证 API 透明代理 (login, logout, callback, ...)
+│   │   │   └── analysis/sessions/  # 分析会话 API 透明代理
+│   ├── domain/                     # 领域层 — 纯模型（UI 映射用）
+│   ├── application/                # 应用层 — 纯 read-model 用例（UI 映射用）
+│   ├── infrastructure/
+│   │   ├── java-backend/           # Java API 客户端与跨端契约
+│   │   └── observability/          # Web 观测
 │   └── shared/                     # 共享工具
-│       └── permissions/            # 权限摘要格式化
-├── tests/                          # Story-based 测试
-├── drizzle/                        # Drizzle 迁移文件
+├── backend-java/                   # Java 21 / Spring Boot 4.1 后端（全部业务实现）
+│   └── src/main/resources/db/migration/  # Flyway V1~V6（数据库唯一迁移事实源）
+├── tests/                          # 前端/契约测试
+├── contracts/backend/              # Web / Java 共享契约
 ├── docs/                           # 项目文档
-├── compose.yaml                    # Docker Compose (web + postgres + redis)
-├── Dockerfile.dev                  # 开发容器 (Node 24 + pnpm)
-└── drizzle.config.ts               # Drizzle Kit 配置
+├── compose.yaml                    # Docker Compose (web + backend + migrate + 基础设施)
+└── Dockerfile.java                 # Java 镜像（backend 与 migrate 共用）
 ```
 
 ## Architecture
@@ -53,18 +40,18 @@ Clean Architecture (六边形架构)，依赖方向：`domain` ← `application`
 | `app` | Next.js App Router | 组装依赖，处理 HTTP |
 
 - 路径别名: `@/*` → `./src/*`
-- 安全: `sanitizeNextPath()` 防止 Open Redirect，重定向限 `/workspace` 下
-- 权限: `PermissionScope` 定义组织、项目、区域、角色四维边界
+- 安全: `sanitizeNextPath()` 防止 Open Redirect，重定向限 `/workspace`、`/admin` 下（Java `AuthLoginService` 与 Next 登录页共用同一语义）
+- 权限: `PermissionScope` 定义组织、项目、区域、角色四维边界；ERP 目录解析在 Java（组织路径 → propertyProject → precinct），目录账号只授予 `PROPERTY_ANALYST`，无账号名特判
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router) + React 19
-- **Language**: TypeScript 5, strict mode
-- **Database**: PostgreSQL 18 + Drizzle ORM 0.45
-- **Cache**: Redis 8
+- **Frontend**: Next.js 16 (App Router) + React 19 + TypeScript 5, strict mode
+- **Backend**: Java 21 + Spring Boot 4.1 + MyBatis-Plus 3.5.17 + Spring AI 2.0
+- **Database**: PostgreSQL 18 + Flyway 12（迁移脚本 V1~V6 收编自原 Drizzle 0000~0005）
+- **Cache**: Redis 8（仅供 Java backend）
 - **Styling**: Tailwind CSS 4
 - **Package Manager**: pnpm
-- **Runtime**: Node.js 24
+- **Runtime**: Node.js 24（仅 Web 展示/代理/观测）+ JVM 21（全部业务与迁移）
 - **Container**: Docker Compose
 
 ## Setup & Commands
@@ -73,47 +60,50 @@ Clean Architecture (六边形架构)，依赖方向：`domain` ← `application`
 pnpm install                    # 安装依赖
 cp .env.example .env            # 创建环境变量
 docker compose up -d postgres redis  # 启动基础设施
-pnpm db:migrate                 # 数据库迁移
-pnpm dev                        # 开发服务器
+pnpm db:migrate                 # Flyway 迁移（Java migrate profile；老库自动严格核对后 baseline 6）
+pnpm dev                        # 开发服务器（Web）
+mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run  # Java API + Worker
 ```
 
 ```bash
 pnpm build                      # 生产构建
 pnpm lint                       # ESLint 检查
 pnpm lint:fix                   # 自动修复 lint
-pnpm db:generate                # 生成 Drizzle 迁移
-pnpm db:studio                  # Drizzle Studio
+mvn -f backend-java/pom.xml test  # Java 测试（Testcontainers）
 docker compose up -d            # 全容器模式
 docker compose down -v          # 停止并清理数据卷
 ```
 
+数据库迁移只允许新增 `backend-java/src/main/resources/db/migration/V{n}__*.sql`（V7+）；禁止改 V1~V6 内容。
+
 ## Testing
 
-测试文件: `tests/story-{epic}-{story}-{name}.test.mjs`
+测试文件: `tests/story-{epic}-{story}-{name}.test.mjs`（前端/契约）+ `backend-java/src/test/java`（Java 全量）
 
 已有覆盖:
-- Story 1.1-1.6: 认证、工作台、分析会话、历史、权限边界
-- Story 2.1-2.4: Docker Compose、Drizzle schema、会话持久化
-- `tests/auth-hardening.test.mjs`: 认证安全加固
+- Java: 认证（登录/退出/ERP 目录解析/Session）、Flyway 迁移策略、Main Agent、Workflow、Ontology Governance、Graph Sync
+- Web/Java 契约: `tests/java-*.test.mjs`（JSON Schema + Zod + 透明代理含认证路由与 Set-Cookie 透传）
+- 前端行为: story-* 测试（登录、工作台、SSE、权限展示等）
 
 ## Environment Variables
 
 | 变量 | 说明 | 默认值 |
 |---|---|---|
 | `APP_PORT` | 应用端口 | `3000` |
-| `DATABASE_URL` | PostgreSQL 连接字符串 | 见 `.env.example` |
-| `REDIS_URL` | Redis 连接字符串 | `redis://127.0.0.1:6379` |
 | `POSTGRES_PORT` | 宿主机暴露的 PG 端口 | `55432` |
-| `SESSION_SECRET` | 会话签名密钥 | 本地自行设置 |
-| `ENABLE_DEV_ERP_AUTH` | 开发联调登录开关 (仅本地) | `1` |
+| `JAVA_DATABASE_URL` | Java backend JDBC 地址（由 `POSTGRES_*` 派生） | 见 `.env.example` |
+| `REDIS_URL` | Redis 连接字符串（仅供 Java backend） | `redis://127.0.0.1:6379` |
+| `SESSION_SECRET` | 会话签名密钥（Java backend） | 本地自行设置 |
+| `ENABLE_DEV_ERP_AUTH` | 开发联调登录开关 (仅本地，Java backend) | `0` |
+| `ERP_API_BASE_URL` | ERP 目录认证接口（Java backend 登录必需） | - |
+| `COOKIE_SECURE` | 会话 Cookie 是否 Secure（生产置 `true`） | `false` |
 
-## Domain Errors
+## Backend Errors（Java）
 
-领域层专用错误类（中文消息，面向终端用户）:
+Java 侧错误语义（中文消息，面向终端用户）:
 
-- `InvalidErpCredentialsError` — ERP 身份校验失败
-- `WorkspaceAuthorizationError` — 账号无分析权限
-- `DevErpAuthDisabledError` — 开发认证入口未开放
+- `BackendException(code, message)` — 统一业务错误；认证相关 code：`INVALID_ERP_CREDENTIALS`（凭证错误，含具体原因）、`DEV_AUTH_DISABLED`（开发联调入口未开放）、`AUTH_REQUIRED`、`AUTH_SCOPE_INVALID`。
+- 登录/退出/回调/桥接失败一律 303 重定向到 `/login?error=...`（与历史行为一致）；其余接口按 `ApiExceptionHandler` 映射 JSON 错误（`code + traceId`）。
 
 ## Coding Disciplines
 

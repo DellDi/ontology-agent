@@ -4,23 +4,20 @@ import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.support.MigrationTestSupport;
 import com.dip3.ontologyagent.tooling.AnalysisWorkflow;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import java.nio.file.Path;
-import java.sql.DriverManager;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
@@ -69,14 +66,8 @@ class OntologyBootstrapPersistenceTest {
 
     @BeforeAll
     static void migrateAndInstallFailureGuard() throws Exception {
-        Path migrations = Path.of(System.getProperty("user.dir")).resolveSibling("drizzle");
-        try (var connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(),
-                POSTGRES.getPassword())) {
-            for (String migration : List.of("0000_initial.sql", "0001_dazzling_dakota_north.sql",
-                    "0002_wooden_morg.sql", "0003_oval_la_nuit.sql", "0004_wealthy_callisto.sql",
-                    "0005_neat_tenebrous.sql")) {
-                ScriptUtils.executeSqlScript(connection, new FileSystemResource(migrations.resolve(migration)));
-            }
+        MigrationTestSupport.migrate(POSTGRES);
+        try (var connection = POSTGRES.createConnection("")) {
             try (var statement = connection.createStatement()) {
                 statement.execute("""
                         create function platform.reject_bootstrap_audit() returns trigger language plpgsql as $body$

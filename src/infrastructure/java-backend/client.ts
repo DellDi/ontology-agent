@@ -16,6 +16,7 @@ const RESPONSE_HEADERS = [
   'content-type',
   'location',
   'retry-after',
+  'set-cookie',
   'x-accel-buffering',
   CORRELATION_HEADER,
 ] as const;

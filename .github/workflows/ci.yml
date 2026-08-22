@@ -11,8 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "22"
-  PNPM_VERSION: "9"
+  NODE_VERSION: "24"
+  PNPM_VERSION: "11.7.0"
+  JAVA_VERSION: "21"
 
 jobs:
   # ── 静态检查（不需要数据库） ──────────────────────────
@@ -39,40 +40,26 @@ jobs:
       - name: TypeScript
         run: pnpm exec tsc --noEmit
 
-  # ── 集成测试（需要 Postgres + Redis） ─────────────────
-  test:
-    name: Tests
+  # ── Java 后端全量测试（Testcontainers: PostgreSQL/Neo4j） ──
+  java-test:
+    name: Java Backend Tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_DB: ontology_agent
-          POSTGRES_USER: ontology_agent
-          POSTGRES_PASSWORD: ontology_agent_dev_password
-        ports:
-          - 55432:5432
-        options: >-
-          --health-cmd "pg_isready -U ontology_agent -d ontology_agent"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-          --health-start-period 10s
-      redis:
-        image: redis:8
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent
-      REDIS_URL: redis://127.0.0.1:6379
-      SESSION_SECRET: ci-test-session-secret
-      ENABLE_DEV_ERP_AUTH: "1"
-      REDIS_KEY_PREFIX: ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Maven tests
+        run: mvn -B -ntp -f backend-java/pom.xml test
+
+  # ── Web 契约测试（纯静态，不依赖外部服务） ─────────────
+  web-test:
+    name: Web Contract Tests
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -87,18 +74,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Run database migrations
-        run: pnpm db:migrate
+      - name: Web contract tests
+        run: pnpm test:web
 
-      - name: Run tests (Postgres + Redis scope)
+      - name: Compose config validation
         run: |
-          # 排除需要 Next.js 服务器（fetch）、Neo4j、Compose 编排、外部 API 的测试
-          # CI 仅提供 Postgres + Redis，其余服务的测试留给本地全栈验证
-          EXCLUDE='fetch\(|NEO4J|neo4j|compose-baseline|compose-services|container-deployment|bailian-smoke'
-          SKIP_FILES=$(grep -rlE "$EXCLUDE" tests/story-*.test.mjs tests/auth-hardening.test.mjs 2>/dev/null || true)
-          ALL_FILES=$(ls tests/story-*.test.mjs tests/auth-hardening.test.mjs 2>/dev/null)
-          RUNNABLE=$(comm -23 <(echo "$ALL_FILES" | sort) <(echo "$SKIP_FILES" | sort) | tr '\n' ' ')
-          echo "Running $(echo $RUNNABLE | wc -w) test files"
-          echo "$RUNNABLE"
-          node --test $RUNNABLE
-        timeout-minutes: 10
+          docker compose -f compose.yaml --env-file .env.example config --quiet
+          docker compose -f compose.prod.yaml --env-file .env.prod.example config --quiet

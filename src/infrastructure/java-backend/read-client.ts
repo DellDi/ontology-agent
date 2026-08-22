@@ -656,8 +656,18 @@ export async function readJavaBackend<T>(path: string, schema: z.ZodType<T>): Pr
   return parsed.data;
 }
 
+export const javaAuthConfigSchema = z.strictObject({
+  directoryAuthAvailable: z.boolean(),
+  devAuthEnabled: z.boolean(),
+  urlBridgeEnabled: z.boolean(),
+});
+
 export function getCurrentViewer() {
   return readJavaBackend('/api/auth/me', javaViewerSchema);
+}
+
+export function getAuthConfig() {
+  return readJavaBackend('/api/auth/config', javaAuthConfigSchema);
 }
 
 export function getWorkspaceHome() {

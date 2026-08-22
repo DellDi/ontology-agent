@@ -1,6 +1,10 @@
 spring:
   application:
     name: ontology-agent-backend
+  # 数据库迁移由独立 migrate 入口执行（--spring.profiles.active=migrate），
+  # 应用常规启动不做自动迁移，避免对未 baseline 的老库直接重跑 V1~V6。
+  flyway:
+    enabled: false
   datasource:
     url: ${JAVA_DATABASE_URL:jdbc:postgresql://127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}}
     username: ${JAVA_DATABASE_USERNAME:${POSTGRES_USER}}
@@ -45,6 +49,15 @@ dip3:
       structured-output: ${LLM_PROVIDER_STRUCTURED_OUTPUT}
   session-secret: ${SESSION_SECRET}
   redis-key-prefix: ${REDIS_KEY_PREFIX:dip3}
+  # ERP 目录认证（账号密码登录）；为空表示目录登录不可用
+  erp-api-base-url: ${ERP_API_BASE_URL:}
+  erp-api-origin: ${ERP_API_ORIGIN:}
+  # 开发联调登录入口（手填 scope / ticket 回调）
+  dev-auth-enabled: ${ENABLE_DEV_ERP_AUTH:false}
+  # URL 桥接登录
+  url-bridge-enabled: ${ENABLE_URL_BRIDGE:false}
+  # 会话 Cookie 是否带 Secure（生产容器显式置 true）
+  cookie-secure: ${COOKIE_SECURE:false}
   cube:
     api-url: ${CUBE_API_URL}
     api-secret: ${CUBE_API_SECRET}

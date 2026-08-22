@@ -13,7 +13,6 @@ const BUILD_INPUT_PATHS = [
   'next.config.mjs',
   'next.config.ts',
   'src',
-  'drizzle',
 ];
 const LOCK_DIR_NAME = '.next/test-build.lock';
 const META_FILE_NAME = '.next/test-build-meta.json';
