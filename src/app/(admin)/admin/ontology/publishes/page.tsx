@@ -1,4 +1,8 @@
-import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import {
+  getGovernancePublishHistory,
+  getGovernanceVersions,
+  requireJavaOntologyAdminSession,
+} from '@/infrastructure/java-backend';
 
 import {
   AdminPageHeader,
@@ -6,13 +10,12 @@ import {
 import { PublishHistoryClient } from '../_components/publish-history-client';
 
 export default async function OntologyAdminPublishHistoryPage() {
-  const state = await requireOntologyAdminSession('/admin/ontology/publishes');
+  const state = await requireJavaOntologyAdminSession('/admin/ontology/publishes');
   if (state.accessDeniedMessage) return null;
 
-  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
-  const [records, versions] = await Promise.all([
-    adminUseCases.listPublishHistory(50),
-    adminUseCases.listVersions(100),
+  const [history, versions] = await Promise.all([
+    getGovernancePublishHistory(50),
+    getGovernanceVersions(100),
   ]);
 
   return (
@@ -25,9 +28,9 @@ export default async function OntologyAdminPublishHistoryPage() {
 
       <PublishHistoryClient
         initialData={{
-          records,
-          versions,
-          capabilities: state.capabilities,
+          records: history.items,
+          versions: versions.items,
+          capabilities: history.capabilities,
         }}
       />
     </section>

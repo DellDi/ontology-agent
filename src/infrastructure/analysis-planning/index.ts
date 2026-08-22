@@ -1,1 +1,0 @@
-// Module-level singleton removed. Use createCompositionRoot() from @/composition-root instead.

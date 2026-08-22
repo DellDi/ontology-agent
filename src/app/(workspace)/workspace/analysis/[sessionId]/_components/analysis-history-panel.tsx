@@ -3,23 +3,22 @@ import { formatOntologyVersionBindingBadge } from '@/shared/ontology/version-bin
 
 type AnalysisHistoryPanelProps = {
   sessionId: string;
-  activeFollowUpId?: string;
   readModel: AnalysisHistoryReadModel;
 };
 
 function buildHistoryHref({
   sessionId,
   roundId,
-  activeFollowUpId,
+  roundFollowUpId,
 }: {
   sessionId: string;
   roundId: string;
-  activeFollowUpId?: string;
+  roundFollowUpId: string | null;
 }) {
   const params = new URLSearchParams();
 
-  if (activeFollowUpId) {
-    params.set('followUpId', activeFollowUpId);
+  if (roundFollowUpId) {
+    params.set('followUpId', roundFollowUpId);
   }
 
   params.set('historyRoundId', roundId);
@@ -29,7 +28,6 @@ function buildHistoryHref({
 
 export function AnalysisHistoryPanel({
   sessionId,
-  activeFollowUpId,
   readModel,
 }: AnalysisHistoryPanelProps) {
   if (readModel.rounds.length < 2 || !readModel.selectedRound) {
@@ -61,7 +59,7 @@ export function AnalysisHistoryPanel({
               href={buildHistoryHref({
                 sessionId,
                 roundId: round.id,
-                activeFollowUpId,
+                roundFollowUpId: round.followUpId,
               })}
               key={round.id}
             >

@@ -94,7 +94,7 @@ test('Story 7.5 目录 admin 账号默认具备平台管理员角色', async () 
   );
 });
 
-test('Story 7.5 workspace 范围判断不再把 areaIds 当成有效分析范围', async () => {
+test('area-only scope 具备工作台分析权限', async () => {
   const result = await runTsSnippet(`
     import authModelsModule from './src/domain/auth/models.ts';
 
@@ -121,13 +121,13 @@ test('Story 7.5 workspace 范围判断不再把 areaIds 当成有效分析范围
 
   assert.equal(
     result.hasScopedTargets,
-    false,
-    'areaIds 不应继续被当成可分析范围',
+    true,
+    'areaIds 应被当成可分析范围',
   );
   assert.equal(
     result.hasWorkspaceAccess,
-    false,
-    '只有 areaIds 时不应被判定为具备工作台分析权限',
+    true,
+    '只有 areaIds 时也应具备工作台分析权限',
   );
 });
 

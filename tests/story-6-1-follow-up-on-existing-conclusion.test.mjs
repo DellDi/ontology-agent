@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 import net from 'node:net';
 import { promisify } from 'node:util';
 
@@ -382,8 +382,7 @@ test.after(async () => {
     return;
   }
 
-  serverProcess.kill('SIGINT');
-  await once(serverProcess, 'exit');
+  await stopProcessTree(serverProcess);
 });
 
 test('已有结论时，追问附着在原 session 上并默认复用上下文', async () => {

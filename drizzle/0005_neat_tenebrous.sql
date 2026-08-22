@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "ontology_publish_records_version_uidx" ON "platform"."ontology_publish_records" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ontology_versions_single_current_uidx" ON "platform"."ontology_versions" USING btree ("status") WHERE status = 'approved' and published_at is not null;

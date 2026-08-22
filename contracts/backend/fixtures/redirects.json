@@ -1,0 +1,14 @@
+{
+  "create": {
+    "status": 303,
+    "locationPattern": "^/workspace/analysis/[^/?]+$"
+  },
+  "execute": {
+    "status": 303,
+    "locationPattern": "^/workspace/analysis/[^/?]+\\?executionId=[^&]+$"
+  },
+  "unauthenticatedCreate": {
+    "status": 303,
+    "location": "/login?next=/workspace"
+  }
+}

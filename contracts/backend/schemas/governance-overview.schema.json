@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "governance-overview.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["currentPublishedVersion", "latestApprovedVersion", "pendingReviewCount", "approvedAwaitingPublishCount", "recentChangeRequests", "recentPublishes", "capabilities"],
+  "properties": {
+    "currentPublishedVersion": { "oneOf": [{ "$ref": "governance-shared.schema.json#/$defs/version" }, { "type": "null" }] },
+    "latestApprovedVersion": { "oneOf": [{ "$ref": "governance-shared.schema.json#/$defs/version" }, { "type": "null" }] },
+    "pendingReviewCount": { "type": "integer", "minimum": 0 }, "approvedAwaitingPublishCount": { "type": "integer", "minimum": 0 },
+    "recentChangeRequests": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/changeRequest" } },
+    "recentPublishes": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/publish" } },
+    "capabilities": { "$ref": "governance-shared.schema.json#/$defs/capabilities" }
+  }
+}

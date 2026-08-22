@@ -1,0 +1,483 @@
+openapi: 3.1.0
+info:
+  title: DIP3 Java Analysis Backend
+  version: 2.0.0
+paths:
+  /api/auth/me:
+    get:
+      summary: Return the server-verified viewer and scope
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Authenticated viewer, scope and workspace authorization decision; session credentials are never returned
+          content:
+            application/json: { schema: { $ref: './schemas/viewer.schema.json' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/workspace/home:
+    get:
+      summary: Return the scoped workspace home projection
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: PostgreSQL-backed owned sessions and latest executions, plus scoped ERP projects
+          content:
+            application/json: { schema: { $ref: './schemas/workspace-home.schema.json' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions:
+    post:
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, required: [question], properties: { question: { type: string, maxLength: 300 } } }
+          multipart/form-data:
+            schema: { type: object, required: [question], properties: { question: { type: string, maxLength: 300 } } }
+      responses:
+        '303': { description: Created or login/error redirect, headers: { Location: { schema: { type: string } } } }
+        '422': { $ref: '#/components/responses/Error' }
+        '500': { description: Unexpected failure, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
+  /api/analysis/sessions/{sessionId}:
+    get:
+      summary: Return the canonical session and execution aggregate
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+        - { name: executionId, in: query, required: false, schema: { type: string, minLength: 1, maxLength: 200 } }
+      responses:
+        '200':
+          description: PostgreSQL session, ordered follow-ups and round history, job, events, snapshot and derived runtime facts
+          content:
+            application/json: { schema: { $ref: './schemas/analysis-session-aggregate.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404':
+          description: Session or execution is absent or outside the authenticated scope
+          content:
+            application/json: { schema: { $ref: './schemas/error.schema.json' } }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/execute:
+    post:
+      summary: Submit a root or follow-up execution through its isolated Java job contract
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+        - { name: Idempotency-Key, in: header, required: false, description: Missing or blank uses the stable initial-execution key for this session, schema: { type: string, maxLength: 128 } }
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, properties: { followUpId: { type: string, maxLength: 200, description: Blank or absent submits the root java-initial-v1 round; a non-blank ID submits java-follow-up-v1 } } }
+          multipart/form-data:
+            schema: { type: object, properties: { followUpId: { type: string, maxLength: 200, description: Blank or absent submits the root java-initial-v1 round; a non-blank ID submits java-follow-up-v1 } } }
+      responses:
+        '303': { description: Submitted or login redirect, headers: { Location: { schema: { type: string } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: Existing idempotency conflict, a legacy session, or a follow-up already bound to another execution, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
+        '422': { description: Follow-up context is not executable or must be replanned first; browser form requests receive a 303 redirect carrying followUpExecutionError, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/follow-ups:
+    get:
+      summary: List the authenticated session follow-ups in creation order
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200':
+          description: Session follow-ups
+          content:
+            application/json: { schema: { type: array, items: { $ref: './schemas/analysis-follow-up.schema.json' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Create a follow-up from a completed root or parent follow-up conclusion
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, minLength: 1, maxLength: 300 }
+                parentFollowUpId: { type: string, maxLength: 200 }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, minLength: 1, maxLength: 300 }
+                parentFollowUpId: { type: string, maxLength: 200 }
+      responses:
+        '303': { description: Created follow-up redirect with followUpId, headers: { Location: { schema: { type: string } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: The referenced execution has no persisted completed conclusion, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/follow-ups/{followUpId}:
+    get:
+      summary: Return one authenticated session follow-up
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+        - { name: followUpId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Follow-up detail, content: { application/json: { schema: { $ref: './schemas/analysis-follow-up.schema.json' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/follow-ups/{followUpId}/context:
+    post:
+      summary: Apply an explicit context correction and invalidate an obsolete plan
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+        - { name: followUpId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded: { schema: { $ref: '#/components/schemas/FollowUpContextForm' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/FollowUpContextForm' } }
+      responses:
+        '303': { description: Updated, conflict-confirmation, or validation redirect, headers: { Location: { schema: { type: string } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/follow-ups/{followUpId}/replan:
+    post:
+      summary: Build and persist a new governed follow-up plan version and diff
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+        - { name: followUpId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '303': { description: Replanned or explicit failure redirect, headers: { Location: { schema: { type: string } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/stream:
+    get:
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+        - { name: executionId, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: afterSequence, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: SSE frames; each data payload is an ExecutionEvent
+          headers:
+            Cache-Control: { schema: { type: string } }
+            X-Accel-Buffering: { schema: { type: string, const: no } }
+          content:
+            text/event-stream: { schema: { type: string } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /internal/analysis/sessions/{sessionId}/executions/{executionId}/snapshot:
+    get:
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string } }
+        - { name: executionId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: PostgreSQL recovery fact, content: { application/json: { schema: { $ref: './schemas/execution-snapshot.schema.json' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { description: Snapshot not found }
+  /api/system/graph-sync/bootstrap:
+    post:
+      summary: Run the synchronous system-only full graph bootstrap
+      description: Captures all seven ERP watermarks, rebuilds every active organization and advances all cursors only after complete success. This operation is intentionally not exposed through Next.js.
+      security: [{ graphSyncOpsSecret: [] }]
+      responses:
+        '200': { description: Terminal full-bootstrap parent run, content: { application/json: { schema: { $ref: './schemas/graph-sync-shared.schema.json#/$defs/run' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/system/graph-sync/bootstrap/status:
+    get:
+      summary: Return the latest full graph bootstrap parent fact
+      security: [{ graphSyncOpsSecret: [] }]
+      responses:
+        '200': { description: Latest full-bootstrap parent run, content: { application/json: { schema: { $ref: './schemas/graph-sync-shared.schema.json#/$defs/run' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/bootstrap:
+    get:
+      summary: Inspect the Java ontology baseline state without mutating it
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Empty or runtime-ready baseline state, content: { application/json: { schema: { $ref: './schemas/ontology-bootstrap.schema.json#/$defs/status' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Install the fixed Java ontology baseline into a fully empty registry
+      description: The operation accepts no caller-supplied seed. A blocking PostgreSQL transaction advisory lock serializes concurrent operators.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Created baseline or read-only idempotent result, content: { application/json: { schema: { $ref: './schemas/ontology-bootstrap.schema.json#/$defs/result' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/overview:
+    get:
+      summary: Return Java-owned ontology governance overview
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Governance overview, content: { application/json: { schema: { $ref: './schemas/governance-overview.schema.json' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/definitions:
+    get:
+      summary: Return all governed definition categories for one version
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: versionId, in: query, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Version definitions, content: { application/json: { schema: { $ref: './schemas/governance-definitions.schema.json' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/versions:
+    get:
+      summary: List ontology versions available to governance users
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200':
+          description: Version list
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, capabilities]
+                properties:
+                  items: { type: array, items: { $ref: './schemas/governance-shared.schema.json#/$defs/version' } }
+                  capabilities: { $ref: './schemas/governance-shared.schema.json#/$defs/capabilities' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/change-requests:
+    get:
+      summary: List governed change requests
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200': { description: Change request list, content: { application/json: { schema: { $ref: './schemas/governance-change-request-list.schema.json' } } } }
+    post:
+      summary: Create a draft change request in Java
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [ontologyVersionId, targetObjectType, targetObjectKey, changeType, title, impactScope, compatibilityType]
+              properties:
+                ontologyVersionId: { type: string, minLength: 1, maxLength: 200 }
+                targetObjectType: { enum: [entity_definition, metric_definition, metric_variant, factor_definition, causality_edge, plan_step_template, tool_capability_binding, time_semantic, evidence_type_definition] }
+                targetObjectKey: { type: string, minLength: 1, maxLength: 200 }
+                changeType: { enum: [create, update, deprecate, retire] }
+                title: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: [string, 'null'], maxLength: 2000 }
+                beforeSummary: { type: [object, 'null'] }
+                afterSummary: { type: [object, 'null'] }
+                impactScope: { type: array, items: { type: string, minLength: 1, maxLength: 200 } }
+                compatibilityType: { enum: [backward_compatible, breaking] }
+                compatibilityNote: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '200': { description: Created change request, content: { application/json: { schema: { $ref: './schemas/governance-shared.schema.json#/$defs/changeRequest' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/change-requests/{id}:
+    get:
+      summary: Return a governed change request and approval history
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Change request detail, content: { application/json: { schema: { $ref: './schemas/governance-change-request-detail.schema.json' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/change-requests/{id}/submit:
+    post:
+      summary: Submit one draft change request for review
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Submitted change request, content: { application/json: { schema: { $ref: './schemas/governance-shared.schema.json#/$defs/changeRequest' } } } }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/change-requests/{id}/review:
+    post:
+      summary: Approve or reject one submitted change request
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [decision]
+              properties:
+                decision: { enum: [approved, rejected] }
+                comment: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '200': { description: Review result }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/publishes:
+    get:
+      summary: List Java-owned ontology publish records
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200': { description: Publish history, content: { application/json: { schema: { $ref: './schemas/governance-publish-history.schema.json' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/ontology/versions/{id}/publish:
+    post:
+      summary: Atomically publish an approved ontology version
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                publishNote: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '200': { description: Publish record, content: { application/json: { schema: { $ref: './schemas/governance-shared.schema.json#/$defs/publish' } } } }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/admin/graph-sync/status:
+    get:
+      summary: Return the authenticated organization graph-sync status
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Scoped graph-sync status, content: { application/json: { schema: { $ref: './schemas/graph-sync-shared.schema.json#/$defs/status' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/graph-sync/organizations/{organizationId}/status:
+    get:
+      summary: Return the latest run for an organization in the authenticated scope
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Latest organization run, content: { application/json: { schema: { $ref: './schemas/graph-sync-shared.schema.json#/$defs/run' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/admin/graph-sync/organizations/{organizationId}/rebuild:
+    post:
+      summary: Rebuild one authorized organization projection synchronously
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Terminal organization run, content: { application/json: { schema: { $ref: './schemas/graph-sync-shared.schema.json#/$defs/run' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/admin/graph-sync/consistency-sweep:
+    post:
+      summary: Run a scoped consistency rebuild as a platform administrator
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Completed organization runs
+          content:
+            application/json: { schema: { type: array, items: { $ref: './schemas/graph-sync-shared.schema.json#/$defs/run' } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/audit/events:
+    get:
+      summary: Return recent audit facts scoped to the authenticated organization
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Organization-scoped audit facts
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [id, userId, organizationId, sessionId, eventType, eventResult, eventSource, correlationId, payload, createdAt, retentionUntil]
+                      properties:
+                        id: { type: string, minLength: 1 }
+                        userId: { type: string, minLength: 1 }
+                        organizationId: { type: string, minLength: 1 }
+                        sessionId: { type: [string, 'null'] }
+                        eventType: { type: string, minLength: 1 }
+                        eventResult: { type: string, minLength: 1 }
+                        eventSource: { type: string, minLength: 1 }
+                        correlationId: { type: string, minLength: 1 }
+                        payload: {}
+                        createdAt: { type: string, format: date-time }
+                        retentionUntil: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    cookieAuth: { type: apiKey, in: cookie, name: dip3_session }
+    graphSyncOpsSecret: { type: apiKey, in: header, name: X-Graph-Sync-Ops-Secret }
+  responses:
+    Error:
+      description: Explicit failure
+      content:
+        application/json: { schema: { $ref: './schemas/error.schema.json' } }
+  schemas:
+    FollowUpContextForm:
+      type: object
+      properties:
+        targetMetric: { type: string, maxLength: 200 }
+        entity: { type: string, maxLength: 200 }
+        timeRange: { type: string, maxLength: 200 }
+        comparison: { type: string, maxLength: 200 }
+        factor: { type: string, maxLength: 200 }
+        confirmConflicts: { type: string, enum: ['true', 'false'] }

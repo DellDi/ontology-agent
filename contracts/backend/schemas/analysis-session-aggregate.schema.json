@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "analysis-session-aggregate.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session", "followUps", "history", "job", "events", "snapshot", "runtime"],
+  "properties": {
+    "session": { "$ref": "#/$defs/session" },
+    "followUps": { "type": "array", "items": { "$ref": "analysis-follow-up.schema.json" } },
+    "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/round" } },
+    "job": { "oneOf": [{ "$ref": "#/$defs/job" }, { "type": "null" }] },
+    "events": { "type": "array", "items": { "$ref": "execution-event.schema.json" } },
+    "snapshot": { "oneOf": [{ "$ref": "#/$defs/snapshot" }, { "type": "null" }] },
+    "runtime": { "$ref": "#/$defs/runtime" }
+  },
+  "$defs": {
+    "sessionScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["organizationId", "projectIds", "areaIds"],
+      "properties": {
+        "organizationId": { "type": "string", "minLength": 1 },
+        "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "areaIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "questionText", "status", "scope", "savedContext", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "questionText": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "scope": { "$ref": "#/$defs/sessionScope" },
+        "savedContext": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "round": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "questionText", "followUpId", "executionId", "status", "ontologyVersionId", "ontologyVersionBindingSource", "planSnapshot", "conclusionState", "createdAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["initial", "follow-up"] },
+        "questionText": { "type": "string", "minLength": 1 },
+        "followUpId": { "type": ["string", "null"], "minLength": 1 },
+        "executionId": { "type": ["string", "null"], "minLength": 1 },
+        "status": {
+          "oneOf": [
+            { "enum": ["pending", "queued", "processing", "completed", "failed", "dead_letter"] },
+            { "type": "null" }
+          ]
+        },
+        "ontologyVersionId": { "type": ["string", "null"], "minLength": 1 },
+        "ontologyVersionBindingSource": {
+          "oneOf": [
+            { "enum": ["grounded-context", "inherited", "switched", "legacy/unknown"] },
+            { "type": "null" }
+          ]
+        },
+        "planSnapshot": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["mode", "summary", "steps", "_executionContract", "_resolvedContext"],
+              "properties": {
+                "mode": { "enum": ["minimal", "multi-step"] },
+                "summary": { "type": "string", "minLength": 1 },
+                "steps": { "type": "array" },
+                "_executionContract": { "enum": ["java-initial-v1", "java-follow-up-v1"] },
+                "_resolvedContext": { "type": "object" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "conclusionState": {
+          "oneOf": [{ "$ref": "conclusion-state.schema.json" }, { "type": "null" }]
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "planSnapshot": {
+                "type": "object",
+                "properties": {
+                  "steps": { "type": "array", "minItems": 1 },
+                  "_resolvedContext": {
+                    "type": "object",
+                    "properties": { "entityKey": true, "metricDefinitionKey": true, "metricVariantKey": true, "timeSemanticKey": true, "projectIds": true, "from": true, "to": true },
+                    "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "initial" } }, "required": ["kind"] },
+          "then": { "properties": { "followUpId": { "type": "null" } } },
+          "else": { "properties": { "followUpId": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executionId", "status", "result", "error", "attemptCount", "maxAttempts", "dispatchStatus", "traceId", "createdAt", "updatedAt", "startedAt", "completedAt", "failedAt"],
+      "properties": {
+        "executionId": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "result": { "type": ["object", "null"] },
+        "error": { "type": ["string", "null"] },
+        "attemptCount": { "type": "integer", "minimum": 0 },
+        "maxAttempts": { "type": "integer", "minimum": 1 },
+        "dispatchStatus": { "type": "string", "minLength": 1 },
+        "traceId": { "type": ["string", "null"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "startedAt": { "type": ["string", "null"], "format": "date-time" },
+        "completedAt": { "type": ["string", "null"], "format": "date-time" },
+        "failedAt": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executionId", "sessionId", "followUpId", "ontologyVersionId", "ontologyVersionBindingSource", "status", "planSnapshot", "stepResults", "conclusionState", "resultBlocks", "mobileProjection", "failurePoint", "errorCode", "traceId", "createdAt", "updatedAt"],
+      "properties": {
+        "executionId": { "type": "string", "minLength": 1 },
+        "sessionId": { "type": "string", "minLength": 1 },
+        "followUpId": { "type": ["string", "null"] },
+        "ontologyVersionId": { "type": ["string", "null"] },
+        "ontologyVersionBindingSource": { "enum": ["grounded-context", "inherited", "switched", "legacy/unknown"] },
+        "status": { "type": "string", "minLength": 1 },
+        "planSnapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "summary", "steps", "_executionContract", "_resolvedContext"],
+          "properties": {
+            "mode": { "enum": ["minimal", "multi-step"] },
+            "summary": { "type": "string", "minLength": 1 },
+            "steps": { "type": "array" },
+            "_executionContract": { "enum": ["java-initial-v1", "java-follow-up-v1"] },
+            "_followUpId": { "type": "string", "minLength": 1 },
+            "_referencedExecutionId": { "type": "string", "minLength": 1 },
+            "_groundedSource": { "type": "string", "minLength": 1 },
+            "_groundingStatus": { "enum": ["success", "failed", "ambiguous", "partial", "grounded"] },
+            "_toolBindings": { "type": "object" },
+            "_executionAssumptions": { "type": "array", "items": { "type": "string" } },
+            "_resolvedContext": { "type": "object" }
+          }
+        },
+        "stepResults": { "type": "array", "items": { "$ref": "execution-event.schema.json" } },
+        "conclusionState": { "$ref": "conclusion-state.schema.json" },
+        "resultBlocks": { "type": "array", "items": { "$ref": "conclusion-state.schema.json#/$defs/renderBlock" } },
+        "mobileProjection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary", "status", "updatedAt"],
+          "properties": {
+            "summary": { "type": "string", "minLength": 1 },
+            "status": { "enum": ["pending", "processing", "completed", "failed"] },
+            "updatedAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "failurePoint": { "type": ["object", "null"] },
+        "errorCode": { "type": ["string", "null"] },
+        "traceId": { "type": ["string", "null"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "followUpId": { "type": "null" },
+                "planSnapshot": {
+                  "type": "object",
+                  "required": ["_executionContract"],
+                  "properties": { "_executionContract": { "const": "java-initial-v1" } },
+                  "not": {
+                    "anyOf": [
+                      { "properties": { "_followUpId": true }, "required": ["_followUpId"] },
+                      { "properties": { "_referencedExecutionId": true }, "required": ["_referencedExecutionId"] }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "followUpId": { "type": "string", "minLength": 1 },
+                "planSnapshot": {
+                  "type": "object",
+                  "required": ["_executionContract", "_followUpId", "_referencedExecutionId"],
+                  "properties": {
+                    "_executionContract": { "const": "java-follow-up-v1" },
+                    "_followUpId": { "type": "string", "minLength": 1 },
+                    "_referencedExecutionId": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "if": { "type": "object", "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "planSnapshot": {
+                "type": "object",
+                "properties": {
+                  "steps": { "type": "array", "minItems": 1 },
+                  "_resolvedContext": {
+                    "type": "object",
+                    "properties": { "entityKey": true, "metricDefinitionKey": true, "metricVariantKey": true, "timeSemanticKey": true, "projectIds": true, "from": true, "to": true },
+                    "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"]
+                  }
+                }
+              },
+              "conclusionState": {
+                "allOf": [
+                  { "$ref": "conclusion-state.schema.json" },
+                  {
+                    "type": "object",
+                    "required": ["evidence", "claims"],
+                    "properties": {
+                      "evidence": { "type": "array", "minItems": 3, "maxItems": 3 },
+                      "claims": { "type": "array", "minItems": 1 }
+                    }
+                  }
+                ]
+              },
+              "resultBlocks": { "type": "array", "minItems": 5 }
+            }
+          }
+        }
+      ]
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestedExecutionId", "resolvedExecutionId", "status", "autoExecute", "streamEnabled", "terminal", "resumeAfterSequence"],
+      "properties": {
+        "requestedExecutionId": { "type": ["string", "null"] },
+        "resolvedExecutionId": { "type": ["string", "null"] },
+        "status": { "type": ["string", "null"] },
+        "autoExecute": { "type": "boolean" },
+        "streamEnabled": { "type": "boolean" },
+        "terminal": { "type": "boolean" },
+        "resumeAfterSequence": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

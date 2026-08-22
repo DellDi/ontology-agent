@@ -3,6 +3,7 @@ import {
   index,
   text,
   timestamp,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 import { platformSchema } from './auth-sessions';
@@ -27,5 +28,6 @@ export const ontologyPublishRecords = platformSchema.table(
   (table) => [
     index('ontology_publish_records_version_id_idx').on(table.ontologyVersionId),
     index('ontology_publish_records_published_by_idx').on(table.publishedBy),
+    uniqueIndex('ontology_publish_records_version_uidx').on(table.ontologyVersionId),
   ],
 );

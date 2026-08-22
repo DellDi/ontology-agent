@@ -1,4 +1,8 @@
-import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import {
+  getGovernanceDefinitions,
+  getGovernanceVersions,
+  requireJavaOntologyAdminSession,
+} from '@/infrastructure/java-backend';
 
 import {
   AdminPageHeader,
@@ -27,6 +31,7 @@ function getDefinitionGroups(definitions: {
   metricVariants: DefinitionItem[];
   factors: DefinitionItem[];
   planStepTemplates: DefinitionItem[];
+  toolBindings: DefinitionItem[];
   timeSemantics: DefinitionItem[];
   causalityEdges: DefinitionItem[];
   evidenceTypes: DefinitionItem[];
@@ -37,6 +42,7 @@ function getDefinitionGroups(definitions: {
     { key: 'metricVariants', title: '指标变体', items: definitions.metricVariants },
     { key: 'factors', title: '因素定义', items: definitions.factors },
     { key: 'planStepTemplates', title: '计划步骤模板', items: definitions.planStepTemplates },
+    { key: 'toolBindings', title: '工具能力绑定', items: definitions.toolBindings },
     { key: 'timeSemantics', title: '时间语义', items: definitions.timeSemantics },
     { key: 'causalityEdges', title: '因果边', items: definitions.causalityEdges },
     { key: 'evidenceTypes', title: '证据类型', items: definitions.evidenceTypes },
@@ -46,19 +52,18 @@ function getDefinitionGroups(definitions: {
 export default async function OntologyAdminDefinitionsPage({
   searchParams,
 }: DefinitionsPageProps) {
-  const state = await requireOntologyAdminSession('/admin/ontology/definitions');
+  const state = await requireJavaOntologyAdminSession('/admin/ontology/definitions');
   if (state.accessDeniedMessage) return null;
 
   const params = (await searchParams) ?? {};
   const requestedVersionId = readParam(params.versionId);
   const activeTab = readParam(params.tab) ?? 'all';
 
-  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
-
-  const view = requestedVersionId
-    ? await adminUseCases.loadDefinitionsForVersion(requestedVersionId)
-    : await adminUseCases.loadDefinitionsForCurrentVersion();
-  const versions = await adminUseCases.listVersions(20);
+  const versions = (await getGovernanceVersions(20)).items;
+  const selectedVersionId = requestedVersionId
+    ?? versions.find((version) => version.publishedAt)?.id
+    ?? versions.find((version) => version.status === 'approved')?.id;
+  const view = selectedVersionId ? await getGovernanceDefinitions(selectedVersionId) : null;
 
   if (!view) {
     return (
@@ -79,8 +84,8 @@ export default async function OntologyAdminDefinitionsPage({
     );
   }
 
-  const { version, definitions } = view;
-  const groups = getDefinitionGroups(definitions);
+  const { version } = view;
+  const groups = getDefinitionGroups(view);
 
   const tabs = [
     { key: 'all', label: '全部', count: groups.reduce((sum, g) => sum + g.items.length, 0) },

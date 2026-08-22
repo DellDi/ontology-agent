@@ -257,7 +257,11 @@ export function WorkspaceHomeShell({
                       </p>
                     ) : null}
                     {item.failureMessage ? (
-                      <p className="mt-1 text-sm leading-6 text-rose-600 dark:text-rose-400">
+                      <p className={`mt-1 text-sm leading-6 ${
+                        item.derivedStatus === 'failed'
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-muted-foreground'
+                      }`}>
                         {item.failureMessage}
                       </p>
                     ) : null}

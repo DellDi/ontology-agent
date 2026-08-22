@@ -14,6 +14,15 @@ import {
 
 const DEFAULT_MAX_ATTEMPTS = 3;
 const TERMINAL_STATUSES = ['completed', 'failed', 'dead_letter'] as const;
+const TS_OWNED_JOB = sql`coalesce(${jobs.payload} ->> 'executionContract', '') not in ('java-initial-v1', 'java-follow-up-v1')`;
+const isJavaOwnedJob = (payload: Record<string, unknown>) =>
+  payload.executionContract === 'java-initial-v1' ||
+  payload.executionContract === 'java-follow-up-v1';
+const TS_OWNED_OUTBOX = sql`exists (
+  select 1 from ${jobs}
+  where ${jobs.id} = ${jobDispatchOutbox.jobId}
+    and ${TS_OWNED_JOB}
+)`;
 
 type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
 
@@ -140,17 +149,19 @@ export function createPostgresJobLedger(
           metadata: {},
           createdAt,
         });
-        await tx.insert(jobDispatchOutbox).values({
-          id: randomUUID(),
-          jobId: job.id,
-          status: 'pending',
-          attemptCount: 0,
-          lastError: null,
-          redisStreamEntryId: null,
-          createdAt,
-          updatedAt: createdAt,
-          publishedAt: null,
-        });
+        if (!isJavaOwnedJob(payload)) {
+          await tx.insert(jobDispatchOutbox).values({
+            id: randomUUID(),
+            jobId: job.id,
+            status: 'pending',
+            attemptCount: 0,
+            lastError: null,
+            redisStreamEntryId: null,
+            createdAt,
+            updatedAt: createdAt,
+            publishedAt: null,
+          });
+        }
       });
 
       return job;
@@ -170,7 +181,10 @@ export function createPostgresJobLedger(
       const rows = await resolvedDb
         .select()
         .from(jobDispatchOutbox)
-        .where(inArray(jobDispatchOutbox.status, ['pending', 'failed']))
+        .where(and(
+          inArray(jobDispatchOutbox.status, ['pending', 'failed']),
+          TS_OWNED_OUTBOX,
+        ))
         .orderBy(asc(jobDispatchOutbox.updatedAt))
         .limit(limit);
 
@@ -185,7 +199,7 @@ export function createPostgresJobLedger(
       const updatedAt = nowDate();
 
       await resolvedDb.transaction(async (tx) => {
-        await tx
+        const outboxRows = await tx
           .update(jobDispatchOutbox)
           .set({
             status: 'published',
@@ -195,7 +209,10 @@ export function createPostgresJobLedger(
             updatedAt,
             publishedAt: updatedAt,
           })
-          .where(eq(jobDispatchOutbox.id, input.outboxId));
+          .where(and(eq(jobDispatchOutbox.id, input.outboxId),
+            eq(jobDispatchOutbox.jobId, input.jobId), TS_OWNED_OUTBOX))
+          .returning({ id: jobDispatchOutbox.id });
+        if (outboxRows.length === 0) return;
         await tx
           .update(jobs)
           .set({
@@ -209,6 +226,7 @@ export function createPostgresJobLedger(
             and(
               eq(jobs.id, input.jobId),
               inArray(jobs.status, ['pending', 'queued']),
+              TS_OWNED_JOB,
             ),
           );
         await tx.insert(jobEvents).values({
@@ -235,7 +253,7 @@ export function createPostgresJobLedger(
       const updatedAt = nowDate();
 
       await resolvedDb.transaction(async (tx) => {
-        await tx
+        const outboxRows = await tx
           .update(jobDispatchOutbox)
           .set({
             status: 'failed',
@@ -243,7 +261,10 @@ export function createPostgresJobLedger(
             lastError: input.error,
             updatedAt,
           })
-          .where(eq(jobDispatchOutbox.id, input.outboxId));
+          .where(and(eq(jobDispatchOutbox.id, input.outboxId),
+            eq(jobDispatchOutbox.jobId, input.jobId), TS_OWNED_OUTBOX))
+          .returning({ id: jobDispatchOutbox.id });
+        if (outboxRows.length === 0) return;
         await tx
           .update(jobs)
           .set({
@@ -251,7 +272,7 @@ export function createPostgresJobLedger(
             error: input.error,
             updatedAt,
           })
-          .where(eq(jobs.id, input.jobId));
+          .where(and(eq(jobs.id, input.jobId), TS_OWNED_JOB));
         await tx.insert(jobEvents).values({
           id: randomUUID(),
           jobId: input.jobId,
@@ -290,7 +311,8 @@ export function createPostgresJobLedger(
             and ${jobs.status} in ('pending', 'queued', 'processing')
             and ${jobs.availableAt} <= ${claimedAt}
             and (${jobs.lockedUntil} is null or ${jobs.lockedUntil} < ${claimedAt})
-            and ${jobs.attemptCount} < ${jobs.maxAttempts}`,
+            and ${jobs.attemptCount} < ${jobs.maxAttempts}
+            and ${TS_OWNED_JOB}`,
         )
         .returning();
 
@@ -322,7 +344,7 @@ export function createPostgresJobLedger(
       const rows = await resolvedDb
         .select()
         .from(jobs)
-        .where(eq(jobs.id, input.jobId))
+        .where(and(eq(jobs.id, input.jobId), TS_OWNED_JOB))
         .limit(1);
       const row = rows[0];
 
@@ -364,12 +386,12 @@ export function createPostgresJobLedger(
     async markCompleted(input: {
       jobId: string;
       result: Record<string, unknown>;
-      workerId?: string | null;
+      workerId: string;
     }): Promise<void> {
       const completedAt = nowDate();
 
       await resolvedDb.transaction(async (tx) => {
-        await tx
+        const updatedRows = await tx
           .update(jobs)
           .set({
             status: 'completed',
@@ -381,14 +403,26 @@ export function createPostgresJobLedger(
             completedAt,
             updatedAt: completedAt,
           })
-          .where(eq(jobs.id, input.jobId));
+          .where(
+            and(
+              eq(jobs.id, input.jobId),
+              TS_OWNED_JOB,
+              eq(jobs.status, 'processing'),
+              eq(jobs.lockedBy, input.workerId),
+              sql`${jobs.lockedUntil} >= ${completedAt}`,
+            ),
+          )
+          .returning({ id: jobs.id });
+        if (updatedRows.length !== 1) {
+          throw new Error(`Job ${input.jobId} is not owned by this TypeScript worker lease.`);
+        }
         await tx.insert(jobEvents).values({
           id: randomUUID(),
           jobId: input.jobId,
           eventType: 'completed',
           fromStatus: 'processing',
           toStatus: 'completed',
-          workerId: input.workerId ?? null,
+          workerId: input.workerId,
           message: 'Job completed.',
           metadata: {},
           createdAt: completedAt,
@@ -399,12 +433,12 @@ export function createPostgresJobLedger(
     async markFailed(input: {
       jobId: string;
       error: string;
-      workerId?: string | null;
+      workerId: string;
     }): Promise<void> {
       const failedAt = nowDate();
 
       await resolvedDb.transaction(async (tx) => {
-        await tx
+        const updatedRows = await tx
           .update(jobs)
           .set({
             status: 'failed',
@@ -415,14 +449,26 @@ export function createPostgresJobLedger(
             failedAt,
             updatedAt: failedAt,
           })
-          .where(eq(jobs.id, input.jobId));
+          .where(
+            and(
+              eq(jobs.id, input.jobId),
+              TS_OWNED_JOB,
+              eq(jobs.status, 'processing'),
+              eq(jobs.lockedBy, input.workerId),
+              sql`${jobs.lockedUntil} >= ${failedAt}`,
+            ),
+          )
+          .returning({ id: jobs.id });
+        if (updatedRows.length !== 1) {
+          throw new Error(`Job ${input.jobId} is not owned by this TypeScript worker lease.`);
+        }
         await tx.insert(jobEvents).values({
           id: randomUUID(),
           jobId: input.jobId,
           eventType: 'failed',
           fromStatus: 'processing',
           toStatus: 'failed',
-          workerId: input.workerId ?? null,
+          workerId: input.workerId,
           message: input.error,
           metadata: {},
           createdAt: failedAt,
@@ -449,8 +495,23 @@ export function createPostgresJobLedger(
             failedAt,
             updatedAt: failedAt,
           })
-          .where(eq(jobs.id, input.jobId))
+          .where(
+            and(
+              eq(jobs.id, input.jobId),
+              TS_OWNED_JOB,
+              sql`(
+                (${jobs.status} in ('pending', 'queued') and ${jobs.attemptCount} >= ${jobs.maxAttempts})
+                or (${jobs.status} = 'processing' and ${jobs.attemptCount} >= ${jobs.maxAttempts}
+                    and ${jobs.lockedUntil} < ${failedAt})
+                or (${jobs.status} = 'processing' and ${jobs.lockedBy} = ${input.workerId ?? null}
+                    and ${jobs.lockedUntil} >= ${failedAt})
+              )`,
+            ),
+          )
           .returning();
+        if (updatedRows.length !== 1) {
+          throw new Error(`Job ${input.jobId} is not owned by this TypeScript worker lease.`);
+        }
         await tx.insert(jobEvents).values({
           id: randomUUID(),
           jobId: input.jobId,
@@ -479,6 +540,7 @@ export function createPostgresJobLedger(
             eq(jobs.status, 'processing'),
             lt(jobs.lockedUntil, recoveredAt),
             sql`${jobs.attemptCount} < ${jobs.maxAttempts}`,
+            TS_OWNED_JOB,
           ),
         )
         .orderBy(asc(jobs.lockedUntil))

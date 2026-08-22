@@ -1,151 +1,280 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
-import { createCompositionRoot, requireWorkspaceSession } from '@/composition-root';
-import { buildAnalysisSessionPageModel } from '@/application/analysis-session/build-session-page-model';
-import { AnalysisContextPanel } from './_components/analysis-context-panel';
-import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
-import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
-import { AnalysisFollowUpInput } from './_components/analysis-follow-up-input';
-import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
-import { AnalysisPlanPanel } from './_components/analysis-plan-panel';
-import { AnalysisPendingRefreshGate } from './_components/analysis-pending-refresh-gate';
+import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
+import {
+  validateAnalysisExecutionStreamEvent,
+  type AnalysisExecutionStreamEvent,
+} from '@/domain/analysis-execution/stream-models';
+import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
+import { buildFollowUpContextDiff } from '@/domain/analysis-session/follow-up-models';
+import {
+  getAnalysisSession,
+  getCurrentViewer,
+  JavaBackendHttpError,
+  type JavaAnalysisSession,
+} from '@/infrastructure/java-backend';
+
 import { AnalysisAutoExecuteGate } from './_components/analysis-auto-execute-gate';
-import { CandidateFactorPanel } from './_components/candidate-factor-panel';
+import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
+import { AnalysisFollowUpInput } from './_components/analysis-follow-up-input';
+import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
+import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
+import { AnalysisPendingRefreshGate } from './_components/analysis-pending-refresh-gate';
+import {
+  buildJavaFollowUpFeedback,
+  buildJavaHistoryReadModel,
+  followUpsFromJava,
+  resolveJavaActiveFollowUp,
+  rootContextFromJava,
+} from './java-follow-up-view-model';
 
 type AnalysisSessionPageProps = {
-  params: Promise<{
-    sessionId: string;
-  }>;
+  params: Promise<{ sessionId: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function readSearchParam(value: string | string[] | undefined) {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function eventsFromJava(
+  events: JavaAnalysisSession['events'],
+): AnalysisExecutionStreamEvent[] {
+  return events.map((event) => validateAnalysisExecutionStreamEvent({
+    ...event,
+    status: event.status ?? undefined,
+    message: event.message ?? undefined,
+  }));
+}
+
+function conclusionFromJava(
+  aggregate: JavaAnalysisSession,
+): AnalysisConclusionReadModel | null {
+  const snapshot = aggregate.snapshot;
+  if (!snapshot) return null;
+
+  const validated = validateAnalysisExecutionStreamEvent({
+    id: 'snapshot-render-blocks',
+    sessionId: snapshot.sessionId,
+    executionId: snapshot.executionId,
+    sequence: 1,
+    kind: 'execution-status',
+    timestamp: snapshot.updatedAt,
+    status: snapshot.status,
+    renderBlocks: snapshot.conclusionState.renderBlocks,
+    metadata: {},
+  });
+
+  return {
+    causes: snapshot.conclusionState.causes,
+    renderBlocks: validated.renderBlocks ?? [],
+  };
+}
+
+function planAssumptions(aggregate: JavaAnalysisSession) {
+  const value = aggregate.snapshot?.planSnapshot._executionAssumptions;
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
 
 export default async function AnalysisSessionPage({
   params,
   searchParams,
 }: AnalysisSessionPageProps) {
-  const root = createCompositionRoot();
   const { sessionId } = await params;
-  const { session: currentUser, accessDeniedMessage } =
-    await requireWorkspaceSession(`/workspace/analysis/${sessionId}`);
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const executionId = readSearchParam(resolvedSearchParams.executionId);
+  const requestedFollowUpId = readSearchParam(resolvedSearchParams.followUpId);
 
-  if (accessDeniedMessage) {
-    return null;
+  let viewer;
+  let aggregate;
+  try {
+    [viewer, aggregate] = await Promise.all([
+      getCurrentViewer(),
+      getAnalysisSession(sessionId, executionId),
+    ]);
+  } catch (error) {
+    if (error instanceof JavaBackendHttpError && error.status === 401) {
+      redirect(`/login?next=${encodeURIComponent(`/workspace/analysis/${sessionId}`)}`);
+    }
+    if (error instanceof JavaBackendHttpError && error.status === 404) {
+      notFound();
+    }
+    throw error;
   }
 
-  const pageModel = await buildAnalysisSessionPageModel({
-    root,
-    sessionId,
-    owner: currentUser,
-    searchParams: (await searchParams) ?? {},
-  });
+  if (!viewer.workspaceAccess) return null;
 
-  if (!pageModel) {
-    notFound();
+  const requestedFollowUp = requestedFollowUpId
+    ? aggregate.followUps.find((followUp) => followUp.id === requestedFollowUpId)
+    : undefined;
+  if (requestedFollowUpId && !requestedFollowUp) notFound();
+  const requestedHistoryRoundId = readSearchParam(resolvedSearchParams.historyRoundId);
+  const requestedHistoryRound = requestedHistoryRoundId
+    ? aggregate.history.find((round) => round.id === requestedHistoryRoundId)
+    : undefined;
+  if (requestedHistoryRoundId && !requestedHistoryRound) notFound();
+  if (requestedFollowUp && requestedHistoryRound
+    && requestedHistoryRound.followUpId !== requestedFollowUp.id) notFound();
+  if (executionId && requestedHistoryRound
+    && requestedHistoryRound.executionId !== executionId) notFound();
+  if (executionId && requestedFollowUp
+    && requestedFollowUp.resultExecutionId !== executionId) notFound();
+  const selectedExecutionId = executionId
+    ?? requestedHistoryRound?.executionId
+    ?? requestedFollowUp?.resultExecutionId
+    ?? null;
+  if (selectedExecutionId
+    && selectedExecutionId !== aggregate.runtime.resolvedExecutionId) {
+    try {
+      aggregate = await getAnalysisSession(sessionId, selectedExecutionId);
+    } catch (error) {
+      if (error instanceof JavaBackendHttpError && error.status === 404) notFound();
+      throw error;
+    }
   }
 
-  const followUpInputBlock = pageModel.followUpSection.hasInput ? (
-    <AnalysisFollowUpInput
-      sessionId={pageModel.followUpSection.sessionId}
-      activeFollowUpId={pageModel.followUpSection.activeFollowUpId}
-      drawerContent={
-        <AnalysisFollowUpPanel
-          sessionId={pageModel.followUpSection.sessionId}
-          activeFollowUpId={pageModel.followUpSection.activeFollowUpId}
-          latestConclusionTitle={pageModel.followUpSection.latestConclusionTitle}
-          latestConclusionSummary={pageModel.followUpSection.latestConclusionSummary}
-          inheritedContext={pageModel.followUpSection.inheritedContext}
-          followUps={pageModel.followUpSection.followUps}
-          adjustmentDraft={pageModel.followUpSection.adjustmentDraft}
-          conflictItems={pageModel.followUpSection.conflictItems}
-          feedback={pageModel.followUpSection.feedback}
-          replanFeedback={pageModel.followUpSection.replanFeedback}
-        />
-      }
+  const resolvedExecutionId = aggregate.runtime.resolvedExecutionId;
+  const followUps = followUpsFromJava(aggregate);
+  const executionFollowUp = aggregate.runtime.resolvedExecutionId
+    ? followUps.find((followUp) => followUp.resultExecutionId === aggregate.runtime.resolvedExecutionId) ?? null
+    : null;
+  const activeFollowUp = requestedHistoryRoundId
+    ? requestedHistoryRound?.followUpId
+      ? followUps.find((followUp) => followUp.id === requestedHistoryRound.followUpId) ?? null
+      : null
+    : requestedFollowUpId
+      ? resolveJavaActiveFollowUp(followUps, requestedFollowUpId)
+      : executionId
+        ? executionFollowUp
+        : resolveJavaActiveFollowUp(followUps);
+  const historyReadModel = buildJavaHistoryReadModel(
+    aggregate,
+    readSearchParam(resolvedSearchParams.historyRoundId),
+  );
+  const followUpFeedback = buildJavaFollowUpFeedback(resolvedSearchParams);
+  const activeHistoryRound = activeFollowUp
+    ? aggregate.history.find((round) => round.followUpId === activeFollowUp.id) ?? null
+    : null;
+  const displayedFollowUp = requestedHistoryRoundId
+    ? requestedHistoryRound?.followUpId
+      ? followUps.find((followUp) => followUp.id === requestedHistoryRound.followUpId) ?? null
+      : null
+    : activeFollowUp;
+  const displayedQuestion = displayedFollowUp?.questionText
+    ?? requestedHistoryRound?.questionText
+    ?? aggregate.session.questionText;
+  const completedConclusion = activeHistoryRound?.status === 'completed'
+    ? activeHistoryRound.conclusionState?.causes[0] ?? null
+    : activeFollowUp
+      ? null
+      : aggregate.history[0]?.conclusionState?.causes[0]
+        ?? aggregate.snapshot?.conclusionState.causes[0]
+        ?? null;
+  const displayedSourceConclusion = completedConclusion ?? (activeFollowUp ? {
+    title: activeFollowUp.referencedConclusionTitle,
+    summary: activeFollowUp.referencedConclusionSummary,
+  } : null);
+  const inheritedContext = activeFollowUp?.mergedContext ?? rootContextFromJava(aggregate);
+  const canFollowUp = Boolean(completedConclusion && inheritedContext
+    && (!activeFollowUp || activeHistoryRound?.status === 'completed'));
+  const followUpDetails = activeFollowUp && inheritedContext ? (
+    <AnalysisFollowUpPanel
+      sessionId={sessionId}
+      activeFollowUpId={activeFollowUp?.id}
+      latestConclusionTitle={displayedSourceConclusion?.title ?? null}
+      latestConclusionSummary={displayedSourceConclusion?.summary ?? null}
+      inheritedContext={inheritedContext}
+      followUps={followUps}
+      adjustmentDraft={followUpFeedback.adjustmentDraft}
+      conflictItems={followUpFeedback.conflictItems}
+      feedback={followUpFeedback.feedback}
+      replanFeedback={followUpFeedback.replanFeedback}
+      showComposer={false}
+      showCards={false}
     />
   ) : null;
+  const followUpInput = canFollowUp ? (
+    <AnalysisFollowUpInput
+      sessionId={sessionId}
+      activeFollowUpId={activeFollowUp?.id}
+      drawerContent={followUpDetails}
+    />
+  ) : null;
+  const isJavaInitialSession =
+    aggregate.session.savedContext._executionContract === 'java-initial-v1';
+  const activeFollowUpPending = Boolean(displayedFollowUp && !displayedFollowUp.resultExecutionId);
+  const activeFollowUpDiff = activeFollowUp ? buildFollowUpContextDiff({
+    inheritedContext: activeFollowUp.inheritedContext,
+    mergedContext: activeFollowUp.mergedContext,
+  }) : null;
+  const activeFollowUpNeedsReplan = Boolean(activeFollowUp
+    && !activeFollowUp.currentPlanSnapshot
+    && activeFollowUpDiff
+    && (activeFollowUpDiff.added.length || activeFollowUpDiff.overridden.length));
+  const events = eventsFromJava(aggregate.events);
+  const readModel: AnalysisExecutionStreamReadModel | null = resolvedExecutionId
+    ? {
+        sessionId,
+        executionId: resolvedExecutionId,
+        currentStatus: aggregate.runtime.status,
+        hasEvents: events.length > 0,
+        events,
+      }
+    : null;
 
   return (
     <section className="mx-auto w-full max-w-[920px] space-y-6 px-2">
-      {/* 自动执行 gate */}
       <AnalysisAutoExecuteGate
-        sessionId={pageModel.sessionId}
-        followUpId={pageModel.activeFollowUpId}
-        enabled={pageModel.shouldAutoExecute}
+        sessionId={sessionId}
+        enabled={aggregate.runtime.autoExecute && !activeFollowUp}
       />
-      <AnalysisPendingRefreshGate enabled={pageModel.shouldRefreshPendingExecution} />
+      <AnalysisPendingRefreshGate
+        enabled={Boolean(resolvedExecutionId && !aggregate.runtime.terminal && !aggregate.runtime.streamEnabled)}
+      />
 
-      {/* 执行提交反馈（轻量 banner） */}
-      {pageModel.shouldShowExecutionFeedback ? (
-        <div
-          className="rounded-lg px-4 py-3 text-sm"
-          data-testid="analysis-execution-feedback"
-          style={{
-            backgroundColor: pageModel.executionError
-              ? 'rgb(255 106 106 / 10%)'
-              : 'rgb(49 185 130 / 10%)',
-            color: pageModel.executionError
-              ? 'rgb(159 57 57)'
-              : 'rgb(18 96 69)',
-          }}
-        >
-          {pageModel.executionError ? (
-            <p>{pageModel.executionError}</p>
-          ) : (
-            <p>{pageModel.executionFeedbackMessage}</p>
-          )}
+      {followUpFeedback.feedback || followUpFeedback.replanFeedback ? (
+        <div className="mx-auto max-w-[860px] space-y-2 px-4" data-testid="java-follow-up-feedback">
+          {[followUpFeedback.feedback, followUpFeedback.replanFeedback].filter(Boolean).map((feedback) => (
+            <p
+              className={feedback?.tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-primary'}
+              key={feedback?.message}
+            >
+              {feedback?.message}
+            </p>
+          ))}
         </div>
       ) : null}
 
-      {/* 主聊天窗口 */}
-      {pageModel.resolvedExecutionId && pageModel.executionStreamReadModel ? (
+      {resolvedExecutionId && readModel && !activeFollowUpPending ? (
         <AnalysisExecutionLiveShell
-          sessionId={pageModel.sessionId}
-          executionId={pageModel.resolvedExecutionId}
-          ownerUserId={pageModel.ownerUserId}
-          initialReadModel={pageModel.executionStreamReadModel}
-          initialConclusionReadModel={pageModel.liveConclusionReadModel}
-          initialProjection={pageModel.projectionHydration?.projection ?? null}
-          resumeCursor={pageModel.projectionHydration?.resumeCursor ?? null}
-          enableLiveStream={pageModel.enableLiveStream}
-          ontologyVersionBinding={pageModel.ontologyVersionBindingForDisplay}
-          planAssumptions={pageModel.analysisPlanReadModel.assumptions}
-          questionText={pageModel.questionText}
-          intentLabel={pageModel.intentLabel}
-          ontologyVersionBadge={pageModel.ontologyVersionBadgeText ?? undefined}
-          followUpLabel={pageModel.followUpLabel}
-          candidateFactors={pageModel.mergedCandidateFactorReadModel.factors}
-          thread={pageModel.thread}
+          sessionId={sessionId}
+          executionId={resolvedExecutionId}
+          ownerUserId={viewer.userId}
+          initialReadModel={readModel}
+          initialConclusionReadModel={conclusionFromJava(aggregate)}
+          resumeCursor={{
+            lastSequence: aggregate.runtime.resumeAfterSequence,
+            lastEventId: events.at(-1)?.id ?? null,
+          }}
+          enableLiveStream={aggregate.runtime.streamEnabled}
+          planAssumptions={planAssumptions(aggregate)}
+          questionText={displayedQuestion}
+          followUpLabel={displayedFollowUp ? '追问模式' : undefined}
+          ontologyVersionBadge={aggregate.snapshot?.ontologyVersionId ?? undefined}
           drawerContents={{
-            plan: (
-              <AnalysisPlanPanel
-                sessionId={pageModel.sessionId}
-                readModel={pageModel.analysisPlanReadModel}
-                followUpId={pageModel.activeFollowUpId}
-                blockingMessage={pageModel.groundedPlanPreviewErrorMessage}
-              />
-            ),
-            context: (
-              <AnalysisContextPanel
-                sessionId={pageModel.sessionId}
-                initialReadModel={pageModel.contextReadModel}
-              />
-            ),
             history: (
               <AnalysisHistoryPanel
-                sessionId={pageModel.sessionId}
-                activeFollowUpId={pageModel.activeFollowUpId}
-                readModel={pageModel.historyReadModel}
+                sessionId={sessionId}
+                readModel={historyReadModel}
               />
-            ),
-            candidates: (
-              <CandidateFactorPanel readModel={pageModel.mergedCandidateFactorReadModel} />
             ),
           }}
         >
-          {followUpInputBlock}
+          {followUpInput}
         </AnalysisExecutionLiveShell>
       ) : (
-        /* 无执行时的静态会话展示 */
         <div
           className="mx-auto w-full max-w-[860px] space-y-6 px-4"
           data-testid="analysis-pending-conversation"
@@ -153,83 +282,71 @@ export default async function AnalysisSessionPage({
           <div className="flex justify-end">
             <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-primary px-5 py-3.5">
               <p className="text-base leading-7 text-primary-foreground">
-                {pageModel.questionText}
+                {displayedQuestion}
               </p>
             </div>
           </div>
           <div className="flex justify-start">
             <div className="w-full max-w-[90%]">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`flex h-2.5 w-2.5 rounded-full ${
-                    pageModel.pendingExecutionBlockerMessage
-                      ? 'bg-rose-400'
-                      : 'bg-muted-foreground/30'
-                  }`}
-                />
-                <p className="text-sm font-medium text-foreground">
-                  {pageModel.pendingExecutionHeadline}
-                </p>
-              </div>
-
-              {pageModel.pendingExecutionBlockerMessage ? (
-                <div
-                  className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3"
-                  data-testid="analysis-execution-blocked"
+              <p className="text-sm font-medium text-foreground">
+                {activeFollowUp
+                  ? '正在准备追问分析'
+                  : isJavaInitialSession ? '正在准备首次分析' : '旧执行尚未迁移'}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                {activeFollowUp
+                  ? '可先纠正本轮上下文并重生成计划；确认无误后手动执行。本轮不会自动提交。'
+                  : isJavaInitialSession
+                  ? '系统会提交当前问题；如未自动开始，可手动执行。'
+                  : '该会话属于旧后端事实，本切片不会自动或手动重跑。请等待后续历史迁移切片。'}
+              </p>
+              {isJavaInitialSession && !activeFollowUpNeedsReplan ? (
+                <form
+                  action={`/api/analysis/sessions/${sessionId}/execute`}
+                  className="mt-4"
+                  method="post"
                 >
-                  <p className="text-sm font-medium text-rose-900">
-                    自动执行被阻断
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-rose-800">
-                    {pageModel.pendingExecutionBlockerMessage}
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  如果页面没有自动跳转到执行结果，可以手动提交当前计划。
+                  {activeFollowUp ? (
+                    <input name="followUpId" type="hidden" value={activeFollowUp.id} />
+                  ) : null}
+                  <button
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    type="submit"
+                  >
+                    手动执行
+                  </button>
+                </form>
+              ) : activeFollowUpNeedsReplan ? (
+                <p className="mt-4 text-sm font-medium text-destructive">
+                  当前上下文已变更，请先重生成后续计划，再手动执行。
                 </p>
-              )}
-
-              <form
-                action={`/api/analysis/sessions/${pageModel.sessionId}/execute`}
-                className="mt-4"
-                method="post"
-              >
-                {pageModel.activeFollowUpId ? (
-                  <input name="followUpId" type="hidden" value={pageModel.activeFollowUpId} />
-                ) : null}
-                <button
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={Boolean(pageModel.groundedPlanPreviewError)}
-                  type="submit"
-                >
-                  手动执行当前计划
-                </button>
-              </form>
-
-              <details
-                className="mt-4 rounded-lg border border-border bg-card p-4"
-                data-testid="analysis-pending-plan-details"
-              >
-                <summary className="cursor-pointer text-sm font-medium text-foreground">
-                  查看执行计划与阻断原因
-                </summary>
-                <div className="mt-4">
-                  <AnalysisPlanPanel
-                    sessionId={pageModel.sessionId}
-                    readModel={pageModel.analysisPlanReadModel}
-                    followUpId={pageModel.activeFollowUpId}
-                    blockingMessage={pageModel.groundedPlanPreviewErrorMessage}
-                  />
-                </div>
-              </details>
+              ) : null}
             </div>
           </div>
-
-          {followUpInputBlock}
+          {followUpInput}
         </div>
       )}
 
+      {activeFollowUp && inheritedContext ? (
+        <AnalysisFollowUpPanel
+          sessionId={sessionId}
+          activeFollowUpId={activeFollowUp?.id}
+          latestConclusionTitle={displayedSourceConclusion?.title ?? null}
+          latestConclusionSummary={displayedSourceConclusion?.summary ?? null}
+          inheritedContext={inheritedContext}
+          followUps={followUps}
+          adjustmentDraft={followUpFeedback.adjustmentDraft}
+          conflictItems={followUpFeedback.conflictItems}
+          feedback={null}
+          replanFeedback={null}
+          showComposer={false}
+        />
+      ) : null}
+
+      <AnalysisHistoryPanel
+        sessionId={sessionId}
+        readModel={historyReadModel}
+      />
     </section>
   );
 }

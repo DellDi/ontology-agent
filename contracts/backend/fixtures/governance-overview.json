@@ -1,0 +1,9 @@
+{
+  "currentPublishedVersion": {"id":"ontology-v1","semver":"1.0.0","displayName":"正式本体","status":"approved","description":"生产版本","publishedAt":"2026-08-01T00:00:00Z","deprecatedAt":null,"retiredAt":null,"createdBy":"admin-1","createdAt":"2026-07-01T00:00:00Z","updatedAt":"2026-08-01T00:00:00Z"},
+  "latestApprovedVersion": {"id":"ontology-v1","semver":"1.0.0","displayName":"正式本体","status":"approved","description":"生产版本","publishedAt":"2026-08-01T00:00:00Z","deprecatedAt":null,"retiredAt":null,"createdBy":"admin-1","createdAt":"2026-07-01T00:00:00Z","updatedAt":"2026-08-01T00:00:00Z"},
+  "pendingReviewCount":1,
+  "approvedAwaitingPublishCount":0,
+  "recentChangeRequests":[{"id":"cr-1","ontologyVersionId":"ontology-v1","targetObjectType":"metric_definition","targetObjectKey":"collection-rate","changeType":"update","status":"submitted","title":"调整收缴率说明","description":"统一业务口径说明","beforeSummary":{"unit":"percent"},"afterSummary":{"unit":"ratio"},"impactScope":["dashboard.collection-rate"],"compatibilityType":"backward_compatible","compatibilityNote":"字段不变","submittedBy":"author-1","submittedAt":"2026-08-10T00:00:00Z","createdAt":"2026-08-09T00:00:00Z","updatedAt":"2026-08-10T00:00:00Z"}],
+  "recentPublishes":[{"id":"publish-1","ontologyVersionId":"ontology-v1","publishedBy":"publisher-1","previousVersionId":null,"changeRequestIds":["cr-0"],"publishNote":"首次发布","createdAt":"2026-08-01T00:00:00Z"}],
+  "capabilities":{"canView":true,"canAuthor":true,"canReview":true,"canPublish":true}
+}

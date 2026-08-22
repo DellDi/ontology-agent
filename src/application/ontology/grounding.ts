@@ -913,7 +913,7 @@ export function createOntologyBootstrapUseCases(deps: OntologyBootstrapDependenc
      *
      * @param expectedMinimums - 可选。若提供，则按"每项 >= 期望值"判定 completeness；
      *   未提供时只回答"是否存在 approved version"与"各项实际数量"。
-     *   这个参数由 `scripts/ontology-bootstrap.mts` 传入
+     *   仅供旧 TypeScript 测试装配；生产初始化由 Java Ontology Bootstrap API 负责
      *   `DEFAULT_RUNTIME_BASELINE_EXPECTED_COUNTS`，从而避免把业务 baseline 数字硬编码进 application 层。
      */
     async checkBootstrapStatus(expectedMinimums?: {

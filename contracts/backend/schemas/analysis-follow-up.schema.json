@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "analysis-follow-up.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "sessionId",
+    "ownerUserId",
+    "questionText",
+    "parentFollowUpId",
+    "referencedExecutionId",
+    "referencedConclusionTitle",
+    "referencedConclusionSummary",
+    "resultExecutionId",
+    "ontologyVersionId",
+    "ontologyVersionBinding",
+    "inheritedContext",
+    "mergedContext",
+    "planVersion",
+    "currentPlanSnapshot",
+    "previousPlanSnapshot",
+    "currentPlanDiff",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "ownerUserId": { "type": "string", "minLength": 1 },
+    "questionText": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "parentFollowUpId": { "type": ["string", "null"], "minLength": 1 },
+    "referencedExecutionId": { "type": "string", "minLength": 1 },
+    "referencedConclusionTitle": { "type": ["string", "null"], "minLength": 1 },
+    "referencedConclusionSummary": { "type": ["string", "null"], "minLength": 1 },
+    "resultExecutionId": { "type": ["string", "null"], "minLength": 1 },
+    "ontologyVersionId": { "type": "string", "minLength": 1 },
+    "ontologyVersionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ontologyVersionId", "source"],
+      "properties": {
+        "ontologyVersionId": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["grounded-context", "inherited", "switched"] }
+      }
+    },
+    "inheritedContext": { "$ref": "#/$defs/context" },
+    "mergedContext": { "$ref": "#/$defs/context" },
+    "planVersion": { "type": ["integer", "null"], "minimum": 1 },
+    "currentPlanSnapshot": {
+      "oneOf": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/plan" },
+            {
+              "type": "object",
+              "required": ["_followUpId", "_referencedExecutionId"],
+              "properties": {
+                "_executionContract": { "const": "java-follow-up-v1" },
+                "_followUpId": { "type": "string", "minLength": 1 },
+                "_referencedExecutionId": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        },
+        { "type": "null" }
+      ]
+    },
+    "previousPlanSnapshot": { "oneOf": [{ "$ref": "#/$defs/plan" }, { "type": "null" }] },
+    "currentPlanDiff": { "oneOf": [{ "$ref": "#/$defs/planDiff" }, { "type": "null" }] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "contextField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "value", "state"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 },
+        "state": { "enum": ["missing", "uncertain", "confirmed"] },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetMetric", "entity", "timeRange", "comparison", "constraints"],
+      "properties": {
+        "targetMetric": { "$ref": "#/$defs/contextField" },
+        "entity": { "$ref": "#/$defs/contextField" },
+        "timeRange": { "$ref": "#/$defs/contextField" },
+        "comparison": { "$ref": "#/$defs/contextField" },
+        "granularity": { "$ref": "#/$defs/contextField" },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "value"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "value": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "resolvedContext": {
+      "type": "object",
+      "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"],
+      "properties": {
+        "entityKey": { "type": "string", "minLength": 1 },
+        "metricDefinitionKey": { "type": "string", "minLength": 1 },
+        "metricVariantKey": { "type": "string", "minLength": 1 },
+        "timeSemanticKey": { "type": "string", "minLength": 1 },
+        "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "from": { "type": "string", "format": "date" },
+        "to": { "type": "string", "format": "date" }
+      }
+    },
+    "planStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "order", "title", "objective", "dependencyIds"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "order": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "objective": { "type": "string", "minLength": 1 },
+        "dependencyIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "summary", "steps", "_executionContract", "_resolvedContext"],
+      "properties": {
+        "mode": { "enum": ["minimal", "multi-step"] },
+        "summary": { "type": "string", "minLength": 1 },
+        "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/planStep" } },
+        "_executionContract": { "enum": ["java-initial-v1", "java-follow-up-v1"] },
+        "_groundedSource": { "type": "string", "minLength": 1 },
+        "_groundingStatus": { "enum": ["success", "failed", "ambiguous", "partial", "grounded"] },
+        "_toolBindings": { "type": "object" },
+        "_executionAssumptions": { "type": "array", "items": { "type": "string" } },
+        "_followUpId": { "type": "string", "minLength": 1 },
+        "_referencedExecutionId": { "type": "string", "minLength": 1 },
+        "_resolvedContext": { "$ref": "#/$defs/resolvedContext" }
+      }
+    },
+    "planDiffStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stepId", "title", "reason"],
+      "properties": {
+        "stepId": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "planDiff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "reusedSteps", "invalidatedSteps", "addedSteps"],
+      "properties": {
+        "reason": { "type": "string", "minLength": 1 },
+        "reusedSteps": { "type": "array", "items": { "$ref": "#/$defs/planDiffStep" } },
+        "invalidatedSteps": { "type": "array", "items": { "$ref": "#/$defs/planDiffStep" } },
+        "addedSteps": { "type": "array", "items": { "$ref": "#/$defs/planDiffStep" } }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "planVersion": { "type": "integer" } }, "required": ["planVersion"] },
+      "then": {
+        "properties": {
+          "currentPlanSnapshot": { "type": "object" },
+          "previousPlanSnapshot": { "type": "object" },
+          "currentPlanDiff": { "type": "object" }
+        }
+      },
+      "else": {
+        "properties": {
+          "currentPlanSnapshot": { "type": "null" },
+          "previousPlanSnapshot": { "type": "null" },
+          "currentPlanDiff": { "type": "null" }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "latestRun": {
+    "id": "graph-run-1",
+    "mode": "incremental-rebuild",
+    "status": "completed",
+    "scopeType": "organization",
+    "scopeKey": "org-1",
+    "triggerType": "scheduler",
+    "triggeredBy": "graph-sync-scheduler",
+    "cursorSnapshot": {
+      "erp.projects": {
+        "cursorTime": "2026-08-14T01:00:00Z",
+        "cursorPk": "project-1"
+      }
+    },
+    "nodesWritten": 6,
+    "edgesWritten": 5,
+    "errorSummary": null,
+    "errorDetail": {
+      "nodesDeleted": 0,
+      "edgesDeleted": 0
+    },
+    "startedAt": "2026-08-14T01:00:01Z",
+    "finishedAt": "2026-08-14T01:00:02Z",
+    "createdAt": "2026-08-14T01:00:00Z",
+    "updatedAt": "2026-08-14T01:00:02Z"
+  },
+  "backlog": {
+    "pending": 0,
+    "processing": 0,
+    "completed": 1,
+    "failed": 0
+  },
+  "cursors": [],
+  "recentFailures": []
+}

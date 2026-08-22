@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -598,27 +597,6 @@ test('Story 10.3 regression | 重建后的历史投影必须驱动结果区和�
   assert.match(result.primaryAnswer, /收费趋势异常/);
   assert.ok(result.visualizationTitles.includes('历史月度工单趋势'));
   assert.ok(result.persistedPartKinds.includes('conclusion-card'));
-});
-
-test('Story 10.3 regression | session page 为非当前历史轮次 hydrate canonical snapshot 和稳定 round scope', () => {
-  const source = readFileSync(
-    'src/application/analysis-session/build-session-page-model.ts',
-    'utf-8',
-  );
-
-  assert.ok(
-    source.includes('const threadConclusionReadModel =') &&
-      source.includes('resolveConclusionReadModelFromSnapshot(threadSnapshot)'),
-    'Thread hydration should derive fallback conclusion from historical snapshot',
-  );
-  assert.ok(
-    source.includes("historyRoundId: threadSnapshot.followUpId ?? 'session-root'"),
-    'Thread hydration should use stable historyRoundId for root and follow-up rounds',
-  );
-  assert.ok(
-    source.includes('fallbackConclusion: threadConclusionReadModel'),
-    'Thread hydration should pass fallbackConclusion so old persisted projections can be rebuilt',
-  );
 });
 
 test('Story 10.3 AC4/AC6 | projection scope mismatch 必须 fail loud，历史轮次 projection 互不覆盖', async () => {

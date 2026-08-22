@@ -1,7 +1,10 @@
 import Link from 'next/link';
 
 import { CHANGE_REQUEST_STATUSES } from '@/domain/ontology/governance';
-import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import {
+  getGovernanceChangeRequests,
+  requireJavaOntologyAdminSession,
+} from '@/infrastructure/java-backend';
 import { Button } from '@/app/_components/button';
 
 import {
@@ -22,20 +25,19 @@ function readParam(value: string | string[] | undefined): string | undefined {
 export default async function OntologyAdminChangeRequestsPage({
   searchParams,
 }: CRListPageProps) {
-  const state = await requireOntologyAdminSession('/admin/ontology/change-requests');
+  const state = await requireJavaOntologyAdminSession('/admin/ontology/change-requests');
   if (state.accessDeniedMessage) return null;
 
   const params = (await searchParams) ?? {};
   const requestedStatus = readParam(params.status);
   const validStatus = CHANGE_REQUEST_STATUSES.find((s) => s === requestedStatus);
 
-  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
-  const [items, allItems] = await Promise.all([
-    validStatus
-      ? adminUseCases.listChangeRequestsByStatus(validStatus)
-      : adminUseCases.listAllChangeRequests(100),
-    adminUseCases.listAllChangeRequests(100),
+  const [selected, all] = await Promise.all([
+    getGovernanceChangeRequests(validStatus, 100),
+    getGovernanceChangeRequests(undefined, 100),
   ]);
+  const items = selected.items;
+  const allItems = all.items;
 
   const error = readParam(params.error);
   const success = readParam(params.ok);
@@ -88,7 +90,7 @@ export default async function OntologyAdminChangeRequestsPage({
           allItems,
           activeStatus: validStatus ?? 'all',
           statusCounts,
-          capabilities: state.capabilities,
+          capabilities: all.capabilities,
         }}
       />
     </section>

@@ -1,0 +1,25 @@
+{
+  "executionId": "execution-failed-1",
+  "sessionId": "session-1",
+  "ownerUserId": "user-1",
+  "followUpId": null,
+  "ontologyVersionId": "ontology-v1",
+  "ontologyVersionBinding": { "ontologyVersionId": "ontology-v1", "source": "grounded-context" },
+  "status": "failed",
+  "planSnapshot": {
+    "mode": "minimal",
+    "summary": "执行在完成计划前失败",
+    "steps": [],
+    "_executionContract": "java-initial-v1",
+    "_resolvedContext": {}
+  },
+  "stepResults": [],
+  "conclusionState": { "causes": [], "renderBlocks": [] },
+  "resultBlocks": [],
+  "mobileProjection": { "summary": "Main Agent 模型调用失败。", "status": "failed", "updatedAt": "2026-08-09T10:00:02Z" },
+  "failurePoint": { "id": "execution", "order": 0, "title": "首次分析" },
+  "errorCode": "AGENT_PROVIDER_FAILURE",
+  "traceId": "trace-failed-1",
+  "createdAt": "2026-08-09T10:00:00Z",
+  "updatedAt": "2026-08-09T10:00:02Z"
+}

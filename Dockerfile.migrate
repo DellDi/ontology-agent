@@ -1,0 +1,20 @@
+FROM node:24.14.0-bookworm-slim
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# migrate 依赖 drizzle-kit devDependency，因此安装全量依赖。
+RUN pnpm install --frozen-lockfile
+
+COPY tsconfig.json drizzle.config.ts ./
+COPY drizzle ./drizzle
+COPY src/infrastructure/postgres/schema ./src/infrastructure/postgres/schema
+COPY src/domain/ontology ./src/domain/ontology
+
+CMD ["node_modules/.bin/drizzle-kit", "migrate", "--config=drizzle.config.ts"]

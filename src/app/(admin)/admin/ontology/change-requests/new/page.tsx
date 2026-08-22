@@ -1,6 +1,9 @@
 import Link from 'next/link';
 
-import { createCompositionRoot, requireOntologyAdminSession } from '@/composition-root';
+import {
+  getGovernanceVersions,
+  requireJavaOntologyAdminSession,
+} from '@/infrastructure/java-backend';
 import { Button } from '@/app/_components/button';
 
 import {
@@ -10,7 +13,7 @@ import {
 import { NewChangeRequestClient } from '../../_components/new-change-request-client';
 
 export default async function NewChangeRequestPage() {
-  const state = await requireOntologyAdminSession('/admin/ontology/change-requests/new');
+  const state = await requireJavaOntologyAdminSession('/admin/ontology/change-requests/new');
   if (state.accessDeniedMessage) return null;
 
   if (!state.capabilities.canAuthor) {
@@ -35,8 +38,7 @@ export default async function NewChangeRequestPage() {
     );
   }
 
-  const { adminUseCases } = createCompositionRoot().ontologyAdminRuntime;
-  const versions = await adminUseCases.listVersions(20);
+  const versions = (await getGovernanceVersions(20)).items;
 
   if (versions.length === 0) {
     return (

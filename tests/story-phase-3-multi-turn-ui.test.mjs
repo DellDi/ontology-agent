@@ -35,14 +35,3 @@ test('Phase 3b | live shell should pass thread to conversation shell', () => {
   );
   assert.ok(source.includes('thread'), 'Live shell should handle thread prop');
 });
-
-test('Phase 3b | page should build thread from multiple rounds', () => {
-  const source = readFileSync(
-    'src/application/analysis-session/build-session-page-model.ts',
-    'utf-8',
-  );
-  assert.ok(
-    source.includes('buildConversationThreadViewModel') || source.includes('threadRounds'),
-    'Page should build thread from rounds',
-  );
-});

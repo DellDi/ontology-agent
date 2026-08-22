@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getRequestSession } from '@/composition-root';
+import { getRequestSession } from '@/infrastructure/session/server-auth';
 
 export async function GET() {
   const session = await getRequestSession();

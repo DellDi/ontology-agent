@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 
 const PORT = 3102;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -96,8 +96,7 @@ test.after(async () => {
     return;
   }
 
-  serverProcess.kill('SIGINT');
-  await once(serverProcess, 'exit');
+  await stopProcessTree(serverProcess);
 });
 
 test('已登录用户在工作台首页看到分析入口、最近分析和权限范围提示', async () => {

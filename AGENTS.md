@@ -120,7 +120,7 @@
 
 - `postgres / redis / neo4j / cube` 使用容器运行
 - `web` 在宿主机使用 `pnpm dev`
-- `worker` 在宿主机使用 `pnpm worker:dev`
+- Java API 与 Worker 在宿主机使用 `mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run`
 
 这样更适合作为日常开发默认形态
 

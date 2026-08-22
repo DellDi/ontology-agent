@@ -29,7 +29,7 @@ test('compose.yaml 正式定义 cube 与 neo4j 服务', async () => {
   assert.match(compose, /^\s{2}cube:\s*$/m);
   assert.match(compose, /^\s{2}neo4j:\s*$/m);
   assert.match(compose, /image:\s*cubejs\/cube:v1\.6\.\d+/);
-  assert.match(compose, /image:\s*neo4j:5\.26\.\d+-community-ubi9/);
+  assert.match(compose, /image:\s*neo4j:5\.26\.\d+-community-ubi10/);
   assert.match(compose, /127\.0\.0\.1:\$\{CUBE_PORT\}:4000/);
   assert.match(compose, /127\.0\.0\.1:\$\{NEO4J_HTTP_PORT\}:7474/);
   assert.match(compose, /127\.0\.0\.1:\$\{NEO4J_BOLT_PORT\}:7687/);
@@ -37,6 +37,18 @@ test('compose.yaml 正式定义 cube 与 neo4j 服务', async () => {
   assert.match(compose, /CUBEJS_API_SECRET:\s*\$\{CUBE_API_SECRET\}/);
   assert.match(compose, /cube-store:\/cube\/conf\/\.cubestore/);
   assert.match(compose, /NEO4J_AUTH:\s*\$\{NEO4J_USERNAME\}\/\$\{NEO4J_PASSWORD\}/);
+});
+
+test('开发 compose 只向 Java backend 注入数据层与模型凭据', async () => {
+  const compose = await readRepoFile('compose.yaml');
+  const webBlock = compose.match(/^  web:\r?\n[\s\S]*?(?=^  postgres:)/m)?.[0];
+
+  assert.ok(webBlock, '应能定位 web service 配置');
+  assert.doesNotMatch(
+    webBlock,
+    /CUBE_API_SECRET|NEO4J_PASSWORD|LLM_PROVIDER_API_KEY/,
+    'Web 容器不得持有 Java backend 的上游凭据',
+  );
 });
 
 test('.env.example 对齐 cube 与 neo4j 的真实本地端口和密钥约定', async () => {
@@ -69,7 +81,6 @@ test('本地基础设施文档覆盖 cube 与 neo4j 的启动、日志和 Cube A
     'docker compose logs -f cube',
     'docker compose logs -f neo4j',
     '自动签发 Cube API JWT',
-    'pnpm test:smoke:neo4j',
     'http://127.0.0.1:4000/readyz',
     'bolt://127.0.0.1:7687',
     'http://127.0.0.1:7474',
@@ -99,10 +110,9 @@ test('Cube 本地模型至少提供 FinanceReceivables、FinancePayments 与 Ser
   assert.match(serviceOrdersModel, /accomplish_date/);
 });
 
-test('package.json 只保留正式基础设施与 smoke test 脚本', async () => {
+test('package.json 不再暴露 TypeScript Graph Sync 或 Neo4j 运行入口', async () => {
   const packageJson = await readRepoFile('package.json');
 
-  assert.match(packageJson, /"graph:sync:bootstrap"/);
-  assert.match(packageJson, /"ontology:bootstrap"/);
-  assert.match(packageJson, /"test:smoke:neo4j"\s*:\s*"NODE_OPTIONS=--conditions=react-server RUN_NEO4J_SMOKE_TEST=1 npx tsx --test tests\/story-4-5-neo4j-smoke\.test\.mjs --no-cache"/);
+  assert.doesNotMatch(packageJson, /"graph:sync:/, 'Graph Sync 已由 Java 独占，不得保留 TS 写入口');
+  assert.doesNotMatch(packageJson, /"test:smoke:neo4j"/);
 });

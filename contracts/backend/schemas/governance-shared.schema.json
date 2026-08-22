@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance-shared.schema.json",
+  "$defs": {
+    "capabilities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["canView", "canAuthor", "canReview", "canPublish"],
+      "properties": {
+        "canView": { "type": "boolean" }, "canAuthor": { "type": "boolean" },
+        "canReview": { "type": "boolean" }, "canPublish": { "type": "boolean" }
+      }
+    },
+    "version": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "semver", "displayName", "status", "description", "publishedAt", "deprecatedAt", "retiredAt", "createdBy", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "semver": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["draft", "review", "approved", "deprecated", "retired"] },
+        "description": { "type": ["string", "null"] },
+        "publishedAt": { "type": ["string", "null"], "format": "date-time" },
+        "deprecatedAt": { "type": ["string", "null"], "format": "date-time" },
+        "retiredAt": { "type": ["string", "null"], "format": "date-time" },
+        "createdBy": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "changeRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "ontologyVersionId", "targetObjectType", "targetObjectKey", "changeType", "status", "title", "description", "beforeSummary", "afterSummary", "impactScope", "compatibilityType", "compatibilityNote", "submittedBy", "submittedAt", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "ontologyVersionId": { "type": "string", "minLength": 1 },
+        "targetObjectType": { "enum": ["entity_definition", "metric_definition", "metric_variant", "factor_definition", "causality_edge", "plan_step_template", "tool_capability_binding", "time_semantic", "evidence_type_definition"] },
+        "targetObjectKey": { "type": "string", "minLength": 1 },
+        "changeType": { "enum": ["create", "update", "deprecate", "retire"] },
+        "status": { "enum": ["draft", "submitted", "approved", "rejected", "published", "superseded"] },
+        "title": { "type": "string", "minLength": 1 }, "description": { "type": ["string", "null"] },
+        "beforeSummary": { "type": ["object", "null"] }, "afterSummary": { "type": ["object", "null"] },
+        "impactScope": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "compatibilityType": { "enum": ["backward_compatible", "breaking"] },
+        "compatibilityNote": { "type": ["string", "null"] }, "submittedBy": { "type": "string", "minLength": 1 },
+        "submittedAt": { "type": ["string", "null"], "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "approval": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "changeRequestId", "decision", "reviewedBy", "comment", "createdAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "changeRequestId": { "type": "string", "minLength": 1 },
+        "decision": { "enum": ["approved", "rejected"] }, "reviewedBy": { "type": "string", "minLength": 1 },
+        "comment": { "type": ["string", "null"] }, "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "publish": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "ontologyVersionId", "publishedBy", "previousVersionId", "changeRequestIds", "publishNote", "createdAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "ontologyVersionId": { "type": "string", "minLength": 1 },
+        "publishedBy": { "type": "string", "minLength": 1 }, "previousVersionId": { "type": ["string", "null"] },
+        "changeRequestIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "publishNote": { "type": ["string", "null"] }, "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "definitionItem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "ontologyVersionId", "businessKey", "displayName", "description", "status", "fields", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "ontologyVersionId": { "type": "string", "minLength": 1 },
+        "businessKey": { "type": "string", "minLength": 1 }, "displayName": { "type": "string", "minLength": 1 },
+        "description": { "type": ["string", "null"] },
+        "status": { "enum": ["draft", "review", "approved", "deprecated", "retired"] }, "fields": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

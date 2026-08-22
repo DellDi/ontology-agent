@@ -1,0 +1,19 @@
+package com.dip3.ontologyagent.support;
+
+public final class BackendException extends RuntimeException {
+    private final String code;
+
+    public BackendException(String code, String message) {
+        super(message);
+        this.code = code;
+    }
+
+    public BackendException(String code, String message, Throwable cause) {
+        super(message, cause);
+        this.code = code;
+    }
+
+    public String code() {
+        return code;
+    }
+}

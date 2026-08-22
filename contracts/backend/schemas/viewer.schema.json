@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "viewer.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["userId", "displayName", "scope", "workspaceAccess"],
+  "properties": {
+    "userId": { "type": "string", "minLength": 1 },
+    "displayName": { "type": "string", "minLength": 1 },
+    "scope": { "$ref": "#/$defs/accessScope" },
+    "workspaceAccess": { "type": "boolean", "description": "Server-side workspace authorization decision." }
+  },
+  "$defs": {
+    "accessScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["organizationId", "projectIds", "areaIds", "roleCodes"],
+      "properties": {
+        "organizationId": { "type": "string", "minLength": 1 },
+        "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "areaIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "roleCodes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}

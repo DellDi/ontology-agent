@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph-sync-shared.schema.json",
+  "$defs": {
+    "bootstrapWatermark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cursorTime", "cursorPk", "invalidRows"],
+      "properties": {
+        "cursorTime": { "type": ["string", "null"], "format": "date-time" },
+        "cursorPk": { "type": ["string", "null"] },
+        "invalidRows": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "bootstrapCursorSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capturedAt", "correlationId", "watermarks", "fencingToken"],
+      "properties": {
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "watermarks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["erp.organizations", "erp.projects", "erp.owners", "erp.charge_items", "erp.receivables", "erp.payments", "erp.service_orders"],
+          "properties": {
+            "erp.organizations": { "$ref": "#/$defs/bootstrapWatermark" },
+            "erp.projects": { "$ref": "#/$defs/bootstrapWatermark" },
+            "erp.owners": { "$ref": "#/$defs/bootstrapWatermark" },
+            "erp.charge_items": { "$ref": "#/$defs/bootstrapWatermark" },
+            "erp.receivables": { "$ref": "#/$defs/bootstrapWatermark" },
+            "erp.payments": { "$ref": "#/$defs/bootstrapWatermark" },
+            "erp.service_orders": { "$ref": "#/$defs/bootstrapWatermark" }
+          }
+        },
+        "fencingToken": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mode", "status", "scopeType", "scopeKey", "triggerType", "triggeredBy", "cursorSnapshot", "nodesWritten", "edgesWritten", "errorSummary", "errorDetail", "startedAt", "finishedAt", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["full-bootstrap", "org-rebuild", "incremental-rebuild", "incremental-scan", "consistency-sweep"] },
+        "status": { "enum": ["pending", "running", "completed", "failed", "partial"] },
+        "scopeType": { "enum": ["organization", "all"] },
+        "scopeKey": { "type": "string", "minLength": 1 },
+        "triggerType": { "enum": ["manual", "scheduler", "system"] },
+        "triggeredBy": { "type": "string", "minLength": 1 },
+        "cursorSnapshot": { "type": "object" },
+        "nodesWritten": { "type": "integer", "minimum": 0 },
+        "edgesWritten": { "type": "integer", "minimum": 0 },
+        "errorSummary": { "type": ["string", "null"] },
+        "errorDetail": { "type": ["object", "null"] },
+        "startedAt": { "type": ["string", "null"], "format": "date-time" },
+        "finishedAt": { "type": ["string", "null"], "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": { "mode": { "const": "full-bootstrap" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "scopeType": { "const": "all" },
+              "scopeKey": { "const": "all" },
+              "triggerType": { "const": "system" },
+              "cursorSnapshot": { "$ref": "#/$defs/bootstrapCursorSnapshot" }
+            }
+          }
+        }
+      ]
+    },
+    "cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceName", "cursorTime", "cursorPk", "lastRunId", "updatedAt"],
+      "properties": {
+        "sourceName": { "type": "string", "minLength": 1 },
+        "cursorTime": { "type": "string", "format": "date-time" },
+        "cursorPk": { "type": "string", "minLength": 1 },
+        "lastRunId": { "type": ["string", "null"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "dirtyScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scopeType", "scopeKey", "reason", "sourceName", "sourcePk", "sourceProgress", "firstDetectedAt", "lastDetectedAt", "status", "attemptCount", "lastRunId", "errorSummary"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "scopeType": { "const": "organization" },
+        "scopeKey": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "sourceName": { "type": "string", "minLength": 1 },
+        "sourcePk": { "type": "string", "minLength": 1 },
+        "sourceProgress": { "type": "object" },
+        "firstDetectedAt": { "type": "string", "format": "date-time" },
+        "lastDetectedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pending", "processing", "completed", "failed"] },
+        "attemptCount": { "type": "integer", "minimum": 0 },
+        "lastRunId": { "type": ["string", "null"] },
+        "errorSummary": { "type": ["string", "null"] }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latestRun", "backlog", "cursors", "recentFailures"],
+      "properties": {
+        "latestRun": { "oneOf": [{ "$ref": "#/$defs/run" }, { "type": "null" }] },
+        "backlog": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+        "cursors": { "type": "array", "items": { "$ref": "#/$defs/cursor" } },
+        "recentFailures": { "type": "array", "items": { "$ref": "#/$defs/dirtyScope" } }
+      }
+    },
+    "incrementalResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceName", "scannedChangeCount", "dirtyScopeCount", "rebuiltOrganizations", "cursorAdvanced", "failedScopeKey", "diagnostics"],
+      "properties": {
+        "sourceName": { "type": "string", "minLength": 1 },
+        "scannedChangeCount": { "type": "integer", "minimum": 0 },
+        "dirtyScopeCount": { "type": "integer", "minimum": 0 },
+        "rebuiltOrganizations": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "cursorAdvanced": { "type": "boolean" },
+        "failedScopeKey": { "type": ["string", "null"] },
+        "diagnostics": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

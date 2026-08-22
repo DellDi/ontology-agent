@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ontology-bootstrap.schema.json",
+  "$defs": {
+    "definitionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entities": { "type": "integer", "minimum": 0 },
+        "metrics": { "type": "integer", "minimum": 0 },
+        "metricVariants": { "type": "integer", "minimum": 0 },
+        "factors": { "type": "integer", "minimum": 0 },
+        "causalityEdges": { "type": "integer", "minimum": 0 },
+        "planStepTemplates": { "type": "integer", "minimum": 0 },
+        "toolBindings": { "type": "integer", "minimum": 0 },
+        "timeSemantics": { "type": "integer", "minimum": 0 },
+        "evidenceTypes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "ready", "currentVersionId", "semver", "definitionCounts"],
+      "properties": {
+        "state": { "enum": ["empty", "ready"] },
+        "ready": { "type": "boolean" },
+        "currentVersionId": { "type": ["string", "null"] },
+        "semver": { "type": ["string", "null"] },
+        "definitionCounts": { "$ref": "#/$defs/definitionCounts" }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": { "const": "empty" },
+            "ready": { "const": false },
+            "currentVersionId": { "type": "null" },
+            "semver": { "type": "null" },
+            "definitionCounts": { "type": "object", "maxProperties": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": { "const": "ready" },
+            "ready": { "const": true },
+            "currentVersionId": { "type": "string", "minLength": 1 },
+            "semver": { "type": "string", "minLength": 1 },
+            "definitionCounts": {
+              "type": "object",
+              "properties": {
+                "entities": {},
+                "metrics": {},
+                "metricVariants": {},
+                "factors": {},
+                "causalityEdges": {},
+                "planStepTemplates": {},
+                "toolBindings": {},
+                "timeSemantics": {},
+                "evidenceTypes": {}
+              },
+              "required": ["entities", "metrics", "metricVariants", "factors", "causalityEdges", "planStepTemplates", "toolBindings", "timeSemantics", "evidenceTypes"]
+            }
+          }
+        }
+      ]
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["created", "status", "correlationId"],
+      "properties": {
+        "created": { "type": "boolean" },
+        "status": { "$ref": "#/$defs/status" },
+        "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    }
+  }
+}

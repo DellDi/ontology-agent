@@ -9,6 +9,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      backend:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -16,6 +18,7 @@ services:
     environment:
       APP_PORT: ${APP_PORT:-3000}
       HOSTNAME: 0.0.0.0
+      JAVA_BACKEND_URL: http://backend:8080
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-dip3}
@@ -23,21 +26,6 @@ services:
       ENABLE_DEV_ERP_AUTH: "0"
       ERP_API_BASE_URL: ${ERP_API_BASE_URL}
       ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE:-0}
-      CUBE_API_URL: http://cube:4000/cubejs-api/v1
-      CUBE_API_SECRET: ${CUBE_API_SECRET}
-      CUBE_QUERY_TIMEOUT_MS: ${CUBE_QUERY_TIMEOUT_MS:-15000}
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USERNAME: ${NEO4J_USERNAME}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      NEO4J_DATABASE: ${NEO4J_DATABASE}
-      LLM_PROVIDER_BASE_URL: ${LLM_PROVIDER_BASE_URL}
-      LLM_PROVIDER_API_KEY: ${LLM_PROVIDER_API_KEY}
-      LLM_PROVIDER_MODEL: ${LLM_PROVIDER_MODEL}
-      LLM_FALLBACK_MODELS: ${LLM_FALLBACK_MODELS:-}
-      LLM_REQUEST_TIMEOUT_MS: ${LLM_REQUEST_TIMEOUT_MS:-15000}
-      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
-      LLM_RATE_LIMIT_MAX_REQUESTS: ${LLM_RATE_LIMIT_MAX_REQUESTS:-20}
-      LLM_RATE_LIMIT_WINDOW_SECONDS: ${LLM_RATE_LIMIT_WINDOW_SECONDS:-60}
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     restart: unless-stopped
@@ -48,10 +36,10 @@ services:
       retries: 6
       start_period: 30s
 
-  worker:
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile.java
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -59,10 +47,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      cube:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JAVA_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      JAVA_DATABASE_USERNAME: ${POSTGRES_USER}
+      JAVA_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
       REDIS_URL: redis://redis:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-dip3}
+      SESSION_SECRET: ${SESSION_SECRET}
       CUBE_API_URL: http://cube:4000/cubejs-api/v1
       CUBE_API_SECRET: ${CUBE_API_SECRET}
       CUBE_QUERY_TIMEOUT_MS: ${CUBE_QUERY_TIMEOUT_MS:-15000}
@@ -73,21 +68,45 @@ services:
       LLM_PROVIDER_BASE_URL: ${LLM_PROVIDER_BASE_URL}
       LLM_PROVIDER_API_KEY: ${LLM_PROVIDER_API_KEY}
       LLM_PROVIDER_MODEL: ${LLM_PROVIDER_MODEL}
-      LLM_FALLBACK_MODELS: ${LLM_FALLBACK_MODELS:-}
-      LLM_REQUEST_TIMEOUT_MS: ${LLM_REQUEST_TIMEOUT_MS:-15000}
-      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
+      LLM_PROVIDER_MODE: ${LLM_PROVIDER_MODE:-openai-compatible}
+      LLM_PROVIDER_TOOL_CALLING: ${LLM_PROVIDER_TOOL_CALLING:-true}
+      LLM_PROVIDER_STRUCTURED_OUTPUT: ${LLM_PROVIDER_STRUCTURED_OUTPUT:-native-json-schema}
+      JAVA_WORKER_ENABLED: "true"
+      JAVA_GRAPH_SYNC_ENABLED: ${JAVA_GRAPH_SYNC_ENABLED:-true}
+      JAVA_GRAPH_SYNC_POLL_DELAY: ${JAVA_GRAPH_SYNC_POLL_DELAY:-5m}
+      JAVA_GRAPH_SYNC_SOURCES: ${JAVA_GRAPH_SYNC_SOURCES:-erp.organizations,erp.projects,erp.owners,erp.charge_items,erp.receivables,erp.payments,erp.service_orders}
+      GRAPH_SYNC_OPS_SECRET: ${GRAPH_SYNC_OPS_SECRET}
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     restart: unless-stopped
 
   migrate:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile.migrate
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     command: ["node_modules/.bin/drizzle-kit", "migrate", "--config=drizzle.config.ts"]
+    restart: "no"
+
+  preflight:
+    image: postgres:18.2-bookworm
+    profiles: ["ops"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./scripts/preflight-java-cutover.sql:/opt/ontology-agent/preflight.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-f", "/opt/ontology-agent/preflight.sql"]
     restart: "no"
 
   postgres:
@@ -124,6 +143,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      cubestore-router:
+        condition: service_healthy
+      cubestore-worker:
+        condition: service_healthy
     environment:
       CUBEJS_DB_TYPE: postgres
       CUBEJS_DB_HOST: postgres
@@ -134,9 +157,11 @@ services:
       CUBEJS_API_SECRET: ${CUBE_API_SECRET}
       CUBEJS_DEV_MODE: "false"
       CUBEJS_TELEMETRY: "false"
+      CUBEJS_DEFAULT_TIMEZONE: Asia/Taipei
+      CUBEJS_CUBESTORE_HOST: cubestore-router
+      CUBEJS_CUBESTORE_PORT: "3030"
     volumes:
       - ./cube/conf:/cube/conf
-      - cube-store:/cube/conf/.cubestore
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
@@ -145,8 +170,48 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  cubestore-router:
+    image: cubejs/cubestore:v1.6.31
+    environment:
+      CUBESTORE_SERVER_NAME: cubestore-router:9999
+      CUBESTORE_META_PORT: "9999"
+      CUBESTORE_WORKERS: cubestore-worker:9001
+      CUBESTORE_REMOTE_DIR: /cube/data
+      CUBESTORE_DATA_DIR: /cube/data/scratch/router
+    volumes:
+      - cube-store:/cube/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3030'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  cubestore-worker:
+    image: cubejs/cubestore:v1.6.31
+    depends_on:
+      cubestore-router:
+        condition: service_healthy
+    environment:
+      CUBESTORE_SERVER_NAME: cubestore-worker:9001
+      CUBESTORE_WORKER_PORT: "9001"
+      CUBESTORE_META_ADDR: cubestore-router:9999
+      CUBESTORE_WORKERS: cubestore-worker:9001
+      CUBESTORE_REMOTE_DIR: /cube/data
+      CUBESTORE_DATA_DIR: /cube/data/scratch/worker
+    volumes:
+      - cube-store:/cube/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9001'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
   neo4j:
-    image: neo4j:5.26.24-community-ubi9
+    image: neo4j:5.26.24-community-ubi10
     environment:
       NEO4J_AUTH: ${NEO4J_USERNAME}/${NEO4J_PASSWORD}
       NEO4J_dbms_default__database: ${NEO4J_DATABASE}

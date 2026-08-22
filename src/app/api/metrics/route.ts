@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import {
   metrics,
   withRequestObservability,
-} from '@/composition-root';
+} from '@/infrastructure/observability';
 
 const OBSERVABILITY_TOKEN_HEADER = 'x-observability-token';
 const AUTH_HEADER = 'authorization';

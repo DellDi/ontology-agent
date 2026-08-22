@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "governance-definitions.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["version", "entities", "metrics", "metricVariants", "factors", "causalityEdges", "planStepTemplates", "toolBindings", "timeSemantics", "evidenceTypes", "capabilities"],
+  "properties": {
+    "version": { "$ref": "governance-shared.schema.json#/$defs/version" },
+    "entities": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "metrics": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "metricVariants": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "factors": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "causalityEdges": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "planStepTemplates": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "toolBindings": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "timeSemantics": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "evidenceTypes": { "type": "array", "items": { "$ref": "governance-shared.schema.json#/$defs/definitionItem" } },
+    "capabilities": { "$ref": "governance-shared.schema.json#/$defs/capabilities" }
+  }
+}
