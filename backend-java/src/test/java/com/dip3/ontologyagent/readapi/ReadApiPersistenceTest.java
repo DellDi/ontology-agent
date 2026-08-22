@@ -8,22 +8,19 @@ import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.integration.erp.ScopedProjectResolver;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.support.MigrationTestSupport;
 import com.dip3.ontologyagent.workspace.WorkspaceHomeService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import java.nio.file.Path;
-import java.sql.DriverManager;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -71,22 +68,8 @@ class ReadApiPersistenceTest {
     }
 
     @BeforeAll
-    static void migrate() throws Exception {
-        Path migrations = Path.of(System.getProperty("user.dir")).resolveSibling("drizzle");
-        try (var connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(),
-                POSTGRES.getPassword())) {
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource(migrations.resolve("0000_initial.sql")));
-            ScriptUtils.executeSqlScript(connection,
-                    new FileSystemResource(migrations.resolve("0001_dazzling_dakota_north.sql")));
-            ScriptUtils.executeSqlScript(connection,
-                    new FileSystemResource(migrations.resolve("0002_wooden_morg.sql")));
-            ScriptUtils.executeSqlScript(connection,
-                    new FileSystemResource(migrations.resolve("0003_oval_la_nuit.sql")));
-            ScriptUtils.executeSqlScript(connection,
-                    new FileSystemResource(migrations.resolve("0004_wealthy_callisto.sql")));
-            ScriptUtils.executeSqlScript(connection,
-                    new FileSystemResource(migrations.resolve("0005_neat_tenebrous.sql")));
-        }
+    static void migrate() {
+        MigrationTestSupport.migrate(POSTGRES);
     }
 
     @Autowired AnalysisSessionRepository sessions;

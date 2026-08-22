@@ -4,9 +4,9 @@
 
 | 服务 | 镜像来源 | 用途 |
 |---|---|---|
-| `web` | `Dockerfile` | Next.js 展示层、Cookie/状态码透明代理与尚未迁移的非关键管理入口 |
-| `backend` | `Dockerfile.java` | Java 21 + Spring Boot 4.1 API、Spring AI Agent 与异步 Worker |
-| `migrate` | `Dockerfile.migrate` | 一次性执行 Drizzle migration；镜像不包含旧 TypeScript Worker 入口 |
+| `web` | `Dockerfile` | Next.js 页面渲染、Java BFF 透明代理（含认证路由）与 Web 观测；不持有数据库/认证逻辑 |
+| `backend` | `Dockerfile.java` | Java 21 + Spring Boot 4.1 API、认证（登录/退出/ERP 目录解析）、Spring AI Agent 与异步 Worker |
+| `migrate` | `Dockerfile.java` | 一次性 Flyway 迁移入口（`--spring.profiles.active=migrate`）：preflight 严格校验后新库全量 V1~V6，Drizzle 老库显式 baseline 6 |
 | `postgres` | `postgres:18.2-bookworm` | 业务、任务、事件、治理、图同步与审计事实源 |
 | `redis` | `redis:8.2.5-bookworm` | Java Worker 唤醒；不是任务事实源 |
 | `cube` | `cubejs/cube:v1.6.31` | 受治理指标查询 |
@@ -16,6 +16,10 @@
 
 生产拓扑不再启动 `src/worker/main.ts`。新 root/follow-up execution 只由 Java 领取；Node ledger 对
 `java-initial-v1` 和 `java-follow-up-v1` 的所有 claim、terminal mutation 与 lease recovery 均拒绝处理。
+
+认证（登录/退出/回调/URL 桥接/Cookie 签名/Session 读写/ERP 目录权限范围解析）全部由 Java 承载，
+Next 侧 6 个认证路由与业务路由一样是透明代理，Web 容器不再注入 `DATABASE_URL`、`REDIS_URL`、
+`SESSION_SECRET` 或任何认证开关。Web 只保留页面渲染、Java BFF、观测与 UI 映射。
 
 ## 发布顺序
 
@@ -39,7 +43,20 @@
    必须先确认业务事实后再处理根因。全新空数据库会明确输出 `fresh database`；若已有 `platform`
    schema 但结构不完整，检查会直接失败，不会把半迁移数据库当成空库。
 
-3. 构建并启动：
+3. 执行数据库迁移（Flyway 独立入口，应用启动不自动迁移）：
+
+   ```bash
+   docker compose -f compose.prod.yaml --env-file .env.prod run --rm migrate
+   ```
+
+   迁移策略（严格模式，`baseline-on-migrate=false`）：
+   - 已存在 `flyway_schema_history` → 直接增量迁移并校验既有脚本 checksum；
+   - 无历史但存在 Drizzle 迁移痕迹（`platform` schema）→ 先逐项核对 V1~V6（Drizzle 0000~0005）
+     落库状态（表/索引/列），全部命中才显式 `baseline 6`，随后只执行 V7+；
+   - 全新空库 → 全量执行 V1~V6；
+   - 部分迁移/中间态 → fail loud 拒绝继续，不会重跑也不会宽松 baseline。
+
+4. 构建并启动：
 
    ```bash
    docker compose -f compose.prod.yaml --env-file .env.prod up -d --build
@@ -51,7 +68,7 @@
 显式依赖独立的 Cube Store Router/Worker，不能依赖开发模式内置缓存。Next 容器只通过
 `JAVA_BACKEND_URL=http://backend:8080` 访问 Java，不使用宿主机回环地址。
 
-4. 全新事实库只通过 Java 初始化固定 Ontology baseline，再从 backend 容器内执行 system-only Graph
+5. 全新事实库只通过 Java 初始化固定 Ontology baseline，再从 backend 容器内执行 system-only Graph
    bootstrap。Graph system API 不经过 Next，运维密钥不会下沉到 Web：
 
    ```bash
@@ -69,7 +86,10 @@
 
 ## 必填配置
 
-- `SESSION_SECRET`：共享 Cookie 签名密钥，必须是生产随机值。
+- `SESSION_SECRET`：会话 Cookie 签名密钥（Java backend），必须是生产随机值。
+- `ERP_API_BASE_URL`：ERP 目录认证接口地址（Java backend 登录必需）；目录登录不可用时请确保
+  已配置其他受支持的登录入口，否则登录页会明确提示不可用。
+- `COOKIE_SECURE=true`：生产会话 Cookie 必须带 Secure（compose.prod.yaml 已固定）。
 - `POSTGRES_*`、`REDIS_KEY_PREFIX`：容器内部地址由 Compose 固定，不填写宿主机地址。
 - `CUBE_API_SECRET`、`NEO4J_*`：Java evidence 与 Graph Sync 使用。
 - `LLM_PROVIDER_BASE_URL/API_KEY/MODEL`：真实模型配置。

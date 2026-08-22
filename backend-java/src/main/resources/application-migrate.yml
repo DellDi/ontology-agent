@@ -1,0 +1,44 @@
+# 独立迁移入口（--spring.profiles.active=migrate）：执行 Flyway 迁移后退出。
+# 应用常规启动不自动迁移（application.yml spring.flyway.enabled=false）。
+#
+# migrate 进程不连接 Redis/Cube/Neo4j/LLM，也无需这些外部凭据；
+# 下方占位配置只用于让业务 bean 在最小上下文中完成装配（与测试基座同形态），
+# 不参与任何真实调用。迁移服务只需 JAVA_DATABASE_URL / USERNAME / PASSWORD。
+spring:
+  main:
+    web-application-type: none
+  task:
+    scheduling:
+      enabled: false
+  ai:
+    openai:
+      base-url: http://127.0.0.1:1
+      api-key: migrate-only
+      chat:
+        model: migrate-only
+  data:
+    redis:
+      url: redis://127.0.0.1:1
+dip3:
+  session-secret: migrate-only-session-secret
+  ai:
+    provider:
+      mode: openai-compatible
+      tool-calling: true
+      structured-output: native-json-schema
+  worker:
+    enabled: false
+  graph-sync:
+    enabled: false
+  cube:
+    api-url: http://127.0.0.1:1/cubejs-api/v1
+    api-secret: migrate-only
+    timeout: 1s
+  neo4j:
+    uri: bolt://127.0.0.1:1
+    username: neo4j
+    password: migrate-only
+    database: neo4j
+  stream:
+    poll-delay: 10ms
+    timeout: 1s

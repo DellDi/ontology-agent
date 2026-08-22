@@ -1,8 +1,27 @@
 # Java 分析后端
 
-Java 21、Spring Boot 4.1、Spring AI 2.0 与 MyBatis-Plus 3.5.17 实现的分析纵向切片。
-服务复用仓库现有 PostgreSQL schema；PostgreSQL 是 session、job、event、snapshot 与审计事实源，
+Java 21、Spring Boot 4.1、Spring AI 2.0、MyBatis-Plus 3.5.17 与 Flyway 12 实现的分析纵向切片。
+PostgreSQL 是 session、job、event、snapshot 与审计事实源（迁移由本工程 Flyway 独占），
 Redis 只负责唤醒 Worker。
+
+## 数据库迁移（Flyway 独占）
+
+- 迁移脚本：`src/main/resources/db/migration/V1__initial.sql` ~ `V6__neat_tenebrous.sql`
+  （由原 Drizzle 0000~0005 原样收编，禁止改动内容）；后续 schema 变更只新增 `V7+`。
+- 独立迁移入口（应用常规启动不自动迁移，`spring.flyway.enabled=false`）：
+  ```bash
+  mvn -f backend-java/pom.xml spring-boot:run -Dspring-boot.run.profiles=migrate
+  ```
+- 严格策略（`baseline-on-migrate=false`）：已有 Flyway 历史 → 增量 migrate；
+  无历史但有 Drizzle 痕迹 → 逐项核对 V1~V6 落库状态后显式 `baseline 6` 再迁移；
+  全新空库 → 全量 V1~V6；中间态 fail loud。实现见 `support/DatabaseMigrationService`。
+
+## 认证（Java 承载）
+
+登录/退出/回调/URL 桥接、Cookie 签名（`dip3_session`，与历史 Node 字节级兼容）、Session
+读写（`platform.auth_sessions`，TTL 8h）与 ERP 目录权限范围解析（组织路径 → propertyProject →
+precinct）全部由 Java 实现，Next 侧认证路由为纯代理。目录账号只授予 `PROPERTY_ANALYST`，
+不存在账号名特判（无内置平台管理员）。
 
 Spring AI Alibaba 2.x 当前只作为兼容性跟踪对象，不进入运行时依赖。截至 2026-08-14，Maven Central
 最新 `com.alibaba.cloud.ai:spring-ai-alibaba-bom:2.0.0-M1.1` 仍绑定 Spring AI `2.0.0-M1` 与

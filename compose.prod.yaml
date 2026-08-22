@@ -11,21 +11,10 @@ services:
         condition: service_completed_successfully
       backend:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       APP_PORT: ${APP_PORT:-3000}
       HOSTNAME: 0.0.0.0
       JAVA_BACKEND_URL: http://backend:8080
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379
-      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-dip3}
-      SESSION_SECRET: ${SESSION_SECRET}
-      ENABLE_DEV_ERP_AUTH: "0"
-      ERP_API_BASE_URL: ${ERP_API_BASE_URL}
-      ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE:-0}
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     restart: unless-stopped
@@ -58,6 +47,10 @@ services:
       REDIS_URL: redis://redis:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-dip3}
       SESSION_SECRET: ${SESSION_SECRET}
+      ERP_API_BASE_URL: ${ERP_API_BASE_URL}
+      ENABLE_DEV_ERP_AUTH: "0"
+      ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE:-0}
+      COOKIE_SECURE: "true"
       CUBE_API_URL: http://cube:4000/cubejs-api/v1
       CUBE_API_SECRET: ${CUBE_API_SECRET}
       CUBE_QUERY_TIMEOUT_MS: ${CUBE_QUERY_TIMEOUT_MS:-15000}
@@ -87,13 +80,16 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: Dockerfile.migrate
+      dockerfile: Dockerfile.java
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    command: ["node_modules/.bin/drizzle-kit", "migrate", "--config=drizzle.config.ts"]
+      JAVA_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      JAVA_DATABASE_USERNAME: ${POSTGRES_USER}
+      JAVA_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+    # 独立迁移入口：preflight 严格校验后执行 Flyway（新库全量 V1~V6，Drizzle 老库显式 baseline 6）
+    command: ["--spring.profiles.active=migrate"]
     restart: "no"
 
   preflight:

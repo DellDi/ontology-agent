@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.graphsync;
 
 import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.support.MigrationTestSupport;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -13,10 +14,8 @@ import org.neo4j.driver.GraphDatabase;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -27,8 +26,6 @@ import org.testcontainers.neo4j.Neo4jContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import javax.sql.DataSource;
-import java.nio.file.Path;
-import java.sql.DriverManager;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -53,12 +50,8 @@ class GraphSyncBootstrapIntegrationTest {
     private Driver driver;
 
     @BeforeAll
-    static void startContext() throws Exception {
-        Path migration = Path.of(System.getProperty("user.dir")).resolveSibling("drizzle/0000_initial.sql");
-        try (var connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(),
-                POSTGRES.getPassword())) {
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource(migration));
-        }
+    static void startContext() {
+        MigrationTestSupport.migrate(POSTGRES);
         context = new AnnotationConfigApplicationContext(TestConfig.class);
     }
 

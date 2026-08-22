@@ -2,7 +2,7 @@
 
 ## 目标
 
-当前 Compose 支持 `web`、`backend`、一次性 `migrate`、`postgres`、`redis`、`cube`、`neo4j` 的完整联调拓扑。日常开发默认只在容器中运行四个基础设施服务，Next.js 与 Java API/Worker 在宿主机运行。
+当前 Compose 支持 `web`、`backend`、一次性 `migrate`（Java Flyway）、`postgres`、`redis`、`cube`、`neo4j` 的完整联调拓扑。日常开发默认只在容器中运行四个基础设施服务，Next.js 与 Java API/Worker 在宿主机运行。
 
 当前阶段的职责划分：
 
@@ -27,8 +27,8 @@ cp .env.example .env
 关键约定：
 
 - `ENABLE_DEV_ERP_AUTH=1` 只用于本地联调，不能复制成生产或试点环境默认值
-- 宿主机 `.env` 中的 `DATABASE_URL` / `REDIS_URL` 默认指向 `127.0.0.1`，便于直接运行 `pnpm db:migrate` 等本地命令
-- `compose.yaml` 会为 `web` 容器显式覆写内部连接地址，使容器内仍通过 `postgres` / `redis` 服务名通信
+- 宿主机 `.env` 中的 `POSTGRES_*` / `REDIS_URL` 默认指向 `127.0.0.1`；`pnpm db:migrate` 会以 `JAVA_DATABASE_URL`（由 `POSTGRES_*` 派生）执行 Java Flyway 迁移
+- `compose.yaml` 只为 `backend` 容器注入数据库与 Redis 连接；`web` 容器只持有 `JAVA_BACKEND_URL`
 - `SESSION_SECRET` 需要在本地 `.env` 中设置为自定义值
 - `LLM_PROVIDER_API_KEY` 只允许存在于服务端环境变量中，不能下沉到浏览器端代码或公开配置
 - `CUBE_API_SECRET` 用于本地 Cube 服务签发 JWT；本地开发建议在复制 `.env.example` 后先设置一个固定值
@@ -98,7 +98,7 @@ docker compose down -v
 - Neo4j Browser: `http://127.0.0.1:${NEO4J_HTTP_PORT}`
 
 Postgres 与 Redis 的端口默认只绑定到本机回环地址，避免在本地开发态被无意暴露到局域网。
-如果宿主机已经有本地 Postgres 占用 `5432`，建议像当前样例一样把 Compose 暴露端口改到其他可用值，例如 `55432`，同时同步更新 `.env` 中的 `DATABASE_URL`。
+如果宿主机已经有本地 Postgres 占用 `5432`，建议像当前样例一样把 Compose 暴露端口改到其他可用值，例如 `55432`，同时同步更新 `.env` 中的 `POSTGRES_PORT`。
 
 ## 运行约定
 
@@ -112,56 +112,14 @@ Postgres 与 Redis 的端口默认只绑定到本机回环地址，避免在本�
 - Neo4j 使用 `5.26.x community` 线，Cube 使用 `v1.6.x` 线，两个镜像都固定为明确版本标签，不使用 `latest`
 - `cube/conf/.cubestore/` 属于运行时缓存目录，不应纳入 Git；当前已通过 Compose volume 与 `.gitignore` 双重隔离
 
-## Redis 客户端与 Key Namespace 约定
+## Redis 约定（Java backend 独占）
 
-### 客户端入口
+Redis 客户端已从 Web 移除：Node 侧 `src/infrastructure/redis` 已删除，Web 不再持有 Redis 连接与 key
+命名约定。Redis 只由 Java backend 使用（Worker 唤醒与 Spring AI Chat Memory），配置为 `REDIS_URL` +
+`REDIS_KEY_PREFIX`，由 Spring Data Redis 管理。
 
-统一 Redis 客户端位于 `src/infrastructure/redis/client.ts`，使用官方 `redis` (node-redis) 库。
-
-```typescript
-import { createRedisClient } from '@/infrastructure/redis';
-
-const { redis } = createRedisClient();
-await redis.connect();
-```
-
-- 客户端读取 `REDIS_URL` 环境变量，缺失时抛出明确错误
-- 创建后需显式调用 `redis.connect()` 建立连接
-- 连接错误通过 `error` 事件监听，不会静默失败
-- Web 请求路径应使用 `getSharedRedisClient()` + `ensureRedisConnected()` 复用进程级连接，调用方不得关闭共享连接
-- 测试、CLI、worker 这类独占生命周期入口继续使用 `createRedisClient()`，谁创建谁关闭
-
-### Key Namespace 约定
-
-所有 Redis key 使用统一前缀 `oa:` (ontology-agent 缩写)，通过 `redisKeys` builder 生成：
-
-| 命名空间 | 格式 | 用途 |
-|----------|------|------|
-| `rate` | `oa:rate:{userId}:{resource}` | 按用户限流 |
-| `job` | `oa:job:queue` / `oa:job:queue:dlq` | Worker 任务唤醒 stream 与历史 Redis-only dead-letter queue |
-| `worker` | `oa:worker:{jobId}:{field}` | 历史 Redis-only 任务元数据；新任务事实源在 Postgres |
-| `stream` | `oa:stream:{sessionId}` | 流式状态 / SSE 事件 |
-| `cache` | `oa:cache:{scope}:{key}` | 短时缓存 |
-
-环境隔离：可通过 `REDIS_KEY_PREFIX` 环境变量覆盖默认前缀，用于测试环境隔离。
-
-```typescript
-import { redisKeys } from '@/infrastructure/redis';
-
-redisKeys.rate('user-123', 'analysis');    // → "oa:rate:user-123:analysis"
-redisKeys.worker('job-456', 'status');     // → "oa:worker:job-456:status"
-```
-
-### Redis Job Queue 语义
-
-Worker job queue 使用 Postgres-backed durable ledger + Redis Streams consumer group。Postgres 是任务最终事实源；Redis 只保存 `jobId` 唤醒信号，不再保存 canonical job data。
-
-- 提交任务：写入 `platform.jobs`、`platform.job_events` 和 `platform.job_dispatch_outbox`，再向 `oa:job:queue` 发布 `jobId`
-- 消费任务：worker 通过 `XREADGROUP` / `XAUTOCLAIM` 获取 `jobId`，随后必须在 Postgres 原子 claim 成功才会执行 handler
-- 崩溃恢复：Postgres `locked_until` 是 visibility timeout 的权威字段；过期 lease 会被 recovery 重新置为可调度
-- 完成/失败：`completeJob` / `failJob` 先写 Postgres terminal 状态，再 `XACK` 当前 Redis signal
-- 重复信号：若 Redis 重投递已完成、失败或 dead-letter 的 job，worker 只 ack 并忽略，不重复执行
-- 超过重试上限：job 在 `platform.jobs` 标记为 `dead_letter`，并在 `platform.job_events` 记录原因
+任务语义保持 `at-least-once dispatch + Postgres-authoritative execution state`：Postgres
+（`platform.jobs` / `job_events`）是任务最终事实源，Redis 只保存唤醒信号，不保存 canonical job data。
 
 Java durable job ledger 与 Redis wakeup 回归测试：
 
@@ -170,17 +128,6 @@ pnpm test:java
 ```
 
 Java 测试使用 Testcontainers 隔离数据库与图实例；不会清理本地开发库，也不会执行 `FLUSHDB`。
-
-当前语义是 `at-least-once dispatch + Postgres-authoritative execution state`，不是 exactly-once。业务 handler 仍应以 `job.id` / `executionId` 做幂等边界。
-
-### 健康检查
-
-```typescript
-import { checkRedisHealth } from '@/infrastructure/redis';
-
-const result = await checkRedisHealth(redis);
-// → { ok: true, latencyMs: 2 }
-```
 
 ## LLM Provider 约定
 

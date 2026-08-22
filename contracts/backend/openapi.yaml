@@ -14,6 +14,66 @@ paths:
             application/json: { schema: { $ref: './schemas/viewer.schema.json' } }
         '401': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/auth/config:
+    get:
+      summary: Return login page capability state (directory auth, dev auth, url bridge)
+      responses:
+        '200':
+          description: Directory login availability and dev/url-bridge switches; never contains secrets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [directoryAuthAvailable, devAuthEnabled, urlBridgeEnabled]
+                properties:
+                  directoryAuthAvailable: { type: boolean }
+                  devAuthEnabled: { type: boolean }
+                  urlBridgeEnabled: { type: boolean }
+  /api/auth/login:
+    post:
+      summary: Dev login (manual scope), gated by ENABLE_DEV_ERP_AUTH
+      responses:
+        '303':
+          description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string } }
+  /api/auth/directory-login:
+    post:
+      summary: ERP directory account/password login
+      responses:
+        '303':
+          description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string } }
+  /api/auth/callback:
+    get:
+      summary: Dev callback login (ticket or query params), gated by ENABLE_DEV_ERP_AUTH
+      responses:
+        '303':
+          description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string } }
+  /api/auth/bridge:
+    get:
+      summary: URL bridge login by directory account
+      responses:
+        '303':
+          description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string } }
+  /api/auth/logout:
+    post:
+      summary: Delete the current session and clear the session cookie
+      responses:
+        '303':
+          description: Redirect to /login?loggedOut=1 with cleared cookie
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string } }
   /api/workspace/home:
     get:
       summary: Return the scoped workspace home projection

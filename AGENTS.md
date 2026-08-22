@@ -106,11 +106,12 @@
 
 当前项目上下文默认如下：
 
-- 技术栈：`Next.js 16`、`React 19`、`TypeScript 5`、`Drizzle ORM`、`PostgreSQL`、`Redis`
-- 运行形态：Web 工作台 + Worker 异步执行链路
+- 技术栈：`Next.js 16`、`React 19`、`TypeScript 5`、`Java 21 (Spring Boot 4.1 / MyBatis-Plus / Spring AI 2.0)`、`Flyway`、`PostgreSQL`、`Redis`
+- 运行形态：Web 工作台（页面渲染 + Java BFF 透明代理 + 观测 + UI 映射）+ Java API/Worker 异步执行链路
 - 架构方向：Clean Architecture、ports/adapters、领域与基础设施解耦
-- 测试组织：`tests/story-*.test.*` 为主的 story-based 验证
+- 测试组织：Java 单元/集成测试（Testcontainers）+ `tests/story-*.test.*` 前端/契约验证
 - 交互与错误语义：中文优先，面向真实业务用户理解
+- 数据库所有权：PostgreSQL 迁移由 `backend-java/src/main/resources/db/migration/`（Flyway V1~V6，后续只新增 V7+）独占，通过 `--spring.profiles.active=migrate` 独立入口执行，应用启动不自动迁移；已删除 Drizzle 与 Node PostgreSQL 存储
 
 ## Local Development Recommendation
 
@@ -126,9 +127,14 @@
 
 只有在需要验证更贴近生产的容器边界、镜像行为、compose 依赖顺序或部署问题时，才应显式启用开发期全容器运行。
 
-## drizzle orm
+## flyway migrations
 
-牢记：schema 与 migrate 必须保持同步，不允许存在未迁移的 schema 变更。
+牢记：schema 与迁移脚本必须保持同步，不允许存在未迁移的 schema 变更。
+
+- 迁移脚本只允许放在 `backend-java/src/main/resources/db/migration/`，命名 `V<n>__<描述>.sql`。
+- V1~V6 是原 Drizzle 迁移的收编快照，内容不允许改动；任何 schema 变更只新增 `V7+`。
+- 执行方式：`pnpm db:migrate`（migrate profile）。老库会先严格核对 V1~V6 落库状态再显式 baseline 6；
+  禁止开启宽松的 `baseline-on-migrate`，禁止对中间态数据库重跑迁移。
 
 ## Definition Of Done
 

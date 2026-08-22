@@ -1,10 +1,9 @@
 package com.dip3.ontologyagent.graphsync;
 
+import com.dip3.ontologyagent.support.MigrationTestSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
@@ -14,8 +13,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import java.nio.file.Path;
-import java.sql.DriverManager;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -35,12 +32,8 @@ class GraphSyncPersistenceTest {
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.8-alpine");
 
     @BeforeAll
-    static void migrate() throws Exception {
-        Path migrations = Path.of(System.getProperty("user.dir")).resolveSibling("drizzle");
-        try (var connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(),
-                POSTGRES.getPassword())) {
-            ScriptUtils.executeSqlScript(connection, new FileSystemResource(migrations.resolve("0000_initial.sql")));
-        }
+    static void migrate() {
+        MigrationTestSupport.migrate(POSTGRES);
     }
 
     @Test

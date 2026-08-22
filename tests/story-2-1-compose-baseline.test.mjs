@@ -50,10 +50,11 @@ test('.env.example 暴露 Story 2.1 所需环境变量约定', async () => {
     'POSTGRES_PASSWORD',
     'POSTGRES_PORT',
     'REDIS_PORT',
-    'DATABASE_URL',
     'REDIS_URL',
     'SESSION_SECRET',
     'ENABLE_DEV_ERP_AUTH',
+    'ERP_API_BASE_URL',
+    'COOKIE_SECURE',
   ]) {
     assert.match(
       envExample,

@@ -40,6 +40,7 @@ class CubeHealthIndicatorTest {
                         Duration.ofMillis(250)),
                 new BackendProperties.Neo4j("bolt://127.0.0.1:1", "neo4j", "password", "neo4j"),
                 new BackendProperties.Worker(false, Duration.ofSeconds(1)),
-                new BackendProperties.Stream(Duration.ofMillis(10), Duration.ofSeconds(1)));
+                new BackendProperties.Stream(Duration.ofMillis(10), Duration.ofSeconds(1)),
+                "", "", false, false, false);
     }
 }

@@ -82,12 +82,19 @@
 
 ## 收口证据（2026-08-22）
 
-- Java 测试：198 个测试全部通过，包含真实 PostgreSQL 17 与 Neo4j 5 Testcontainers。
-- Web / Java 契约：14 个 JSON Schema、Zod、Route Adapter 与移动端投影测试全部通过。
+- Java 测试：216 个测试全部通过，包含真实 PostgreSQL 17 与 Neo4j 5 Testcontainers。
+- Web / Java 契约：Next 透明代理（含认证路由与 Set-Cookie 透传）、JSON Schema、Zod 与移动端投影测试 48 个全部通过。
 - 前端门禁：TypeScript、ESLint 与 Next.js production build 全部通过；生产构建生成 29 个页面。
-- 数据库门禁：Drizzle migration 与 schema 无漂移；PostgreSQL + Redis durable job ledger 真实验证 3/3 通过。
-- 容器门禁：生产 Web、Java backend、migration、PostgreSQL、Redis、Cube/Cube Store 与 Neo4j 联合验收 19/19 通过，无跳过项。
-- 运行边界：Next 正式页面与 Route Handler 不再构造 TypeScript Composition Root；Web 容器不注入 Cube、Neo4j 或模型 Provider 凭据；旧 Node Agent/Worker/LLM/Tooling 源码、专属测试、镜像与启动入口已删除。
+- 数据库门禁：Flyway V1~V6（原 Drizzle 0000~0005 收编）在 Testcontainers 上验证四类路径：全新库全量迁移、
+  已有历史增量迁移、Drizzle 老库严格核对后显式 baseline 6、部分迁移态 fail loud。
+- 容器门禁：生产 Web、Java backend、Flyway migration、PostgreSQL、Redis、Cube/Cube Store 与 Neo4j 联合验收通过。
+- 认证边界：登录/退出/回调/URL 桥接、Cookie 签名（与历史 Node 字节级兼容）、Session 读写与 ERP 目录
+  权限范围解析全部由 Java 承载；Next 6 个认证路由改为纯代理，登录页改由 Java `/api/auth/me` +
+  `/api/auth/config` 驱动；`admin` 账号名特判（自动 PLATFORM_ADMIN）已彻底删除。
+- 运行边界：Next 正式页面与 Route Handler 不再构造 TypeScript Composition Root；Web 容器不注入
+  `DATABASE_URL`、`REDIS_URL`、`SESSION_SECRET` 或认证开关；旧 Node Agent/Worker/LLM/Tooling、
+  Drizzle、Node PostgreSQL/Redis/Cube/Neo4j/Graph Sync/Ontology 实现、相关历史测试与依赖已删除；
+  数据库迁移（Dockerfile.migrate / drizzle-kit）删除，migrate 由 Java Flyway 独立入口执行。
 - Provider 边界：Java 固定 `max-retries=0`、关闭 parallel tool calls，并校验 tool calling 与 structured output capability。
 
-尚未完成的是依赖真实外部环境的上线验收：使用目标 DashScope/OpenAI-compatible 凭据执行 Main Agent → Workflow Tool → Structured Conclusion，以及使用生产 ERP 数据验证图同步。没有对应凭据和生产数据时，这两项保持“未验证”，不以 mock 或 fallback 代替。
+尚未完成的是依赖真实外部环境的上线验收：使用目标 DashScope/OpenAI-compatible 凭据执行 Main Agent → Workflow Tool → Structured Conclusion，以及使用生产 ERP 数据验证图同步与目录登录。没有对应凭据和生产数据时，这两项保持“未验证”，不以 mock 或 fallback 代替。
