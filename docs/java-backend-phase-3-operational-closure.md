@@ -85,8 +85,8 @@
 - Java 测试：216 个测试全部通过，包含真实 PostgreSQL 17 与 Neo4j 5 Testcontainers。
 - Web / Java 契约：Next 透明代理（含认证路由与 Set-Cookie 透传）、JSON Schema、Zod 与移动端投影测试 48 个全部通过。
 - 前端门禁：TypeScript、ESLint 与 Next.js production build 全部通过；生产构建生成 29 个页面。
-- 数据库门禁：Flyway V1~V6（原 Drizzle 0000~0005 收编）在 Testcontainers 上验证四类路径：全新库全量迁移、
-  已有历史增量迁移、Drizzle 老库严格核对后显式 baseline 6、部分迁移态 fail loud。
+- 数据库门禁：Flyway `V1__init.sql`（原 Drizzle 全部历史迁移合并的幂等初始化脚本）在 Testcontainers
+  上验证：全新库一次性初始化、已有历史幂等 no-op、脚本本身可重复执行、旧库无历史时直接补全不丢数据。
 - 容器门禁：生产 Web、Java backend、Flyway migration、PostgreSQL、Redis、Cube/Cube Store 与 Neo4j 联合验收通过。
 - 认证边界：登录/退出/回调/URL 桥接、Cookie 签名（与历史 Node 字节级兼容）、Session 读写与 ERP 目录
   权限范围解析全部由 Java 承载；Next 6 个认证路由改为纯代理，登录页改由 Java `/api/auth/me` +

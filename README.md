@@ -90,16 +90,18 @@ cp .env.example .env
 docker compose up -d postgres redis cube neo4j
 ```
 
-### 4. 数据库迁移
+### 4. 数据库初始化
 
-数据库所有权归 Java backend：迁移脚本位于 `backend-java/src/main/resources/db/migration/`（V1~V6 由原 Drizzle 迁移收编，后续只新增 V7+），由 Flyway 独立入口执行（应用启动不自动迁移）。
+数据库所有权归 Java backend：初始化脚本为 `backend-java/src/main/resources/db/migration/V1__init.sql`
+（由原 Drizzle 全部历史迁移合并而成，脚本本身幂等，可重复执行），由 Flyway 独立入口执行（应用启动不自动迁移）。
 
 ```bash
 pnpm db:migrate   # 等价于 mvn -f backend-java/pom.xml spring-boot:run -Dspring-boot.run.profiles=migrate
 ```
 
-> 老库（Drizzle 已迁移）会先严格核对 V1~V6 落库状态，再显式 `baseline 6`，之后只执行 V7+；
-> 全新库直接全量执行 V1~V6；中间态（部分迁移）会 fail loud 拒绝继续。
+> 定位为新库重建与初始化的 init 脚本：全新空库一次性建齐全部 schema/表/索引；
+> 已初始化的库重复执行是幂等 no-op（Flyway 历史校验）；无 Flyway 历史的旧库直接补全缺失列/索引，
+> 不会丢数据。后续 schema 变更新增 `V{n}__*.sql`（V2+）。
 
 ### 5. 启动开发服务器
 
@@ -135,7 +137,7 @@ ontology-agent/
 │   ├── infrastructure/java-backend/     # Java API 客户端与跨端契约
 │   └── infrastructure/observability/    # Web 观测
 ├── backend-java/src/main/java/          # Java features、ports 与 adapters（含认证）
-├── backend-java/src/main/resources/db/migration/  # Flyway V1~V6（数据库唯一事实源）
+├── backend-java/src/main/resources/db/migration/  # Flyway V1__init.sql（幂等初始化脚本）
 ├── contracts/backend/                   # Web / Java 共享契约
 ├── tests/                               # 跨端契约与仍有效的前端行为验证
 ├── docs/                                # 架构、运行与部署文档
@@ -171,8 +173,8 @@ ontology-agent/
 pnpm dev                    # 启动 Next.js 开发服务器
 mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run
 
-# 数据库（Flyway，Java 独立迁移入口）
-pnpm db:migrate             # 执行迁移（新库全量 V1~V6 / 老库 baseline 6 后 V7+）
+# 数据库（Flyway，Java 独立迁移入口，幂等可重复执行）
+pnpm db:migrate             # 执行初始化（空库建齐 / 已有库幂等补全）
 
 # 代码质量
 pnpm lint                   # ESLint 检查
@@ -210,7 +212,7 @@ tests/story-{epic}-{story}-{name}.test.mjs
 
 **已覆盖场景:**
 
-- Java：认证（登录/退出/ERP 目录与权限范围解析/Session）、Main Agent、Workflow、首次分析、追问、持久化、权限、Ontology Governance 与 Graph Sync；Flyway V1~V6 与 baseline 6 迁移策略。
+- Java：认证（登录/退出/ERP 目录与权限范围解析/Session）、Main Agent、Workflow、首次分析、追问、持久化、权限、Ontology Governance 与 Graph Sync；Flyway 幂等初始化脚本（合并单文件、可重复执行）。
 - 真实基础设施：PostgreSQL 17、Neo4j 5、Redis job wakeup 与生产 Compose。
 - 跨端契约：Draft 2020-12 JSON Schema、Next Zod、透明 Route Adapter（含认证路由与 Set-Cookie 透传）与移动端 view model。
 - 前端：登录、工作台、SSE、历史轮次、权限展示与管理页面交互。

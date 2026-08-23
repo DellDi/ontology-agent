@@ -4,17 +4,17 @@ Java 21、Spring Boot 4.1、Spring AI 2.0、MyBatis-Plus 3.5.17 与 Flyway 12 �
 PostgreSQL 是 session、job、event、snapshot 与审计事实源（迁移由本工程 Flyway 独占），
 Redis 只负责唤醒 Worker。
 
-## 数据库迁移（Flyway 独占）
+## 数据库初始化（Flyway 独占）
 
-- 迁移脚本：`src/main/resources/db/migration/V1__initial.sql` ~ `V6__neat_tenebrous.sql`
-  （由原 Drizzle 0000~0005 原样收编，禁止改动内容）；后续 schema 变更只新增 `V7+`。
+- 初始化脚本：`src/main/resources/db/migration/V1__init.sql`
+  （由原 Drizzle 全部历史迁移合并而成，全部 `IF NOT EXISTS`，可重复执行）；
+  后续 schema 变更新增 `V2+`。
 - 独立迁移入口（应用常规启动不自动迁移，`spring.flyway.enabled=false`）：
   ```bash
   mvn -f backend-java/pom.xml spring-boot:run -Dspring-boot.run.profiles=migrate
   ```
-- 严格策略（`baseline-on-migrate=false`）：已有 Flyway 历史 → 增量 migrate；
-  无历史但有 Drizzle 痕迹 → 逐项核对 V1~V6 落库状态后显式 `baseline 6` 再迁移；
-  全新空库 → 全量 V1~V6；中间态 fail loud。实现见 `support/DatabaseMigrationService`。
+- 幂等语义：空库建齐全部 schema/表/索引；已有 Flyway 历史则 no-op；
+  无历史的旧库直接补全缺失列/索引。实现见 `support/DatabaseMigrationService`。
 
 ## 认证（Java 承载）
 
