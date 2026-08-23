@@ -6,7 +6,7 @@
 |---|---|---|
 | `web` | `Dockerfile` | Next.js 页面渲染、Java BFF 透明代理（含认证路由）与 Web 观测；不持有数据库/认证逻辑 |
 | `backend` | `Dockerfile.java` | Java 21 + Spring Boot 4.1 API、认证（登录/退出/ERP 目录解析）、Spring AI Agent 与异步 Worker |
-| `migrate` | `Dockerfile.java` | 一次性 Flyway 迁移入口（`--spring.profiles.active=migrate`）：preflight 严格校验后新库全量 V1~V6，Drizzle 老库显式 baseline 6 |
+| `migrate` | `Dockerfile.java` | 一次性 Flyway 初始化入口（`--spring.profiles.active=migrate`）：执行幂等的 `V1__init.sql`，可重复执行 |
 | `postgres` | `postgres:18.2-bookworm` | 业务、任务、事件、治理、图同步与审计事实源 |
 | `redis` | `redis:8.2.5-bookworm` | Java Worker 唤醒；不是任务事实源 |
 | `cube` | `cubejs/cube:v1.6.31` | 受治理指标查询 |
@@ -43,18 +43,16 @@ Next 侧 6 个认证路由与业务路由一样是透明代理，Web 容器不�
    必须先确认业务事实后再处理根因。全新空数据库会明确输出 `fresh database`；若已有 `platform`
    schema 但结构不完整，检查会直接失败，不会把半迁移数据库当成空库。
 
-3. 执行数据库迁移（Flyway 独立入口，应用启动不自动迁移）：
+3. 执行数据库初始化（Flyway 独立入口，应用启动不自动迁移）：
 
    ```bash
    docker compose -f compose.prod.yaml --env-file .env.prod run --rm migrate
    ```
 
-   迁移策略（严格模式，`baseline-on-migrate=false`）：
-   - 已存在 `flyway_schema_history` → 直接增量迁移并校验既有脚本 checksum；
-   - 无历史但存在 Drizzle 迁移痕迹（`platform` schema）→ 先逐项核对 V1~V6（Drizzle 0000~0005）
-     落库状态（表/索引/列），全部命中才显式 `baseline 6`，随后只执行 V7+；
-   - 全新空库 → 全量执行 V1~V6；
-   - 部分迁移/中间态 → fail loud 拒绝继续，不会重跑也不会宽松 baseline。
+   初始化脚本定位为新库重建与初始化（`V1__init.sql`，全部 `IF NOT EXISTS`，可重复执行）：
+   - 全新空库 → 一次性建齐全部 schema/表/索引；
+   - 已初始化库 → Flyway 校验 checksum 后幂等 no-op，不重跑；
+   - 无 Flyway 历史的旧库 → 直接补全缺失列/索引，不丢数据、不报错。
 
 4. 构建并启动：
 

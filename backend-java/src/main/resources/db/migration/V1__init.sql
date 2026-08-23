@@ -1,8 +1,8 @@
-CREATE SCHEMA "erp_staging";
+CREATE SCHEMA IF NOT EXISTS "erp_staging";
 --> statement-breakpoint
-CREATE SCHEMA "platform";
+CREATE SCHEMA IF NOT EXISTS "platform";
 --> statement-breakpoint
-CREATE TABLE "platform"."analysis_execution_snapshots" (
+CREATE TABLE IF NOT EXISTS "platform"."analysis_execution_snapshots" (
 	"execution_id" text PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"owner_user_id" text NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE "platform"."analysis_execution_snapshots" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."analysis_session_follow_ups" (
+CREATE TABLE IF NOT EXISTS "platform"."analysis_session_follow_ups" (
 	"id" text PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"owner_user_id" text NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE "platform"."analysis_session_follow_ups" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."analysis_sessions" (
+CREATE TABLE IF NOT EXISTS "platform"."analysis_sessions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"owner_user_id" text NOT NULL,
 	"organization_id" text NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE "platform"."analysis_sessions" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."analysis_ui_message_projections" (
+CREATE TABLE IF NOT EXISTS "platform"."analysis_ui_message_projections" (
 	"id" text PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"owner_user_id" text NOT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE "platform"."analysis_ui_message_projections" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."audit_events" (
+CREATE TABLE IF NOT EXISTS "platform"."audit_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"organization_id" text NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE "platform"."audit_events" (
 	"retention_until" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."auth_sessions" (
+CREATE TABLE IF NOT EXISTS "platform"."auth_sessions" (
 	"session_id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"display_name" text NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE "platform"."auth_sessions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_chargeitem" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_chargeitem" (
 	"record_id" bigint,
 	"enterprise_id" text,
 	"organization_id" text,
@@ -132,7 +132,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_chargeitem" (
 	"one_level_charge_item_name" text
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_house" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_house" (
 	"record_id" bigint,
 	"enterprise_id" text,
 	"data_source" text,
@@ -165,7 +165,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_house" (
 	"sync_date" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_system_organization" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_system_organization" (
 	"source_id" bigint PRIMARY KEY NOT NULL,
 	"enterprise_id" bigint,
 	"group_id" bigint,
@@ -208,7 +208,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_system_organization" (
 	"sys_date" date
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_owner" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_owner" (
 	"record_id" bigint PRIMARY KEY NOT NULL,
 	"enterprise_id" text,
 	"data_source" text,
@@ -227,7 +227,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_owner" (
 	"sync_date" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_bill" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_bill" (
 	"record_id" bigint PRIMARY KEY NOT NULL,
 	"db_id" integer,
 	"enterprise_id" text,
@@ -274,7 +274,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_bill" (
 	"is_account" integer
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_precinct" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_precinct" (
 	"record_id" bigint,
 	"enterprise_id" text,
 	"data_source" text,
@@ -316,7 +316,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_precinct" (
 	"update_date_time" date
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_charge" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_charge" (
 	"record_id" bigint PRIMARY KEY NOT NULL,
 	"db_id" integer,
 	"enterprise_id" text,
@@ -357,7 +357,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_charge" (
 	"discount_date" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_services" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_services" (
 	"record_id" bigint,
 	"enterprise_id" text,
 	"organization_id" text NOT NULL,
@@ -410,7 +410,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_services" (
 	"service_kind_id_name" text
 );
 --> statement-breakpoint
-CREATE TABLE "erp_staging"."dw_datacenter_system_user" (
+CREATE TABLE IF NOT EXISTS "erp_staging"."dw_datacenter_system_user" (
 	"source_id" bigint PRIMARY KEY NOT NULL,
 	"enterprise_id" bigint,
 	"organization_id" bigint,
@@ -440,7 +440,7 @@ CREATE TABLE "erp_staging"."dw_datacenter_system_user" (
 	"sys_date" date
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."graph_sync_cursors" (
+CREATE TABLE IF NOT EXISTS "platform"."graph_sync_cursors" (
 	"source_name" text PRIMARY KEY NOT NULL,
 	"cursor_time" timestamp with time zone,
 	"cursor_pk" text,
@@ -448,7 +448,7 @@ CREATE TABLE "platform"."graph_sync_cursors" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."graph_sync_dirty_scopes" (
+CREATE TABLE IF NOT EXISTS "platform"."graph_sync_dirty_scopes" (
 	"id" text PRIMARY KEY NOT NULL,
 	"scope_type" text NOT NULL,
 	"scope_key" text NOT NULL,
@@ -464,7 +464,7 @@ CREATE TABLE "platform"."graph_sync_dirty_scopes" (
 	"error_summary" text
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."graph_sync_runs" (
+CREATE TABLE IF NOT EXISTS "platform"."graph_sync_runs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"mode" text NOT NULL,
 	"status" text NOT NULL,
@@ -483,7 +483,7 @@ CREATE TABLE "platform"."graph_sync_runs" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."job_dispatch_outbox" (
+CREATE TABLE IF NOT EXISTS "platform"."job_dispatch_outbox" (
 	"id" text PRIMARY KEY NOT NULL,
 	"job_id" text NOT NULL,
 	"status" text NOT NULL,
@@ -495,7 +495,7 @@ CREATE TABLE "platform"."job_dispatch_outbox" (
 	"published_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."job_events" (
+CREATE TABLE IF NOT EXISTS "platform"."job_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"job_id" text NOT NULL,
 	"event_type" text NOT NULL,
@@ -507,7 +507,7 @@ CREATE TABLE "platform"."job_events" (
 	"created_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."jobs" (
+CREATE TABLE IF NOT EXISTS "platform"."jobs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"type" text NOT NULL,
 	"status" text NOT NULL,
@@ -532,7 +532,7 @@ CREATE TABLE "platform"."jobs" (
 	"failed_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_approval_records" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_approval_records" (
 	"id" text PRIMARY KEY NOT NULL,
 	"change_request_id" text NOT NULL,
 	"decision" text NOT NULL,
@@ -541,7 +541,7 @@ CREATE TABLE "platform"."ontology_approval_records" (
 	"created_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_causality_edges" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_causality_edges" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"business_key" text NOT NULL,
@@ -561,7 +561,7 @@ CREATE TABLE "platform"."ontology_causality_edges" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_change_requests" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_change_requests" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"target_object_type" text NOT NULL,
@@ -581,7 +581,7 @@ CREATE TABLE "platform"."ontology_change_requests" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_entity_definitions" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_entity_definitions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"business_key" text NOT NULL,
@@ -595,7 +595,7 @@ CREATE TABLE "platform"."ontology_entity_definitions" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_evidence_type_definitions" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_evidence_type_definitions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"business_key" text NOT NULL,
@@ -614,7 +614,7 @@ CREATE TABLE "platform"."ontology_evidence_type_definitions" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_factor_definitions" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_factor_definitions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"business_key" text NOT NULL,
@@ -628,7 +628,7 @@ CREATE TABLE "platform"."ontology_factor_definitions" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_grounded_contexts" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_grounded_contexts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"owner_user_id" text NOT NULL,
@@ -646,7 +646,7 @@ CREATE TABLE "platform"."ontology_grounded_contexts" (
 	"created_at" text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_metric_definitions" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_metric_definitions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"business_key" text NOT NULL,
@@ -661,7 +661,7 @@ CREATE TABLE "platform"."ontology_metric_definitions" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_metric_variants" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_metric_variants" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"parent_metric_definition_id" text NOT NULL,
@@ -677,7 +677,7 @@ CREATE TABLE "platform"."ontology_metric_variants" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_plan_step_templates" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_plan_step_templates" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"business_key" text NOT NULL,
@@ -692,7 +692,7 @@ CREATE TABLE "platform"."ontology_plan_step_templates" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_publish_records" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_publish_records" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"published_by" text NOT NULL,
@@ -702,7 +702,7 @@ CREATE TABLE "platform"."ontology_publish_records" (
 	"created_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_time_semantics" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_time_semantics" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"business_key" text NOT NULL,
@@ -719,7 +719,7 @@ CREATE TABLE "platform"."ontology_time_semantics" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_tool_capability_bindings" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_tool_capability_bindings" (
 	"id" text PRIMARY KEY NOT NULL,
 	"ontology_version_id" text NOT NULL,
 	"bound_step_template_key" text,
@@ -734,7 +734,7 @@ CREATE TABLE "platform"."ontology_tool_capability_bindings" (
 	"created_by" text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."ontology_versions" (
+CREATE TABLE IF NOT EXISTS "platform"."ontology_versions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"semver" text NOT NULL,
 	"display_name" text NOT NULL,
@@ -748,122 +748,172 @@ CREATE TABLE "platform"."ontology_versions" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "platform"."job_dispatch_outbox" ADD CONSTRAINT "job_dispatch_outbox_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "platform"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "platform"."job_events" ADD CONSTRAINT "job_events_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "platform"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "platform"."ontology_approval_records" ADD CONSTRAINT "ontology_approval_records_change_request_id_ontology_change_requests_id_fk" FOREIGN KEY ("change_request_id") REFERENCES "platform"."ontology_change_requests"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "platform"."ontology_change_requests" ADD CONSTRAINT "ontology_change_requests_ontology_version_id_ontology_versions_id_fk" FOREIGN KEY ("ontology_version_id") REFERENCES "platform"."ontology_versions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "platform"."ontology_publish_records" ADD CONSTRAINT "ontology_publish_records_ontology_version_id_ontology_versions_id_fk" FOREIGN KEY ("ontology_version_id") REFERENCES "platform"."ontology_versions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "analysis_execution_snapshots_session_id_idx" ON "platform"."analysis_execution_snapshots" USING btree ("session_id");--> statement-breakpoint
-CREATE INDEX "analysis_execution_snapshots_owner_updated_idx" ON "platform"."analysis_execution_snapshots" USING btree ("owner_user_id","updated_at");--> statement-breakpoint
-CREATE INDEX "analysis_execution_snapshots_follow_up_id_idx" ON "platform"."analysis_execution_snapshots" USING btree ("follow_up_id");--> statement-breakpoint
-CREATE INDEX "analysis_execution_snapshots_ontology_version_idx" ON "platform"."analysis_execution_snapshots" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "analysis_session_follow_ups_session_idx" ON "platform"."analysis_session_follow_ups" USING btree ("session_id");--> statement-breakpoint
-CREATE INDEX "analysis_session_follow_ups_owner_session_idx" ON "platform"."analysis_session_follow_ups" USING btree ("owner_user_id","session_id");--> statement-breakpoint
-CREATE INDEX "analysis_session_follow_ups_session_created_order_idx" ON "platform"."analysis_session_follow_ups" USING btree ("session_id","created_order");--> statement-breakpoint
-CREATE INDEX "analysis_session_follow_ups_execution_idx" ON "platform"."analysis_session_follow_ups" USING btree ("referenced_execution_id");--> statement-breakpoint
-CREATE INDEX "analysis_session_follow_ups_result_execution_idx" ON "platform"."analysis_session_follow_ups" USING btree ("result_execution_id");--> statement-breakpoint
-CREATE INDEX "analysis_session_follow_ups_ontology_version_idx" ON "platform"."analysis_session_follow_ups" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "analysis_session_follow_ups_created_at_idx" ON "platform"."analysis_session_follow_ups" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "analysis_sessions_owner_user_id_idx" ON "platform"."analysis_sessions" USING btree ("owner_user_id");--> statement-breakpoint
-CREATE INDEX "analysis_sessions_org_owner_idx" ON "platform"."analysis_sessions" USING btree ("organization_id","owner_user_id");--> statement-breakpoint
-CREATE INDEX "analysis_sessions_updated_at_idx" ON "platform"."analysis_sessions" USING btree ("updated_at");--> statement-breakpoint
-CREATE INDEX "analysis_ui_message_projection_owner_session_idx" ON "platform"."analysis_ui_message_projections" USING btree ("owner_user_id","session_id");--> statement-breakpoint
-CREATE INDEX "analysis_ui_message_projection_owner_execution_idx" ON "platform"."analysis_ui_message_projections" USING btree ("owner_user_id","execution_id");--> statement-breakpoint
-CREATE INDEX "analysis_ui_message_projection_session_round_idx" ON "platform"."analysis_ui_message_projections" USING btree ("session_id","history_round_id");--> statement-breakpoint
-CREATE INDEX "analysis_ui_message_projection_follow_up_idx" ON "platform"."analysis_ui_message_projections" USING btree ("follow_up_id");--> statement-breakpoint
-CREATE INDEX "analysis_ui_message_projection_updated_idx" ON "platform"."analysis_ui_message_projections" USING btree ("updated_at");--> statement-breakpoint
-CREATE INDEX "audit_events_user_id_idx" ON "platform"."audit_events" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "audit_events_session_id_idx" ON "platform"."audit_events" USING btree ("session_id");--> statement-breakpoint
-CREATE INDEX "audit_events_event_type_idx" ON "platform"."audit_events" USING btree ("event_type");--> statement-breakpoint
-CREATE INDEX "audit_events_created_at_idx" ON "platform"."audit_events" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "audit_events_retention_until_idx" ON "platform"."audit_events" USING btree ("retention_until");--> statement-breakpoint
-CREATE INDEX "audit_events_correlation_id_idx" ON "platform"."audit_events" USING btree ("correlation_id");--> statement-breakpoint
-CREATE INDEX "auth_sessions_user_id_idx" ON "platform"."auth_sessions" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "auth_sessions_expires_at_idx" ON "platform"."auth_sessions" USING btree ("expires_at");--> statement-breakpoint
-CREATE INDEX "erp_charge_items_org_idx" ON "erp_staging"."dw_datacenter_chargeitem" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "erp_houses_org_idx" ON "erp_staging"."dw_datacenter_house" USING btree ("org_id");--> statement-breakpoint
-CREATE INDEX "erp_houses_precinct_idx" ON "erp_staging"."dw_datacenter_house" USING btree ("precinct_id");--> statement-breakpoint
-CREATE INDEX "erp_organizations_parent_idx" ON "erp_staging"."dw_datacenter_system_organization" USING btree ("organization_parent_id");--> statement-breakpoint
-CREATE INDEX "erp_organizations_path_idx" ON "erp_staging"."dw_datacenter_system_organization" USING btree ("organization_path");--> statement-breakpoint
-CREATE INDEX "erp_organizations_nature_idx" ON "erp_staging"."dw_datacenter_system_organization" USING btree ("organization_nature");--> statement-breakpoint
-CREATE INDEX "erp_owners_owner_idx" ON "erp_staging"."dw_datacenter_owner" USING btree ("owner_id");--> statement-breakpoint
-CREATE INDEX "erp_owners_project_idx" ON "erp_staging"."dw_datacenter_owner" USING btree ("precinct_id");--> statement-breakpoint
-CREATE INDEX "erp_payments_project_idx" ON "erp_staging"."dw_datacenter_bill" USING btree ("precinct_id");--> statement-breakpoint
-CREATE INDEX "erp_payments_owner_idx" ON "erp_staging"."dw_datacenter_bill" USING btree ("owner_id");--> statement-breakpoint
-CREATE INDEX "erp_precincts_org_idx" ON "erp_staging"."dw_datacenter_precinct" USING btree ("org_id");--> statement-breakpoint
-CREATE INDEX "erp_precincts_area_idx" ON "erp_staging"."dw_datacenter_precinct" USING btree ("area_id");--> statement-breakpoint
-CREATE INDEX "erp_precincts_org_fk_idx" ON "erp_staging"."dw_datacenter_precinct" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "erp_receivables_project_idx" ON "erp_staging"."dw_datacenter_charge" USING btree ("precinct_id");--> statement-breakpoint
-CREATE INDEX "erp_receivables_owner_idx" ON "erp_staging"."dw_datacenter_charge" USING btree ("owner_id");--> statement-breakpoint
-CREATE INDEX "erp_service_orders_project_idx" ON "erp_staging"."dw_datacenter_services" USING btree ("precinct_id");--> statement-breakpoint
-CREATE INDEX "erp_service_orders_style_idx" ON "erp_staging"."dw_datacenter_services" USING btree ("service_style_name");--> statement-breakpoint
-CREATE INDEX "erp_system_users_org_idx" ON "erp_staging"."dw_datacenter_system_user" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "erp_system_users_account_idx" ON "erp_staging"."dw_datacenter_system_user" USING btree ("user_account");--> statement-breakpoint
-CREATE INDEX "erp_system_users_phone_idx" ON "erp_staging"."dw_datacenter_system_user" USING btree ("user_telephone");--> statement-breakpoint
-CREATE INDEX "job_dispatch_outbox_status_updated_at_idx" ON "platform"."job_dispatch_outbox" USING btree ("status","updated_at");--> statement-breakpoint
-CREATE INDEX "job_dispatch_outbox_job_id_idx" ON "platform"."job_dispatch_outbox" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "job_events_job_id_created_at_idx" ON "platform"."job_events" USING btree ("job_id","created_at");--> statement-breakpoint
-CREATE INDEX "job_events_event_type_created_at_idx" ON "platform"."job_events" USING btree ("event_type","created_at");--> statement-breakpoint
-CREATE INDEX "jobs_status_available_at_idx" ON "platform"."jobs" USING btree ("status","available_at");--> statement-breakpoint
-CREATE INDEX "jobs_locked_until_idx" ON "platform"."jobs" USING btree ("locked_until");--> statement-breakpoint
-CREATE INDEX "jobs_owner_user_id_idx" ON "platform"."jobs" USING btree ("owner_user_id");--> statement-breakpoint
-CREATE INDEX "jobs_session_id_idx" ON "platform"."jobs" USING btree ("session_id");--> statement-breakpoint
-CREATE INDEX "jobs_dispatch_status_idx" ON "platform"."jobs" USING btree ("dispatch_status","updated_at");--> statement-breakpoint
-CREATE INDEX "jobs_created_at_idx" ON "platform"."jobs" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "ontology_approval_records_change_request_id_idx" ON "platform"."ontology_approval_records" USING btree ("change_request_id");--> statement-breakpoint
-CREATE INDEX "ontology_approval_records_reviewed_by_idx" ON "platform"."ontology_approval_records" USING btree ("reviewed_by");--> statement-breakpoint
-CREATE INDEX "ontology_approval_records_decision_idx" ON "platform"."ontology_approval_records" USING btree ("decision");--> statement-breakpoint
-CREATE INDEX "ontology_causality_edges_version_idx" ON "platform"."ontology_causality_edges" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_causality_edges_business_key_idx" ON "platform"."ontology_causality_edges" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_causality_edges_version_key_idx" ON "platform"."ontology_causality_edges" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_causality_edges_status_idx" ON "platform"."ontology_causality_edges" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_causality_edges_source_idx" ON "platform"."ontology_causality_edges" USING btree ("source_entity_key");--> statement-breakpoint
-CREATE INDEX "ontology_causality_edges_target_idx" ON "platform"."ontology_causality_edges" USING btree ("target_entity_key");--> statement-breakpoint
-CREATE INDEX "ontology_causality_edges_attribution_idx" ON "platform"."ontology_causality_edges" USING btree ("is_attribution_path_enabled");--> statement-breakpoint
-CREATE INDEX "ontology_change_requests_version_id_idx" ON "platform"."ontology_change_requests" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_change_requests_status_idx" ON "platform"."ontology_change_requests" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_change_requests_submitted_by_idx" ON "platform"."ontology_change_requests" USING btree ("submitted_by");--> statement-breakpoint
-CREATE INDEX "ontology_change_requests_target_idx" ON "platform"."ontology_change_requests" USING btree ("target_object_type","target_object_key");--> statement-breakpoint
-CREATE INDEX "ontology_entity_defs_version_idx" ON "platform"."ontology_entity_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_entity_defs_business_key_idx" ON "platform"."ontology_entity_definitions" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_entity_defs_version_key_idx" ON "platform"."ontology_entity_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_entity_defs_status_idx" ON "platform"."ontology_entity_definitions" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_evidence_type_defs_version_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_evidence_type_defs_business_key_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_evidence_type_defs_version_key_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_evidence_type_defs_category_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("evidence_category");--> statement-breakpoint
-CREATE INDEX "ontology_evidence_type_defs_status_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_factor_defs_version_idx" ON "platform"."ontology_factor_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_factor_defs_business_key_idx" ON "platform"."ontology_factor_definitions" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_factor_defs_version_key_idx" ON "platform"."ontology_factor_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_factor_defs_category_idx" ON "platform"."ontology_factor_definitions" USING btree ("category");--> statement-breakpoint
-CREATE INDEX "ontology_factor_defs_status_idx" ON "platform"."ontology_factor_definitions" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_metric_defs_version_idx" ON "platform"."ontology_metric_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_metric_defs_business_key_idx" ON "platform"."ontology_metric_definitions" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_metric_defs_version_key_idx" ON "platform"."ontology_metric_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_metric_defs_status_idx" ON "platform"."ontology_metric_definitions" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_metric_variants_version_idx" ON "platform"."ontology_metric_variants" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_metric_variants_parent_metric_idx" ON "platform"."ontology_metric_variants" USING btree ("parent_metric_definition_id");--> statement-breakpoint
-CREATE INDEX "ontology_metric_variants_business_key_idx" ON "platform"."ontology_metric_variants" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_metric_variants_version_key_idx" ON "platform"."ontology_metric_variants" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_metric_variants_status_idx" ON "platform"."ontology_metric_variants" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_plan_step_tmpl_version_idx" ON "platform"."ontology_plan_step_templates" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_plan_step_tmpl_business_key_idx" ON "platform"."ontology_plan_step_templates" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_plan_step_tmpl_version_key_idx" ON "platform"."ontology_plan_step_templates" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_plan_step_tmpl_status_idx" ON "platform"."ontology_plan_step_templates" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_publish_records_version_id_idx" ON "platform"."ontology_publish_records" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_publish_records_published_by_idx" ON "platform"."ontology_publish_records" USING btree ("published_by");--> statement-breakpoint
-CREATE INDEX "ontology_time_semantics_version_idx" ON "platform"."ontology_time_semantics" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE INDEX "ontology_time_semantics_business_key_idx" ON "platform"."ontology_time_semantics" USING btree ("business_key");--> statement-breakpoint
-CREATE INDEX "ontology_time_semantics_version_key_idx" ON "platform"."ontology_time_semantics" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
-CREATE INDEX "ontology_time_semantics_type_idx" ON "platform"."ontology_time_semantics" USING btree ("semantic_type");--> statement-breakpoint
-CREATE INDEX "ontology_time_semantics_status_idx" ON "platform"."ontology_time_semantics" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_versions_status_idx" ON "platform"."ontology_versions" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "ontology_versions_published_at_idx" ON "platform"."ontology_versions" USING btree ("published_at");
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        WHERE n.nspname = 'platform' AND t.relname = 'job_dispatch_outbox' AND (c.conname = 'job_dispatch_outbox_job_id_jobs_id_fk' OR c.conname = left('job_dispatch_outbox_job_id_jobs_id_fk', 63))
+    ) THEN
+        ALTER TABLE "platform"."job_dispatch_outbox" ADD CONSTRAINT "job_dispatch_outbox_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "platform"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+    END IF;
+END $$;--> statement-breakpoint
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        WHERE n.nspname = 'platform' AND t.relname = 'job_events' AND (c.conname = 'job_events_job_id_jobs_id_fk' OR c.conname = left('job_events_job_id_jobs_id_fk', 63))
+    ) THEN
+        ALTER TABLE "platform"."job_events" ADD CONSTRAINT "job_events_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "platform"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+    END IF;
+END $$;--> statement-breakpoint
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        WHERE n.nspname = 'platform' AND t.relname = 'ontology_approval_records' AND (c.conname = 'ontology_approval_records_change_request_id_ontology_change_requests_id_fk' OR c.conname = left('ontology_approval_records_change_request_id_ontology_change_requests_id_fk', 63))
+    ) THEN
+        ALTER TABLE "platform"."ontology_approval_records" ADD CONSTRAINT "ontology_approval_records_change_request_id_ontology_change_requests_id_fk" FOREIGN KEY ("change_request_id") REFERENCES "platform"."ontology_change_requests"("id") ON DELETE cascade ON UPDATE no action;
+    END IF;
+END $$;--> statement-breakpoint
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        WHERE n.nspname = 'platform' AND t.relname = 'ontology_change_requests' AND (c.conname = 'ontology_change_requests_ontology_version_id_ontology_versions_id_fk' OR c.conname = left('ontology_change_requests_ontology_version_id_ontology_versions_id_fk', 63))
+    ) THEN
+        ALTER TABLE "platform"."ontology_change_requests" ADD CONSTRAINT "ontology_change_requests_ontology_version_id_ontology_versions_id_fk" FOREIGN KEY ("ontology_version_id") REFERENCES "platform"."ontology_versions"("id") ON DELETE cascade ON UPDATE no action;
+    END IF;
+END $$;--> statement-breakpoint
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        WHERE n.nspname = 'platform' AND t.relname = 'ontology_publish_records' AND (c.conname = 'ontology_publish_records_ontology_version_id_ontology_versions_id_fk' OR c.conname = left('ontology_publish_records_ontology_version_id_ontology_versions_id_fk', 63))
+    ) THEN
+        ALTER TABLE "platform"."ontology_publish_records" ADD CONSTRAINT "ontology_publish_records_ontology_version_id_ontology_versions_id_fk" FOREIGN KEY ("ontology_version_id") REFERENCES "platform"."ontology_versions"("id") ON DELETE cascade ON UPDATE no action;
+    END IF;
+END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_execution_snapshots_session_id_idx" ON "platform"."analysis_execution_snapshots" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_execution_snapshots_owner_updated_idx" ON "platform"."analysis_execution_snapshots" USING btree ("owner_user_id","updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_execution_snapshots_follow_up_id_idx" ON "platform"."analysis_execution_snapshots" USING btree ("follow_up_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_execution_snapshots_ontology_version_idx" ON "platform"."analysis_execution_snapshots" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_session_follow_ups_session_idx" ON "platform"."analysis_session_follow_ups" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_session_follow_ups_owner_session_idx" ON "platform"."analysis_session_follow_ups" USING btree ("owner_user_id","session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_session_follow_ups_session_created_order_idx" ON "platform"."analysis_session_follow_ups" USING btree ("session_id","created_order");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_session_follow_ups_execution_idx" ON "platform"."analysis_session_follow_ups" USING btree ("referenced_execution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_session_follow_ups_result_execution_idx" ON "platform"."analysis_session_follow_ups" USING btree ("result_execution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_session_follow_ups_ontology_version_idx" ON "platform"."analysis_session_follow_ups" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_session_follow_ups_created_at_idx" ON "platform"."analysis_session_follow_ups" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_sessions_owner_user_id_idx" ON "platform"."analysis_sessions" USING btree ("owner_user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_sessions_org_owner_idx" ON "platform"."analysis_sessions" USING btree ("organization_id","owner_user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_sessions_updated_at_idx" ON "platform"."analysis_sessions" USING btree ("updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_ui_message_projection_owner_session_idx" ON "platform"."analysis_ui_message_projections" USING btree ("owner_user_id","session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_ui_message_projection_owner_execution_idx" ON "platform"."analysis_ui_message_projections" USING btree ("owner_user_id","execution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_ui_message_projection_session_round_idx" ON "platform"."analysis_ui_message_projections" USING btree ("session_id","history_round_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_ui_message_projection_follow_up_idx" ON "platform"."analysis_ui_message_projections" USING btree ("follow_up_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_ui_message_projection_updated_idx" ON "platform"."analysis_ui_message_projections" USING btree ("updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_events_user_id_idx" ON "platform"."audit_events" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_events_session_id_idx" ON "platform"."audit_events" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_events_event_type_idx" ON "platform"."audit_events" USING btree ("event_type");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_events_created_at_idx" ON "platform"."audit_events" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_events_retention_until_idx" ON "platform"."audit_events" USING btree ("retention_until");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_events_correlation_id_idx" ON "platform"."audit_events" USING btree ("correlation_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "auth_sessions_user_id_idx" ON "platform"."auth_sessions" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "auth_sessions_expires_at_idx" ON "platform"."auth_sessions" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_charge_items_org_idx" ON "erp_staging"."dw_datacenter_chargeitem" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_houses_org_idx" ON "erp_staging"."dw_datacenter_house" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_houses_precinct_idx" ON "erp_staging"."dw_datacenter_house" USING btree ("precinct_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_organizations_parent_idx" ON "erp_staging"."dw_datacenter_system_organization" USING btree ("organization_parent_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_organizations_path_idx" ON "erp_staging"."dw_datacenter_system_organization" USING btree ("organization_path");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_organizations_nature_idx" ON "erp_staging"."dw_datacenter_system_organization" USING btree ("organization_nature");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_owners_owner_idx" ON "erp_staging"."dw_datacenter_owner" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_owners_project_idx" ON "erp_staging"."dw_datacenter_owner" USING btree ("precinct_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_payments_project_idx" ON "erp_staging"."dw_datacenter_bill" USING btree ("precinct_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_payments_owner_idx" ON "erp_staging"."dw_datacenter_bill" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_precincts_org_idx" ON "erp_staging"."dw_datacenter_precinct" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_precincts_area_idx" ON "erp_staging"."dw_datacenter_precinct" USING btree ("area_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_precincts_org_fk_idx" ON "erp_staging"."dw_datacenter_precinct" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_receivables_project_idx" ON "erp_staging"."dw_datacenter_charge" USING btree ("precinct_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_receivables_owner_idx" ON "erp_staging"."dw_datacenter_charge" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_service_orders_project_idx" ON "erp_staging"."dw_datacenter_services" USING btree ("precinct_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_service_orders_style_idx" ON "erp_staging"."dw_datacenter_services" USING btree ("service_style_name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_system_users_org_idx" ON "erp_staging"."dw_datacenter_system_user" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_system_users_account_idx" ON "erp_staging"."dw_datacenter_system_user" USING btree ("user_account");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "erp_system_users_phone_idx" ON "erp_staging"."dw_datacenter_system_user" USING btree ("user_telephone");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "job_dispatch_outbox_status_updated_at_idx" ON "platform"."job_dispatch_outbox" USING btree ("status","updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "job_dispatch_outbox_job_id_idx" ON "platform"."job_dispatch_outbox" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "job_events_job_id_created_at_idx" ON "platform"."job_events" USING btree ("job_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "job_events_event_type_created_at_idx" ON "platform"."job_events" USING btree ("event_type","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "jobs_status_available_at_idx" ON "platform"."jobs" USING btree ("status","available_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "jobs_locked_until_idx" ON "platform"."jobs" USING btree ("locked_until");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "jobs_owner_user_id_idx" ON "platform"."jobs" USING btree ("owner_user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "jobs_session_id_idx" ON "platform"."jobs" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "jobs_dispatch_status_idx" ON "platform"."jobs" USING btree ("dispatch_status","updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "jobs_created_at_idx" ON "platform"."jobs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_approval_records_change_request_id_idx" ON "platform"."ontology_approval_records" USING btree ("change_request_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_approval_records_reviewed_by_idx" ON "platform"."ontology_approval_records" USING btree ("reviewed_by");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_approval_records_decision_idx" ON "platform"."ontology_approval_records" USING btree ("decision");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_causality_edges_version_idx" ON "platform"."ontology_causality_edges" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_causality_edges_business_key_idx" ON "platform"."ontology_causality_edges" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_causality_edges_version_key_idx" ON "platform"."ontology_causality_edges" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_causality_edges_status_idx" ON "platform"."ontology_causality_edges" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_causality_edges_source_idx" ON "platform"."ontology_causality_edges" USING btree ("source_entity_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_causality_edges_target_idx" ON "platform"."ontology_causality_edges" USING btree ("target_entity_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_causality_edges_attribution_idx" ON "platform"."ontology_causality_edges" USING btree ("is_attribution_path_enabled");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_change_requests_version_id_idx" ON "platform"."ontology_change_requests" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_change_requests_status_idx" ON "platform"."ontology_change_requests" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_change_requests_submitted_by_idx" ON "platform"."ontology_change_requests" USING btree ("submitted_by");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_change_requests_target_idx" ON "platform"."ontology_change_requests" USING btree ("target_object_type","target_object_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_entity_defs_version_idx" ON "platform"."ontology_entity_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_entity_defs_business_key_idx" ON "platform"."ontology_entity_definitions" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_entity_defs_version_key_idx" ON "platform"."ontology_entity_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_entity_defs_status_idx" ON "platform"."ontology_entity_definitions" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_evidence_type_defs_version_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_evidence_type_defs_business_key_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_evidence_type_defs_version_key_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_evidence_type_defs_category_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("evidence_category");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_evidence_type_defs_status_idx" ON "platform"."ontology_evidence_type_definitions" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_factor_defs_version_idx" ON "platform"."ontology_factor_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_factor_defs_business_key_idx" ON "platform"."ontology_factor_definitions" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_factor_defs_version_key_idx" ON "platform"."ontology_factor_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_factor_defs_category_idx" ON "platform"."ontology_factor_definitions" USING btree ("category");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_factor_defs_status_idx" ON "platform"."ontology_factor_definitions" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_defs_version_idx" ON "platform"."ontology_metric_definitions" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_defs_business_key_idx" ON "platform"."ontology_metric_definitions" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_defs_version_key_idx" ON "platform"."ontology_metric_definitions" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_defs_status_idx" ON "platform"."ontology_metric_definitions" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_variants_version_idx" ON "platform"."ontology_metric_variants" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_variants_parent_metric_idx" ON "platform"."ontology_metric_variants" USING btree ("parent_metric_definition_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_variants_business_key_idx" ON "platform"."ontology_metric_variants" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_variants_version_key_idx" ON "platform"."ontology_metric_variants" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_metric_variants_status_idx" ON "platform"."ontology_metric_variants" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_plan_step_tmpl_version_idx" ON "platform"."ontology_plan_step_templates" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_plan_step_tmpl_business_key_idx" ON "platform"."ontology_plan_step_templates" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_plan_step_tmpl_version_key_idx" ON "platform"."ontology_plan_step_templates" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_plan_step_tmpl_status_idx" ON "platform"."ontology_plan_step_templates" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_publish_records_version_id_idx" ON "platform"."ontology_publish_records" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_publish_records_published_by_idx" ON "platform"."ontology_publish_records" USING btree ("published_by");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_time_semantics_version_idx" ON "platform"."ontology_time_semantics" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_time_semantics_business_key_idx" ON "platform"."ontology_time_semantics" USING btree ("business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_time_semantics_version_key_idx" ON "platform"."ontology_time_semantics" USING btree ("ontology_version_id","business_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_time_semantics_type_idx" ON "platform"."ontology_time_semantics" USING btree ("semantic_type");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_time_semantics_status_idx" ON "platform"."ontology_time_semantics" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_versions_status_idx" ON "platform"."ontology_versions" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ontology_versions_published_at_idx" ON "platform"."ontology_versions" USING btree ("published_at");
 
-CREATE INDEX "analysis_execution_snapshots_session_updated_idx" ON "platform"."analysis_execution_snapshots" USING btree ("session_id","updated_at" DESC);
+CREATE INDEX IF NOT EXISTS "analysis_execution_snapshots_session_updated_idx" ON "platform"."analysis_execution_snapshots" USING btree ("session_id","updated_at" DESC);
 
-CREATE TABLE "platform"."agent_invocations" (
+CREATE TABLE IF NOT EXISTS "platform"."agent_invocations" (
 	"id" text PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"execution_id" text NOT NULL,
@@ -884,7 +934,7 @@ CREATE TABLE "platform"."agent_invocations" (
 	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "platform"."analysis_execution_events" (
+CREATE TABLE IF NOT EXISTS "platform"."analysis_execution_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"session_id" text NOT NULL,
 	"execution_id" text NOT NULL,
@@ -901,18 +951,18 @@ CREATE TABLE "platform"."analysis_execution_events" (
 	"created_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "platform"."analysis_execution_snapshots" ADD COLUMN "error_code" text;--> statement-breakpoint
-ALTER TABLE "platform"."analysis_execution_snapshots" ADD COLUMN "trace_id" text;--> statement-breakpoint
-CREATE INDEX "agent_invocations_execution_kind_tool_idx" ON "platform"."agent_invocations" USING btree ("execution_id","kind","tool_name");--> statement-breakpoint
-CREATE INDEX "agent_invocations_trace_idx" ON "platform"."agent_invocations" USING btree ("trace_id");--> statement-breakpoint
-CREATE INDEX "agent_invocations_parent_idx" ON "platform"."agent_invocations" USING btree ("parent_invocation_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "analysis_execution_events_execution_sequence_uidx" ON "platform"."analysis_execution_events" USING btree ("execution_id","sequence");--> statement-breakpoint
-CREATE INDEX "analysis_execution_events_access_idx" ON "platform"."analysis_execution_events" USING btree ("session_id","execution_id","owner_user_id","sequence");--> statement-breakpoint
-CREATE INDEX "analysis_execution_snapshots_trace_id_idx" ON "platform"."analysis_execution_snapshots" USING btree ("trace_id");
+ALTER TABLE "platform"."analysis_execution_snapshots" ADD COLUMN IF NOT EXISTS "error_code" text;--> statement-breakpoint
+ALTER TABLE "platform"."analysis_execution_snapshots" ADD COLUMN IF NOT EXISTS "trace_id" text;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "agent_invocations_execution_kind_tool_idx" ON "platform"."agent_invocations" USING btree ("execution_id","kind","tool_name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "agent_invocations_trace_idx" ON "platform"."agent_invocations" USING btree ("trace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "agent_invocations_parent_idx" ON "platform"."agent_invocations" USING btree ("parent_invocation_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "analysis_execution_events_execution_sequence_uidx" ON "platform"."analysis_execution_events" USING btree ("execution_id","sequence");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_execution_events_access_idx" ON "platform"."analysis_execution_events" USING btree ("session_id","execution_id","owner_user_id","sequence");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "analysis_execution_snapshots_trace_id_idx" ON "platform"."analysis_execution_snapshots" USING btree ("trace_id");
 
-CREATE UNIQUE INDEX "agent_invocations_agent_run_uidx" ON "platform"."agent_invocations" USING btree ("execution_id") WHERE kind = 'agent-run';
+CREATE UNIQUE INDEX IF NOT EXISTS "agent_invocations_agent_run_uidx" ON "platform"."agent_invocations" USING btree ("execution_id") WHERE kind = 'agent-run';
 
-CREATE TABLE "spring_ai_chat_memory" (
+CREATE TABLE IF NOT EXISTS "spring_ai_chat_memory" (
 	"conversation_id" varchar(36) NOT NULL,
 	"content" text NOT NULL,
 	"type" varchar(10) NOT NULL,
@@ -921,10 +971,10 @@ CREATE TABLE "spring_ai_chat_memory" (
 	CONSTRAINT "spring_ai_chat_memory_type_check" CHECK (type in ('USER', 'ASSISTANT', 'SYSTEM', 'TOOL'))
 );
 --> statement-breakpoint
-CREATE INDEX "spring_ai_chat_memory_conversation_id_timestamp_idx" ON "spring_ai_chat_memory" USING btree ("conversation_id","timestamp");--> statement-breakpoint
-CREATE INDEX "spring_ai_chat_memory_conversation_id_sequence_id_idx" ON "spring_ai_chat_memory" USING btree ("conversation_id","sequence_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "analysis_execution_snapshots_follow_up_id_uidx" ON "platform"."analysis_execution_snapshots" USING btree ("follow_up_id") WHERE follow_up_id is not null;--> statement-breakpoint
-CREATE UNIQUE INDEX "analysis_session_follow_ups_result_execution_uidx" ON "platform"."analysis_session_follow_ups" USING btree ("result_execution_id") WHERE result_execution_id is not null;
+CREATE INDEX IF NOT EXISTS "spring_ai_chat_memory_conversation_id_timestamp_idx" ON "spring_ai_chat_memory" USING btree ("conversation_id","timestamp");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "spring_ai_chat_memory_conversation_id_sequence_id_idx" ON "spring_ai_chat_memory" USING btree ("conversation_id","sequence_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "analysis_execution_snapshots_follow_up_id_uidx" ON "platform"."analysis_execution_snapshots" USING btree ("follow_up_id") WHERE follow_up_id is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "analysis_session_follow_ups_result_execution_uidx" ON "platform"."analysis_session_follow_ups" USING btree ("result_execution_id") WHERE result_execution_id is not null;
 
-CREATE UNIQUE INDEX "ontology_publish_records_version_uidx" ON "platform"."ontology_publish_records" USING btree ("ontology_version_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "ontology_versions_single_current_uidx" ON "platform"."ontology_versions" USING btree ("status") WHERE status = 'approved' and published_at is not null;
+CREATE UNIQUE INDEX IF NOT EXISTS "ontology_publish_records_version_uidx" ON "platform"."ontology_publish_records" USING btree ("ontology_version_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "ontology_versions_single_current_uidx" ON "platform"."ontology_versions" USING btree ("status") WHERE status = 'approved' and published_at is not null;

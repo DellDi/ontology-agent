@@ -14,16 +14,15 @@ import javax.sql.DataSource;
 /**
  * 数据库初始化：PostgreSQL 事实源 schema 由 Java 侧 Flyway 独占执行。
  *
- * <p>迁移脚本定位为「新库重建与初始化」：全部历史迁移已合并为单份
- * {@code V1__init.sql}，对全新空库一次性执行完整初始化。
- *
- * <p>策略（幂等 + fail loud，不允许对已有业务库静默重跑）：
+ * <p>迁移脚本定位为「新库重建与初始化的 init 脚本」：全部历史迁移已合并为单份
+ * {@code V1__init.sql}，且脚本本身幂等（IF NOT EXISTS），可重复执行：
  * <ul>
- *   <li>已存在 Flyway 历史 → 幂等增量迁移（已初始化则 no-op），并校验既有脚本 checksum。</li>
- *   <li>全新空库 → 执行 V1__init.sql 完成初始化。</li>
- *   <li>存在业务 schema（platform / erp_staging）但无 Flyway 历史 → 拒绝执行，
- *       提示先手动重建数据库（本脚本是初始化脚本，不会自动 drop 数据）。</li>
+ *   <li>全新空库 → 完整初始化全部 schema/表/索引。</li>
+ *   <li>已初始化库（有 Flyway 历史）→ Flyway 校验 checksum 后 no-op，不重跑。</li>
+ *   <li>无 Flyway 历史的旧业务库 → baseline 0 后仍执行 V1（脚本幂等补全缺失列/索引），
+ *       不会丢数据、不会报错。</li>
  * </ul>
+ * <p>baselineVersion 固定为 0：任何已有库都不会跳过 V1 迁移（区别于默认 baseline 1 跳过首个迁移）。
  */
 @Component
 @Profile("migrate")
@@ -31,9 +30,9 @@ public final class DatabaseMigrationService {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMigrationService.class);
 
     public enum Decision {
-        /** 全新库，V1__init.sql 已完整执行 */
-        INITIALIZED_FROM_EMPTY,
-        /** 已存在 Flyway 历史，增量迁移完成（幂等） */
+        /** 首次执行（执行前无 Flyway 历史），初始化完成 */
+        INITIALIZED,
+        /** 已存在 Flyway 历史，重复执行（幂等 no-op 或增量） */
         MIGRATED_INCREMENTAL
     }
 
@@ -44,30 +43,24 @@ public final class DatabaseMigrationService {
     }
 
     public Decision run() {
+        boolean hadHistory = historyExists();
+
         Flyway flyway = Flyway.configure()
                 .dataSource(jdbc.getDataSource())
-                .baselineOnMigrate(false)
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
                 .locations("classpath:db/migration")
                 .load();
+        MigrateResult result = flyway.migrate();
 
-        if (historyExists()) {
-            MigrateResult result = flyway.migrate();
+        if (hadHistory) {
             log.info("flyway_migrate_incremental executed={} target={}",
                     result.migrationsExecuted, result.targetSchemaVersion);
             return Decision.MIGRATED_INCREMENTAL;
         }
-
-        if (schemaExists("platform") || schemaExists("erp_staging")) {
-            throw new IllegalStateException(
-                    "数据库已存在业务 schema（platform/erp_staging）但没有 Flyway 历史。"
-                            + "迁移脚本是全新库初始化脚本，不会对已有库执行，也不会自动 drop 数据。"
-                            + "如需重建请先手动删除数据库或数据卷，再重新初始化。");
-        }
-
-        MigrateResult result = flyway.migrate();
-        log.info("flyway_init_fresh executed={} target={}",
+        log.info("flyway_init_complete executed={} target={}",
                 result.migrationsExecuted, result.targetSchemaVersion);
-        return Decision.INITIALIZED_FROM_EMPTY;
+        return Decision.INITIALIZED;
     }
 
     public MigrationInfo[] pendingMigrations() {
@@ -82,11 +75,5 @@ public final class DatabaseMigrationService {
     private boolean historyExists() {
         return Boolean.TRUE.equals(jdbc.queryForObject(
                 "select to_regclass('public.flyway_schema_history') is not null", Boolean.class));
-    }
-
-    private boolean schemaExists(String schema) {
-        return Boolean.TRUE.equals(jdbc.queryForObject(
-                "select exists (select 1 from information_schema.schemata where schema_name = ?)",
-                Boolean.class, schema));
     }
 }
