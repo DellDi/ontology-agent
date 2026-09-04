@@ -4,11 +4,14 @@ import com.dip3.ontologyagent.analysis.AnalysisService;
 import com.dip3.ontologyagent.analysis.AnalysisSession;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.capability.api.FollowUpPolicy;
 import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.execution.ExecutionSnapshotMapper;
 import com.dip3.ontologyagent.execution.WakeupPublisher;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
+import com.dip3.ontologyagent.property.internal.application.PropertyFollowUpPolicyTestSupport;
+import com.dip3.ontologyagent.property.internal.application.PropertyProjectScopeResolver;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.MigrationTestSupport;
 import org.junit.jupiter.api.BeforeAll;
@@ -44,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -96,6 +100,8 @@ class AnalysisFollowUpPersistenceTest {
     @MockitoBean AnalysisService analyses;
     @MockitoBean OntologyRepository ontologies;
     @MockitoBean WakeupPublisher wakeups;
+    private final PropertyProjectScopeResolver scopedProjects = mock(PropertyProjectScopeResolver.class);
+    private final FollowUpPolicy followUpPolicy = PropertyFollowUpPolicyTestSupport.policy(scopedProjects);
 
     private String suffix;
     private AuthSession owner;
@@ -111,9 +117,15 @@ class AnalysisFollowUpPersistenceTest {
         session = new AnalysisSession("session-" + suffix, owner.userId(), owner.scope(), "分析收缴率",
                 Map.of("_executionContract", "java-initial-v1"), "completed", Instant.now(), Instant.now());
         when(analyses.ownedSession(session.id(), owner)).thenReturn(session);
-        when(ontologies.published("ontology-" + suffix)).thenReturn(new OntologyCatalog(
+        OntologyCatalog ontology = new OntologyCatalog(
                 "ontology-" + suffix, "1.0.0", List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of()));
+                List.of());
+        when(ontologies.published(ontology.versionId())).thenReturn(ontology);
+        when(analyses.followUpPolicy(
+                owner,
+                com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding(
+                        owner, ontology.versionId())))
+                .thenReturn(followUpPolicy);
     }
 
     @Test
@@ -125,7 +137,10 @@ class AnalysisFollowUpPersistenceTest {
         AnalysisFollowUp cleared = copy(first, null, plan(), null, first.resultExecutionId(), Instant.now());
         repository.replace(first, cleared);
 
-        assertNull(repository.findOwned(first.id(), owner.userId()).orElseThrow().currentPlanSnapshot());
+        AnalysisFollowUp stored = repository.findOwned(first.id(), owner.userId()).orElseThrow();
+        assertNull(stored.currentPlanSnapshot());
+        assertEquals(com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding(owner,
+                "ontology-" + suffix).snapshot(), stored.capabilityBinding());
         assertEquals(List.of(first.id(), second.id()), repository.listOwned(session.id(), owner.userId()).stream()
                 .map(AnalysisFollowUp::id).toList());
     }
@@ -224,7 +239,9 @@ class AnalysisFollowUpPersistenceTest {
         Map<String, Object> context = context();
         return new AnalysisFollowUp(id, session.id(), owner.userId(), "为什么下降", null, "root-" + suffix,
                 "结论", "摘要", null, "ontology-" + suffix,
-                Map.of("ontologyVersionId", "ontology-" + suffix, "source", "inherited"), context, context,
+                Map.of("ontologyVersionId", "ontology-" + suffix, "source", "inherited"),
+                com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding(owner,
+                        "ontology-" + suffix).snapshot(), context, context,
                 currentPlan == null ? null : 2, currentPlan, null, null, createdAt, createdAt);
     }
 
@@ -284,14 +301,14 @@ class AnalysisFollowUpPersistenceTest {
         return new AnalysisFollowUp(source.id(), source.sessionId(), source.ownerUserId(), source.questionText(),
                 source.parentFollowUpId(), source.referencedExecutionId(), source.referencedConclusionTitle(),
                 source.referencedConclusionSummary(), resultExecutionId, source.ontologyVersionId(),
-                source.ontologyVersionBinding(), source.inheritedContext(), source.mergedContext(),
+                source.ontologyVersionBinding(), source.capabilityBinding(), source.inheritedContext(), source.mergedContext(),
                 source.planVersion(), currentPlan, previousPlan, diff, source.createdAt(), updatedAt);
     }
 
     private AnalysisFollowUp withReference(AnalysisFollowUp source, String executionId, String parentId) {
         return new AnalysisFollowUp(source.id(), source.sessionId(), source.ownerUserId(), source.questionText(),
                 parentId, executionId, source.referencedConclusionTitle(), source.referencedConclusionSummary(),
-                source.resultExecutionId(), source.ontologyVersionId(), source.ontologyVersionBinding(),
+                source.resultExecutionId(), source.ontologyVersionId(), source.ontologyVersionBinding(), source.capabilityBinding(),
                 source.inheritedContext(), source.mergedContext(), source.planVersion(), source.currentPlanSnapshot(),
                 source.previousPlanSnapshot(), source.currentPlanDiff(), source.createdAt(), source.updatedAt());
     }
@@ -300,10 +317,13 @@ class AnalysisFollowUpPersistenceTest {
         jdbc.update("""
                 insert into platform.analysis_execution_snapshots
                 (execution_id,session_id,owner_user_id,follow_up_id,ontology_version_id,
-                 ontology_version_binding_source,status,plan_snapshot,step_results,conclusion_state,
+                 ontology_version_binding_source,capability_binding,status,plan_snapshot,step_results,conclusion_state,
                  result_blocks,mobile_projection,created_at,updated_at)
-                values (?,?,?,?,?,'grounded-context','completed',cast(? as jsonb),'[]','{}','[]','{}',?,?)
+                values (?,?,?,?,?,'grounded-context',cast(? as jsonb),'completed',cast(? as jsonb),'[]','{}','[]','{}',?,?)
                 """, executionId, session.id(), owner.userId(), followUpId, "ontology-" + suffix,
+                new com.dip3.ontologyagent.support.JsonCodec().write(
+                        com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding(owner,
+                                "ontology-" + suffix).snapshot()),
                 "{\"_executionContract\":\"" + contract + "\",\"steps\":[]}",
                 Timestamp.from(Instant.now()), Timestamp.from(Instant.now()));
     }

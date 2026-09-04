@@ -12,8 +12,10 @@ public record GroundedConclusion(List<Claim> claims) {
         return claims.stream().map(Claim::text).collect(Collectors.joining("\n\n"));
     }
 
-    public record Claim(String text, List<EvidenceReference> evidenceRefs) {
+    public record Claim(String kind, String text, List<EvidenceReference> evidenceRefs) {
         public Claim {
+            if (kind == null || kind.isBlank()) throw new IllegalArgumentException("kind must not be blank");
+            if (text == null || text.isBlank()) throw new IllegalArgumentException("text must not be blank");
             evidenceRefs = List.copyOf(evidenceRefs);
         }
     }

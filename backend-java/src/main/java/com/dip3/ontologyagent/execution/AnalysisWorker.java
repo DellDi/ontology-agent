@@ -1,15 +1,20 @@
 package com.dip3.ontologyagent.execution;
 
-import com.dip3.ontologyagent.agent.MainAgent;
 import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.analysis.AnalysisSession;
 import com.dip3.ontologyagent.analysis.AnalysisSessionRepository;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.capability.api.CapabilityBinding;
+import com.dip3.ontologyagent.capability.api.CapabilityDescriptor;
+import com.dip3.ontologyagent.capability.api.CapabilityEvidence;
+import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
+import com.dip3.ontologyagent.capability.api.CapabilityInvocationContract;
+import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
+import com.dip3.ontologyagent.capability.api.CapabilityResult;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
-import com.dip3.ontologyagent.tooling.AnalysisWorkflow;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -34,21 +39,22 @@ public final class AnalysisWorker {
     private final ExecutionRepository executions;
     private final AnalysisSessionRepository sessions;
     private final OntologyRepository ontologies;
-    private final MainAgent mainAgent;
+    private final CapabilityRegistry capabilities;
     private final AgentInvocationRepository invocations;
     private final InvocationEventRecorder recorder;
     private final ScheduledExecutorService leaseHeartbeats = Executors.newSingleThreadScheduledExecutor(r ->
             Thread.ofPlatform().daemon(true).name("analysis-lease-heartbeat").unstarted(r));
 
     public AnalysisWorker(ExecutionRepository executions, AnalysisSessionRepository sessions,
-                          OntologyRepository ontologies, MainAgent mainAgent,
-                          AgentInvocationRepository invocations, InvocationEventRecorder recorder) {
+                          OntologyRepository ontologies,
+                          AgentInvocationRepository invocations, InvocationEventRecorder recorder,
+                          CapabilityRegistry capabilities) {
         this.executions = executions;
         this.sessions = sessions;
         this.ontologies = ontologies;
-        this.mainAgent = mainAgent;
         this.invocations = invocations;
         this.recorder = recorder;
+        this.capabilities = capabilities;
     }
 
     public boolean runOne(String workerId) {
@@ -69,18 +75,22 @@ public final class AnalysisWorker {
             if (job.attemptCount() > job.maxAttempts()) {
                 throw new BackendException("JOB_ATTEMPTS_EXHAUSTED", "执行任务已超过最大尝试次数。");
             }
+            var ontology = ontologies.published(job.ontologyVersionId());
+            CapabilityDescriptor capability = capabilities.require(job.capabilityBinding(), ontology, owner);
+            CapabilityInvocationContract invocation = capability.invocationContract();
             if (job.attemptCount() > 1
-                    && invocations.count(job.executionId(), "workflow-tool", "analysis_workflow") > 0) {
-                throw new BackendException("AGENT_EXECUTION_INTERRUPTED",
-                        "上一次租约内已开始 Workflow Tool，禁止再次调用 Agent；本次执行显式失败。");
+                    && invocations.count(job.executionId(), invocation.invocationType(), invocation.toolName()) > 0) {
+                throw new BackendException("AGENT_EXECUTION_INTERRUPTED", invocation.retryFenceMessage());
             }
             AnalysisSession session = sessions.findOwned(job.sessionId(), owner)
                     .orElseThrow(() -> new BackendException("SESSION_NOT_FOUND", "执行关联的会话不存在或 scope 已失效。"));
             executions.appendWhileLeased(job.ownerUserId(), job.workerId(),
                     event(job, "processing", "分析执行已开始", null));
-            var ontology = ontologies.published(job.ontologyVersionId());
             Map<String, Object> agentInput = new java.util.LinkedHashMap<>();
             agentInput.put("ontologyVersionId", ontology.versionId());
+            agentInput.put("domainKey", capability.id().domainKey());
+            agentInput.put("capabilityKey", capability.id().capabilityKey());
+            agentInput.put("capabilityBinding", job.capabilityBinding().snapshot());
             agentInput.put("attemptCount", job.attemptCount());
             agentInput.put("executionContract", job.contract());
             agentInput.put("questionText", job.questionText());
@@ -92,16 +102,19 @@ public final class AnalysisWorker {
                     job.traceId(), job.workerId());
             AgentTurn turn = new AgentTurn(job.contract(), job.sessionId(), job.questionText(), job.followUpId(),
                     job.referencedExecutionId(), job.referencedConclusion(), job.effectiveContext(), session.createdAt());
-            WorkflowResult result = mainAgent.execute(owner, turn, job.executionId(), ontology, job.traceId(), job.workerId());
-            long workflowCalls = invocations.count(job.executionId(), "workflow-tool", "analysis_workflow");
-            if (workflowCalls != 1) {
+            CapabilityResult<WorkflowResult, Evidence> capabilityResult = capabilities.execute(
+                    job.capabilityBinding(), new CapabilityExecutionContext(owner, turn, job.executionId(), ontology,
+                            job.traceId(), job.workerId()));
+            long invocationCount = invocations.count(job.executionId(), invocation.invocationType(), invocation.toolName());
+            if (invocationCount != invocation.exactCount()) {
                 throw new BackendException("AGENT_TOOL_CONTRACT_VIOLATION",
-                        "Main Agent 必须且只能调用一次 analysis_workflow，实际调用 " + workflowCalls + " 次。");
+                        invocation.contractViolationMessage(invocationCount));
             }
-            recorder.succeedWhileLeased(agentRunId, Map.of("workflowInvocations", workflowCalls),
+            validateResult(capability, job.capabilityBinding(), job.executionId(), capabilityResult);
+            recorder.succeedWhileLeased(agentRunId, Map.of(invocation.completionMetricKey(), invocationCount),
                     job.executionId(), job.workerId());
             agentRunId = null;
-            persistSuccess(job, ontology.versionId(), result);
+            persistSuccess(job, ontology.versionId(), capability, capabilityResult, invocationCount);
             return true;
         } catch (RuntimeException error) {
             if (agentRunId != null) error = failAgentRun(job, agentRunId, error);
@@ -166,18 +179,14 @@ public final class AnalysisWorker {
         leaseHeartbeats.shutdownNow();
     }
 
-    private void persistSuccess(ExecutionJob job, String ontologyVersionId, WorkflowResult result) {
+    private void persistSuccess(ExecutionJob job, String ontologyVersionId, CapabilityDescriptor capability,
+                                CapabilityResult<WorkflowResult, Evidence> capabilityResult,
+                                long invocationCount) {
+        WorkflowResult result = capabilityResult.result();
         if (!job.contract().equals(result.plan().get("_executionContract"))
                 || !result.plan().containsKey("_resolvedContext")
                 || job.followUpId() != null && !job.followUpId().equals(result.plan().get("_followUpId"))) {
             throw new BackendException("WORKFLOW_RESULT_INVALID", "Workflow 结果缺少当前 Java 执行契约或受控上下文。");
-        }
-        Set<String> evidenceSources = result.evidence().stream().map(Evidence::source)
-                .collect(java.util.stream.Collectors.toSet());
-        if (!evidenceSources.equals(Set.of("erp-staging", "cube", "neo4j"))
-                || result.evidence().stream().anyMatch(item -> item.rows().isEmpty())
-                || result.claims() == null || result.claims().isEmpty()) {
-            throw new BackendException("WORKFLOW_RESULT_INVALID", "Workflow 完成态缺少必需且非空的受治理证据。");
         }
         Instant now = Instant.now();
         List<Map<String, Object>> conclusionEvidence = result.evidence().stream()
@@ -191,6 +200,7 @@ public final class AnalysisWorker {
         cause.put("evidence", conclusionEvidence);
         Map<String, Object> terminalMetadata = new java.util.LinkedHashMap<>();
         terminalMetadata.put("ontologyVersionId", ontologyVersionId);
+        terminalMetadata.put("capabilityBinding", job.capabilityBinding().snapshot());
         terminalMetadata.put("executionContract", job.contract());
         terminalMetadata.put("followUpId", job.followUpId());
         ExecutionEvent terminal = new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(),
@@ -199,20 +209,43 @@ public final class AnalysisWorker {
         Map<String, Object> conclusionState = new java.util.LinkedHashMap<>();
         conclusionState.put("causes", List.of(cause));
         conclusionState.put("renderBlocks", result.renderBlocks());
-        conclusionState.put("evidence", AnalysisWorkflow.evidenceProjection(result.evidence()));
+        conclusionState.put("evidence", Evidence.projection(result.evidence()));
         conclusionState.put("claims", result.claims());
         ExecutionSnapshot snapshot = new ExecutionSnapshot(job.executionId(), job.sessionId(), job.ownerUserId(),
                 job.followUpId(), ontologyVersionId, ontologyBinding(ontologyVersionId,
-                job.followUpId() == null ? "grounded-context" : "inherited"), "completed", result.plan(),
+                job.followUpId() == null ? "grounded-context" : "inherited"), job.capabilityBinding().snapshot(),
+                "completed", result.plan(),
                 List.of(), conclusionState, result.renderBlocks(),
                 mobileProjection(result.conclusion(), "completed", now), null, null, job.traceId(), now, now);
         Map<String, Object> completion = new java.util.LinkedHashMap<>();
-        completion.put("workflowInvocations", 1L);
+        completion.put(capability.invocationContract().completionMetricKey(), invocationCount);
         completion.put("ontologyVersionId", ontologyVersionId);
+        completion.put("capabilityBinding", job.capabilityBinding().snapshot());
         completion.put("executionContract", job.contract());
         completion.put("followUpId", job.followUpId());
-        completion.put("evidenceSources", List.of("erp-staging", "cube", "neo4j"));
+        completion.put("evidenceSources", capabilityResult.evidence().stream()
+                .map(CapabilityEvidence::evidenceType).toList());
         executions.completeAtomically(job.ownerUserId(), job.workerId(), terminal, snapshot, completion);
+    }
+
+    private static void validateResult(CapabilityDescriptor descriptor,
+                                       CapabilityBinding expectedBinding,
+                                       String executionId,
+                                       CapabilityResult<WorkflowResult, Evidence> envelope) {
+        WorkflowResult result = envelope.result();
+        Set<String> evidenceTypes = envelope.evidence().stream().map(CapabilityEvidence::evidenceType)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> claimKinds = result.claims() == null ? Set.of() : result.claims().stream()
+                .map(com.dip3.ontologyagent.tooling.GroundedConclusion.Claim::kind)
+                .collect(java.util.stream.Collectors.toSet());
+        if (!expectedBinding.equals(envelope.binding())
+                || !expectedBinding.scopeSnapshotRef(executionId).equals(envelope.scopeSnapshotRef())
+                || !evidenceTypes.equals(descriptor.requiredEvidenceTypes())
+                || result.evidence().stream().anyMatch(item -> item.rows().isEmpty())
+                || !claimKinds.equals(descriptor.allowedClaimKinds())
+                || result.claims() == null || result.claims().size() != claimKinds.size()) {
+            throw new BackendException("WORKFLOW_RESULT_INVALID", "Workflow 完成态不符合能力的证据或结论类型契约。");
+        }
     }
 
     private void persistFailure(ExecutionJob job, String code, String message) {
@@ -230,7 +263,7 @@ public final class AnalysisWorker {
         }
         ExecutionSnapshot snapshot = new ExecutionSnapshot(job.executionId(), job.sessionId(), job.ownerUserId(),
                 job.followUpId(), job.ontologyVersionId(), ontologyBinding(job.ontologyVersionId(),
-                job.followUpId() == null ? "grounded-context" : "inherited"), "failed",
+                job.followUpId() == null ? "grounded-context" : "inherited"), job.capabilityBinding().snapshot(), "failed",
                 Map.copyOf(failedPlan),
                 List.of(), Map.of("causes", List.of(), "renderBlocks", List.of()), List.of(),
                 mobileProjection(message, "failed", now), Map.of("id", "execution", "order", 0, "title",
@@ -250,6 +283,7 @@ public final class AnalysisWorker {
         Map<String, Object> metadata = new java.util.LinkedHashMap<>();
         metadata.put("traceId", job.traceId());
         metadata.put("executionContract", job.contract());
+        metadata.put("capabilityBinding", job.capabilityBinding().snapshot());
         if (job.followUpId() != null) metadata.put("followUpId", job.followUpId());
         if (code != null) metadata.put("errorCode", code);
         return new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(), job.executionId(), 0,

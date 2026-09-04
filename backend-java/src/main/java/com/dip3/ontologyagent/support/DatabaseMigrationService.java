@@ -14,8 +14,8 @@ import javax.sql.DataSource;
 /**
  * 数据库初始化：PostgreSQL 事实源 schema 由 Java 侧 Flyway 独占执行。
  *
- * <p>迁移脚本定位为「新库重建与初始化的 init 脚本」：全部历史迁移已合并为单份
- * {@code V1__init.sql}，且脚本本身幂等（IF NOT EXISTS），可重复执行：
+ * <p>V1 定位为「新库重建与初始化的 init 脚本」：全部历史迁移已合并为
+ * {@code V1__init.sql}，且脚本本身幂等（IF NOT EXISTS），后续变更使用 V2+：
  * <ul>
  *   <li>全新空库 → 完整初始化全部 schema/表/索引。</li>
  *   <li>已初始化库（有 Flyway 历史）→ Flyway 校验 checksum 后 no-op，不重跑。</li>
