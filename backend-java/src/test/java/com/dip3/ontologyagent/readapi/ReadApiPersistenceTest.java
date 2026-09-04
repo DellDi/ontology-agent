@@ -116,6 +116,8 @@ class ReadApiPersistenceTest {
         assertEquals(List.of(visible.id()), home.sessions().stream().map(item -> item.id()).toList());
         assertEquals(queuedExecution, home.sessions().getFirst().latestExecution().executionId());
         assertEquals("queued", home.sessions().getFirst().latestExecution().status());
+        assertEquals(Map.of("source", "legacy/unknown"),
+                home.sessions().getFirst().latestExecution().capabilityBinding());
         assertEquals(List.of("other-project-" + suffix, projectId),
                 home.projects().stream().map(item -> item.id()).sorted().toList());
         var areaOnlyHome = homes.load(viewer(userId, organizationId, List.of(), List.of(areaId)));
@@ -136,6 +138,7 @@ class ReadApiPersistenceTest {
         var requested = sessionReads.load(visible.id(), completedExecution, viewer);
         assertEquals(completedExecution, requested.job().executionId());
         assertEquals("completed", requested.snapshot().status());
+        assertEquals(Map.of("source", "legacy/unknown"), requested.snapshot().capabilityBinding());
         assertFalse(requested.runtime().streamEnabled());
         assertTrue(requested.runtime().terminal());
         assertEquals(1, requested.runtime().resumeAfterSequence());
@@ -233,11 +236,11 @@ class ReadApiPersistenceTest {
                                 Instant timestamp, String traceId) {
         jdbc.update("""
                 insert into platform.analysis_execution_snapshots
-                (execution_id,session_id,owner_user_id,ontology_version_binding_source,status,plan_snapshot,
+                (execution_id,session_id,owner_user_id,ontology_version_binding_source,capability_binding,status,plan_snapshot,
                  step_results,conclusion_state,result_blocks,mobile_projection,trace_id,created_at,updated_at)
-                values (?,?,?,'grounded-context',?,cast(? as jsonb),cast(? as jsonb),cast(? as jsonb),
+                values (?,?,?,'grounded-context',cast(? as jsonb),?,cast(? as jsonb),cast(? as jsonb),cast(? as jsonb),
                         cast(? as jsonb),cast(? as jsonb),?,?,?)
-                """, executionId, sessionId, ownerUserId, status,
+                """, executionId, sessionId, ownerUserId, "{\"source\":\"legacy/unknown\"}", status,
                 "{\"_executionContract\":\"java-initial-v1\"}", "[]", "{\"causes\":[]}", "[]",
                 "{}", traceId, Timestamp.from(timestamp), Timestamp.from(timestamp));
     }

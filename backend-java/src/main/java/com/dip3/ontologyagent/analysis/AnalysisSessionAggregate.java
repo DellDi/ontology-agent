@@ -36,6 +36,7 @@ public record AnalysisSessionAggregate(SessionView session, List<AnalysisFollowU
 
     public record SnapshotView(String executionId, String sessionId, String followUpId,
                                String ontologyVersionId, String ontologyVersionBindingSource, String status,
+                               Map<String, Object> capabilityBinding,
                                Map<String, Object> planSnapshot, List<Map<String, Object>> stepResults,
                                Map<String, Object> conclusionState, List<Map<String, Object>> resultBlocks,
                                Map<String, Object> mobileProjection, Map<String, Object> failurePoint,

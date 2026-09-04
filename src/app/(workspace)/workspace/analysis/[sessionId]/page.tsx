@@ -20,6 +20,7 @@ import { AnalysisFollowUpInput } from './_components/analysis-follow-up-input';
 import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
 import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
 import { AnalysisPendingRefreshGate } from './_components/analysis-pending-refresh-gate';
+import { AnalysisRuntimeContractPanel } from './_components/analysis-runtime-contract-panel';
 import {
   buildJavaFollowUpFeedback,
   buildJavaHistoryReadModel,
@@ -246,6 +247,8 @@ export default async function AnalysisSessionPage({
           ))}
         </div>
       ) : null}
+
+      <AnalysisRuntimeContractPanel snapshot={aggregate.snapshot} />
 
       {resolvedExecutionId && readModel && !activeFollowUpPending ? (
         <AnalysisExecutionLiveShell

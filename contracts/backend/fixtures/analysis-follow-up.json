@@ -13,6 +13,12 @@
     "ontologyVersionId": "ontology-v1",
     "source": "inherited"
   },
+  "capabilityBinding": {
+    "domainKey": "property",
+    "capabilityKey": "collection-rate-analysis",
+    "ontologyVersionId": "ontology-v1",
+    "resolvedScope": { "domainKey": "property", "schemaVersion": 1, "values": { "organizationId": "org-1", "projectIds": ["project-1"], "areaIds": ["area-1"] } }
+  },
   "inheritedContext": {
     "targetMetric": { "label": "目标指标", "value": "project-collection-rate", "state": "confirmed" },
     "entity": { "label": "实体对象", "value": "project-1", "state": "confirmed" },

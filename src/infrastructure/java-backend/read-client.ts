@@ -9,6 +9,43 @@ import {
 } from '@/infrastructure/observability/correlation';
 
 const jsonObjectSchema = z.record(z.string(), z.unknown());
+const propertyCapabilityBindingSchema = z.strictObject({
+  domainKey: z.literal('property'),
+  capabilityKey: z.literal('collection-rate-analysis'),
+  ontologyVersionId: z.string().min(1),
+  resolvedScope: z.strictObject({
+    domainKey: z.literal('property'),
+    schemaVersion: z.literal(1),
+    values: z.strictObject({
+      organizationId: z.string().min(1),
+      projectIds: z.array(z.string().min(1)),
+      areaIds: z.array(z.string().min(1)),
+    }).refine(({ projectIds, areaIds }) => projectIds.length > 0 || areaIds.length > 0, {
+      message: 'Property 能力绑定的授权范围不能为空。',
+      path: ['projectIds'],
+    }),
+  }),
+});
+
+const easyVCapabilityBindingSchema = z.strictObject({
+  domainKey: z.literal('easyv'),
+  capabilityKey: z.literal('generation-quality-analysis'),
+  ontologyVersionId: z.string().min(1),
+  resolvedScope: z.strictObject({
+    domainKey: z.literal('easyv'),
+    schemaVersion: z.literal(1),
+    values: z.strictObject({
+      userId: z.string().regex(/^[1-9][0-9]*$/),
+      accessMode: z.literal('creator-owned'),
+    }),
+  }),
+});
+
+const capabilityBindingSchema = z.union([
+  z.strictObject({ source: z.literal('legacy/unknown') }),
+  propertyCapabilityBindingSchema,
+  easyVCapabilityBindingSchema,
+]);
 const jobStatusSchema = z.enum([
   'pending',
   'queued',
@@ -48,7 +85,7 @@ const conclusionCauseSchema = z.strictObject({
 });
 
 const evidenceProjectionSchema = z.strictObject({
-  source: z.enum(['erp-staging', 'cube', 'neo4j']),
+  source: z.string().min(1),
   title: z.string().min(1),
   rowCount: z.number().int().positive(),
   rows: z.array(jsonObjectSchema).min(1),
@@ -58,9 +95,10 @@ const evidenceProjectionSchema = z.strictObject({
 );
 
 const groundedClaimSchema = z.strictObject({
+  kind: z.string().min(1).optional(),
   text: z.string().min(1),
   evidenceRefs: z.array(z.strictObject({
-    source: z.enum(['erp-staging', 'cube', 'neo4j']),
+    source: z.string().min(1),
     row: z.number().int().nonnegative(),
     field: z.string().min(1),
     value: z.union([z.string(), z.number().finite(), z.boolean()]),
@@ -98,7 +136,7 @@ const analysisContextSchema = z.strictObject({
   })),
 });
 
-const planStepSchema = z.strictObject({
+const propertyPlanStepSchema = z.strictObject({
   id: z.string().min(1),
   order: z.number().int().positive(),
   title: z.string().min(1),
@@ -106,18 +144,15 @@ const planStepSchema = z.strictObject({
   dependencyIds: z.array(z.string().min(1)),
 });
 
-const resolvedContextSchema = z.strictObject({
-  entityKey: z.string().min(1),
-  metricDefinitionKey: z.string().min(1),
-  metricVariantKey: z.string().min(1),
-  timeSemanticKey: z.string().min(1),
-  projectIds: z.array(z.string().min(1)),
-  from: z.iso.date(),
-  to: z.iso.date(),
-}).catchall(z.unknown()).refine(
-  ({ from, to }) => from <= to,
-  { message: '_resolvedContext.from 不能晚于 to。', path: ['from'] },
-);
+const easyVPlanStepSchema = z.strictObject({
+  id: z.string().min(1),
+  order: z.number().int().positive(),
+  kind: z.string().min(1),
+});
+
+const planStepSchema = z.union([propertyPlanStepSchema, easyVPlanStepSchema]);
+
+const resolvedContextSchema = jsonObjectSchema;
 
 const planRuntimeFields = {
   _executionContract: z.enum(['java-initial-v1', 'java-follow-up-v1']),
@@ -131,7 +166,7 @@ const planRuntimeFields = {
 };
 
 const javaPlanSnapshotSchema = z.strictObject({
-  mode: z.enum(['minimal', 'multi-step']),
+  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only']),
   summary: z.string().min(1),
   steps: z.array(planStepSchema).min(1),
   ...planRuntimeFields,
@@ -144,7 +179,7 @@ const javaPlanSnapshotSchema = z.strictObject({
 });
 
 const javaExecutionPlanEnvelopeSchema = z.strictObject({
-  mode: z.enum(['minimal', 'multi-step']),
+  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only']),
   summary: z.string().min(1),
   steps: z.array(planStepSchema),
   _executionContract: z.enum(['java-initial-v1', 'java-follow-up-v1']),
@@ -156,6 +191,155 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
   _referencedExecutionId: z.string().min(1).optional(),
   _resolvedContext: jsonObjectSchema,
 });
+
+const propertyResolvedContextSchema = z.strictObject({
+  entityKey: z.string().min(1),
+  metricDefinitionKey: z.string().min(1),
+  metricVariantKey: z.string().min(1),
+  timeSemanticKey: z.string().min(1),
+  projectIds: z.array(z.string().min(1)),
+  from: z.iso.date(),
+  to: z.iso.date(),
+}).refine(({ from, to }) => from <= to, {
+  message: '_resolvedContext.from 不能晚于 to。',
+  path: ['from'],
+});
+
+const easyVResolvedContextSchema = z.strictObject({
+  entity: z.string().min(1),
+  metric: z.string().min(1),
+  time: z.string().min(1),
+  from: z.iso.date(),
+  to: z.iso.date(),
+  accessMode: z.literal('creator-owned'),
+  userId: z.string().regex(/^[1-9][0-9]*$/),
+}).refine(({ from, to }) => from <= to, {
+  message: '_resolvedContext.from 不能晚于 to。',
+  path: ['from'],
+});
+
+const propertyEvidenceSources = ['erp-staging', 'cube', 'neo4j'] as const;
+const easyVEvidenceSources = [
+  'easyv-ai-application',
+  'easyv-pipeline-node',
+  'easyv-forge-task',
+  'easyv-generation-feedback',
+] as const;
+const easyVClaimKinds = [
+  'generation-quality',
+  'stage-bottleneck',
+  'failure-concentration',
+  'feedback-association',
+  'business-success-settlement-distinct',
+] as const;
+const propertyClaimKinds = [
+  'collection-rate',
+  'erp-balance',
+  'charge-structure',
+] as const;
+
+function addSourceCoverageIssues(
+  state: z.infer<typeof conclusionStateSchema> | null,
+  sources: readonly string[],
+  context: z.RefinementCtx,
+  expectedCount: number,
+) {
+  const evidenceSources = state?.evidence?.map((item) => item.source) ?? [];
+  if (evidenceSources.length !== expectedCount
+    || new Set(evidenceSources).size !== expectedCount
+    || sources.some((source) => !evidenceSources.includes(source))) {
+    context.addIssue({
+      code: 'custom',
+      path: ['conclusionState', 'evidence'],
+      message: `完成态必须包含 ${sources.join('、')} 各一类证据投影。`,
+    });
+  }
+  const claimSources = state?.claims?.flatMap((claim) => claim.evidenceRefs.map((ref) => ref.source)) ?? [];
+  if (!state?.claims?.length || sources.some((source) => !claimSources.includes(source))) {
+    context.addIssue({
+      code: 'custom',
+      path: ['conclusionState', 'claims'],
+      message: `完成态结论必须保留 ${sources.join('、')} 的逐条证据引用。`,
+    });
+  }
+}
+
+function addClaimKindIssues(
+  state: z.infer<typeof conclusionStateSchema> | null,
+  kinds: readonly string[],
+  context: z.RefinementCtx,
+) {
+  const claims = state?.claims ?? [];
+  const actualKinds = claims
+    .map((claim) => claim.kind)
+    .filter((kind): kind is string => Boolean(kind));
+  if (claims.length !== kinds.length
+    || actualKinds.length !== kinds.length
+    || new Set(actualKinds).size !== kinds.length
+    || kinds.some((kind) => !actualKinds.includes(kind))) {
+    context.addIssue({
+      code: 'custom',
+      path: ['conclusionState', 'claims'],
+      message: `完成态必须保留 ${kinds.join('、')} 各一类受控结论。`,
+    });
+  }
+}
+
+function validateCapabilityPayload(
+  value: {
+    ontologyVersionId: string | null;
+    capabilityBinding: z.infer<typeof capabilityBindingSchema>;
+    planSnapshot: z.infer<typeof javaExecutionPlanEnvelopeSchema>;
+    conclusionState: z.infer<typeof conclusionStateSchema>;
+  },
+  context: z.RefinementCtx,
+) {
+  if ('source' in value.capabilityBinding) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capabilityBinding'],
+      message: '完成态必须携带具体能力绑定。',
+    });
+    return;
+  }
+  const binding = value.capabilityBinding;
+  if (value.ontologyVersionId !== binding.ontologyVersionId) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capabilityBinding', 'ontologyVersionId'],
+      message: '能力绑定与执行本体版本不一致。',
+    });
+  }
+  if (binding.resolvedScope.domainKey !== binding.domainKey) {
+    context.addIssue({ code: 'custom', path: ['capabilityBinding', 'resolvedScope', 'domainKey'], message: '能力绑定与范围快照的领域不一致。' });
+  }
+  if (binding.domainKey === 'property') {
+    if (!propertyResolvedContextSchema.safeParse(value.planSnapshot._resolvedContext).success) {
+      context.addIssue({ code: 'custom', path: ['planSnapshot', '_resolvedContext'], message: 'Property 计划缺少受控解析上下文。' });
+    }
+    if (value.planSnapshot.steps.some((step) => !propertyPlanStepSchema.safeParse(step).success)) {
+      context.addIssue({ code: 'custom', path: ['planSnapshot', 'steps'], message: 'Property 计划步骤必须包含标题、目标和依赖关系。' });
+    }
+    addClaimKindIssues(value.conclusionState, propertyClaimKinds, context);
+    addSourceCoverageIssues(value.conclusionState, propertyEvidenceSources, context, 3);
+    return;
+  }
+  if (binding.domainKey === 'easyv') {
+    if (binding.capabilityKey !== 'generation-quality-analysis') {
+      context.addIssue({ code: 'custom', path: ['capabilityBinding', 'capabilityKey'], message: '未知的 EasyV 能力。' });
+    }
+    if (!easyVResolvedContextSchema.safeParse(value.planSnapshot._resolvedContext).success) {
+      context.addIssue({ code: 'custom', path: ['planSnapshot', '_resolvedContext'], message: 'EasyV 计划缺少受控解析上下文。' });
+    }
+    if (value.planSnapshot.steps.some((step) => !easyVPlanStepSchema.safeParse(step).success)) {
+      context.addIssue({ code: 'custom', path: ['planSnapshot', 'steps'], message: 'EasyV 计划步骤必须包含稳定 ID、顺序和步骤类型。' });
+    }
+    addClaimKindIssues(value.conclusionState, easyVClaimKinds, context);
+    addSourceCoverageIssues(value.conclusionState, easyVEvidenceSources, context, 4);
+    return;
+  }
+  context.addIssue({ code: 'custom', path: ['capabilityBinding', 'domainKey'], message: '未注册的分析领域。' });
+}
 
 const javaFollowUpPlanSnapshotSchema = javaPlanSnapshotSchema.superRefine((value, context) => {
   if (value._executionContract !== 'java-follow-up-v1') {
@@ -191,6 +375,7 @@ export const javaAnalysisFollowUpSchema = z.strictObject({
   resultExecutionId: z.string().min(1).nullable(),
   ontologyVersionId: z.string().min(1),
   ontologyVersionBinding: ontologyVersionBindingSchema,
+  capabilityBinding: capabilityBindingSchema,
   inheritedContext: analysisContextSchema,
   mergedContext: analysisContextSchema,
   planVersion: z.number().int().positive().nullable(),
@@ -206,6 +391,46 @@ export const javaAnalysisFollowUpSchema = z.strictObject({
       path: ['ontologyVersionBinding', 'ontologyVersionId'],
       message: '追问的 ontologyVersionId 与绑定对象不一致。',
     });
+  }
+  if ('source' in value.capabilityBinding) {
+    if (value.resultExecutionId !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['capabilityBinding'],
+        message: '已关联执行结果的追问必须携带具体能力绑定。',
+      });
+    }
+  } else if (value.capabilityBinding.ontologyVersionId !== value.ontologyVersionId) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capabilityBinding', 'ontologyVersionId'],
+      message: '追问的 capability binding 与本体版本不一致。',
+    });
+  }
+  for (const [field, plan] of [
+    ['currentPlanSnapshot', value.currentPlanSnapshot],
+    ['previousPlanSnapshot', value.previousPlanSnapshot],
+  ] as const) {
+    if (!plan || 'source' in value.capabilityBinding) continue;
+    if (value.capabilityBinding.domainKey === 'property') {
+      if (!propertyResolvedContextSchema.safeParse(plan._resolvedContext).success
+        || plan.steps.some((step) => !propertyPlanStepSchema.safeParse(step).success)) {
+        context.addIssue({
+          code: 'custom',
+          path: [field],
+          message: 'Property 追问计划必须使用受控解析上下文和计划步骤。',
+        });
+      }
+    } else if (value.capabilityBinding.domainKey === 'easyv') {
+      if (!easyVResolvedContextSchema.safeParse(plan._resolvedContext).success
+        || plan.steps.some((step) => !easyVPlanStepSchema.safeParse(step).success)) {
+        context.addIssue({
+          code: 'custom',
+          path: [field],
+          message: 'EasyV 追问计划必须使用受控解析上下文和计划步骤。',
+        });
+      }
+    }
   }
   const planFields = [value.planVersion, value.currentPlanSnapshot, value.previousPlanSnapshot, value.currentPlanDiff];
   const hasPlan = planFields.every((item) => item !== null);
@@ -242,6 +467,7 @@ const latestExecutionSchema = z.strictObject({
   status: jobStatusSchema,
   jobStatus: jobStatusSchema.nullable(),
   snapshotStatus: jobStatusSchema.nullable(),
+  capabilityBinding: capabilityBindingSchema,
   conclusionState: conclusionStateSchema.nullable(),
   failurePoint: jsonObjectSchema.nullable(),
   errorCode: z.string().nullable(),
@@ -250,24 +476,23 @@ const latestExecutionSchema = z.strictObject({
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
 }).superRefine((value, context) => {
-  const sources = value.conclusionState?.evidence?.map((item) => item.source);
-  const claimSources = value.conclusionState?.claims?.flatMap((claim) =>
-    claim.evidenceRefs.map((ref) => ref.source));
-  if (value.status === 'completed'
-    && (sources?.length !== 3 || new Set(sources).size !== 3)) {
-    context.addIssue({
-      code: 'custom',
-      path: ['conclusionState', 'evidence'],
-      message: '完成态必须包含 ERP、Cube、Neo4j 三类证据投影。',
-    });
-  }
-  if (value.status === 'completed'
-    && (!value.conclusionState?.claims?.length || new Set(claimSources).size !== 3)) {
-    context.addIssue({
-      code: 'custom',
-      path: ['conclusionState', 'claims'],
-      message: '完成态必须保留逐条结论及 ERP、Cube、Neo4j 行级证据引用。',
-    });
+  if (value.status === 'completed') {
+    if ('source' in value.capabilityBinding) {
+      context.addIssue({ code: 'custom', path: ['capabilityBinding'], message: '完成态必须携带具体能力绑定。' });
+    } else if (!value.conclusionState) {
+      context.addIssue({ code: 'custom', path: ['conclusionState'], message: '完成态必须携带结论。' });
+    } else if (value.capabilityBinding.domainKey === 'property') {
+      if (value.capabilityBinding.ontologyVersionId.length === 0) {
+        context.addIssue({ code: 'custom', path: ['capabilityBinding', 'ontologyVersionId'], message: '能力绑定缺少本体版本。' });
+      }
+      addClaimKindIssues(value.conclusionState, propertyClaimKinds, context);
+      addSourceCoverageIssues(value.conclusionState, propertyEvidenceSources, context, 3);
+    } else if (value.capabilityBinding.domainKey === 'easyv') {
+      addClaimKindIssues(value.conclusionState, easyVClaimKinds, context);
+      addSourceCoverageIssues(value.conclusionState, easyVEvidenceSources, context, 4);
+    } else {
+      context.addIssue({ code: 'custom', path: ['capabilityBinding', 'domainKey'], message: '未注册的分析领域。' });
+    }
   }
 });
 
@@ -344,6 +569,7 @@ export const javaExecutionSnapshotSchema = z.strictObject({
     'switched',
     'legacy/unknown',
   ]),
+  capabilityBinding: capabilityBindingSchema,
   status: jobStatusSchema,
   planSnapshot: javaExecutionPlanEnvelopeSchema,
   stepResults: z.array(jsonObjectSchema),
@@ -393,24 +619,8 @@ export const javaExecutionSnapshotSchema = z.strictObject({
       message: '根轮次计划不得携带追问绑定。',
     });
   }
-  const sources = value.conclusionState.evidence?.map((item) => item.source);
-  const claimSources = value.conclusionState.claims?.flatMap((claim) =>
-    claim.evidenceRefs.map((ref) => ref.source));
-  if (value.status === 'completed'
-    && (sources?.length !== 3 || new Set(sources).size !== 3)) {
-    context.addIssue({
-      code: 'custom',
-      path: ['conclusionState', 'evidence'],
-      message: '完成态必须包含 ERP、Cube、Neo4j 三类证据投影。',
-    });
-  }
-  if (value.status === 'completed'
-    && (!value.conclusionState.claims?.length || new Set(claimSources).size !== 3)) {
-    context.addIssue({
-      code: 'custom',
-      path: ['conclusionState', 'claims'],
-      message: '完成态必须保留逐条结论及 ERP、Cube、Neo4j 行级证据引用。',
-    });
+  if (value.status === 'completed') {
+    validateCapabilityPayload(value, context);
   }
 });
 

@@ -72,7 +72,10 @@ public interface WorkspaceHomeMapper {
               order by session_id,fact_created_at desc,execution_id desc
             )
             select latest.session_id,latest.execution_id,j.status as job_status,s.status as snapshot_status,
-                   s.conclusion_state,s.failure_point,s.error_code,j.error as job_error,
+                   s.conclusion_state,
+                   coalesce(s.capability_binding,j.payload -> 'capabilityBinding','{"source":"legacy/unknown"}'::jsonb)
+                     as capability_binding,
+                   s.failure_point,s.error_code,j.error as job_error,
                    coalesce(s.trace_id,j.origin_correlation_id) as trace_id,
                    coalesce(j.created_at,s.created_at) as created_at,
                    greatest(j.updated_at,s.updated_at) as updated_at
@@ -93,6 +96,7 @@ public interface WorkspaceHomeMapper {
             @Result(property = "jobStatus", column = "job_status"),
             @Result(property = "snapshotStatus", column = "snapshot_status"),
             @Result(property = "conclusionState", column = "conclusion_state", typeHandler = JsonbTypeHandler.class),
+            @Result(property = "capabilityBinding", column = "capability_binding", typeHandler = JsonbTypeHandler.class),
             @Result(property = "failurePoint", column = "failure_point", typeHandler = JsonbTypeHandler.class),
             @Result(property = "errorCode", column = "error_code"),
             @Result(property = "jobError", column = "job_error"),
@@ -176,6 +180,7 @@ public interface WorkspaceHomeMapper {
         public String jobStatus;
         public String snapshotStatus;
         public Map<String, Object> conclusionState;
+        public Map<String, Object> capabilityBinding;
         public Map<String, Object> failurePoint;
         public String errorCode;
         public String jobError;

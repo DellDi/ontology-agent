@@ -99,7 +99,8 @@ class ReadApiControllerTest {
                         new WorkspaceHomeResponse.SessionScope("org-1", List.of("project-1"), List.of("area-1")),
                         Map.of("state", "missing"), now, now,
                         new WorkspaceHomeResponse.LatestExecutionSummary("execution-1", "queued", "queued",
-                                null, null, null, null, null, "trace-1", now, now))),
+                                null, null, Map.of("source", "legacy/unknown"), null, null, null,
+                                "trace-1", now, now))),
                 List.of(new WorkspaceHomeResponse.ProjectSummary("project-1", "P-1", "项目一", "org-1",
                         "area-1", "区域一")));
         when(homes.load(viewer)).thenReturn(response);
@@ -110,6 +111,8 @@ class ReadApiControllerTest {
                 .andExpect(jsonPath("$.sessions[0].id").value("session-1"))
                 .andExpect(jsonPath("$.sessions[0].latestExecution.executionId").value("execution-1"))
                 .andExpect(jsonPath("$.sessions[0].latestExecution.status").value("queued"))
+                .andExpect(jsonPath("$.sessions[0].latestExecution.capabilityBinding.source")
+                        .value("legacy/unknown"))
                 .andExpect(jsonPath("$.projects[0].id").value("project-1"));
         verify(homes).load(viewer);
     }
@@ -126,6 +129,9 @@ class ReadApiControllerTest {
                 .andExpect(jsonPath("$.job.executionId").value("execution-1"))
                 .andExpect(jsonPath("$.events[0].sequence").value(1))
                 .andExpect(jsonPath("$.snapshot.executionId").value("execution-1"))
+                .andExpect(jsonPath("$.snapshot.capabilityBinding.domainKey").value("property"))
+                .andExpect(jsonPath("$.snapshot.capabilityBinding.capabilityKey")
+                        .value("collection-rate-analysis"))
                 .andExpect(jsonPath("$.runtime.resolvedExecutionId").value("execution-1"))
                 .andExpect(jsonPath("$.runtime.autoExecute").value(false))
                 .andExpect(jsonPath("$.runtime.streamEnabled").value(false))
@@ -155,10 +161,24 @@ class ReadApiControllerTest {
                 "execution-1", 1, "execution-status", now, "completed", "分析执行已完成", List.of(), Map.of(),
                 null, "trace-1");
         AnalysisSessionAggregate.SnapshotView snapshot = new AnalysisSessionAggregate.SnapshotView("execution-1",
-                "session-1", null, "ontology-1", "grounded-context", "completed", Map.of(), List.of(),
+                "session-1", null, "ontology-1", "grounded-context", "completed", propertyBinding(), Map.of(), List.of(),
                 Map.of("causes", List.of()), List.of(), Map.of(), null, null, "trace-1", now, now);
         AnalysisSessionAggregate.RuntimeFacts runtime = new AnalysisSessionAggregate.RuntimeFacts("execution-1",
                 "execution-1", "completed", false, false, true, 1);
         return new AnalysisSessionAggregate(session, job, List.of(event), snapshot, runtime);
+    }
+
+    private Map<String, Object> propertyBinding() {
+        return Map.of(
+                "domainKey", "property",
+                "capabilityKey", "collection-rate-analysis",
+                "ontologyVersionId", "ontology-1",
+                "resolvedScope", Map.of(
+                        "domainKey", "property",
+                        "schemaVersion", 1,
+                        "values", Map.of(
+                                "organizationId", "org-1",
+                                "projectIds", List.of("project-1"),
+                                "areaIds", List.of("area-1"))));
     }
 }

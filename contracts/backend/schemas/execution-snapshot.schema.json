@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "execution-snapshot.schema.json",
   "type": "object",
-  "required": ["executionId", "sessionId", "ownerUserId", "followUpId", "ontologyVersionId", "ontologyVersionBinding", "status", "planSnapshot", "stepResults", "conclusionState", "resultBlocks", "mobileProjection", "failurePoint", "errorCode", "traceId", "createdAt", "updatedAt"],
+  "required": ["executionId", "sessionId", "ownerUserId", "followUpId", "ontologyVersionId", "ontologyVersionBinding", "capabilityBinding", "status", "planSnapshot", "stepResults", "conclusionState", "resultBlocks", "mobileProjection", "failurePoint", "errorCode", "traceId", "createdAt", "updatedAt"],
   "properties": {
     "executionId": { "type": "string", "minLength": 1 },
     "sessionId": { "type": "string", "minLength": 1 },
@@ -18,15 +18,61 @@
         "source": { "enum": ["grounded-context", "inherited", "switched", "legacy/unknown"] }
       }
     },
+    "capabilityBinding": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["source"], "properties": { "source": { "const": "legacy/unknown" } } },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["domainKey", "capabilityKey", "ontologyVersionId", "resolvedScope"],
+          "properties": {
+            "domainKey": { "enum": ["property", "easyv"] },
+            "capabilityKey": { "enum": ["collection-rate-analysis", "generation-quality-analysis"] },
+            "ontologyVersionId": { "type": "string", "minLength": 1 },
+            "resolvedScope": {
+              "type": "object", "additionalProperties": false,
+              "required": ["domainKey", "schemaVersion", "values"],
+              "properties": {
+                "domainKey": { "enum": ["property", "easyv"] },
+                "schemaVersion": { "const": 1 },
+                "values": { "type": "object", "minProperties": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
     "status": { "enum": ["pending", "processing", "completed", "failed"] },
     "planSnapshot": {
       "type": "object",
       "additionalProperties": false,
       "required": ["mode", "summary", "steps", "_executionContract", "_resolvedContext"],
       "properties": {
-        "mode": { "enum": ["minimal", "multi-step"] },
+        "mode": { "enum": ["minimal", "multi-step", "deterministic-read-only"] },
         "summary": { "type": "string", "minLength": 1 },
-        "steps": { "type": "array" },
+        "steps": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object", "additionalProperties": false,
+                "required": ["id", "order", "title", "objective", "dependencyIds"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 }, "order": { "type": "integer", "minimum": 1 },
+                  "title": { "type": "string", "minLength": 1 }, "objective": { "type": "string", "minLength": 1 },
+                  "dependencyIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                }
+              },
+              {
+                "type": "object", "additionalProperties": false,
+                "required": ["id", "order", "kind"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 }, "order": { "type": "integer", "minimum": 1 },
+                  "kind": { "type": "string", "minLength": 1 }
+                }
+              }
+            ]
+          }
+        },
         "_executionContract": { "enum": ["java-initial-v1", "java-follow-up-v1"] },
         "_followUpId": { "type": "string", "minLength": 1 },
         "_referencedExecutionId": { "type": "string", "minLength": 1 },
@@ -92,6 +138,23 @@
       ]
     },
     {
+      "if": { "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "capabilityBinding": {
+            "type": "object",
+            "required": ["domainKey", "capabilityKey", "ontologyVersionId", "resolvedScope"],
+            "properties": {
+              "domainKey": {},
+              "capabilityKey": {},
+              "ontologyVersionId": {},
+              "resolvedScope": {}
+            }
+          }
+        }
+      }
+    },
+    {
       "if": { "type": "object", "properties": { "status": { "const": "completed" } }, "required": ["status"] },
           "then": {
             "type": "object",
@@ -100,35 +163,213 @@
                 "type": "object",
                 "properties": {
                   "steps": { "type": "array", "minItems": 1 },
-                  "_resolvedContext": {
+                  "_resolvedContext": { "type": "object" }
+                }
+              },
+              "conclusionState": {
+                "allOf": [
+                  { "$ref": "conclusion-state.schema.json" },
+                  {
                     "type": "object",
-                    "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"],
+                    "required": ["evidence", "claims"],
                     "properties": {
-                      "entityKey": { "type": "string", "minLength": 1 },
-                      "metricDefinitionKey": { "type": "string", "minLength": 1 },
-                      "metricVariantKey": { "type": "string", "minLength": 1 },
-                      "timeSemanticKey": { "type": "string", "minLength": 1 },
-                      "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-                      "from": { "type": "string", "format": "date" },
-                      "to": { "type": "string", "format": "date" }
+                      "evidence": { "type": "array", "minItems": 1 },
+                      "claims": { "type": "array", "minItems": 1 }
                     }
+                  }
+                ]
+              },
+          "resultBlocks": { "type": "array", "minItems": 5 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "completed" }, "capabilityBinding": { "type": "object", "properties": { "domainKey": { "const": "property" } }, "required": ["domainKey"] } }, "required": ["status", "capabilityBinding"] },
+      "then": {
+          "properties": {
+          "capabilityBinding": {
+            "type": "object",
+            "required": ["capabilityKey", "resolvedScope"],
+            "properties": {
+              "capabilityKey": { "const": "collection-rate-analysis" },
+              "resolvedScope": {
+                "type": "object",
+                "required": ["domainKey", "schemaVersion", "values"],
+                "properties": {
+                  "domainKey": { "const": "property" },
+                  "schemaVersion": { "const": 1 },
+                  "values": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["organizationId", "projectIds", "areaIds"],
+                    "properties": {
+                      "organizationId": { "type": "string", "minLength": 1 },
+                      "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                      "areaIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                    },
+                    "anyOf": [
+                      { "required": ["projectIds"], "properties": { "projectIds": { "type": "array", "minItems": 1 } } },
+                      { "required": ["areaIds"], "properties": { "areaIds": { "type": "array", "minItems": 1 } } }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "planSnapshot": {
+            "type": "object",
+            "properties": {
+              "steps": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "order", "title", "objective", "dependencyIds"],
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "order": { "type": "integer", "minimum": 1 },
+                    "title": { "type": "string", "minLength": 1 },
+                    "objective": { "type": "string", "minLength": 1 },
+                    "dependencyIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
                   }
                 }
               },
-          "conclusionState": {
-            "allOf": [
-              { "$ref": "conclusion-state.schema.json" },
-              {
+              "_resolvedContext": {
                 "type": "object",
-                "required": ["evidence", "claims"],
+                "additionalProperties": false,
+                "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"],
                 "properties": {
-                  "evidence": { "type": "array", "minItems": 3, "maxItems": 3 },
-                  "claims": { "type": "array", "minItems": 1 }
+                  "entityKey": { "type": "string", "minLength": 1 }, "metricDefinitionKey": { "type": "string", "minLength": 1 },
+                  "metricVariantKey": { "type": "string", "minLength": 1 }, "timeSemanticKey": { "type": "string", "minLength": 1 },
+                  "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                  "from": { "type": "string", "format": "date" }, "to": { "type": "string", "format": "date" }
                 }
               }
-            ]
+            }
           },
-          "resultBlocks": { "type": "array", "minItems": 5 }
+          "conclusionState": {
+            "type": "object",
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "minItems": 3, "maxItems": 3,
+                "allOf": [
+                  { "contains": { "type": "object", "properties": { "source": { "const": "erp-staging" } }, "required": ["source"] } },
+                  { "contains": { "type": "object", "properties": { "source": { "const": "cube" } }, "required": ["source"] } },
+                  { "contains": { "type": "object", "properties": { "source": { "const": "neo4j" } }, "required": ["source"] } }
+                ]
+              },
+                  "claims": {
+                "type": "array", "minItems": 3, "maxItems": 3,
+                "allOf": [
+                  { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "erp-staging" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } },
+                  { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "cube" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } },
+                  { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "neo4j" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } }
+                ],
+                "items": {
+                  "type": "object",
+                  "required": ["kind"],
+                  "properties": {
+                    "kind": { "enum": ["collection-rate", "erp-balance", "charge-structure"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "completed" }, "capabilityBinding": { "type": "object", "properties": { "domainKey": { "const": "easyv" } }, "required": ["domainKey"] } }, "required": ["status", "capabilityBinding"] },
+      "then": {
+          "properties": {
+          "capabilityBinding": {
+            "type": "object",
+            "required": ["capabilityKey", "resolvedScope"],
+            "properties": {
+              "capabilityKey": { "const": "generation-quality-analysis" },
+              "resolvedScope": {
+                "type": "object",
+                "required": ["domainKey", "schemaVersion", "values"],
+                "properties": {
+                  "domainKey": { "const": "easyv" },
+                  "schemaVersion": { "const": 1 },
+                  "values": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["userId", "accessMode"],
+                    "properties": {
+                      "userId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+                      "accessMode": { "const": "creator-owned" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "planSnapshot": {
+            "type": "object",
+            "properties": {
+              "steps": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "order", "kind"],
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "order": { "type": "integer", "minimum": 1 },
+                    "kind": { "type": "string", "minLength": 1 }
+                  }
+                }
+              },
+              "_resolvedContext": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["entity", "metric", "time", "from", "to", "accessMode", "userId"],
+                "properties": {
+                  "entity": { "type": "string", "minLength": 1 }, "metric": { "type": "string", "minLength": 1 },
+                  "time": { "type": "string", "minLength": 1 }, "from": { "type": "string", "format": "date" },
+                  "to": { "type": "string", "format": "date" }, "accessMode": { "const": "creator-owned" },
+                  "userId": { "type": "string", "pattern": "^[1-9][0-9]*$" }
+                }
+              }
+            }
+          },
+          "conclusionState": {
+            "type": "object",
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "minItems": 4, "maxItems": 4,
+                "allOf": [
+                  { "contains": { "type": "object", "properties": { "source": { "const": "easyv-ai-application" } }, "required": ["source"] } },
+                  { "contains": { "type": "object", "properties": { "source": { "const": "easyv-pipeline-node" } }, "required": ["source"] } },
+                  { "contains": { "type": "object", "properties": { "source": { "const": "easyv-forge-task" } }, "required": ["source"] } },
+                  { "contains": { "type": "object", "properties": { "source": { "const": "easyv-generation-feedback" } }, "required": ["source"] } }
+                ]
+              },
+              "claims": {
+                "type": "array", "minItems": 5, "maxItems": 5,
+                "allOf": [
+                  { "contains": { "type": "object", "properties": { "kind": { "const": "generation-quality" } }, "required": ["kind"] } },
+                  { "contains": { "type": "object", "properties": { "kind": { "const": "stage-bottleneck" } }, "required": ["kind"] } },
+                  { "contains": { "type": "object", "properties": { "kind": { "const": "failure-concentration" } }, "required": ["kind"] } },
+                  { "contains": { "type": "object", "properties": { "kind": { "const": "feedback-association" } }, "required": ["kind"] } },
+                  { "contains": { "type": "object", "properties": { "kind": { "const": "business-success-settlement-distinct" } }, "required": ["kind"] } }
+                ],
+                "items": {
+                  "type": "object",
+                  "required": ["kind"],
+                  "properties": {
+                    "kind": { "enum": ["generation-quality", "stage-bottleneck", "failure-concentration", "feedback-association", "business-success-settlement-distinct"] }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

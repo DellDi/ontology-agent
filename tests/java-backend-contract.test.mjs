@@ -15,6 +15,7 @@ const { forwardJavaBackendRequest } = javaBackendModule;
 const {
   javaAnalysisFollowUpSchema,
   javaAnalysisSessionSchema,
+  javaExecutionSnapshotSchema,
   javaViewerSchema,
   javaWorkspaceHomeSchema,
 } = javaBackendReadModule;
@@ -120,6 +121,18 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
   assertZod(javaAnalysisFollowUpSchema, followUp, 'analysis-follow-up.json');
   assert.equal(followUp.currentPlanSnapshot._executionContract, 'java-follow-up-v1');
   assert.equal(followUp.ontologyVersionBinding.ontologyVersionId, followUp.ontologyVersionId);
+  const legacyCompletedFollowUp = structuredClone(followUp);
+  legacyCompletedFollowUp.capabilityBinding = { source: 'legacy/unknown' };
+  assert.equal(
+    ajv.getSchema('analysis-follow-up.schema.json')(legacyCompletedFollowUp),
+    false,
+    '已有结果的追问不得退化为 legacy/unknown 能力绑定',
+  );
+  assert.equal(
+    javaAnalysisFollowUpSchema.safeParse(legacyCompletedFollowUp).success,
+    false,
+    'Next 读取契约必须同样拒绝已有结果的 legacy/unknown 追问',
+  );
 
   const error = await jsonFixture('provider-error.json');
   assertJsonSchema(ajv, 'error.schema.json', error, 'provider-error.json');
@@ -196,6 +209,24 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
     ajv.getSchema('execution-snapshot.schema.json')(invalidSnapshot),
     false,
     '契约门禁必须拒绝缺少 java-initial-v1 标识的 snapshot',
+  );
+
+  const versionlessCompletedSnapshot = structuredClone(aggregate.snapshot);
+  versionlessCompletedSnapshot.ontologyVersionId = null;
+  assert.equal(
+    javaExecutionSnapshotSchema.safeParse(versionlessCompletedSnapshot).success,
+    false,
+    '完成态不得放行缺少 ontologyVersionId 的具体能力绑定',
+  );
+
+  const legacyCompletedSnapshot = structuredClone(aggregate.snapshot);
+  legacyCompletedSnapshot.capabilityBinding = { source: 'legacy/unknown' };
+  const legacyCompletedResult = javaExecutionSnapshotSchema.safeParse(legacyCompletedSnapshot);
+  assert.equal(legacyCompletedResult.success, false, '完成态不得使用 legacy/unknown 能力绑定');
+  assert.equal(
+    legacyCompletedResult.error?.issues.filter((issue) => issue.path[0] === 'capabilityBinding').length,
+    1,
+    'legacy 完成态只报告一个明确的能力绑定错误',
   );
 
   const followUpSnapshot = structuredClone(snapshot);
