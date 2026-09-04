@@ -6,7 +6,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'DIP3 - 智慧数据',
-  description: '面向物业分析团队的 AI 原生数据工作台基础骨架。',
+  description: '面向多业务领域的 AI 原生语义分析与执行工作台。',
 };
 
 export default function RootLayout({

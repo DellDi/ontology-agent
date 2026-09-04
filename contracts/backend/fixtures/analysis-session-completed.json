@@ -115,6 +115,12 @@
     "followUpId": null,
     "ontologyVersionId": "ontology-v1",
     "ontologyVersionBindingSource": "grounded-context",
+    "capabilityBinding": {
+      "domainKey": "property",
+      "capabilityKey": "collection-rate-analysis",
+      "ontologyVersionId": "ontology-v1",
+      "resolvedScope": { "domainKey": "property", "schemaVersion": 1, "values": { "organizationId": "org-1", "projectIds": ["project-1"], "areaIds": ["area-1"] } }
+    },
     "status": "completed",
     "planSnapshot": {
       "mode": "multi-step",
@@ -188,9 +194,9 @@
         }
       ],
       "claims": [
-        { "text": "授权项目范围收缴率为 80%。", "evidenceRefs": [{ "source": "cube", "row": 0, "field": "value", "value": 80.0 }] },
-        { "text": "ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。", "evidenceRefs": [{ "source": "erp-staging", "row": 0, "field": "projectName", "value": "项目一" }, { "source": "erp-staging", "row": 0, "field": "receivableAmount", "value": 1000 }, { "source": "erp-staging", "row": 0, "field": "paidAmount", "value": 800 }, { "source": "erp-staging", "row": 0, "field": "arrearsAmount", "value": 200 }] },
-        { "text": "Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。", "evidenceRefs": [{ "source": "neo4j", "row": 0, "field": "rootLabel", "value": "项目一" }, { "source": "neo4j", "row": 0, "field": "factorLabel", "value": "物业费" }, { "source": "neo4j", "row": 0, "field": "factType", "value": "has-receivable" }, { "source": "neo4j", "row": 0, "field": "relationType", "value": "belongs-to" }] }
+        { "kind": "collection-rate", "text": "授权项目范围收缴率为 80%。", "evidenceRefs": [{ "source": "cube", "row": 0, "field": "value", "value": 80.0 }] },
+        { "kind": "erp-balance", "text": "ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。", "evidenceRefs": [{ "source": "erp-staging", "row": 0, "field": "projectName", "value": "项目一" }, { "source": "erp-staging", "row": 0, "field": "receivableAmount", "value": 1000 }, { "source": "erp-staging", "row": 0, "field": "paidAmount", "value": 800 }, { "source": "erp-staging", "row": 0, "field": "arrearsAmount", "value": 200 }] },
+        { "kind": "charge-structure", "text": "Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。", "evidenceRefs": [{ "source": "neo4j", "row": 0, "field": "rootLabel", "value": "项目一" }, { "source": "neo4j", "row": 0, "field": "factorLabel", "value": "物业费" }, { "source": "neo4j", "row": 0, "field": "factType", "value": "has-receivable" }, { "source": "neo4j", "row": 0, "field": "relationType", "value": "belongs-to" }] }
       ],
       "renderBlocks": [
         { "type": "markdown", "title": "证据约束结论", "content": "授权项目范围收缴率为 80%。ERP 证据显示项目一应收金额为 1000，实收金额为 800，欠费金额为 200。Neo4j 证据显示项目一的 has-receivable 事实与收费项目物业费存在 belongs-to 结构关系。" },

@@ -16,6 +16,7 @@ public record WorkspaceHomeResponse(ViewerResponse viewer, List<SessionSummary> 
 
     public record LatestExecutionSummary(String executionId, String status, String jobStatus,
                                          String snapshotStatus, Map<String, Object> conclusionState,
+                                         Map<String, Object> capabilityBinding,
                                          Map<String, Object> failurePoint, String errorCode, String jobError,
                                          String traceId, Instant createdAt, Instant updatedAt) {}
 

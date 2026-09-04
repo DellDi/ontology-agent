@@ -68,7 +68,7 @@ public interface AnalysisSessionReadMapper {
                    j.attempt_count,j.max_attempts,j.dispatch_status,
                    j.origin_correlation_id as job_trace_id,j.created_at as job_created_at,
                    j.updated_at as job_updated_at,j.started_at,j.completed_at,j.failed_at,
-                   s.follow_up_id,s.ontology_version_id,s.ontology_version_binding_source,
+                   s.follow_up_id,s.ontology_version_id,s.ontology_version_binding_source,s.capability_binding,
                    s.status as snapshot_status,s.plan_snapshot,s.step_results,s.conclusion_state,
                    s.result_blocks,s.mobile_projection,s.failure_point,s.error_code as snapshot_error_code,
                    s.trace_id as snapshot_trace_id,s.created_at as snapshot_created_at,
@@ -102,6 +102,7 @@ public interface AnalysisSessionReadMapper {
             @Result(property = "followUpId", column = "follow_up_id"),
             @Result(property = "ontologyVersionId", column = "ontology_version_id"),
             @Result(property = "ontologyVersionBindingSource", column = "ontology_version_binding_source"),
+            @Result(property = "capabilityBinding", column = "capability_binding", typeHandler = JsonbTypeHandler.class),
             @Result(property = "snapshotStatus", column = "snapshot_status"),
             @Result(property = "planSnapshot", column = "plan_snapshot", typeHandler = JsonbTypeHandler.class),
             @Result(property = "stepResults", column = "step_results", typeHandler = JsonbTypeHandler.class),
@@ -221,6 +222,7 @@ public interface AnalysisSessionReadMapper {
         public String followUpId;
         public String ontologyVersionId;
         public String ontologyVersionBindingSource;
+        public Map<String, Object> capabilityBinding;
         public String snapshotStatus;
         public Map<String, Object> planSnapshot;
         public List<Map<String, Object>> stepResults;

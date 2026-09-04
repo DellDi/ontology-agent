@@ -58,7 +58,7 @@ public class WorkspaceHomeService {
     private static WorkspaceHomeResponse.LatestExecutionSummary execution(WorkspaceHomeMapper.ExecutionRow row) {
         String status = row.snapshotStatus == null ? row.jobStatus : row.snapshotStatus;
         return new WorkspaceHomeResponse.LatestExecutionSummary(row.executionId, status, row.jobStatus,
-                row.snapshotStatus, row.conclusionState, row.failurePoint, row.errorCode, row.jobError,
+                row.snapshotStatus, row.conclusionState, row.capabilityBinding, row.failurePoint, row.errorCode, row.jobError,
                 row.traceId, row.createdAt, row.updatedAt);
     }
 }

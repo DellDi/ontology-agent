@@ -5,6 +5,7 @@
   "followUpId": null,
   "ontologyVersionId": "ontology-v1",
   "ontologyVersionBinding": { "ontologyVersionId": "ontology-v1", "source": "grounded-context" },
+  "capabilityBinding": { "source": "legacy/unknown" },
   "status": "failed",
   "planSnapshot": {
     "mode": "minimal",

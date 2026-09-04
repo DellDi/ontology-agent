@@ -111,7 +111,8 @@ public class AnalysisSessionReadService {
                                                                   AnalysisSessionReadMapper.ExecutionRow row) {
         if (row.snapshotStatus == null) return null;
         return new AnalysisSessionAggregate.SnapshotView(row.resolvedExecutionId, sessionId, row.followUpId,
-                row.ontologyVersionId, row.ontologyVersionBindingSource, row.snapshotStatus, row.planSnapshot,
+                row.ontologyVersionId, row.ontologyVersionBindingSource, row.snapshotStatus, row.capabilityBinding,
+                row.planSnapshot,
                 row.stepResults, row.conclusionState, row.resultBlocks, row.mobileProjection, row.failurePoint,
                 row.snapshotErrorCode, row.snapshotTraceId, row.snapshotCreatedAt, row.snapshotUpdatedAt);
     }
