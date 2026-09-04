@@ -25,6 +25,8 @@ ontology-agent/
 
 Clean Architecture（六边形），依赖方向：`domain ← application ← infrastructure ← app`。
 
+详细现状、目标包边界与渐进迁移门禁见 [`docs/architecture/java-architecture-baseline.md`](./docs/architecture/java-architecture-baseline.md)；跨领域 Capability、Domain Pack 与 EasyV 前置顺序见 [`docs/architecture/multi-domain-runtime-architecture.md`](./docs/architecture/multi-domain-runtime-architecture.md)。两份文档描述目标与迁移规则，不代表当前源码已经完成多领域改造。
+
 | 层 | 职责 |
 |---|---|
 | `domain` / `application`（Web） | 纯模型与 read-model，无外部依赖，仅 UI 映射 |
@@ -49,7 +51,7 @@ Clean Architecture（六边形），依赖方向：`domain ← application ← i
 ```bash
 pnpm install && cp .env.example .env
 docker compose up -d postgres redis   # 基础设施
-pnpm db:migrate                       # Flyway 初始化（幂等可重复执行）
+mise exec java@temurin-21.0.12+8.0.LTS -- mvn -f backend-java/pom.xml -q spring-boot:run -Dspring-boot.run.profiles=migrate  # Flyway 初始化
 pnpm dev                              # Web
 mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run  # Java API + Worker
 
@@ -61,7 +63,7 @@ mvn -f backend-java/pom.xml test      # Java 测试（Testcontainers）
 
 - Java：`backend-java/src/test/java`（Testcontainers；覆盖认证、Flyway、Main Agent、Ontology、Graph Sync）
 - Web/Java 契约：`tests/java-*.test.mjs`（JSON Schema + Zod + 透明代理，含认证路由与 Set-Cookie 透传）
-- 前端行为：`tests/story-*.test.mjs`；CI 门禁 = `pnpm test:web` + `pnpm test:java` + tsc + lint + build
+- 前端行为：`tests/story-*.test.mjs`；CI 门禁 = `pnpm test:web` + `mvn -f backend-java/pom.xml test` + tsc + lint + build
 
 ## Environment Variables
 

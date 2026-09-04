@@ -27,7 +27,7 @@ cp .env.example .env
 关键约定：
 
 - `ENABLE_DEV_ERP_AUTH=1` 只用于本地联调，不能复制成生产或试点环境默认值
-- 宿主机 `.env` 中的 `POSTGRES_*` / `REDIS_URL` 默认指向 `127.0.0.1`；`pnpm db:migrate` 会以 `JAVA_DATABASE_URL`（由 `POSTGRES_*` 派生）执行 Java Flyway 迁移
+- 宿主机 `.env` 中的 `POSTGRES_*` / `REDIS_URL` 默认指向 `127.0.0.1`；数据库迁移直接通过 Maven 启动 Java `migrate` profile，并以 `JAVA_DATABASE_URL`（由 `POSTGRES_*` 派生）执行 Flyway
 - `compose.yaml` 只为 `backend` 容器注入数据库与 Redis 连接；`web` 容器只持有 `JAVA_BACKEND_URL`
 - `SESSION_SECRET` 需要在本地 `.env` 中设置为自定义值
 - `LLM_PROVIDER_API_KEY` 只允许存在于服务端环境变量中，不能下沉到浏览器端代码或公开配置
@@ -73,7 +73,7 @@ docker compose logs -f neo4j
 运行 Java Graph Sync 的 PostgreSQL + Neo4j Testcontainers 验证：
 
 ```bash
-pnpm test:java
+mvn -f backend-java/pom.xml test
 ```
 
 停止服务：
@@ -124,7 +124,7 @@ Redis 客户端已从 Web 移除：Node 侧 `src/infrastructure/redis` 已删除
 Java durable job ledger 与 Redis wakeup 回归测试：
 
 ```bash
-pnpm test:java
+mvn -f backend-java/pom.xml test
 ```
 
 Java 测试使用 Testcontainers 隔离数据库与图实例；不会清理本地开发库，也不会执行 `FLUSHDB`。
@@ -153,6 +153,8 @@ LLM_PROVIDER_STRUCTURED_OUTPUT=native-json-schema
 - Alibaba DashScope 作为重点跟踪对象时，使用已验证兼容的 base URL，并把结构化输出设置为 `json-object`。
 - Java adapter 固定 `max-retries=0`，关闭 parallel tool calls，不接受 fallback model 列表。
 - `LLM_PROVIDER_MODEL` 必须显式配置；模型能力必须满足 tool calling 与所选 structured output 模式。
+- Java adapter 会把平台分析 `sessionId` 作为 `x-opencode-session` 请求头发送；同一次初始分析、结论生成和后续追问复用同一值，满足 OpenCode Go 的 conversation session 要求。
+- 绕过 Java adapter 直接用 `curl` 联调 OpenCode Go 时，也必须显式添加 `--header "x-opencode-session: <本次会话的稳定 ID>"`，同一组多轮请求不能每次生成新值。
 
 ### 真实 LLM Provider Smoke Test
 
@@ -164,11 +166,42 @@ mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml verify
 
 没有真实凭据时不要执行，也不要用 mock 或 fallback 将该门禁标记为通过。
 
+### EasyV 真实模型与 test PostgreSQL 联合门禁
+
+`LiveEasyVProviderIT` 使用一次真实模型请求、EasyV test PostgreSQL 只读事实源和一次性
+Testcontainers 平台账本，执行 `Session → Capability Registry → Job → Worker → Spring AI Tool
+Call → EasyV Facts Adapter → Snapshot`。它校验 EasyV capability binding、四类 evidence、五类
+claim、freshness 投影和精确一次 Tool Call。
+
+将 Provider、EasyV test PostgreSQL 和 `LIVE_EASYV_*` 参数写入 Git 忽略的 `.env` 后执行：
+
+```bash
+set -a
+source .env
+set +a
+JAVA_HOME=/Users/dsy/.local/share/mise/installs/java/21.0.2 \
+PATH=/Users/dsy/.local/share/mise/installs/java/21.0.2/bin:$PATH \
+mvn -f backend-java/pom.xml -Dit.test=LiveEasyVProviderIT \
+  test-compile failsafe:integration-test failsafe:verify
+```
+
+- 该门禁会产生真实模型调用和对应费用，不属于普通 `mvn test`。
+- test 环境若明确授权使用具有 DML 权限的账号，可以设置
+  `EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE=false`；连接初始化、Spring 事务和 Adapter 仍强制
+  PostgreSQL `READ ONLY`。生产环境不得使用该 override。
+- 测试只读取 EasyV test PostgreSQL；平台 Session、Job、审计和 Snapshot 写入一次性
+  Testcontainers PostgreSQL，不会写入 EasyV 源库。
+- 需要在授权的测试环境持续观察平台账本时，显式设置
+  `LIVE_EASYV_PERSIST_PLATFORM_RESULTS=true`，并配置独立的
+  `JAVA_DATABASE_URL`、`JAVA_DATABASE_USERNAME`、`JAVA_DATABASE_PASSWORD`。此模式仍只读
+  EasyV 源库，但会把 Session、Job、审计、Agent Invocation 和 Snapshot 保留在指定平台库；
+  不允许把 `JAVA_DATABASE_URL` 指向 EasyV 业务数据库。
+
 ## 后续扩展位
 
 当前 `compose.yaml` 已定义完整 Web/Java 联调拓扑；日常宿主机开发只需启动 `postgres`、`redis`、`cube`、`neo4j`。
 
-后续扩展应沿 Java feature package 与 ports/adapters 边界增加，不再向旧 TypeScript Worker 增加正式能力。数据库 schema 变更必须同步生成并提交 Drizzle migration。
+后续扩展应沿 Java feature package 与 ports/adapters 边界增加，不再向旧 TypeScript Worker 增加正式能力。数据库 schema 变更必须在 `backend-java/src/main/resources/db/migration/` 新增对应的 Flyway `V2+` migration，并与 schema 变更同步提交。
 
 ## Cube 本地语义层
 

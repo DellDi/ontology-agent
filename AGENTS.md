@@ -67,7 +67,7 @@
 - schema 与迁移脚本必须同步，不允许存在未迁移的 schema 变更。
 - 初始化脚本只放在 `backend-java/src/main/resources/db/migration/`，命名 `V<n>__<描述>.sql`。
 - `V1__init.sql` 是幂等初始化脚本（全部 `IF NOT EXISTS`），可重复执行；schema 变更在其后新增 `V2+`。
-- 执行：`pnpm db:migrate`。空库建齐、已有库幂等补全。
+- 宿主机执行：`mise exec java@temurin-21.0.12+8.0.LTS -- mvn -f backend-java/pom.xml -q spring-boot:run -Dspring-boot.run.profiles=migrate`；容器环境执行：`docker compose run --rm migrate`。空库建齐、已有库幂等补全。
 
 ## Definition Of Done
 

@@ -108,7 +108,7 @@ test('AC1 数据库迁移由 Java Flyway 独占，Drizzle 与 Node Worker 入口
   assert.equal(pkg.scripts['worker:dev'], undefined);
   assert.equal(pkg.scripts['db:generate'], undefined, '不得再暴露 drizzle generate 入口');
   assert.equal(pkg.scripts['db:studio'], undefined, '不得再暴露 drizzle studio 入口');
-  assert.match(pkg.scripts['db:migrate'], /spring-boot\.run\.profiles=migrate/, 'db:migrate 必须走 Java migrate profile');
+  assert.equal(pkg.scripts['db:migrate'], undefined, 'Java 数据库迁移不得由 Node package script 包装');
 });
 
 test('Node 工具链固定 pnpm 版本并显式许可所需原生构建', async () => {
