@@ -24,6 +24,8 @@ public class AnalysisFollowUpEntity {
     public String ontologyVersionId;
     public String ontologyVersionBindingSource;
     @TableField(typeHandler = JsonbTypeHandler.class)
+    public Map<String, Object> capabilityBinding;
+    @TableField(typeHandler = JsonbTypeHandler.class)
     public Map<String, Object> inheritedContext;
     @TableField(typeHandler = JsonbTypeHandler.class)
     public Map<String, Object> mergedContext;

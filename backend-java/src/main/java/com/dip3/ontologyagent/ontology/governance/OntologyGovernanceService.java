@@ -1,9 +1,9 @@
 package com.dip3.ontologyagent.ontology.governance;
 
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.support.BackendException;
-import com.dip3.ontologyagent.tooling.AnalysisWorkflow;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +28,13 @@ public class OntologyGovernanceService {
 
     private final OntologyGovernanceRepository repository;
     private final OntologyRepository ontologies;
+    private final CapabilityRegistry capabilities;
 
-    public OntologyGovernanceService(OntologyGovernanceRepository repository, OntologyRepository ontologies) {
+    public OntologyGovernanceService(OntologyGovernanceRepository repository, OntologyRepository ontologies,
+                                     CapabilityRegistry capabilities) {
         this.repository = repository;
         this.ontologies = ontologies;
+        this.capabilities = capabilities;
     }
 
     public GovernanceOverview overview(AuthSession actor) {
@@ -160,7 +163,7 @@ public class OntologyGovernanceService {
             throw new BackendException("ONTOLOGY_PUBLISH_INTEGRITY_INVALID",
                     "目标版本的本体定义不完整：" + String.join(", ", integrityIssues));
         }
-        AnalysisWorkflow.validateCatalog(ontologies.approvedCandidate(targetId));
+        capabilities.validateCatalog(ontologies.approvedCandidate(targetId));
         List<OntologyVersionSummary> current = versions.stream()
                 .filter(version -> !version.id().equals(targetId))
                 .filter(version -> "approved".equals(version.status()) && version.publishedAt() != null).toList();

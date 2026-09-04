@@ -1,5 +1,6 @@
 package com.dip3.ontologyagent.agent;
 
+import com.dip3.ontologyagent.property.internal.domain.QuestionDateRange;
 import com.dip3.ontologyagent.support.BackendException;
 import org.junit.jupiter.api.Test;
 

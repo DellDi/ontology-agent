@@ -1,6 +1,9 @@
 package com.dip3.ontologyagent.execution;
 
 import com.dip3.ontologyagent.analysis.AnalysisSession;
+import com.dip3.ontologyagent.capability.api.CapabilityBinding;
+import com.dip3.ontologyagent.capability.api.CapabilityId;
+import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.support.BackendException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +36,8 @@ public class ExecutionRepository {
     }
 
     public ExecutionSubmission submit(AnalysisSession session, String idempotencyKey, String traceId,
-                                      String ontologyVersionId) {
+                                      CapabilityBinding binding) {
+        requireBinding(binding);
         String executionId = idempotencyKey == null ? UUID.randomUUID().toString()
                 : UUID.nameUUIDFromBytes(("analysis-execution:" + session.id() + ":" + idempotencyKey)
                 .getBytes(StandardCharsets.UTF_8)).toString();
@@ -47,7 +51,8 @@ public class ExecutionRepository {
         payload.put("areaIds", session.scope().areaIds());
         payload.put("questionText", session.questionText());
         payload.put("traceId", traceId);
-        payload.put("ontologyVersionId", ontologyVersionId);
+        payload.put("ontologyVersionId", binding.ontologyVersionId());
+        payload.put("capabilityBinding", binding.snapshot());
         JobEntity row = new JobEntity();
         row.id = executionId;
         row.type = "analysis-execution";
@@ -72,19 +77,19 @@ public class ExecutionRepository {
                                                String referencedExecutionId, String questionText,
                                                Map<String, Object> referencedConclusion,
                                                Map<String, Object> effectiveContext, String idempotencyKey,
-                                               String traceId, String ontologyVersionId) {
+                                               String traceId, CapabilityBinding binding) {
         requireText(followUpId, "followUpId");
         requireText(referencedExecutionId, "referencedExecutionId");
         requireText(questionText, "questionText");
         requireText(traceId, "traceId");
-        requireText(ontologyVersionId, "ontologyVersionId");
+        requireBinding(binding);
         Map<String, Object> context = effectiveContext == null ? Map.of() : Map.copyOf(effectiveContext);
         Map<String, Object> conclusion = validatedReferencedConclusion(referencedConclusion);
         String executionId = idempotencyKey == null ? UUID.randomUUID().toString()
                 : UUID.nameUUIDFromBytes(("analysis-follow-up-execution:" + session.id() + ":" + followUpId
                 + ":" + idempotencyKey).getBytes(StandardCharsets.UTF_8)).toString();
         Map<String, Object> payload = basePayload(session, FOLLOW_UP_EXECUTION_CONTRACT, questionText, traceId,
-                ontologyVersionId);
+                binding);
         payload.put("followUpId", followUpId);
         payload.put("referencedExecutionId", referencedExecutionId);
         payload.put("referencedConclusion", conclusion);
@@ -104,11 +109,18 @@ public class ExecutionRepository {
                 throw new BackendException("JOB_PAYLOAD_INVALID", "任务执行契约不受支持。");
             }
             boolean followUp = FOLLOW_UP_EXECUTION_CONTRACT.equals(contract);
+            String ontologyVersionId = requiredText(row.payload, "ontologyVersionId");
+            CapabilityBinding binding = capabilityBinding(
+                    objectMap(row.payload.get("capabilityBinding"), "capabilityBinding"));
+            if (!ontologyVersionId.equals(binding.ontologyVersionId())) {
+                throw new BackendException("JOB_PAYLOAD_INVALID",
+                        "任务 capability binding 与本体版本不一致。");
+            }
             return Optional.of(new ExecutionJob(row.id, contract, required(row.sessionId, "sessionId"),
                     required(row.ownerUserId, "ownerUserId"), required(row.organizationId, "organizationId"),
                     stringList(row.payload.get("projectIds")), stringList(row.payload.get("areaIds")),
                     requiredText(row.payload, "questionText"), requiredText(row.payload, "traceId"),
-                    requiredText(row.payload, "ontologyVersionId"),
+                    ontologyVersionId, binding,
                     followUp ? requiredText(row.payload, "followUpId") : null,
                     followUp ? requiredText(row.payload, "referencedExecutionId") : null,
                     followUp ? validatedReferencedConclusion(objectMap(
@@ -233,6 +245,7 @@ public class ExecutionRepository {
         row.followUpId = snapshot.followUpId();
         row.ontologyVersionId = snapshot.ontologyVersionId();
         row.ontologyVersionBindingSource = snapshot.ontologyVersionBinding().get("source").toString();
+        row.capabilityBinding = snapshot.capabilityBinding();
         row.status = snapshot.status();
         row.planSnapshot = snapshot.planSnapshot();
         row.stepResults = snapshot.stepResults().stream().map(ExecutionRepository::eventMap).toList();
@@ -282,6 +295,7 @@ public class ExecutionRepository {
     private static ExecutionSnapshot snapshot(ExecutionSnapshotEntity row) {
         return new ExecutionSnapshot(row.executionId, row.sessionId, row.ownerUserId, row.followUpId,
                 row.ontologyVersionId, ontologyBinding(row.ontologyVersionId, row.ontologyVersionBindingSource),
+                row.capabilityBinding,
                 row.status, row.planSnapshot,
                 row.stepResults == null ? List.of() : row.stepResults.stream().map(ExecutionRepository::event).toList(),
                 row.conclusionState, row.resultBlocks, row.mobileProjection, row.failurePoint, row.errorCode, row.traceId,
@@ -395,7 +409,7 @@ public class ExecutionRepository {
     }
 
     private static Map<String, Object> basePayload(AnalysisSession session, String contract, String questionText,
-                                                   String traceId, String ontologyVersionId) {
+                                                   String traceId, CapabilityBinding binding) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("executionContract", contract);
         payload.put("sessionId", session.id());
@@ -405,8 +419,33 @@ public class ExecutionRepository {
         payload.put("areaIds", session.scope().areaIds());
         payload.put("questionText", questionText);
         payload.put("traceId", traceId);
-        payload.put("ontologyVersionId", ontologyVersionId);
+        payload.put("ontologyVersionId", binding.ontologyVersionId());
+        payload.put("capabilityBinding", binding.snapshot());
         return payload;
+    }
+
+    private static void requireBinding(CapabilityBinding binding) {
+        if (binding == null) {
+            throw new BackendException("CAPABILITY_BINDING_INVALID", "执行任务缺少能力绑定。");
+        }
+    }
+
+    private static CapabilityBinding capabilityBinding(Map<String, Object> raw) {
+        Map<String, Object> scope = objectMap(raw.get("resolvedScope"), "capabilityBinding.resolvedScope");
+        Object schemaVersion = scope.get("schemaVersion");
+        if (!(schemaVersion instanceof Number version) || version.intValue() < 1) {
+            throw new BackendException("JOB_PAYLOAD_INVALID",
+                    "任务 capability binding 的 scope schemaVersion 无效。");
+        }
+        try {
+            return new CapabilityBinding(
+                    new CapabilityId(requiredText(raw, "domainKey"), requiredText(raw, "capabilityKey")),
+                    requiredText(raw, "ontologyVersionId"),
+                    new ResolvedScopeSnapshot(requiredText(scope, "domainKey"), version.intValue(),
+                            objectMap(scope.get("values"), "capabilityBinding.resolvedScope.values")));
+        } catch (IllegalArgumentException error) {
+            throw new BackendException("JOB_PAYLOAD_INVALID", "任务 capability binding 无效。", error);
+        }
     }
 
     private static JobEntity job(String executionId, AnalysisSession session, Map<String, Object> payload,
@@ -450,12 +489,14 @@ public class ExecutionRepository {
                 && java.util.Objects.equals(expected.get("questionText"), actual.get("questionText"))
                 && java.util.Objects.equals(expected.get("effectiveContext"), actual.get("effectiveContext"))
                 && java.util.Objects.equals(expected.get("referencedConclusion"), actual.get("referencedConclusion"))
-                && java.util.Objects.equals(expected.get("ontologyVersionId"), actual.get("ontologyVersionId"));
+                && java.util.Objects.equals(expected.get("ontologyVersionId"), actual.get("ontologyVersionId"))
+                && java.util.Objects.equals(expected.get("capabilityBinding"), actual.get("capabilityBinding"));
     }
 
     private static ExecutionSnapshot withEvents(ExecutionSnapshot snapshot, List<ExecutionEvent> events) {
         return new ExecutionSnapshot(snapshot.executionId(), snapshot.sessionId(), snapshot.ownerUserId(),
                 snapshot.followUpId(), snapshot.ontologyVersionId(), snapshot.ontologyVersionBinding(),
+                snapshot.capabilityBinding(),
                 snapshot.status(), snapshot.planSnapshot(), events, snapshot.conclusionState(),
                 snapshot.resultBlocks(), snapshot.mobileProjection(), snapshot.failurePoint(), snapshot.errorCode(),
                 snapshot.traceId(), snapshot.createdAt(), snapshot.updatedAt());

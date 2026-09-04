@@ -1,8 +1,8 @@
 package com.dip3.ontologyagent.integration;
 
-import com.dip3.ontologyagent.agent.MainAgent;
-import com.dip3.ontologyagent.agent.QuestionDateRange;
-import com.dip3.ontologyagent.agent.SpringAiMainAgent;
+import com.dip3.ontologyagent.property.internal.application.MainAgent;
+import com.dip3.ontologyagent.property.internal.domain.QuestionDateRange;
+import com.dip3.ontologyagent.property.internal.adapter.out.llm.SpringAiMainAgent;
 import com.dip3.ontologyagent.analysis.AnalysisSession;
 import com.dip3.ontologyagent.analysis.AnalysisSessionRepository;
 import com.dip3.ontologyagent.auth.AccessScope;
@@ -14,7 +14,7 @@ import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.GroundedConclusion;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
-import com.dip3.ontologyagent.tooling.WorkflowToolInput;
+import com.dip3.ontologyagent.property.internal.adapter.out.llm.WorkflowToolInput;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.tool.annotation.Tool;
@@ -44,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding;
 
 @SpringBootTest(properties = {
         "dip3.worker.enabled=false",
@@ -110,7 +111,7 @@ class LiveProviderIT {
         assertEquals(required("LIVE_ONTOLOGY_VERSION_ID"), ontology.versionId());
         String traceId = "live-trace-" + UUID.randomUUID();
         String executionId = executions.submit(session, "live-" + UUID.randomUUID(), traceId,
-                ontology.versionId()).executionId();
+                propertyBinding(owner, ontology.versionId())).executionId();
         var claimed = executions.claim("live-worker:" + UUID.randomUUID(), Duration.ofMinutes(5)).orElseThrow();
 
         WorkflowResult result = mainAgent.execute(owner, session, executionId, ontology,

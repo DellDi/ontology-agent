@@ -4,6 +4,12 @@ import com.dip3.ontologyagent.analysis.AnalysisSessionRepository;
 import com.dip3.ontologyagent.analysis.AnalysisService;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
+import com.dip3.ontologyagent.config.EasyVPostgresProperties;
+import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVPostgresFactAdapter;
+import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVReadOnlyRoleGate;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationFacts;
+import com.zaxxer.hikari.HikariDataSource;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.integration.erp.ErpEvidenceMapper;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -13,6 +19,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import com.dip3.ontologyagent.support.MigrationTestSupport;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,16 +42,27 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvBinding;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.EASYV_ID;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.PROPERTY_ID;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 @Testcontainers
-@SpringBootTest(properties = "dip3.worker.enabled=false")
+@SpringBootTest(properties = {
+        "dip3.worker.enabled=false",
+        "dip3.easyv.enabled=true",
+        "dip3.easyv.require-read-only-role=false"
+})
 class MybatisPersistenceTest {
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.8-alpine");
@@ -54,6 +72,10 @@ class MybatisPersistenceTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("dip3.easyv.jdbc-url", POSTGRES::getJdbcUrl);
+        registry.add("dip3.easyv.username", POSTGRES::getUsername);
+        registry.add("dip3.easyv.password", POSTGRES::getPassword);
+        registry.add("dip3.easyv.schema", () -> "public");
         registry.add("spring.data.redis.url", () -> "redis://127.0.0.1:1");
         registry.add("spring.ai.openai.base-url", () -> "http://127.0.0.1:1");
         registry.add("spring.ai.openai.api-key", () -> "test-key");
@@ -88,6 +110,11 @@ class MybatisPersistenceTest {
     @Autowired AgentInvocationRepository invocations;
     @Autowired InvocationEventRecorder invocationEvents;
     @Autowired AnalysisService analyses;
+    @Autowired CapabilityRegistry capabilities;
+    @Autowired EasyVPostgresProperties easyVProperties;
+    @Autowired @Qualifier("easyvDataSource") DataSource easyVDataSource;
+    @Autowired EasyVReadOnlyRoleGate easyVReadOnlyRoleGate;
+    @Autowired EasyVGenerationFacts easyVGenerationFacts;
     @Autowired JdbcTemplate jdbc;
     @Autowired ErpEvidenceMapper erpEvidence;
     @Autowired ChatMemory chatMemory;
@@ -104,10 +131,12 @@ class MybatisPersistenceTest {
         assertEquals(List.of("project-1"), loaded.scope().projectIds());
         assertEquals("missing", loaded.savedContext().get("state"));
 
-        ExecutionSubmission submission = executions.submit(loaded, "same-request", "trace-1", "ontology-1");
+        ExecutionSubmission submission = executions.submit(loaded, "same-request", "trace-1",
+                propertyBinding(owner, "ontology-1"));
         String executionId = submission.executionId();
         assertTrue(submission.created());
-        ExecutionSubmission replay = executions.submit(loaded, "same-request", "trace-2", "ontology-2");
+        ExecutionSubmission replay = executions.submit(loaded, "same-request", "trace-2",
+                propertyBinding(owner, "ontology-2"));
         assertEquals(executionId, replay.executionId());
         assertFalse(replay.created());
         ExecutionJob job = executions.claim("worker-1", Duration.ofMinutes(1)).orElseThrow();
@@ -116,6 +145,9 @@ class MybatisPersistenceTest {
         assertEquals(1, job.attemptCount());
         assertEquals(2, job.maxAttempts());
         assertEquals("ontology-1", job.ontologyVersionId());
+        assertEquals("property", job.capabilityBinding().id().domainKey());
+        assertEquals("collection-rate-analysis", job.capabilityBinding().id().capabilityKey());
+        assertEquals("org-1", job.capabilityBinding().resolvedScope().values().get("organizationId"));
         assertEquals("worker-1", job.workerId());
         assertTrue(executions.claim("worker-2", Duration.ofMinutes(1)).isEmpty());
         BackendException wrongLeaseOwner = assertThrows(BackendException.class,
@@ -146,6 +178,7 @@ class MybatisPersistenceTest {
         Instant now = Instant.now();
         ExecutionSnapshot completion = new ExecutionSnapshot(executionId, session.id(), userId, null, "ontology-1",
                 Map.of("ontologyVersionId", "ontology-1", "source", "grounded-context"),
+                propertyBinding(owner, "ontology-1").snapshot(),
                 "completed", Map.of("mode", "multi-step", "_executionContract",
                         ExecutionRepository.EXECUTION_CONTRACT), List.of(),
                 Map.of("causes", List.of()), List.of(Map.of("type", "markdown")),
@@ -168,6 +201,7 @@ class MybatisPersistenceTest {
         assertEquals(2, snapshot.stepResults().size());
         assertEquals("trace-1", snapshot.traceId());
         assertEquals("grounded-context", snapshot.ontologyVersionBinding().get("source"));
+        assertEquals(propertyBinding(owner, "ontology-1").snapshot(), snapshot.capabilityBinding());
         assertNull(snapshot.failurePoint());
 
         BackendException conflict = assertThrows(BackendException.class, () -> executions.completeAtomically(userId,
@@ -176,6 +210,50 @@ class MybatisPersistenceTest {
         assertEquals("JOB_STATE_CONFLICT", conflict.code());
         assertEquals(2, analyses.events(session.id(), executionId, owner, 0).size());
         assertEquals("trace-1", executions.findSnapshot(session.id(), executionId, userId).orElseThrow().traceId());
+    }
+
+    @Test
+    void mybatisRoundTripsAnEasyVBindingThroughTheQueuedJobPayload() {
+        String suffix = UUID.randomUUID().toString();
+        String userId = "123";
+        AuthSession owner = new AuthSession("auth-easyv-" + suffix, userId, "测试用户",
+                new AccessScope("easyv-org-" + suffix, List.of(), List.of(), List.of("EASYV_ANALYST")),
+                Instant.now().plusSeconds(3600));
+        var session = sessions.create(owner, "分析大屏生成质量", Map.of(
+                "_executionContract", ExecutionRepository.EXECUTION_CONTRACT,
+                "_capabilityId", Map.of("domainKey", EASYV_ID.domainKey(), "capabilityKey", EASYV_ID.capabilityKey())));
+        var expected = easyvBinding(owner, "ontology-v2");
+
+        ExecutionSubmission submission = executions.submit(session, "easyv-roundtrip-" + suffix,
+                "trace-easyv-" + suffix, expected);
+        ExecutionJob reloaded = executions.claim("worker-easyv-" + suffix, Duration.ofMinutes(1)).orElseThrow();
+
+        assertEquals(submission.executionId(), reloaded.executionId());
+        assertEquals("ontology-v2", reloaded.ontologyVersionId());
+        assertEquals(EASYV_ID, reloaded.capabilityBinding().id());
+        assertEquals("easyv", reloaded.capabilityBinding().resolvedScope().domainKey());
+        assertEquals(1, reloaded.capabilityBinding().resolvedScope().schemaVersion());
+        assertEquals(Map.of("userId", "123", "accessMode", "creator-owned"),
+                reloaded.capabilityBinding().resolvedScope().values());
+        assertEquals(expected.scopeSnapshotRef(submission.executionId()),
+                reloaded.capabilityBinding().scopeSnapshotRef(submission.executionId()));
+        assertEquals(expected.snapshot(), reloaded.capabilityBinding().snapshot());
+
+        executions.fail(reloaded.executionId(), reloaded.workerId(), "TEST_END", "test cleanup",
+                reloaded.traceId());
+    }
+
+    @Test
+    void enabledSpringContextWiresBothDomainRegistrationsAndEasyVReadOnlyBeans() {
+        assertTrue(easyVProperties.enabled());
+        assertEquals(POSTGRES.getJdbcUrl(), easyVProperties.jdbcUrl());
+        assertEquals("public", easyVProperties.schema());
+        HikariDataSource hikari = assertInstanceOf(HikariDataSource.class, easyVDataSource);
+        assertEquals(POSTGRES.getJdbcUrl(), hikari.getJdbcUrl());
+        assertInstanceOf(EasyVPostgresFactAdapter.class, easyVGenerationFacts);
+        assertNotNull(easyVReadOnlyRoleGate);
+        assertEquals(PROPERTY_ID, capabilities.selectInitial("分析项目收缴率"));
+        assertEquals(EASYV_ID, capabilities.selectInitial("分析 EasyV 大屏生成质量"));
     }
 
     @Test
@@ -198,7 +276,8 @@ class MybatisPersistenceTest {
                 userId, organizationId, session.id(), "trace-ts", Timestamp.from(older), Timestamp.from(older));
         assertTrue(executions.findOwnedJob(session.id(), foreignExecutionId, userId).isEmpty());
 
-        ExecutionSubmission javaSubmission = executions.submit(session, "java", "trace-java", "ontology-pinned");
+        ExecutionSubmission javaSubmission = executions.submit(session, "java", "trace-java",
+                propertyBinding(owner, "ontology-pinned"));
         ExecutionJob claimed = executions.claim("worker-java", Duration.ofMinutes(1)).orElseThrow();
 
         assertEquals(javaSubmission.executionId(), claimed.executionId());
@@ -242,7 +321,8 @@ class MybatisPersistenceTest {
                 new AccessScope("org-" + suffix, List.of("project-" + suffix), List.of(), List.of("analyst")),
                 Instant.now().plusSeconds(3600));
         var session = sessions.create(owner, "分析 2026 年 1 月项目收缴率", Map.of());
-        String executionId = executions.submit(session, "audit", "trace-audit", "ontology-1").executionId();
+        String executionId = executions.submit(session, "audit", "trace-audit",
+                propertyBinding(owner, "ontology-1")).executionId();
         ExecutionJob job = executions.claim("worker-audit", Duration.ofMinutes(1)).orElseThrow();
         String invocationId = invocations.start(session.id(), executionId, userId, "analysis-workflow",
                 "cube.semantic-query", "subtool", null, Map.of(), "trace-audit");
@@ -266,7 +346,8 @@ class MybatisPersistenceTest {
                 new AccessScope("org-" + suffix, List.of("project-" + suffix), List.of(), List.of("analyst")),
                 Instant.now().plusSeconds(3600));
         var session = sessions.create(owner, "分析 2026 年 1 月项目收缴率", Map.of());
-        String executionId = executions.submit(session, "lease", "trace-lease", "ontology-1").executionId();
+        String executionId = executions.submit(session, "lease", "trace-lease",
+                propertyBinding(owner, "ontology-1")).executionId();
         ExecutionJob first = executions.claim("worker:first", Duration.ofMinutes(1)).orElseThrow();
         String invocationId = invocations.start(session.id(), executionId, owner.userId(), "main-agent",
                 "main-agent", "agent-run", null, Map.of(), "trace-lease");
@@ -369,18 +450,22 @@ class MybatisPersistenceTest {
         Map<String, Object> referencedConclusion = Map.of("title", "上一轮结论", "summary", "收缴率下降。");
 
         ExecutionSubmission first = executions.submitFollowUp(session, "follow-up-1", "execution-root",
-                "为什么下降", referencedConclusion, context, "same-request", "trace-follow-up", "ontology-1");
+                "为什么下降", referencedConclusion, context, "same-request", "trace-follow-up",
+                propertyBinding(owner, "ontology-1"));
         ExecutionSubmission replay = executions.submitFollowUp(session, "follow-up-1", "execution-root",
-                "为什么下降", referencedConclusion, context, "same-request", "trace-replayed", "ontology-1");
+                "为什么下降", referencedConclusion, context, "same-request", "trace-replayed",
+                propertyBinding(owner, "ontology-1"));
         ExecutionSubmission anotherTurn = executions.submitFollowUp(session, "follow-up-2", "execution-root",
-                "换个因素", referencedConclusion, context, "same-request", "trace-other", "ontology-1");
+                "换个因素", referencedConclusion, context, "same-request", "trace-other",
+                propertyBinding(owner, "ontology-1"));
         assertTrue(first.created());
         assertFalse(replay.created());
         assertEquals(first.executionId(), replay.executionId());
         assertNotEquals(first.executionId(), anotherTurn.executionId());
         BackendException identityConflict = assertThrows(BackendException.class,
                 () -> executions.submitFollowUp(session, "follow-up-1", "execution-root",
-                        "被替换的问题", referencedConclusion, context, "same-request", "trace-conflict", "ontology-1"));
+                        "被替换的问题", referencedConclusion, context, "same-request", "trace-conflict",
+                        propertyBinding(owner, "ontology-1")));
         assertEquals("IDEMPOTENCY_CONFLICT", identityConflict.code());
 
         ExecutionJob job = executions.claim("worker-follow-up", Duration.ofMinutes(1)).orElseThrow();
@@ -396,7 +481,7 @@ class MybatisPersistenceTest {
                 "_resolvedContext", context);
         ExecutionSnapshot snapshot = new ExecutionSnapshot(job.executionId(), session.id(), userId,
                 "follow-up-1", "ontology-1", Map.of("ontologyVersionId", "ontology-1", "source", "inherited"),
-                "completed", plan, List.of(), Map.of("causes", List.of()), List.of(),
+                propertyBinding(owner, "ontology-1").snapshot(), "completed", plan, List.of(), Map.of("causes", List.of()), List.of(),
                 Map.of("summary", "done", "status", "completed", "updatedAt", now.toString()), null,
                 null, "trace-follow-up", now, now);
         executions.completeAtomically(userId, job.workerId(),
@@ -451,7 +536,7 @@ class MybatisPersistenceTest {
                 start.await();
                 return new TransactionTemplate(transactionManager).execute(status -> executions.submitFollowUp(
                         session, "follow-up-concurrent", "execution-root", "为什么下降", conclusion, context,
-                        "same-key", "trace-" + UUID.randomUUID(), "ontology-1"));
+                        "same-key", "trace-" + UUID.randomUUID(), propertyBinding(owner, "ontology-1")));
             };
             var first = pool.submit(submit);
             var second = pool.submit(submit);
