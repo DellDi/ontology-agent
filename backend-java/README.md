@@ -104,7 +104,7 @@ Next.js 的分析读写适配器只读取 `JAVA_BACKEND_URL`，例如 `http://12
 
 ```powershell
 mvn -f backend-java/pom.xml test
-pnpm test:java-contract
+pnpm test:web
 ```
 
 真实 Provider 门禁不会用 mock 或跳过失败。Maven 不会自动读取仓库根目录 `.env`；当前 shell 必须先提供

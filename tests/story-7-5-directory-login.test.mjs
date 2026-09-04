@@ -13,6 +13,12 @@ const execFileAsync = promisify(execFile);
 const TEST_DATABASE_URL =
   process.env.DATABASE_URL ??
   'postgresql://ontology_agent:ontology_agent_dev_password@127.0.0.1:55432/ontology_agent';
+const parsedDatabaseUrl = new URL(TEST_DATABASE_URL);
+const TEST_JAVA_DATABASE_ENV = {
+  JAVA_DATABASE_URL: `jdbc:postgresql://${parsedDatabaseUrl.host}${parsedDatabaseUrl.pathname}${parsedDatabaseUrl.search}`,
+  JAVA_DATABASE_USERNAME: decodeURIComponent(parsedDatabaseUrl.username),
+  JAVA_DATABASE_PASSWORD: decodeURIComponent(parsedDatabaseUrl.password),
+};
 const TEST_REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 const TEST_REDIS_KEY_PREFIX = process.env.REDIS_KEY_PREFIX ?? 'dip3';
 const TEST_SESSION_SECRET = 'story-7-5-test-secret';
@@ -131,9 +137,19 @@ test.before(async () => {
   port = await getAvailablePort();
   baseUrl = `http://127.0.0.1:${port}`;
 
-  await execFileAsync('pnpm', ['db:migrate'], {
+  await execFileAsync('mise', [
+    'exec',
+    'java@temurin-21.0.12+8.0.LTS',
+    '--',
+    'mvn',
+    '-f',
+    'backend-java/pom.xml',
+    '-q',
+    'spring-boot:run',
+    '-Dspring-boot.run.profiles=migrate',
+  ], {
     cwd: process.cwd(),
-    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+    env: { ...process.env, ...TEST_JAVA_DATABASE_ENV },
   });
 
   await ensureNextBuildReady({

@@ -13,8 +13,10 @@
 </p>
 
 <p align="center">
-  <b>面向物业分析团队的 AI 原生数据工作台</b>
+  <b>面向多业务领域的 AI 原生语义分析与执行工作台</b>
 </p>
+
+> 当前实施状态（2026-09-01）：M3-M6 已完成源码与契约验收，Property 与 EasyV 是两个真实可执行 capability。EasyV 已通过一次真实 OpenAI-compatible 模型、test PostgreSQL 和本地一次性任务账本的完整联合门禁。运行时会冻结 domain、capability、ontology version 与 resolved scope，读接口和工作台可展示计划、证据、freshness、coverage 与失败点。EasyV 使用 creator-owned scope 和只读 facts adapter，默认关闭；test 环境验证不代表生产部署或生产数据结论。
 
 <p align="center">
   <a href="#-核心特性">核心特性</a> •
@@ -34,10 +36,12 @@
 - **因果结论推理** — 基于证据的排名因果结论生成与置信度评估
 - **多轮会话支持** — 支持追问、修正因素、重新规划，完整保留历史上下文
 - **企业级权限** — 四维权限模型（组织/项目/区域/角色），服务端授权强制
-- **可扩展架构** — Clean Architecture + 六边形架构，领域与基础设施完全解耦
+- **可演进架构** — 以 Clean Architecture / Ports & Adapters 为目标，当前按渐进基线消除领域与基础设施耦合
 - **异步任务队列** — PostgreSQL durable job ledger + Redis 唤醒 + Java Worker 处理长时间分析任务
 
 ## 🏗️ 技术架构
+
+架构现状、目标边界与迁移门禁以 [Java Architecture Baseline](./docs/architecture/java-architecture-baseline.md) 和 [Multi-domain Runtime Architecture](./docs/architecture/multi-domain-runtime-architecture.md) 为准；M3-M6 已落地并验收 Property 与 EasyV 两个真实 capability，以及跨领域 binding、读契约和运行态展示。EasyV 运行面默认关闭，启用后通过 `ontology-java-multidomain-v2`、creator-owned scope 和只读 facts adapter 执行；生产部署与生产数据仍未知。
 
 ```
 Next.js 16 / React 19（仅页面渲染、Java BFF、Web 观测与 UI 映射）
@@ -96,7 +100,9 @@ docker compose up -d postgres redis cube neo4j
 （由原 Drizzle 全部历史迁移合并而成，脚本本身幂等，可重复执行），由 Flyway 独立入口执行（应用启动不自动迁移）。
 
 ```bash
-pnpm db:migrate   # 等价于 mvn -f backend-java/pom.xml spring-boot:run -Dspring-boot.run.profiles=migrate
+mise exec java@temurin-21.0.12+8.0.LTS -- \
+  mvn -f backend-java/pom.xml -q spring-boot:run \
+  -Dspring-boot.run.profiles=migrate
 ```
 
 > 定位为新库重建与初始化的 init 脚本：全新空库一次性建齐全部 schema/表/索引；
@@ -174,16 +180,19 @@ pnpm dev                    # 启动 Next.js 开发服务器
 mise exec java@temurin-21.0.12+8.0.LTS --% -- mvn -f backend-java/pom.xml spring-boot:run
 
 # 数据库（Flyway，Java 独立迁移入口，幂等可重复执行）
-pnpm db:migrate             # 执行初始化（空库建齐 / 已有库幂等补全）
+mise exec java@temurin-21.0.12+8.0.LTS -- \
+  mvn -f backend-java/pom.xml -q spring-boot:run \
+  -Dspring-boot.run.profiles=migrate
 
 # 代码质量
 pnpm lint                   # ESLint 检查
 pnpm lint:fix               # 自动修复 lint 问题
 pnpm build                  # 生产构建
-pnpm test                   # Java + 当前 Web/Java 契约门禁
-pnpm test:web               # Web / Java 契约与切换边界
+pnpm test                   # Web / Java 契约与切换边界
+pnpm test:web               # 同上，供 CI 显式调用
 pnpm test:container         # 完整生产容器验收
-pnpm test:live:analysis     # 真实 Provider / Cube / Neo4j 分析门禁
+mvn -f backend-java/pom.xml test              # Java 单元与 Testcontainers 测试
+mvn -f backend-java/pom.xml verify -Plive-integration  # 真实后端集成门禁
 
 # 容器
 docker compose up -d        # 后台启动全部容器
