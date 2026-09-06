@@ -187,6 +187,7 @@ class EasyVGenerationWorkflowTest {
   private static EasyVGenerationRequest request() {
     return new EasyVGenerationRequest(
         "java-initial-v1", "execution-1", "session-1", "分析大屏生成质量", "easyv-ontology-v1",
+        "easyv-set-1",
         EasyVGenerationOntology.ENTITY_KEY, EasyVGenerationOntology.METRIC_KEY,
         EasyVGenerationOntology.TIME_KEY, ontology(), FROM, TO, "123", "creator-owned", Map.of(), REQUESTED_AT);
   }

@@ -1,7 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.adapter.out.postgres;
 
 import com.dip3.ontologyagent.config.EasyVPostgresProperties;
-import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationFacts;
+import com.dip3.ontologyagent.ingestion.spi.PostgresSourceConnectionProvider;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
@@ -15,7 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 /** Wiring for the optional EasyV source database. It is absent when the feature is disabled. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "dip3.easyv.source", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(EasyVPostgresProperties.class)
 public class EasyVPostgresConfiguration {
 
@@ -57,12 +57,17 @@ public class EasyVPostgresConfiguration {
   }
 
   @Bean
-  EasyVGenerationFacts easyVGenerationFacts(
+  PostgresSourceConnectionProvider.Registration easyVSourceConnectionRegistration(
       @Qualifier("easyvDataSource") DataSource easyvDataSource,
-      @Qualifier("easyvTransactionManager") PlatformTransactionManager easyvTransactionManager,
-      EasyVReadOnlyRoleGate roleGate,
-      EasyVPostgresProperties properties) {
-    return new EasyVPostgresFactAdapter(
-        easyvDataSource, easyvTransactionManager, roleGate, properties);
+      @Qualifier("easyvTransactionManager") PlatformTransactionManager transactionManager,
+      EasyVPostgresProperties properties,
+      EasyVReadOnlyRoleGate roleGate) {
+    roleGate.ensureChecked();
+    int queryTimeoutSeconds = Math.max(1,
+        Math.toIntExact((properties.statementTimeout().toMillis() + 999) / 1000));
+    return new PostgresSourceConnectionProvider.Registration("easyv-source",
+        new PostgresSourceConnectionProvider.ResolvedConnection(
+            easyvDataSource, transactionManager, queryTimeoutSeconds));
   }
+
 }

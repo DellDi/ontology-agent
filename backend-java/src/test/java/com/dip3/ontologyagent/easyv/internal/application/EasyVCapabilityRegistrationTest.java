@@ -103,14 +103,15 @@ class EasyVCapabilityRegistrationTest {
         new AgentTurn(
             "java-initial-v1", "session-1", "分析 EasyV 大屏生成质量", null, null, Map.of(), Map.of(), Instant.now());
     WorkflowResult expected = new WorkflowResult(Map.of(), List.of(), "result", List.of(), List.of());
-    when(mainAgent.execute(owner, turn, "execution-1", ontology, "trace-1", "worker-1"))
+    when(mainAgent.execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1"))
         .thenReturn(expected);
 
     WorkflowResult actual =
-        registration.execute(new CapabilityExecutionContext(owner, turn, "execution-1", ontology, "trace-1", "worker-1"));
+        registration.execute(new CapabilityExecutionContext(owner, turn, "execution-1", ontology,
+            "easyv-set-1", "trace-1", "worker-1"));
 
     assertSame(expected, actual);
-    verify(mainAgent).execute(owner, turn, "execution-1", ontology, "trace-1", "worker-1");
+    verify(mainAgent).execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1");
   }
 
   private static OntologyCatalog ontology() {

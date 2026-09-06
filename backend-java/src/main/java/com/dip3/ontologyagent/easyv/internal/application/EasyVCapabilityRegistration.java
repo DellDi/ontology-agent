@@ -32,6 +32,7 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
               EasyVGenerationOntology.ENTITY_KEY,
               EasyVGenerationOntology.METRIC_KEY,
               EasyVGenerationOntology.TIME_KEY),
+          EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS,
           Set.of(
               "easyv-ai-application",
               "easyv-pipeline-node",
@@ -104,6 +105,7 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
         context.turn(),
         context.executionId(),
         context.ontology(),
+        context.datasetVersionSetId(),
         context.traceId(),
         context.leaseOwner());
   }

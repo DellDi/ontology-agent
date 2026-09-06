@@ -43,19 +43,23 @@ management:
       show-details: when_authorized
 dip3:
   easyv:
-    # 默认不连接业务源库；启用前必须使用专用只读角色。
-    enabled: ${EASYV_POSTGRES_ENABLED:false}
-    jdbc-url: ${EASYV_POSTGRES_JDBC_URL:}
-    username: ${EASYV_POSTGRES_USERNAME:}
-    password: ${EASYV_POSTGRES_PASSWORD:}
-    schema: ${EASYV_POSTGRES_SCHEMA:easyv_saas}
-    maximum-pool-size: ${EASYV_POSTGRES_MAX_POOL_SIZE:2}
-    connection-timeout: ${EASYV_POSTGRES_CONNECTION_TIMEOUT_MS:2000}ms
-    validation-timeout: ${EASYV_POSTGRES_VALIDATION_TIMEOUT_MS:1000}ms
-    statement-timeout: ${EASYV_POSTGRES_STATEMENT_TIMEOUT_MS:3000}ms
-    lock-timeout: ${EASYV_POSTGRES_LOCK_TIMEOUT_MS:1000}ms
-    idle-in-transaction-session-timeout: ${EASYV_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS:5000}ms
-    require-read-only-role: ${EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE:true}
+    # Domain runtime reads only platform-owned canonical facts.
+    enabled: ${EASYV_DOMAIN_ENABLED:false}
+    source:
+      # Enable only in the ingestion process; use a dedicated source read-only role.
+      enabled: ${EASYV_POSTGRES_ENABLED:false}
+      jdbc-url: ${EASYV_POSTGRES_JDBC_URL:}
+      username: ${EASYV_POSTGRES_USERNAME:}
+      password: ${EASYV_POSTGRES_PASSWORD:}
+      schema: ${EASYV_POSTGRES_SCHEMA:easyv_saas}
+      maximum-pool-size: ${EASYV_POSTGRES_MAX_POOL_SIZE:2}
+      connection-timeout: ${EASYV_POSTGRES_CONNECTION_TIMEOUT_MS:2000}ms
+      validation-timeout: ${EASYV_POSTGRES_VALIDATION_TIMEOUT_MS:1000}ms
+      statement-timeout: ${EASYV_POSTGRES_STATEMENT_TIMEOUT_MS:30000}ms
+      lock-timeout: ${EASYV_POSTGRES_LOCK_TIMEOUT_MS:1000}ms
+      # Local spooling keeps the source snapshot independent from remote platform writes.
+      idle-in-transaction-session-timeout: ${EASYV_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS:5000}ms
+      require-read-only-role: ${EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE:true}
   ai:
     provider:
       mode: ${LLM_PROVIDER_MODE}
@@ -87,7 +91,6 @@ dip3:
   graph-sync:
     enabled: ${JAVA_GRAPH_SYNC_ENABLED:false}
     poll-delay: ${JAVA_GRAPH_SYNC_POLL_DELAY:5m}
-    sources: ${JAVA_GRAPH_SYNC_SOURCES:erp.organizations,erp.projects,erp.owners,erp.charge_items,erp.receivables,erp.payments,erp.service_orders}
   stream:
     poll-delay: ${JAVA_STREAM_POLL_DELAY:300ms}
     timeout: ${JAVA_STREAM_TIMEOUT:5m}

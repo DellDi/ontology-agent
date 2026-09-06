@@ -11,6 +11,7 @@ public interface EasyVMainAgent {
       AgentTurn turn,
       String executionId,
       OntologyCatalog ontology,
+      String datasetVersionSetId,
       String traceId,
       String leaseOwner);
 }

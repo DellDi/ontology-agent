@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.easyv.internal.domain;
 
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.support.BackendException;
+import java.util.Set;
 
 /** Fixed semantic keys accepted by the first EasyV capability. */
 public final class EasyVGenerationOntology {
@@ -10,6 +11,12 @@ public final class EasyVGenerationOntology {
   public static final String ENTITY_KEY = "easyv-ai-application";
   public static final String METRIC_KEY = "easyv-generation-quality";
   public static final String TIME_KEY = "easyv-generation-time";
+  public static final Set<String> REQUIRED_DATA_PRODUCT_KEYS = Set.of(
+      "easyv-ai-application",
+      "easyv-prototype-task",
+      "easyv-pipeline-node",
+      "easyv-forge-task",
+      "easyv-generation-feedback");
 
   private EasyVGenerationOntology() {}
 
