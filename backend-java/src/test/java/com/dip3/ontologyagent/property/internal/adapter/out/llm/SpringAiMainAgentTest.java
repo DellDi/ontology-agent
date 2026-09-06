@@ -15,6 +15,7 @@ import com.dip3.ontologyagent.support.OpenCodeSessionHeader;
 import com.dip3.ontologyagent.property.internal.application.AnalysisWorkflow;
 import com.dip3.ontologyagent.property.internal.application.MainAgent;
 import com.dip3.ontologyagent.property.internal.domain.PropertyInvocationContract;
+import com.dip3.ontologyagent.property.internal.domain.WorkflowRequest;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import com.dip3.ontologyagent.property.internal.adapter.out.llm.WorkflowToolInput;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -91,6 +93,10 @@ class SpringAiMainAgentTest {
         assertSame(expected, actual);
         verify(workflow).execute(any(), any(), org.mockito.ArgumentMatchers.eq("trace-1"),
                 org.mockito.ArgumentMatchers.eq("workflow-invocation-1"));
+        ArgumentCaptor<WorkflowRequest> request = ArgumentCaptor.forClass(WorkflowRequest.class);
+        verify(workflow).execute(any(), request.capture(), org.mockito.ArgumentMatchers.eq("trace-1"),
+                org.mockito.ArgumentMatchers.eq("workflow-invocation-1"));
+        assertNull(request.getValue().datasetVersionSetId());
         ArgumentCaptor<String> toolName = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> invocationType = ArgumentCaptor.forClass(String.class);
         verify(recorder).start(anyString(), anyString(), anyString(), anyString(), toolName.capture(),
@@ -103,6 +109,34 @@ class SpringAiMainAgentTest {
                 options.getValue().build().getCustomHeaders());
         verify(recorder).succeedWhileLeased("workflow-invocation-1",
                 Map.of("evidenceCount", 1, "renderBlockCount", 0), "execution-1", "lease-1");
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void propagatesTheBoundDatasetVersionSetToWorkflowAndAudit() {
+        WorkflowResult expected = new WorkflowResult(Map.of(),
+                List.of(new Evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
+        when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
+        when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
+            SpringAiMainAgent.BoundWorkflowTool tool =
+                    (SpringAiMainAgent.BoundWorkflowTool) invocation.getArguments()[0];
+            tool.run(toolInput());
+            return prompt;
+        });
+        AgentTurn turn = new AgentTurn(ExecutionRepository.EXECUTION_CONTRACT, session.id(),
+                session.questionText(), null, null, Map.of(), Map.of(), session.createdAt());
+
+        assertSame(expected, agent.execute(owner, turn, "execution-2", ontology(),
+                "dataset-set-1", "trace-2", "lease-2"));
+
+        ArgumentCaptor<WorkflowRequest> request = ArgumentCaptor.forClass(WorkflowRequest.class);
+        verify(workflow).execute(any(), request.capture(), org.mockito.ArgumentMatchers.eq("trace-2"),
+                org.mockito.ArgumentMatchers.eq("workflow-invocation-1"));
+        assertEquals("dataset-set-1", request.getValue().datasetVersionSetId());
+        ArgumentCaptor<Map> audit = ArgumentCaptor.forClass(Map.class);
+        verify(recorder).start(anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                any(), audit.capture(), anyString(), anyString());
+        assertEquals("dataset-set-1", audit.getValue().get("datasetVersionSetId"));
     }
 
     @Test

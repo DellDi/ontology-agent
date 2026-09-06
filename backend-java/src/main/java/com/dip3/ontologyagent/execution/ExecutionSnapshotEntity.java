@@ -21,6 +21,7 @@ public class ExecutionSnapshotEntity {
     public String ontologyVersionBindingSource;
     @TableField(typeHandler = JsonbTypeHandler.class)
     public Map<String, Object> capabilityBinding;
+    public String datasetVersionSetId;
     public String status;
     @TableField(typeHandler = JsonbTypeHandler.class)
     public Map<String, Object> planSnapshot;

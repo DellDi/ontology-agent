@@ -37,7 +37,13 @@ public class ExecutionRepository {
 
     public ExecutionSubmission submit(AnalysisSession session, String idempotencyKey, String traceId,
                                       CapabilityBinding binding) {
+        return submit(session, idempotencyKey, traceId, binding, null);
+    }
+
+    public ExecutionSubmission submit(AnalysisSession session, String idempotencyKey, String traceId,
+                                      CapabilityBinding binding, String datasetVersionSetId) {
         requireBinding(binding);
+        requireOptionalId(datasetVersionSetId, "datasetVersionSetId");
         String executionId = idempotencyKey == null ? UUID.randomUUID().toString()
                 : UUID.nameUUIDFromBytes(("analysis-execution:" + session.id() + ":" + idempotencyKey)
                 .getBytes(StandardCharsets.UTF_8)).toString();
@@ -53,6 +59,7 @@ public class ExecutionRepository {
         payload.put("traceId", traceId);
         payload.put("ontologyVersionId", binding.ontologyVersionId());
         payload.put("capabilityBinding", binding.snapshot());
+        if (datasetVersionSetId != null) payload.put("datasetVersionSetId", datasetVersionSetId);
         JobEntity row = new JobEntity();
         row.id = executionId;
         row.type = "analysis-execution";
@@ -65,6 +72,7 @@ public class ExecutionRepository {
         row.ownerUserId = session.ownerUserId();
         row.organizationId = session.scope().organizationId();
         row.sessionId = session.id();
+        row.datasetVersionSetId = datasetVersionSetId;
         row.originCorrelationId = traceId;
         row.createdAt = now;
         row.updatedAt = now;
@@ -78,11 +86,22 @@ public class ExecutionRepository {
                                                Map<String, Object> referencedConclusion,
                                                Map<String, Object> effectiveContext, String idempotencyKey,
                                                String traceId, CapabilityBinding binding) {
+        return submitFollowUp(session, followUpId, referencedExecutionId, questionText,
+                referencedConclusion, effectiveContext, idempotencyKey, traceId, binding, null);
+    }
+
+    public ExecutionSubmission submitFollowUp(AnalysisSession session, String followUpId,
+                                               String referencedExecutionId, String questionText,
+                                               Map<String, Object> referencedConclusion,
+                                               Map<String, Object> effectiveContext, String idempotencyKey,
+                                               String traceId, CapabilityBinding binding,
+                                               String datasetVersionSetId) {
         requireText(followUpId, "followUpId");
         requireText(referencedExecutionId, "referencedExecutionId");
         requireText(questionText, "questionText");
         requireText(traceId, "traceId");
         requireBinding(binding);
+        requireOptionalId(datasetVersionSetId, "datasetVersionSetId");
         Map<String, Object> context = effectiveContext == null ? Map.of() : Map.copyOf(effectiveContext);
         Map<String, Object> conclusion = validatedReferencedConclusion(referencedConclusion);
         String executionId = idempotencyKey == null ? UUID.randomUUID().toString()
@@ -90,11 +109,13 @@ public class ExecutionRepository {
                 + ":" + idempotencyKey).getBytes(StandardCharsets.UTF_8)).toString();
         Map<String, Object> payload = basePayload(session, FOLLOW_UP_EXECUTION_CONTRACT, questionText, traceId,
                 binding);
+        if (datasetVersionSetId != null) payload.put("datasetVersionSetId", datasetVersionSetId);
         payload.put("followUpId", followUpId);
         payload.put("referencedExecutionId", referencedExecutionId);
         payload.put("referencedConclusion", conclusion);
         payload.put("effectiveContext", context);
         JobEntity row = job(executionId, session, payload, traceId);
+        row.datasetVersionSetId = datasetVersionSetId;
         boolean created = jobs.insertIfAbsent(row) == 1;
         if (!created) requireSameIdentity(row, jobs.selectById(executionId));
         return new ExecutionSubmission(executionId, created);
@@ -116,11 +137,17 @@ public class ExecutionRepository {
                 throw new BackendException("JOB_PAYLOAD_INVALID",
                         "任务 capability binding 与本体版本不一致。");
             }
+            String payloadVersionSetId = nullableText(row.payload.get("datasetVersionSetId"));
+            if (!java.util.Objects.equals(row.datasetVersionSetId, payloadVersionSetId)) {
+                throw new BackendException("JOB_PAYLOAD_INVALID",
+                        "任务的数据版本集合字段与载荷不一致。");
+            }
             return Optional.of(new ExecutionJob(row.id, contract, required(row.sessionId, "sessionId"),
                     required(row.ownerUserId, "ownerUserId"), required(row.organizationId, "organizationId"),
                     stringList(row.payload.get("projectIds")), stringList(row.payload.get("areaIds")),
                     requiredText(row.payload, "questionText"), requiredText(row.payload, "traceId"),
                     ontologyVersionId, binding,
+                    row.datasetVersionSetId,
                     followUp ? requiredText(row.payload, "followUpId") : null,
                     followUp ? requiredText(row.payload, "referencedExecutionId") : null,
                     followUp ? validatedReferencedConclusion(objectMap(
@@ -246,6 +273,7 @@ public class ExecutionRepository {
         row.ontologyVersionId = snapshot.ontologyVersionId();
         row.ontologyVersionBindingSource = snapshot.ontologyVersionBinding().get("source").toString();
         row.capabilityBinding = snapshot.capabilityBinding();
+        row.datasetVersionSetId = snapshot.datasetVersionSetId();
         row.status = snapshot.status();
         row.planSnapshot = snapshot.planSnapshot();
         row.stepResults = snapshot.stepResults().stream().map(ExecutionRepository::eventMap).toList();
@@ -296,6 +324,7 @@ public class ExecutionRepository {
         return new ExecutionSnapshot(row.executionId, row.sessionId, row.ownerUserId, row.followUpId,
                 row.ontologyVersionId, ontologyBinding(row.ontologyVersionId, row.ontologyVersionBindingSource),
                 row.capabilityBinding,
+                row.datasetVersionSetId,
                 row.status, row.planSnapshot,
                 row.stepResults == null ? List.of() : row.stepResults.stream().map(ExecutionRepository::event).toList(),
                 row.conclusionState, row.resultBlocks, row.mobileProjection, row.failurePoint, row.errorCode, row.traceId,
@@ -389,6 +418,12 @@ public class ExecutionRepository {
         }
     }
 
+    private static void requireOptionalId(String value, String key) {
+        if (value != null && !value.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+            throw new BackendException("JOB_PAYLOAD_INVALID", "任务字段 " + key + " 无效。");
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> objectMap(Object value, String key) {
         if (!(value instanceof Map<?, ?> map)
@@ -474,6 +509,7 @@ public class ExecutionRepository {
                 || !expected.ownerUserId.equals(actual.ownerUserId)
                 || !expected.organizationId.equals(actual.organizationId)
                 || !expected.type.equals(actual.type)
+                || !java.util.Objects.equals(expected.datasetVersionSetId, actual.datasetVersionSetId)
                 || actual.payload == null
                 || !java.util.Objects.equals(expected.payload.get("executionContract"),
                 actual.payload.get("executionContract"))
@@ -496,7 +532,7 @@ public class ExecutionRepository {
     private static ExecutionSnapshot withEvents(ExecutionSnapshot snapshot, List<ExecutionEvent> events) {
         return new ExecutionSnapshot(snapshot.executionId(), snapshot.sessionId(), snapshot.ownerUserId(),
                 snapshot.followUpId(), snapshot.ontologyVersionId(), snapshot.ontologyVersionBinding(),
-                snapshot.capabilityBinding(),
+                snapshot.capabilityBinding(), snapshot.datasetVersionSetId(),
                 snapshot.status(), snapshot.planSnapshot(), events, snapshot.conclusionState(),
                 snapshot.resultBlocks(), snapshot.mobileProjection(), snapshot.failurePoint(), snapshot.errorCode(),
                 snapshot.traceId(), snapshot.createdAt(), snapshot.updatedAt());

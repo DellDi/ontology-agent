@@ -42,6 +42,8 @@ class PropertyCapabilityRegistrationTest {
   @Test
   void descriptorFreezesThePropertyCapabilityBoundary() {
     assertEquals(PropertyCapabilityRegistration.ID, registration.descriptor().id());
+    assertEquals(PropertyDataProducts.REQUIRED,
+        registration.descriptor().requiredDataProductKeys());
     assertEquals(
         List.of("cube", "erp-staging", "neo4j"),
         registration.descriptor().requiredEvidenceTypes().stream().sorted().toList());
@@ -163,12 +165,48 @@ class PropertyCapabilityRegistrationTest {
             Instant.now());
     WorkflowResult expected =
         new WorkflowResult(Map.of(), List.of(), "result", List.of(), List.of());
-    when(mainAgent.execute(owner, turn, "execution-1", ontology, "trace-1", "worker-1"))
+    when(mainAgent.execute(owner, turn, "execution-1", ontology, null, "trace-1", "worker-1"))
         .thenReturn(expected);
     CapabilityExecutionContext context =
         new CapabilityExecutionContext(owner, turn, "execution-1", ontology, "trace-1", "worker-1");
 
     assertEquals(expected, registration.execute(context));
-    verify(mainAgent).execute(owner, turn, "execution-1", ontology, "trace-1", "worker-1");
+    verify(mainAgent).execute(owner, turn, "execution-1", ontology, null, "trace-1", "worker-1");
+  }
+
+  @Test
+  void executionPassesAnExistingDatasetVersionSetWithoutResolvingIt() {
+    OntologyCatalog ontology =
+        new OntologyCatalog(
+            "ontology-1",
+            "1.0.0",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of());
+    AgentTurn turn =
+        new AgentTurn(
+            "java-initial-v1",
+            "session-1",
+            "分析项目收缴率",
+            null,
+            null,
+            Map.of(),
+            Map.of(),
+            Instant.now());
+    WorkflowResult expected =
+        new WorkflowResult(Map.of(), List.of(), "result", List.of(), List.of());
+    when(mainAgent.execute(owner, turn, "execution-2", ontology, "dataset-set-1", "trace-2", "worker-2"))
+        .thenReturn(expected);
+    CapabilityExecutionContext context =
+        new CapabilityExecutionContext(
+            owner, turn, "execution-2", ontology, "dataset-set-1", "trace-2", "worker-2");
+
+    assertEquals(expected, registration.execute(context));
+    verify(mainAgent)
+        .execute(owner, turn, "execution-2", ontology, "dataset-set-1", "trace-2", "worker-2");
   }
 }

@@ -30,6 +30,7 @@ public final class CapabilityTestFixtures {
     public static CapabilityDescriptor propertyDescriptor() {
         return new CapabilityDescriptor(PROPERTY_ID, "物业项目收缴率分析",
                 Set.of("project", "collection-rate"),
+                Set.of(),
                 Set.of("erp-staging", "cube", "neo4j"),
                 Set.of("collection-rate", "erp-balance", "charge-structure"),
                 new CapabilityInvocationContract("workflow-tool", "analysis_workflow", 1,
@@ -46,6 +47,7 @@ public final class CapabilityTestFixtures {
         return new CapabilityDescriptor(EASYV_ID, "AI 大屏生成质量分析",
                 Set.of(EasyVGenerationOntology.ENTITY_KEY, EasyVGenerationOntology.METRIC_KEY,
                         EasyVGenerationOntology.TIME_KEY),
+                EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS,
                 Set.of("easyv-ai-application", "easyv-pipeline-node", "easyv-forge-task",
                         "easyv-generation-feedback"),
                 Set.of("generation-quality", "stage-bottleneck", "failure-concentration",

@@ -38,6 +38,7 @@ final class PropertyCapabilityRegistration implements CapabilityRegistration {
               AnalysisRuntimeCapability.DENOMINATOR_METRIC_VARIANT_KEY,
               AnalysisRuntimeCapability.TIME_SEMANTIC_KEY,
               AnalysisRuntimeCapability.PAYMENT_TIME_SEMANTIC_KEY),
+          PropertyDataProducts.REQUIRED,
           Set.of("erp-staging", "cube", "neo4j"),
           Set.of("collection-rate", "erp-balance", "charge-structure"),
           PropertyInvocationContract.CONTRACT);
@@ -123,6 +124,7 @@ final class PropertyCapabilityRegistration implements CapabilityRegistration {
         context.turn(),
         context.executionId(),
         context.ontology(),
+        context.datasetVersionSetId(),
         context.traceId(),
         context.leaseOwner());
   }

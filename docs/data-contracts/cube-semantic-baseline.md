@@ -15,14 +15,14 @@
 
 项目口径表示“当年全年正常应收账单”：
 
-- 应收来源：`erp_staging.dw_datacenter_charge`
+- 应收来源：受 `DatasetVersionSet` 约束的 `facts.property_receivable`
 - 应收过滤：
   - `isDelete = 0`
   - `isCheck = '审核通过'`
   - `chargeItemType = '1'`
 - 应收金额字段：`actualChargeSum`
 - 应收时间语义：`shouldAccountBook`，即“应收账期”
-- 实收来源：`erp_staging.dw_datacenter_bill`
+- 实收来源：同一 `DatasetVersionSet` 中的 `facts.property_payment`
 - 实收过滤：
   - `isDelete = 0`
   - `isEnterAccount = 1`
@@ -96,5 +96,6 @@
 ## 设计约束
 
 - 上层分析编排只消费平台内部 metric contract，不直接手写 Cube query。
+- 每次 Cube 查询必须同时携带 execution 绑定的 `productVersionId`；禁止仅按 latest 或裸 canonical 表查询。
 - 收费主题必须显式区分“应收 cohort 时间语义”和“实收支付时间语义”。
 - 项目口径和尾欠口径必须作为一等指标存在，不能再通过同一个泛化 Finance 指标硬混。

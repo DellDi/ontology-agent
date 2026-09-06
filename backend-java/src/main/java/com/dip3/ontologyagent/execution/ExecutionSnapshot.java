@@ -7,12 +7,32 @@ import java.util.Map;
 public record ExecutionSnapshot(String executionId, String sessionId, String ownerUserId, String followUpId,
                                 String ontologyVersionId, Map<String, Object> ontologyVersionBinding,
                                 Map<String, Object> capabilityBinding,
+                                String datasetVersionSetId,
                                 String status, Map<String, Object> planSnapshot,
                                 List<ExecutionEvent> stepResults, Map<String, Object> conclusionState,
                                 List<Map<String, Object>> resultBlocks, Map<String, Object> mobileProjection,
                                 Map<String, Object> failurePoint,
                                 String errorCode, String traceId, Instant createdAt, Instant updatedAt) {
+    public ExecutionSnapshot(String executionId, String sessionId, String ownerUserId,
+                             String followUpId, String ontologyVersionId,
+                             Map<String, Object> ontologyVersionBinding,
+                             Map<String, Object> capabilityBinding, String status,
+                             Map<String, Object> planSnapshot, List<ExecutionEvent> stepResults,
+                             Map<String, Object> conclusionState,
+                             List<Map<String, Object>> resultBlocks,
+                             Map<String, Object> mobileProjection,
+                             Map<String, Object> failurePoint, String errorCode, String traceId,
+                             Instant createdAt, Instant updatedAt) {
+        this(executionId, sessionId, ownerUserId, followUpId, ontologyVersionId,
+                ontologyVersionBinding, capabilityBinding, null, status, planSnapshot,
+                stepResults, conclusionState, resultBlocks, mobileProjection, failurePoint,
+                errorCode, traceId, createdAt, updatedAt);
+    }
+
     public ExecutionSnapshot {
+        if (datasetVersionSetId != null && datasetVersionSetId.isBlank()) {
+            throw new IllegalArgumentException("datasetVersionSetId must not be blank");
+        }
         capabilityBinding = capabilityBinding == null
                 ? com.dip3.ontologyagent.capability.api.CapabilityBinding.legacySnapshot()
                 : Map.copyOf(capabilityBinding);

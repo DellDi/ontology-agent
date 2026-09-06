@@ -15,6 +15,7 @@ import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.capability.api.CapabilityResult;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
@@ -53,6 +54,7 @@ class AnalysisWorkerTest {
     private final AgentInvocationRepository invocations = mock(AgentInvocationRepository.class);
     private final InvocationEventRecorder recorder = mock(InvocationEventRecorder.class);
     private final CapabilityRegistry capabilities = mock(CapabilityRegistry.class);
+    private final DatasetVersionSetRegistry datasetVersionSets = mock(DatasetVersionSetRegistry.class);
     private final AuthSession workerOwner = new AuthSession("worker:test", "user-1", "user-1",
             new AccessScope("org-1", List.of("project-1"), List.of(), List.of()), Instant.MAX);
     private final CapabilityBinding binding = propertyBinding(workerOwner, "ontology-1");
@@ -84,7 +86,8 @@ class AnalysisWorkerTest {
                     .toList();
             return new CapabilityResult<>(selected, scopeRef, value, evidence);
         });
-        worker = new AnalysisWorker(executions, sessions, ontologies, invocations, recorder, capabilities);
+        worker = new AnalysisWorker(executions, sessions, ontologies, invocations, recorder, capabilities,
+                datasetVersionSets);
     }
 
     @AfterEach
@@ -124,6 +127,27 @@ class AnalysisWorkerTest {
     }
 
     @Test
+    void missingCanonicalVersionSetFailsBeforeAnyModelInvocation() {
+        CapabilityBinding easyv = easyvBinding(workerOwner, "ontology-1");
+        ExecutionJob unbound = new ExecutionJob("execution-1", ExecutionRepository.EXECUTION_CONTRACT,
+                "session-1", "user-1", "org-1", List.of("project-1"), List.of(),
+                "分析 EasyV 大屏生成质量", "trace-1", "ontology-1", easyv,
+                null, null, null, Map.of(), Map.of(), "worker-1", 1, 2);
+        when(executions.claim(anyString(), any())).thenReturn(Optional.of(unbound));
+        when(capabilities.require(any(), any(), any())).thenReturn(easyvDescriptor());
+
+        assertTrue(worker.runOne("worker-1"));
+
+        verify(recorder, never()).startAgentRun(anyString(), anyString(), anyString(), anyMap(),
+                anyString(), anyString());
+        verify(capabilities, never()).execute(any(), any());
+        verify(executions).failAtomically(anyString(), anyString(), any(), any(),
+                org.mockito.ArgumentMatchers.eq("DATASET_VERSION_SET_MISSING"),
+                org.mockito.ArgumentMatchers.eq("执行任务缺少冻结的数据版本集合，拒绝调用模型。"),
+                org.mockito.ArgumentMatchers.eq("trace-1"));
+    }
+
+    @Test
     void duplicateWorkflowAuditBecomesAPersistedFailureWithoutSuccessFallback() {
         when(mainAgent.execute(any(), any(AgentTurn.class), anyString(), any(), anyString(), anyString()))
                 .thenReturn(new WorkflowResult(Map.of(), List.of(), "结论", List.of(), List.of()));
@@ -146,7 +170,8 @@ class AnalysisWorkerTest {
     @Test
     void invocationTypeToolNameAndExactCountComeFromTheCapabilityDescriptor() {
         CapabilityDescriptor custom = new CapabilityDescriptor(binding.id(), "自定义能力",
-                java.util.Set.of("project"), java.util.Set.of("erp-staging", "cube", "neo4j"),
+                java.util.Set.of("project"), java.util.Set.of(),
+                java.util.Set.of("erp-staging", "cube", "neo4j"),
                 java.util.Set.of("collection-rate", "erp-balance", "charge-structure"),
                 new CapabilityInvocationContract("custom-invocation", "custom_workflow", 2,
                         "Custom Agent", "Custom Workflow", "customInvocations"));
@@ -200,7 +225,8 @@ class AnalysisWorkerTest {
                 "session-1", "user-1", "org-1", List.of("project-1"), List.of(), "分析收缴率", "trace-1",
                 "ontology-1", binding, null, null, Map.of(), Map.of(), "worker-2", 2, 2);
         CapabilityDescriptor custom = new CapabilityDescriptor(binding.id(), "自定义能力",
-                java.util.Set.of("project"), java.util.Set.of("erp-staging", "cube", "neo4j"),
+                java.util.Set.of("project"), java.util.Set.of(),
+                java.util.Set.of("erp-staging", "cube", "neo4j"),
                 java.util.Set.of("collection-rate", "erp-balance", "charge-structure"),
                 new CapabilityInvocationContract("custom-invocation", "custom_workflow", 2,
                         "Custom Agent", "Custom Workflow", "customInvocations"));
@@ -312,7 +338,8 @@ class AnalysisWorkerTest {
         CapabilityBinding easyv = easyvBinding(easyvOwner, "ontology-v2");
         ExecutionJob easyvJob = new ExecutionJob("easyv-execution", ExecutionRepository.EXECUTION_CONTRACT,
                 "session-1", "123", "org-1", List.of(), List.of(), "分析大屏生成质量", "trace-easyv",
-                "ontology-v2", easyv, null, null, Map.of(), Map.of(), "worker-easyv", 1, 2);
+                "ontology-v2", easyv, "easyv-set-1", null, null, Map.of(), Map.of(),
+                "worker-easyv", 1, 2);
         OntologyCatalog pinned = new OntologyCatalog("ontology-v2", "2.0.0",
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         CapabilityDescriptor descriptor = easyvDescriptor();
@@ -352,7 +379,8 @@ class AnalysisWorkerTest {
         CapabilityBinding easyv = easyvBinding(easyvOwner, "ontology-v2");
         ExecutionJob retry = new ExecutionJob("easyv-execution", ExecutionRepository.EXECUTION_CONTRACT,
                 "session-1", "123", "org-1", List.of(), List.of(), "分析大屏生成质量", "trace-easyv",
-                "ontology-v2", easyv, null, null, Map.of(), Map.of(), "worker-easyv", 2, 2);
+                "ontology-v2", easyv, "easyv-set-1", null, null, Map.of(), Map.of(),
+                "worker-easyv", 2, 2);
         OntologyCatalog pinned = new OntologyCatalog("ontology-v2", "2.0.0",
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         CapabilityDescriptor descriptor = easyvDescriptor();

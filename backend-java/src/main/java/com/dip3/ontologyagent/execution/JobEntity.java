@@ -30,6 +30,7 @@ public class JobEntity {
     public String ownerUserId;
     public String organizationId;
     public String sessionId;
+    public String datasetVersionSetId;
     public String originCorrelationId;
     public Instant createdAt;
     public Instant updatedAt;

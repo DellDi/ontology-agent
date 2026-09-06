@@ -161,6 +161,7 @@ class AnalysisFollowUpServiceTest {
     source.ownerUserId = "123";
     source.ontologyVersionId = "ontology-v2";
     source.capabilityBinding = easyv.snapshot();
+    source.datasetVersionSetId = "easyv-set-1";
     source.planSnapshot = Map.of("_resolvedContext", easyvContext, "steps", List.of(Map.of("id", "read")));
     source.conclusionState =
         Map.of("causes", List.of(Map.of("title", "EasyV 结论", "summary", "生成质量结论")));
@@ -179,9 +180,11 @@ class AnalysisFollowUpServiceTest {
     assertEquals("easyv-execution", result.referencedExecutionId());
     assertEquals("ontology-v2", result.ontologyVersionId());
     assertEquals(easyv.snapshot(), result.capabilityBinding());
+    assertEquals("easyv-set-1", result.datasetVersionSetId());
     assertEquals(easyvContext, result.inheritedContext());
     assertEquals(easyvContext, result.mergedContext());
     verify(analyses).followUpPolicy(easyvOwner, easyv);
+    verify(analyses).validateDatasetVersionSet(easyvOwner, easyv, "easyv-set-1");
     verify(analyses, never()).createSession(any(), any());
   }
 
@@ -519,7 +522,9 @@ class AnalysisFollowUpServiceTest {
     CapabilityBinding binding = propertyBinding(owner, "ontology-1");
     when(repository.lockOwned("follow-1", "session-1", "user-1"))
         .thenReturn(Optional.of(current));
-    when(executions.submitFollowUp(any(), any(), any(), any(), any(), any(), any(), any(), eq(binding)))
+    when(repository.completedSourceSnapshot(current)).thenReturn(Optional.of(snapshot()));
+    when(executions.submitFollowUp(any(), any(), any(), any(), any(), any(), any(), any(), eq(binding),
+            org.mockito.ArgumentMatchers.isNull()))
         .thenReturn(new ExecutionSubmission("execution-follow", true));
 
     TransactionSynchronizationManager.initSynchronization();
@@ -534,7 +539,8 @@ class AnalysisFollowUpServiceTest {
     verify(analyses).validateCapabilityBinding(owner, binding);
     verify(analyses).followUpPolicy(owner, binding);
     verify(executions)
-        .submitFollowUp(any(), any(), any(), any(), any(), any(), any(), any(), eq(binding));
+        .submitFollowUp(any(), any(), any(), any(), any(), any(), any(), any(), eq(binding),
+            org.mockito.ArgumentMatchers.isNull());
     verify(wakeups, never()).publish(any());
   }
 

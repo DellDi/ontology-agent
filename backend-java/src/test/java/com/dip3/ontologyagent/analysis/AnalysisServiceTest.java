@@ -7,6 +7,8 @@ import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.execution.ExecutionSubmission;
 import com.dip3.ontologyagent.execution.WakeupPublisher;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.property.internal.domain.AnalysisCapabilityPolicy;
@@ -38,6 +40,7 @@ class AnalysisServiceTest {
     private final WakeupPublisher wakeups = mock(WakeupPublisher.class);
     private final OntologyRepository ontologies = mock(OntologyRepository.class);
     private final CapabilityRegistry capabilities = mock(CapabilityRegistry.class);
+    private final DatasetVersionSetRegistry datasetVersionSets = mock(DatasetVersionSetRegistry.class);
     private final AuthSession owner = new AuthSession("auth-1", "user-1", "用户",
             new AccessScope("org-1", List.of("project-1"), List.of(), List.of("analyst")), Instant.MAX);
     private final AnalysisSession session = new AnalysisSession("session-1", "user-1", owner.scope(), "分析收缴率",
@@ -64,7 +67,10 @@ class AnalysisServiceTest {
             return PROPERTY_ID;
         });
         when(capabilities.bind(PROPERTY_ID, ontology, owner)).thenReturn(binding);
-        service = new AnalysisService(sessions, executions, wakeups, ontologies, capabilities);
+        when(capabilities.require(binding, ontology, owner))
+                .thenReturn(com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyDescriptor());
+        service = new AnalysisService(sessions, executions, wakeups, ontologies, capabilities,
+                datasetVersionSets);
     }
 
     @Test
@@ -153,14 +159,28 @@ class AnalysisServiceTest {
         when(sessions.findOwned("easyv-session", easyvOwner)).thenReturn(Optional.of(easyvSession));
         when(ontologies.currentPublished()).thenReturn(v2);
         when(capabilities.bind(EASYV_ID, v2, easyvOwner)).thenReturn(easyvBinding);
-        when(executions.submit(easyvSession, "initial", "trace-easyv", easyvBinding))
+        when(capabilities.require(easyvBinding, v2, easyvOwner))
+                .thenReturn(com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvDescriptor());
+        Instant capturedAt = Instant.now();
+        DatasetVersionSet versionSet = new DatasetVersionSet("easyv-set-1", Map.of(
+                "easyv-ai-application", "app-v1",
+                "easyv-prototype-task", "prototype-v1",
+                "easyv-pipeline-node", "pipeline-v1",
+                "easyv-forge-task", "forge-v1",
+                "easyv-generation-feedback", "feedback-v1"), capturedAt,
+                DatasetVersionSet.Status.FROZEN, capturedAt, capturedAt, "test");
+        when(datasetVersionSets.latestFrozen(
+                com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvDescriptor()
+                        .requiredDataProductKeys())).thenReturn(Optional.of(versionSet));
+        when(executions.submit(easyvSession, "initial", "trace-easyv", easyvBinding, "easyv-set-1"))
                 .thenReturn(new ExecutionSubmission("easyv-execution", true));
 
         assertEquals("easyv-execution", service.submit("easyv-session", easyvOwner, null, "trace-easyv"));
 
         verify(capabilities, never()).selectInitial(any());
         verify(capabilities).bind(EASYV_ID, v2, easyvOwner);
-        verify(executions).submit(easyvSession, "initial", "trace-easyv", easyvBinding);
+        verify(executions).submit(easyvSession, "initial", "trace-easyv", easyvBinding,
+                "easyv-set-1");
         assertEquals("ontology-v2", easyvBinding.ontologyVersionId());
 
         when(ontologies.currentPublished()).thenReturn(v3);

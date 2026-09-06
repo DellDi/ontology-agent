@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Map;
 
@@ -27,9 +28,11 @@ public final class GraphSyncController {
     }
 
     @PostMapping("/api/admin/graph-sync/organizations/{organizationId}/rebuild")
-    public ResponseEntity<GraphSyncRun> rebuild(@PathVariable String organizationId, HttpServletRequest request) {
+    public ResponseEntity<GraphSyncRun> rebuild(@PathVariable String organizationId,
+                                                @RequestParam(required = false) String datasetVersionSetId,
+                                                HttpServletRequest request) {
         return ResponseEntity.ok(service.rebuild(organizationId, requireAuth(request),
-                Map.of("correlationId", TraceFilter.from(request))));
+                Map.of("correlationId", TraceFilter.from(request)), datasetVersionSetId));
     }
 
     @GetMapping("/api/admin/graph-sync/organizations/{organizationId}/status")

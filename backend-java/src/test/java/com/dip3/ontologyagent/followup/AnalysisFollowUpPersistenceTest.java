@@ -126,6 +126,7 @@ class AnalysisFollowUpPersistenceTest {
                 com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding(
                         owner, ontology.versionId())))
                 .thenReturn(followUpPolicy);
+        insertSnapshot("root-" + suffix, null, "java-initial-v1");
     }
 
     @Test
@@ -320,6 +321,7 @@ class AnalysisFollowUpPersistenceTest {
                  ontology_version_binding_source,capability_binding,status,plan_snapshot,step_results,conclusion_state,
                  result_blocks,mobile_projection,created_at,updated_at)
                 values (?,?,?,?,?,'grounded-context',cast(? as jsonb),'completed',cast(? as jsonb),'[]','{}','[]','{}',?,?)
+                on conflict (execution_id) do nothing
                 """, executionId, session.id(), owner.userId(), followUpId, "ontology-" + suffix,
                 new com.dip3.ontologyagent.support.JsonCodec().write(
                         com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding(owner,

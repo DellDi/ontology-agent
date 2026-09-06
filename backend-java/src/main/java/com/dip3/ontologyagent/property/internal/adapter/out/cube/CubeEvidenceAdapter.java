@@ -7,7 +7,8 @@ import com.dip3.ontologyagent.integration.cube.OntologyMetricVariantMapper;
 import com.dip3.ontologyagent.integration.cube.OntologyMetricVariantEntity;
 import com.dip3.ontologyagent.integration.cube.OntologyTimeSemanticMapper;
 import com.dip3.ontologyagent.integration.cube.OntologyTimeSemanticEntity;
-import com.dip3.ontologyagent.integration.erp.ScopedProjectResolver;
+import com.dip3.ontologyagent.property.internal.adapter.out.postgres.PropertyCanonicalScope;
+import com.dip3.ontologyagent.property.internal.application.PropertyDataProducts;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
 import com.dip3.ontologyagent.tooling.Evidence;
@@ -27,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,17 +39,18 @@ public final class CubeEvidenceAdapter implements EvidenceProvider {
     private final OntologyMetricVariantMapper metrics;
     private final OntologyTimeSemanticMapper times;
     private final JsonCodec json;
-    private final ScopedProjectResolver scopedProjects;
+    private final PropertyCanonicalScope canonicalScope;
     private final RestClient http;
     private final String loadUrl;
     private final String secret;
 
     public CubeEvidenceAdapter(OntologyMetricVariantMapper metrics, OntologyTimeSemanticMapper times,
-                               JsonCodec json, ScopedProjectResolver scopedProjects, BackendProperties properties) {
+                               JsonCodec json, PropertyCanonicalScope canonicalScope,
+                               BackendProperties properties) {
         this.metrics = metrics;
         this.times = times;
         this.json = json;
-        this.scopedProjects = scopedProjects;
+        this.canonicalScope = canonicalScope;
         var config = properties.cube();
         var requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(config.timeout());
@@ -60,14 +63,17 @@ public final class CubeEvidenceAdapter implements EvidenceProvider {
     @Override
     public Evidence collect(AuthSession owner, WorkflowRequest request) {
         AnalysisRuntimeCapability.validateKeys(request);
+        PropertyCanonicalScope.Resolved scope = canonicalScope.resolve(owner, request);
         MetricMapping mapping = metric(request.ontologyVersionId(), request.metricVariantKey());
         if (mapping.numeratorMetricKey() != null && mapping.denominatorMetricKey() != null) {
             MetricMapping numeratorMetric = metric(request.ontologyVersionId(), mapping.numeratorMetricKey());
             MetricMapping denominatorMetric = metric(request.ontologyVersionId(), mapping.denominatorMetricKey());
             TimeMapping cohort = time(request.ontologyVersionId(), request.timeSemanticKey());
             TimeMapping payment = time(request.ontologyVersionId(), "payment-date");
-            List<Map<String, Object>> numerator = load(owner, request, numeratorMetric, List.of(cohort, payment), true);
-            List<Map<String, Object>> denominator = load(owner, request, denominatorMetric, List.of(cohort), false);
+            List<Map<String, Object>> numerator = load(request, scope,
+                    numeratorMetric, List.of(cohort, payment), true);
+            List<Map<String, Object>> denominator = load(request, scope,
+                    denominatorMetric, List.of(cohort), false);
             double numeratorTotal = total(numerator, numeratorMetric.cubeMeasure());
             double denominatorTotal = total(denominator, denominatorMetric.cubeMeasure());
             if (denominatorTotal <= 0) {
@@ -81,22 +87,28 @@ public final class CubeEvidenceAdapter implements EvidenceProvider {
                     "from", request.from().toString(), "to", request.to().toString())));
         }
         return new Evidence("cube", "Cube 受治理语义指标",
-                load(owner, request, mapping,
+                load(request, scope, mapping,
                         List.of(time(request.ontologyVersionId(), request.timeSemanticKey())), false));
     }
 
-    private List<Map<String, Object>> load(AuthSession owner, WorkflowRequest request, MetricMapping metric,
+    private List<Map<String, Object>> load(WorkflowRequest request, PropertyCanonicalScope.Resolved scope,
+                                           MetricMapping metric,
                                            List<TimeMapping> timeMappings, boolean allowEmpty) {
         if (metric.cubeMeasure() == null || metric.cubeMeasure().indexOf('.') < 1) {
             throw new BackendException("CUBE_MAPPING_INVALID", "指标 " + metric.businessKey() + " 缺少 cubeMeasure。");
         }
         String cubeName = metric.cubeMeasure().substring(0, metric.cubeMeasure().indexOf('.'));
         String scopeMember = cubeName + ".projectId";
-        List<String> scopeValues = scopedProjects.resolve(owner, request.projectIds());
+        List<String> scopeValues = scope.projectIds();
+        String productVersionId = productVersionId(scope, cubeName);
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("measures", List.of(metric.cubeMeasure()));
         query.put("dimensions", List.of(cubeName + ".projectId", cubeName + ".projectName"));
-        query.put("filters", List.of(Map.of("member", scopeMember, "operator", "equals", "values", scopeValues)));
+        List<Map<String, Object>> filters = new ArrayList<>();
+        filters.add(Map.of("member", scopeMember, "operator", "equals", "values", scopeValues));
+        filters.add(Map.of("member", cubeName + ".productVersionId", "operator", "equals",
+                "values", List.of(productVersionId)));
+        query.put("filters", filters);
         query.put("timeDimensions", timeMappings.stream().map(time -> Map.of(
                 "dimension", replaceCube(time.cubeDimension(), cubeName),
                 "dateRange", List.of(request.from().toString(), request.to().toString()),
@@ -137,6 +149,17 @@ public final class CubeEvidenceAdapter implements EvidenceProvider {
         } catch (RestClientException error) {
             throw new BackendException("CUBE_UNAVAILABLE", "Cube 语义查询不可用。", error);
         }
+    }
+
+    private static String productVersionId(PropertyCanonicalScope.Resolved scope, String cubeName) {
+        String productKey = switch (cubeName) {
+            case "FinanceReceivables" -> PropertyDataProducts.RECEIVABLE;
+            case "FinancePayments" -> PropertyDataProducts.PAYMENT;
+            case "ServiceOrders" -> PropertyDataProducts.SERVICE_ORDER;
+            default -> throw new BackendException("CUBE_MAPPING_INVALID",
+                    "指标 " + cubeName + " 不属于受治理的物业 Cube 主题。");
+        };
+        return scope.version(productKey);
     }
 
     private MetricMapping metric(String versionId, String key) {
