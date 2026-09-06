@@ -1,0 +1,43 @@
+# One-shot source ingestion profile. The runner exits after one release attempt.
+spring:
+  main:
+    web-application-type: none
+  task:
+    scheduling:
+      enabled: false
+  ai:
+    openai:
+      base-url: http://127.0.0.1:1
+      api-key: ingest-only
+      chat:
+        model: ingest-only
+        max-retries: 0
+        parallel-tool-calls: false
+  data:
+    redis:
+      url: redis://127.0.0.1:1
+
+dip3:
+  session-secret: ingest-only-session-secret
+  redis-key-prefix: ingest-only
+  ai:
+    provider:
+      mode: openai-compatible
+      tool-calling: true
+      structured-output: native-json-schema
+  worker:
+    enabled: false
+  graph-sync:
+    enabled: false
+  cube:
+    api-url: http://127.0.0.1:1/cubejs-api/v1
+    api-secret: ingest-only
+    timeout: 1s
+  neo4j:
+    uri: bolt://127.0.0.1:1
+    username: neo4j
+    password: ingest-only
+    database: neo4j
+  stream:
+    poll-delay: 10ms
+    timeout: 1s
