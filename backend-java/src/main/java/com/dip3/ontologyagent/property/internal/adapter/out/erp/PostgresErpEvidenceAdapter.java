@@ -54,7 +54,9 @@ public final class PostgresErpEvidenceAdapter implements EvidenceProvider {
         if (rows == null) {
             throw new BackendException("PROPERTY_FACTS_READ_FAILED", "物业 canonical facts 未返回查询结果。");
         }
-        return new Evidence("erp-staging", "ERP 范围内收费事实", rows);
+        return new Evidence("erp-staging", "ERP 范围内收费事实", rows,
+                scope.provenance(request.ontologyVersionId(),
+                        PropertyDataProducts.RECEIVABLE, PropertyDataProducts.PAYMENT));
     }
 
     private List<Map<String, Object>> query(PropertyCanonicalScope.Resolved scope,

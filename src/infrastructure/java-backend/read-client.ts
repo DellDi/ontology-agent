@@ -89,9 +89,16 @@ const evidenceProjectionSchema = z.strictObject({
   title: z.string().min(1),
   rowCount: z.number().int().positive(),
   rows: z.array(jsonObjectSchema).min(1),
+  ontologyVersionId: z.string().min(1),
+  datasetVersionSetId: z.string().min(1),
+  freshnessAt: z.string().min(1),
+  productVersionIds: z.record(z.string().min(1), z.string().min(1)),
 }).refine(
   ({ rowCount, rows }) => rowCount === rows.length,
   { message: 'evidence.rowCount 必须与 rows 数量一致。', path: ['rowCount'] },
+).refine(
+  ({ productVersionIds }) => Object.keys(productVersionIds).length > 0,
+  { message: 'evidence.productVersionIds 不能为空。', path: ['productVersionIds'] },
 );
 
 const groundedClaimSchema = z.strictObject({

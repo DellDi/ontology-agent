@@ -187,7 +187,8 @@ class CubeEvidenceAdapterTest {
                 PropertyDataProducts.CHARGE_ITEM, "charge-item-v1",
                 PropertyDataProducts.RECEIVABLE, "receivable-v1",
                 PropertyDataProducts.PAYMENT, "payment-v1",
-                PropertyDataProducts.SERVICE_ORDER, "service-order-v1"), List.of("project-1"));
+                PropertyDataProducts.SERVICE_ORDER, "service-order-v1"), List.of("project-1"),
+                Instant.parse("2026-08-01T03:00:00Z"));
     }
 
     private static AuthSession owner() {

@@ -69,13 +69,25 @@ class AnalysisServiceTest {
         when(capabilities.bind(PROPERTY_ID, ontology, owner)).thenReturn(binding);
         when(capabilities.require(binding, ontology, owner))
                 .thenReturn(com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyDescriptor());
+        Instant capturedAt = Instant.parse("2026-08-01T03:00:00Z");
+        DatasetVersionSet propertySet = new DatasetVersionSet("property-set-1", Map.of(
+                "property-organization", "organization-v1",
+                "property-project", "project-v1",
+                "property-charge-item", "charge-item-v1",
+                "property-receivable", "receivable-v1",
+                "property-payment", "payment-v1",
+                "property-service-order", "service-order-v1"), capturedAt,
+                DatasetVersionSet.Status.FROZEN, capturedAt, capturedAt, "test");
+        when(datasetVersionSets.latestFrozen(
+                com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyDescriptor()
+                        .requiredDataProductKeys())).thenReturn(Optional.of(propertySet));
         service = new AnalysisService(sessions, executions, wakeups, ontologies, capabilities,
                 datasetVersionSets);
     }
 
     @Test
     void redisWakeupFailureRemainsObservableWithoutDestroyingThePostgresQueue() {
-        when(executions.submit(session, "request-1", "trace-1", binding))
+        when(executions.submit(session, "request-1", "trace-1", binding, "property-set-1"))
                 .thenReturn(new ExecutionSubmission("execution-1", true));
         org.mockito.Mockito.doThrow(new IllegalStateException("redis unavailable"))
                 .when(wakeups).publish("execution-1");
@@ -91,7 +103,7 @@ class AnalysisServiceTest {
 
     @Test
     void idempotentReplayDoesNotPublishOrMutateTheCompletedExecution() {
-        when(executions.submit(session, "request-1", "trace-2", binding))
+        when(executions.submit(session, "request-1", "trace-2", binding, "property-set-1"))
                 .thenReturn(new ExecutionSubmission("execution-1", false));
 
         assertEquals("execution-1", service.submit("session-1", owner, "request-1", "trace-2"));
@@ -103,7 +115,7 @@ class AnalysisServiceTest {
 
     @Test
     void browserFormSubmissionUsesAStableInitialIdempotencyKey() {
-        when(executions.submit(session, "initial", "trace-3", binding))
+        when(executions.submit(session, "initial", "trace-3", binding, "property-set-1"))
                 .thenReturn(new ExecutionSubmission("execution-1", false));
 
         assertEquals("execution-1", service.submit("session-1", owner, null, "trace-3"));

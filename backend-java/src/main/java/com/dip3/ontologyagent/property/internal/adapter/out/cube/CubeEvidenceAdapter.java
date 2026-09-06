@@ -84,11 +84,14 @@ public final class CubeEvidenceAdapter implements EvidenceProvider {
                     "value", ratio(numeratorTotal, denominatorTotal),
                     "numerator", numeratorTotal, "denominator", denominatorTotal,
                     "numeratorRowCount", numerator.size(), "denominatorRowCount", denominator.size(),
-                    "from", request.from().toString(), "to", request.to().toString())));
+                    "from", request.from().toString(), "to", request.to().toString())),
+                    scope.provenance(request.ontologyVersionId(),
+                            PropertyDataProducts.PAYMENT, PropertyDataProducts.RECEIVABLE));
         }
         return new Evidence("cube", "Cube 受治理语义指标",
                 load(request, scope, mapping,
-                        List.of(time(request.ontologyVersionId(), request.timeSemanticKey())), false));
+                        List.of(time(request.ontologyVersionId(), request.timeSemanticKey())), false),
+                scope.provenance(request.ontologyVersionId(), productKey(cubeName(mapping))));
     }
 
     private List<Map<String, Object>> load(WorkflowRequest request, PropertyCanonicalScope.Resolved scope,
@@ -151,15 +154,25 @@ public final class CubeEvidenceAdapter implements EvidenceProvider {
         }
     }
 
-    private static String productVersionId(PropertyCanonicalScope.Resolved scope, String cubeName) {
-        String productKey = switch (cubeName) {
+    private static String cubeName(MetricMapping metric) {
+        if (metric.cubeMeasure() == null || metric.cubeMeasure().indexOf('.') < 1) {
+            throw new BackendException("CUBE_MAPPING_INVALID", "指标 " + metric.businessKey() + " 缺少 cubeMeasure。");
+        }
+        return metric.cubeMeasure().substring(0, metric.cubeMeasure().indexOf('.'));
+    }
+
+    private static String productKey(String cubeName) {
+        return switch (cubeName) {
             case "FinanceReceivables" -> PropertyDataProducts.RECEIVABLE;
             case "FinancePayments" -> PropertyDataProducts.PAYMENT;
             case "ServiceOrders" -> PropertyDataProducts.SERVICE_ORDER;
             default -> throw new BackendException("CUBE_MAPPING_INVALID",
                     "指标 " + cubeName + " 不属于受治理的物业 Cube 主题。");
         };
-        return scope.version(productKey);
+    }
+
+    private static String productVersionId(PropertyCanonicalScope.Resolved scope, String cubeName) {
+        return scope.version(productKey(cubeName));
     }
 
     private MetricMapping metric(String versionId, String key) {

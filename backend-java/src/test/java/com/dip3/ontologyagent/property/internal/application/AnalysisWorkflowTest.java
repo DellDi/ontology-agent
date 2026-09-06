@@ -30,6 +30,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyProvenance;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -128,7 +129,8 @@ class AnalysisWorkflowTest {
     @Test
     void emptyRequiredEvidenceStopsBeforeConclusion() {
         when(erp.collect(owner, request)).thenReturn(evidence("erp-staging"));
-        when(cube.collect(owner, request)).thenReturn(new Evidence("cube", "cube", List.of()));
+        when(cube.collect(owner, request)).thenReturn(
+                com.dip3.ontologyagent.support.CapabilityTestFixtures.evidence("cube", "cube", List.of()));
         when(graph.collect(owner, request)).thenReturn(evidence("neo4j"));
 
         BackendException error = assertThrows(BackendException.class,
@@ -338,18 +340,19 @@ class AnalysisWorkflowTest {
     }
 
     private static Evidence evidence(String source) {
-        return new Evidence(source, source, List.of(Map.of("value", 1)));
+        return com.dip3.ontologyagent.support.CapabilityTestFixtures.evidence(
+                source, source, List.of(Map.of("value", 1)));
     }
 
     private static Evidence erpEvidence(int paid) {
         return new Evidence("erp-staging", "ERP", List.of(Map.of(
                 "projectId", "project-1", "projectName", "项目一", "receivableAmount", 1000,
-                "paidAmount", paid, "arrearsAmount", 1000 - paid)));
+                "paidAmount", paid, "arrearsAmount", 1000 - paid)), propertyProvenance());
     }
 
     private static Evidence cubeEvidence() {
         return new Evidence("cube", "Cube", List.of(Map.of(
-                "value", 80, "numerator", 800, "denominator", 1000)));
+                "value", 80, "numerator", 800, "denominator", 1000)), propertyProvenance());
     }
 
     private static GroundedConclusion grounded(String text) {
