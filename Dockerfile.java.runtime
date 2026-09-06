@@ -1,0 +1,24 @@
+ARG JAVA_RUNTIME_BASE=quay.io/centos/centos:stream9-minimal@sha256:0b99db0d872f5e28d7d0d9e05abc29e2475ce3a985fa63bcd4357b78aa6d5c95
+FROM ${JAVA_RUNTIME_BASE}
+
+RUN microdnf install -y java-21-openjdk-headless shadow-utils \
+    && microdnf clean all \
+    && groupadd --system --gid 1001 spring \
+    && useradd --system --uid 1001 --gid spring --create-home spring
+
+ARG BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision=${BUILD_REVISION}
+
+ENV TZ=Asia/Taipei
+ENV JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Taipei
+ENV GIT_COMMIT_SHA=${BUILD_REVISION}
+
+WORKDIR /app
+
+COPY --chown=spring:spring ontology-agent-backend-*.jar /app/application.jar
+
+USER spring
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "/app/application.jar"]

@@ -213,7 +213,8 @@ mvn -f backend-java/pom.xml -Dit.test=LiveEasyVProviderIT \
 - `cube/conf/model/Finance.js`
 - `cube/conf/model/ServiceOrders.js`
 
-它们直接面向当前已存在的 `erp_staging` 表，覆盖：
+它们只面向 `facts.property_receivable`、`facts.property_payment` 与
+`facts.property_service_order` canonical products，覆盖：
 
 - `Finance`：收缴率、应收金额、实收金额
 - `ServiceOrders`：工单总量、投诉量、平均满意度、平均响应时长、平均关闭时长
@@ -232,7 +233,8 @@ mvn -f backend-java/pom.xml -Dit.test=LiveEasyVProviderIT \
 curl http://127.0.0.1:4000/readyz
 ```
 
-如果需要验证应用侧到 Cube 的签名请求，优先通过语义查询链路或对应 story 测试验证，不再维护手工鉴权生成入口。
+如果需要验证应用侧到 Cube 的签名请求，优先通过绑定 frozen `DatasetVersionSet` 的语义查询链路或对应
+story 测试验证，不再维护手工鉴权生成入口。裸表查询不能作为版本一致性验收。
 
 ```bash
 node --test tests/story-4-4-semantic-query.test.mjs

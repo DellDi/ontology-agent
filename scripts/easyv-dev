@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+ENV_FILE=${EASYV_DEV_ENV_FILE:-"$ROOT_DIR/.env.easyv-dev"}
+COMPOSE_FILE="$ROOT_DIR/compose.easyv-dev.yaml"
+
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+  else
+    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+  fi
+}
+
+require_env_file() {
+  if [[ ! -r "$ENV_FILE" ]]; then
+    echo "Missing deployment environment file: $ENV_FILE" >&2
+    exit 1
+  fi
+}
+
+prepare_maven() {
+  if command -v mvn >/dev/null 2>&1; then
+    return
+  fi
+  local private_maven="$ROOT_DIR/.runtime/maven/bin/mvn"
+  local private_java
+  private_java=$(find "$ROOT_DIR/.runtime/jdk-root/usr/lib/jvm" -maxdepth 1 -type d \
+    -name 'java-21-openjdk-*' -print -quit 2>/dev/null || true)
+  if [[ ! -x "$private_maven" || ! -x "$private_java/bin/java" ]]; then
+    echo "Java 21 and Maven are required; set PATH/JAVA_HOME or install the easyv-dev private runtime." >&2
+    exit 1
+  fi
+  export JAVA_HOME="$private_java"
+  export PATH="$ROOT_DIR/.runtime/maven/bin:$JAVA_HOME/bin:$PATH"
+}
+
+build_images() {
+  prepare_maven
+  local revision
+  revision=${RELEASE_REVISION:-$(git -C "$ROOT_DIR" describe --always --dirty)}
+  mvn -f "$ROOT_DIR/backend-java/pom.xml" -DskipTests package
+  docker build -f "$ROOT_DIR/Dockerfile.java.runtime" \
+    --build-arg "BUILD_REVISION=$revision" \
+    -t "ontology-agent-java:$revision" -t ontology-agent-java:easyv-dev \
+    "$ROOT_DIR/backend-java/target"
+  docker build -f "$ROOT_DIR/Dockerfile.web.runtime" \
+    --build-arg "BUILD_REVISION=$revision" \
+    -t "ontology-agent-web:$revision" -t ontology-agent-web:easyv-dev "$ROOT_DIR"
+}
+
+wait_for_health() {
+  local attempt backend web
+  for attempt in $(seq 1 24); do
+    backend=$(docker inspect ontology-agent-easyv-dev-backend-1 \
+      --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      2>/dev/null || true)
+    web=$(docker inspect ontology-agent-easyv-dev-web-1 \
+      --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      2>/dev/null || true)
+    if [[ "$backend" == "healthy" && "$web" == "healthy" ]]; then
+      curl --fail --silent http://127.0.0.1:8080/actuator/health/easyv
+      echo
+      return
+    fi
+    sleep 5
+  done
+  compose ps --all
+  echo "easyv-dev services did not become healthy" >&2
+  exit 1
+}
+
+run_ingestion() {
+  local mode=${1:-INCREMENTAL}
+  mode=${mode^^}
+  if [[ "$mode" != "FULL" && "$mode" != "INCREMENTAL" ]]; then
+    echo "ingest mode must be FULL or INCREMENTAL" >&2
+    exit 1
+  fi
+  local key
+  for key in EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD; do
+    if [[ -z ${!key:-} ]]; then
+      echo "Missing source environment variable: $key" >&2
+      exit 1
+    fi
+  done
+  EASYV_POSTGRES_SCHEMA=${EASYV_POSTGRES_SCHEMA:-easyv_saas} \
+  EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE=${EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE:-true} \
+  INGEST_MODE="$mode" compose --profile ops run --rm ingest
+}
+
+run_property_ingestion() {
+  local mode=${1:-INCREMENTAL}
+  mode=${mode^^}
+  if [[ "$mode" != "FULL" && "$mode" != "INCREMENTAL" ]]; then
+    echo "property-ingest mode must be FULL or INCREMENTAL" >&2
+    exit 1
+  fi
+  PROPERTY_INGEST_MODE="$mode" compose --profile ops run --rm property-ingest
+}
+
+run_graph_bootstrap() {
+  local dataset_version_set_id=${1:-}
+  local curl_script='curl --fail --silent --show-error --request POST --header "X-Graph-Sync-Ops-Secret: $GRAPH_SYNC_OPS_SECRET"'
+  if [[ -n "$dataset_version_set_id" ]]; then
+    curl_script+=' --data-urlencode "datasetVersionSetId=$1"'
+    curl_script+=' http://127.0.0.1:8080/api/system/graph-sync/bootstrap'
+    compose exec -T backend sh -c "$curl_script" -- "$dataset_version_set_id"
+  else
+    curl_script+=' http://127.0.0.1:8080/api/system/graph-sync/bootstrap'
+    compose exec -T backend sh -c "$curl_script"
+  fi
+  echo
+}
+
+run_infrastructure_smoke() {
+  wait_for_health
+  compose exec -T backend sh -c \
+    'curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health/easyv'
+  echo
+  compose exec -T cube node -e \
+    "fetch('http://127.0.0.1:4000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  echo "infrastructure smoke passed"
+}
+
+command=${1:-}
+case "$command" in
+  build)
+    build_images
+    ;;
+  config)
+    require_env_file
+    compose config --quiet
+    ;;
+  migrate)
+    require_env_file
+    compose run --rm migrate
+    ;;
+  deploy)
+    require_env_file
+    compose config --quiet
+    compose up -d
+    wait_for_health
+    ;;
+  health)
+    require_env_file
+    wait_for_health
+    ;;
+  ingest)
+    require_env_file
+    run_ingestion "${2:-INCREMENTAL}"
+    ;;
+  property-ingest)
+    require_env_file
+    run_property_ingestion "${2:-INCREMENTAL}"
+    ;;
+  graph-bootstrap)
+    require_env_file
+    run_graph_bootstrap "${2:-}"
+    ;;
+  infrastructure-smoke|smoke)
+    require_env_file
+    run_infrastructure_smoke
+    ;;
+  status)
+    require_env_file
+    compose ps --all
+    ;;
+  logs)
+    require_env_file
+    compose logs --no-color --tail="${2:-100}" migrate backend web cube cubestore-router cubestore-worker neo4j
+    ;;
+  release)
+    require_env_file
+    build_images
+    compose config --quiet
+    compose up -d
+    wait_for_health
+    ;;
+  *)
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL]|property-ingest [FULL|INCREMENTAL]|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|status|logs [lines]|release}" >&2
+    exit 2
+    ;;
+esac

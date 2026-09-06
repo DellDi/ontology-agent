@@ -1,4 +1,4 @@
-# Ontology Agent (DIP3 - 智慧数据)
+# Ontology Agent (原生智能体架构)
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js 16">
@@ -15,8 +15,6 @@
 <p align="center">
   <b>面向多业务领域的 AI 原生语义分析与执行工作台</b>
 </p>
-
-> 当前实施状态（2026-09-01）：M3-M6 已完成源码与契约验收，Property 与 EasyV 是两个真实可执行 capability。EasyV 已通过一次真实 OpenAI-compatible 模型、test PostgreSQL 和本地一次性任务账本的完整联合门禁。运行时会冻结 domain、capability、ontology version 与 resolved scope，读接口和工作台可展示计划、证据、freshness、coverage 与失败点。EasyV 使用 creator-owned scope 和只读 facts adapter，默认关闭；test 环境验证不代表生产部署或生产数据结论。
 
 <p align="center">
   <a href="#-核心特性">核心特性</a> •
