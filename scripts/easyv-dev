@@ -102,14 +102,18 @@ run_property_ingestion() {
 
 run_graph_bootstrap() {
   local dataset_version_set_id=${1:-}
-  local curl_script='curl --fail --silent --show-error --request POST --header "X-Graph-Sync-Ops-Secret: $GRAPH_SYNC_OPS_SECRET"'
   if [[ -n "$dataset_version_set_id" ]]; then
-    curl_script+=' --data-urlencode "datasetVersionSetId=$1"'
-    curl_script+=' http://127.0.0.1:8080/api/system/graph-sync/bootstrap'
-    compose exec -T backend sh -c "$curl_script" -- "$dataset_version_set_id"
+    compose exec -T backend sh -c \
+      'curl --fail --silent --show-error --get --request POST \
+        --header "X-Graph-Sync-Ops-Secret: $GRAPH_SYNC_OPS_SECRET" \
+        --data-urlencode "datasetVersionSetId=$1" \
+        http://127.0.0.1:8080/api/system/graph-sync/bootstrap' \
+      -- "$dataset_version_set_id"
   else
-    curl_script+=' http://127.0.0.1:8080/api/system/graph-sync/bootstrap'
-    compose exec -T backend sh -c "$curl_script"
+    compose exec -T backend sh -c \
+      'curl --fail --silent --show-error --request POST \
+        --header "X-Graph-Sync-Ops-Secret: $GRAPH_SYNC_OPS_SECRET" \
+        http://127.0.0.1:8080/api/system/graph-sync/bootstrap'
   fi
   echo
 }
@@ -121,7 +125,20 @@ run_infrastructure_smoke() {
   echo
   compose exec -T cube node -e \
     "fetch('http://127.0.0.1:4000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-  echo "infrastructure smoke passed"
+  echo "easyv and cube smoke passed"
+}
+
+run_cross_domain_smoke() {
+  run_infrastructure_smoke
+  compose exec -T backend sh -c \
+    'curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health/neo4j'
+  echo
+  compose exec -T backend sh -c \
+    'curl --fail --silent --show-error --request GET \
+      --header "X-Graph-Sync-Ops-Secret: $GRAPH_SYNC_OPS_SECRET" \
+      http://127.0.0.1:8080/api/system/graph-sync/bootstrap/status'
+  echo
+  echo "cross-domain smoke passed"
 }
 
 command=${1:-}
@@ -159,9 +176,13 @@ case "$command" in
     require_env_file
     run_graph_bootstrap "${2:-}"
     ;;
-  infrastructure-smoke|smoke)
+  infrastructure-smoke)
     require_env_file
     run_infrastructure_smoke
+    ;;
+  smoke|cross-domain-smoke)
+    require_env_file
+    run_cross_domain_smoke
     ;;
   status)
     require_env_file
@@ -179,7 +200,7 @@ case "$command" in
     wait_for_health
     ;;
   *)
-    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL]|property-ingest [FULL|INCREMENTAL]|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|status|logs [lines]|release}" >&2
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL]|property-ingest [FULL|INCREMENTAL]|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
     exit 2
     ;;
 esac

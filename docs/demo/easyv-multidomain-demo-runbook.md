@@ -42,10 +42,12 @@ mvn -f backend-java/pom.xml spring-boot:run
 `backend-java/src/main/resources/application.yml` 中的正式开关是：
 
 ```text
-dip3.easyv.enabled = ${EASYV_POSTGRES_ENABLED:false}
+dip3.easyv.enabled = ${EASYV_DOMAIN_ENABLED:false}
+dip3.easyv.source.enabled = ${EASYV_POSTGRES_ENABLED:false}
 ```
 
-默认值为 `false`。只有准备好开发环境只读数据源、Ontology v2 和 EasyV 相关 Bean 后，演示环境才显式启用；不要在没有数据源的普通 Property 演示中打开它。
+`EASYV_DOMAIN_ENABLED` 打开 EasyV capability 与 canonical reader；默认 `false`。
+`EASYV_POSTGRES_ENABLED` 只允许出现在一次性 ingestion 进程，API/Worker 不得持有源库凭据。
 
 开发库演示必须满足：
 
@@ -62,7 +64,7 @@ dip3.easyv.enabled = ${EASYV_POSTGRES_ENABLED:false}
 3. 演示账号具有 Property 所需权限；EasyV 账号具有 `EASYV_ANALYST`，且 userId 是可信正数。
 4. EasyV V1 scope 仅为 `{userId, accessMode:"creator-owned"}`，不使用 `projectIds/areaIds`，也不把未确认的 `spaceIds/teamIds` 当作当前能力。
 5. 推荐 EasyV cohort 为 `2026-07-24`；现场应明确这是开发库已验证的日期范围，不是生产统计口径。
-6. 如果只演示架构链路而不读取 EasyV 数据，保持 `dip3.easyv.enabled=false`，使用测试 fixture 或已验证的只读测试环境。
+6. 如果只演示架构链路而不读取 EasyV 数据，保持 `EASYV_DOMAIN_ENABLED=false`，使用测试 fixture 或已验证的只读测试环境。
 
 ## 4. 场景 A：Property 对照演示
 

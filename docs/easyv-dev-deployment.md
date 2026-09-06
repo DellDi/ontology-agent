@@ -1,22 +1,27 @@
 # easyv-dev 内部演示部署
 
-这套部署只负责 EasyV Domain Pack 的内部演示，不启动新的 PostgreSQL，也不让 API/Worker
-直连 EasyV 源库。平台事实、审计、版本和 lineage 写入共享的 Ontology PostgreSQL；EasyV
-源账号只注入一次性 `ingest` 容器。
+这套部署复用共享 Ontology PostgreSQL，不启动新的平台数据库，也不让 API/Worker
+直连 EasyV 源库。平台事实、审计、版本和 lineage 写入共享库；EasyV 源账号只注入
+一次性 `ingest` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
+Cube 与 Neo4j 作为 Property 投影运行。
 
 ## 运行边界
 
 | 进程 | 长期运行 | 可访问 EasyV 源库 | 职责 |
 |---|---:|---:|---|
 | `web` | 是 | 否 | 页面和 Java BFF 透明代理 |
-| `backend` | 是 | 否 | EasyV 问数、LLM、API、Worker，只读 canonical facts |
+| `backend` | 是 | 否 | EasyV/Property 问数、LLM、API、Worker、Graph Sync；只读 canonical facts |
 | `valkey` | 是 | 否 | Worker 唤醒和 Chat Memory；任务事实仍在 PostgreSQL |
+| `cube` / Cube Store | 是 | 否 | Property 指标查询，只读 `facts.property_*` |
+| `neo4j` | 是 | 否 | Property 关系投影，可从冻结 Dataset Version Set 重建 |
 | `migrate` | 否 | 否 | Flyway 独立迁移共享平台库，成功后退出 |
-| `ingest` | 否 | 是，只读 | 全量/增量抽取、物化、冻结 Dataset Version Set，成功后退出 |
+| `ingest` | 否 | 是，只读 | EasyV 全量/增量抽取、物化、冻结 Dataset Version Set，成功后退出 |
+| `property-ingest` | 否 | 否 | 从平台 `erp_staging` 物化 Property canonical products，成功后退出 |
 
-Cube、Neo4j 和 ERP 属于 Property Domain Pack，本部署不声称它们可用；Graph Sync 被显式关闭。
-全局健康状态仍会诚实显示这些依赖不可用，Compose 只使用由 DB、Valkey、LLM 配置和 readiness
-组成的 `easyv` health group。启用 Property 演示时应换用完整部署，而不是给依赖配置假成功。
+EasyV 源凭据不得进入 `.env.easyv-dev` 或长期运行的 backend。Property ingestion 使用平台
+DataSource，不引入外部 ERP 账号；外部 ERP 到 `erp_staging` 的 source contract 仍未纳入
+本部署。`easyv` health group 包含 DB、Valkey、Cube、Neo4j、LLM 与 readiness，依赖失败时
+诚实报告，不配置假成功。
 
 ## 一次构建
 
@@ -91,6 +96,25 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 仍会基于已发布 head 物化完整 canonical 版本；当前无增量 cursor 的输入沿用已发布版本，不会
 把事实表清空。每次成功发布都会产生新的 frozen Dataset Version Set，分析任务绑定该 set，
 不会在执行中查询“最新版本”。
+
+`ai_screen_app.is_delete='1'` 会作为 Application tombstone 写入
+`facts.easyv_ai_application.is_deleted=true` 并随 product version 保留；EasyV 问数只统计
+`not is_deleted` 的 active Application cohort。不得为了演示清空 tombstone。
+
+## Property 物化与图投影
+
+Property 不读取外部 ERP。确认平台库已有受控 `erp_staging` 后：
+
+```bash
+scripts/easyv-dev property-ingest FULL
+scripts/easyv-dev graph-bootstrap
+scripts/easyv-dev smoke
+```
+
+`property-ingest` 发布六个 Property canonical products 并冻结 Dataset Version Set。
+`graph-bootstrap` 从最新冻结集合重建 Neo4j；传入 `datasetVersionSetId` 时只重建该集合。
+`smoke` / `cross-domain-smoke` 检查 EasyV health、Cube `readyz`、Neo4j health 和 Graph
+bootstrap 状态，不触发新的 ingestion 或 bootstrap。没有完成 `graph-bootstrap` 时 smoke 失败。
 
 失败时先看一次性容器日志，再按同一 `correlation_id` 查询：
 

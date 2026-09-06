@@ -159,9 +159,11 @@ test('easyv-dev 运维入口覆盖 Property ingestion、graph bootstrap 与基�
   assert.match(compose, /--dip3\.ingestion\.source-key=property/);
   assert.match(script, /graph-bootstrap/);
   assert.match(script, /X-Graph-Sync-Ops-Secret/);
-  assert.match(script, /infrastructure-smoke\|smoke/);
+  assert.match(script, /infrastructure-smoke/);
+  assert.match(script, /smoke\|cross-domain-smoke/);
   assert.match(script, /cube cubestore-router cubestore-worker neo4j/);
   assert.match(script, /actuator\/health\/easyv/);
+  assert.match(script, /actuator\/health\/neo4j/);
   assert.match(script, /readyz/);
   assert.match(envExample, /^PLATFORM_POSTGRES_HOST=/m);
   assert.match(envExample, /^CUBE_API_SECRET=/m);

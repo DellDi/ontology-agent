@@ -1,8 +1,8 @@
 # 自托管容器部署指南
 
-仅部署 EasyV Domain Pack、复用共享平台 PostgreSQL 的 `easyv-dev` 内部演示流程见
-[`easyv-dev-deployment.md`](./easyv-dev-deployment.md)。该流程将 source ingestion 与长期运行的
-API/Worker 凭据严格分离，不启动第二套 PostgreSQL。
+复用共享平台 PostgreSQL 的 `easyv-dev` 内部演示流程见
+[`easyv-dev-deployment.md`](./easyv-dev-deployment.md)。该流程将 EasyV source ingestion 与长期运行的
+API/Worker 凭据严格分离，并在同一 Compose 中运行 Property Cube / Neo4j；不启动第二套 PostgreSQL。
 
 ## 组件边界
 
