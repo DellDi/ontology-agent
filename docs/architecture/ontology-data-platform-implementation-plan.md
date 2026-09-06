@@ -4,9 +4,11 @@
 > 静态引用校验与 PostgreSQL 状态机/持久化适配器；P2 已完成通用 PostgreSQL Connector、
 > `row-pack-v1`、Source Ingestion 与 Product Materializer（源快照先落本地 spool，关闭后才写平台库）。
 > P3 的 EasyV Domain Pack、typed transform 和 canonical reader 已完成源码、开发测试与真实 EasyV
-> 全量/增量 gate；P4 的 runtime reader、execution dataset binding、部署级 source 隔离和真实 LLM/PG
-> 联合门禁已完成。`easyv-dev` 的 EasyV-only Compose 演示切片已部署，当前主待办转为 P5 Property
-> 复用、删除/历史口径冻结和完整 Property 基础设施接入。本文是
+> 全量/增量 gate，Application 删除口径已冻结；P4 的 runtime reader、execution dataset binding、
+> 部署级 source 隔离和真实 LLM/PG 联合门禁已完成。P5 本地代码、Cube/Neo4j 契约与 easyv-dev 运维
+> 入口已完成，真实环境 Property ingestion / Graph bootstrap 待发布。当前主待办是在 `easyv-dev`
+> 执行 V10、Property ingestion、Cube/Neo4j rebuild 与跨领域 smoke，以及冻结外部 ERP 到
+> `erp_staging` 的 source contract。本文是
 > `ontology-agent` 从“领域运行时可扩展”进入
 > “数据产品与本体实例可扩展”的实施基线。
 > 当前目标是内部演示与长期演进，不以 Kubernetes 为前提；最终部署节点为 `easyv-dev`，平台 PostgreSQL
@@ -60,7 +62,7 @@
 - `easyv` 与 `ontology_agent_test` 位于同一 PostgreSQL 服务的两个独立数据库，服务器到二者均可登录和查询；
 - 当前 EasyV 账号对五张候选表同时有读写和高权限，只能作为开发验证账号，正式 ingestion 必须使用独立只读角色；
 - `ai_screen_app`：物理主键 `id`、业务唯一键 `app_id`，有 `update_time` 与 `is_delete`，可定义
-  watermark 和软删除，但当前运行时聚合没有过滤 `is_delete`，切换前必须冻结 active/history 口径；
+  watermark 和软删除；canonical facts 保留 tombstone，runtime 只统计 `not is_deleted` 的 active Application；
 - `ai_screen_prototype`：物理主键 `id`、`app_id` 唯一且级联引用 Application，有 `update_time`、无删除字段；
 - `ai_pipeline_node_record`：物理主键 `id`，一个 `task_id` 对应多行，只有 `create_time`；数据库统计存在历史
   update/delete，不能把它声明为天然 append-only；
@@ -323,11 +325,13 @@ tie breaker、真实 `jsonb`、多页 batch、第二 dataset 失败不推进 cur
   493 / 414 / 10,223 / 476 / 1,844；增量发布产生完整 v2 product versions，而非清空 facts；
 - [ ] 人工核对 canonical 聚合和现有 golden query；
 - [x] 已实现当前明确的敏感字段边界（例如失败原因只保存 hash），但不扩展未审计字段；
-- [ ] 冻结 `is_delete`/`is_deleted` 的 active、tombstone、history 过滤与保留口径；该删除/历史语义仍未决，
-  本阶段不擅自改变 runtime 行为。
+- [x] 冻结 Application `is_delete`/`is_deleted` 口径：源 `is_delete='1'` 作为 tombstone 写入
+  `facts.easyv_ai_application.is_deleted` 并随 product version 保留；问数只统计 active 行。
+  Prototype / Pipeline / Forge / Feedback 无独立删除字段，跟随 active Application。物理删除与
+  更长 history 保留策略不在本阶段宣称。
 
-验收尚未完成：真实 source gate、canonical 行数、批次、版本和 lineage 已有证据；人工 golden query
-和删除/历史口径仍待确认。
+验收尚未完成：真实 source gate、canonical 行数、批次、版本、lineage 与删除口径已有证据；人工
+golden query 仍待确认。
 
 ### P4：Agent Runtime 切换（EasyV 联合门禁已完成）
 
@@ -343,7 +347,7 @@ tie breaker、真实 `jsonb`、多页 batch、第二 dataset 失败不推进 cur
 
 `LiveEasyVProviderIT` 已在 `easyv-dev` 使用真实 Provider、真实源库和共享平台库通过，持久化 execution 为
 `completed`，绑定 frozen Dataset Version Set，并记录一次 EasyV tool invocation。完整 Java 374 tests、Web
-50 tests 和 TypeScript 检查通过。生产只读 source role 与删除/历史语义仍未冻结，因此权限验收项保留。
+50 tests 和 TypeScript 检查通过。生产只读 source role 仍未冻结，因此权限验收项保留。
 
 ### P5：Property 复用验证（本地代码与集成门禁已完成，真实环境待发布）
 
@@ -355,27 +359,29 @@ tie breaker、真实 `jsonb`、多页 batch、第二 dataset 失败不推进 cur
 - [x] Property 只实现领域 source/transform/reader/projection adapter，不复制 EasyV 专属 service/repository。
 
 本地代码已经证明 Property 可复用共享 control plane：六个 canonical products、typed transform、Cube reader
-和 Neo4j projection 均绑定同一 frozen set。下一门禁是在 `easyv-dev` 执行 V10、真实 Property ingestion、
-Cube/Neo4j rebuild 与跨领域 smoke。外部 ERP 到现有 staging 的 source contract、最小权限、删除和历史保留
-仍需基于真实接口/表变更语义冻结，当前不把既有 staging 误称为已完成的外部 source ingestion。
+和 Neo4j projection 均绑定同一 frozen set。`compose.easyv-dev.yaml` 与 `scripts/easyv-dev` 已提供
+`property-ingest`、`graph-bootstrap` 和 `smoke`。下一门禁是在真实 `easyv-dev` 执行 V10、Property
+ingestion、Cube/Neo4j rebuild 与跨领域 smoke。外部 ERP 到现有 staging 的 source contract、最小权限、
+删除和历史保留仍需基于真实接口/表变更语义冻结，当前不把既有 staging 误称为已完成的外部 source ingestion。
 
 验收：Property 与 EasyV 共享 run/cursor/version/lineage 内核，领域 source 和 transform 保持隔离。
 
-### P6：`easyv-dev` 内部演示部署（EasyV-only 切片已运行）
+### P6：`easyv-dev` 内部演示部署（Compose 与运维入口已接入 Property 投影）
 
 - [x] 新增共享外部 PG 的 `compose.easyv-dev.yaml`，不启动本地 PostgreSQL；
 - [x] Backend、ingestion、migrate 使用同一 Java 镜像和不同运行角色；
 - [x] Valkey 在服务器容器运行，任务事实仍由 PostgreSQL 持有；
-- [ ] Cube/Cube Store、Neo4j 随 P5 Property canonical 化后接入完整演示，不伪装成 EasyV 依赖；
+- [x] Cube/Cube Store、Neo4j 作为 Property 投影接入同一 Compose，不伪装成 EasyV 依赖；
 - [x] 限制 source 连接池、固定端口和 Compose project name；
-- [x] `scripts/easyv-dev` 统一 build/config/migrate/deploy/health/ingest/status/logs/release；
-- [ ] Property bootstrap 和跨领域 smoke 在 P5 完成后加入同一入口；
+- [x] `scripts/easyv-dev` 统一 build/config/migrate/deploy/health/ingest/property-ingest/graph-bootstrap/smoke；
+- [x] Property bootstrap 和跨领域 smoke 已进入同一入口；真实 `easyv-dev` 发布与重建仍待执行；
 - [x] 真实 EasyV 问数、重启恢复、日志和失败诊断验收。
 
-2026-09-06 已在指定 `easyv-dev` 验证：Flyway v9 no-op、真实 full/incremental ingestion、EasyV health group、
-Web/Backend/Valkey 容器健康、真实 LLM 问数、backend 无 source credentials，以及 backend/web 重启恢复。
-镜像保存 Git revision OCI label；当前验证构建明确标为 `5889b09-dirty`，不是伪装成干净 commit。
-剩余部署工作属于 P5 Property 的 Cube/Neo4j/bootstrap/cross-domain smoke。
+2026-09-06 已在指定 `easyv-dev` 验证 EasyV-only 切片：Flyway v9 no-op、真实 full/incremental ingestion、
+EasyV health group、Web/Backend/Valkey 容器健康、真实 LLM 问数、backend 无 source credentials，以及
+backend/web 重启恢复。镜像保存 Git revision OCI label；当时验证构建明确标为 `5889b09-dirty`。
+当前源码已把 Cube/Neo4j/`property-ingest`/`graph-bootstrap`/`smoke` 纳入同一部署，真实 Property
+发布证据仍待该节点执行后补记。
 
 验收：指定 Git commit 可重复发布；服务器重启后自动恢复；部署版本、数据版本、Ontology 版本和 execution
 可以通过审计链关联。

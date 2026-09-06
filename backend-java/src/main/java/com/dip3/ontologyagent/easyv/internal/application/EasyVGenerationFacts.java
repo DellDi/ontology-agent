@@ -23,7 +23,20 @@ public interface EasyVGenerationFacts {
       ApplicationFacts application,
       PipelineFacts pipeline,
       ForgeFacts forge,
-      FeedbackFacts feedback) {}
+      FeedbackFacts feedback,
+      Map<String, String> productVersionIds) {
+    public Snapshot {
+      productVersionIds = productVersionIds == null ? Map.of() : Map.copyOf(productVersionIds);
+    }
+
+    public Snapshot(
+        ApplicationFacts application,
+        PipelineFacts pipeline,
+        ForgeFacts forge,
+        FeedbackFacts feedback) {
+      this(application, pipeline, forge, feedback, Map.of());
+    }
+  }
 
   record FactWindow(
       String userId, String accessMode, LocalDate from, LocalDate to, Instant freshnessAt) {}

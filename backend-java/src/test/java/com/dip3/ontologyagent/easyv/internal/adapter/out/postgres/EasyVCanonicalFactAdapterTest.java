@@ -203,6 +203,21 @@ class EasyVCanonicalFactAdapterTest {
         assertEquals("EASYV_FACTS_FUTURE_DATA", error.code());
     }
 
+    @Test
+    void deletedApplicationTombstonesAreRetainedButExcludedFromActiveCohort() {
+        EasyVGenerationFacts.Snapshot snapshot = reader.collect(query("1"));
+
+        assertEquals(1, snapshot.application().applicationCount());
+        assertEquals(1, snapshot.application().prototypeCount());
+        assertEquals(1, snapshot.pipeline().taskCount());
+        assertEquals(2, snapshot.forge().taskCount());
+        assertEquals(2, snapshot.feedback().operationCount());
+        assertEquals(1L, jdbc.queryForObject("""
+                select count(*) from facts.easyv_ai_application
+                where product_version_id=? and is_deleted
+                """, Long.class, PRODUCT_VERSIONS.get("easyv-ai-application")));
+    }
+
     private Fixture fixtureFor(TestInfo testInfo) {
         String name = testInfo.getTestMethod().orElseThrow().getName();
         return switch (name) {
@@ -216,6 +231,8 @@ class EasyVCanonicalFactAdapterTest {
             case "orphanFeedbackIsRejectedInsteadOfEscapingCreatorCohort" -> Fixture.ORPHAN_FEEDBACK;
             case "pipelineSuccessFailureConflictIsExplicitlyRejected" -> Fixture.PIPELINE_CONFLICT;
             case "futureFactInSelectedCohortIsRejectedWithFutureDataCode" -> Fixture.FUTURE_FACT;
+            case "deletedApplicationTombstonesAreRetainedButExcludedFromActiveCohort" ->
+                    Fixture.DELETED_APPLICATION;
             default -> Fixture.BASELINE;
         };
     }
@@ -288,6 +305,11 @@ class EasyVCanonicalFactAdapterTest {
     }
 
     private void insertApplication(long sourceId, String appId, String taskId, Timestamp createdAt) {
+        insertApplication(sourceId, appId, taskId, createdAt, false);
+    }
+
+    private void insertApplication(long sourceId, String appId, String taskId, Timestamp createdAt,
+                                   boolean deleted) {
         jdbc.update("""
                 insert into facts.easyv_ai_application
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
@@ -296,8 +318,11 @@ class EasyVCanonicalFactAdapterTest {
                 values (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, PRODUCT_VERSIONS.get("easyv-ai-application"), "easyv-ai-application",
                 "source-easyv-ai-application", sourceId, appId, taskId,
-                sourceId == 1 ? 1 : 2, sourceId == 1 ? 11 : 22, sourceId == 1 ? 111 : 222,
-                sourceId == 1 ? "USER" : "TEAM", createdAt, createdAt, false);
+                sourceId == 1 || sourceId == 3 ? 1 : 2,
+                sourceId == 1 || sourceId == 3 ? 11 : 22,
+                sourceId == 1 || sourceId == 3 ? 111 : 222,
+                sourceId == 1 || sourceId == 3 ? "USER" : "TEAM",
+                createdAt, createdAt, deleted);
     }
 
     private void insertPrototypes() {
@@ -412,6 +437,15 @@ class EasyVCanonicalFactAdapterTest {
                     1, 11, 111, "USER", at("2026-08-02T04:00:00Z"),
                     at("2026-08-02T04:00:00Z"), false);
         }
+        if (fixture == Fixture.DELETED_APPLICATION) {
+            insertApplication(3, "app-deleted", "java-task-deleted", APP_TIME, true);
+            insertPrototype(3, "app-deleted");
+            insertPipelineNode(4, "java-task-deleted", "PipelineCompleted", "SUCCESS", 900L);
+            insertForgeTask(UUID.fromString("00000000-0000-0000-0000-000000000099"),
+                    "forge-task-deleted", "app-deleted", "completed",
+                    "098f6bcd4621d373cade4e832627b4f6", FORGE_STARTED_AT, FORGE_FINISHED_AT);
+            insertFeedback(4, 1, "app-deleted", 1, 5, true);
+        }
     }
 
     private void publishProductVersions() {
@@ -468,6 +502,7 @@ class EasyVCanonicalFactAdapterTest {
         ALL_FORGE_DURATION_MISSING,
         ORPHAN_FEEDBACK,
         PIPELINE_CONFLICT,
-        FUTURE_FACT
+        FUTURE_FACT,
+        DELETED_APPLICATION
     }
 }

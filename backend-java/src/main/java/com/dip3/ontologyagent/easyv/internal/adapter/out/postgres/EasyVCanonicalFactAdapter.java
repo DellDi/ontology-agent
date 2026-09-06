@@ -19,7 +19,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-/** Creator-scoped EasyV analysis over immutable, execution-pinned canonical facts. */
+/**
+ * Creator-scoped EasyV analysis over immutable, execution-pinned canonical facts.
+ *
+ * <p>删除口径已冻结：{@code facts.easyv_ai_application.is_deleted} 是源表
+ * {@code is_delete='1'} 的 tombstone，必须随 product version 完整保留以便复核；
+ * 生成质量分析只统计 {@code not is_deleted} 的 active Application cohort。
+ * Prototype / Pipeline / Forge / Feedback 没有独立删除字段，跟随 active Application
+ * 归属；不能把 tombstone 从 facts 物理删除，也不能把删除行算进当期指标。</p>
+ */
 public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
     public static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
     public static final String ACCESS_MODE = "creator-owned";
@@ -86,7 +94,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
             throw new BackendException("EASYV_FACTS_EMPTY",
                     "EasyV 授权范围内缺少可分析的四类 canonical facts。");
         }
-        return new Snapshot(application, pipeline, forge, feedback);
+        return new Snapshot(application, pipeline, forge, feedback, set.productVersionIds());
     }
 
     private ApplicationFacts applicationFacts(
@@ -98,6 +106,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 left join facts.easyv_prototype_task p
                   on p.product_version_id=? and p.app_id=a.app_id
                 where a.product_version_id=? and a.user_id=?
+                  and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                 """, versions.prototype(), versions.application(), dbUserId(query),
                 bounds.from(), bounds.to());
@@ -112,6 +121,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                   select distinct a.generation_task_id as task_id
                   from facts.easyv_ai_application a
                   where a.product_version_id=? and a.user_id=?
+                    and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                     and a.generation_task_id is not null
                 ), summary as (
@@ -144,6 +154,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                   select distinct a.generation_task_id
                   from facts.easyv_ai_application a
                   where a.product_version_id=? and a.user_id=?
+                    and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                     and a.generation_task_id is not null
                 )
@@ -166,6 +177,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 from facts.easyv_ai_application a join facts.easyv_pipeline_node n
                   on n.product_version_id=? and n.task_id=a.generation_task_id
                 where a.product_version_id=? and a.user_id=?
+                  and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and n.created_at>=? and n.created_at<?
                   and upper(n.branch)='MAIN' and n.duration_ms is not null
@@ -190,6 +202,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 with scoped as (
                   select distinct a.app_id from facts.easyv_ai_application a
                   where a.product_version_id=? and a.user_id=?
+                    and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                 )
                 select count(distinct g.task_id) as task_count,
@@ -215,6 +228,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 with scoped as (
                   select distinct a.app_id from facts.easyv_ai_application a
                   where a.product_version_id=? and a.user_id=?
+                    and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                 )
                 select count(distinct g.task_id) filter (
@@ -245,6 +259,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 with scoped as (
                   select distinct a.app_id from facts.easyv_ai_application a
                   where a.product_version_id=? and a.user_id=?
+                    and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                 )
                 select g.failure_reason_hash as bucket,count(*) as count
@@ -275,6 +290,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 from facts.easyv_generation_feedback l join facts.easyv_ai_application a
                   on a.product_version_id=? and a.app_id=l.app_id
                 where l.product_version_id=? and a.user_id=? and l.user_id=?
+                  and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and l.operated_at>=? and l.operated_at<?
                 """, versions.application(), versions.feedback(), dbUserId(query), dbUserId(query),
@@ -301,8 +317,8 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
             Query query, Versions versions, Bounds bounds, Instant capturedAt) {
         long futureApp = jdbc.queryForObject("""
                 select count(*) from facts.easyv_ai_application
-                where product_version_id=? and user_id=? and created_at>=? and created_at<?
-                  and created_at>?
+                where product_version_id=? and user_id=? and not is_deleted
+                  and created_at>=? and created_at<? and created_at>?
                 """, Long.class, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
                 Timestamp.from(capturedAt));
         long futureNode = jdbc.queryForObject("""
@@ -310,6 +326,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 join facts.easyv_pipeline_node n
                   on n.product_version_id=? and n.task_id=a.generation_task_id
                 where a.product_version_id=? and a.user_id=?
+                  and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and n.created_at>=? and n.created_at<? and n.created_at>?
                 """, Long.class, versions.pipeline(), versions.application(), dbUserId(query),
@@ -319,6 +336,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 join facts.easyv_forge_generation_task g
                   on g.product_version_id=? and g.app_id=a.app_id
                 where a.product_version_id=? and a.user_id=?
+                  and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and g.created_at>=? and g.created_at<?
                   and (g.created_at>? or g.started_at>? or g.finished_at>?)
@@ -330,6 +348,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 join facts.easyv_ai_application a
                   on a.product_version_id=? and a.app_id=l.app_id
                 where l.product_version_id=? and l.user_id=? and a.user_id=?
+                  and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and l.operated_at>=? and l.operated_at<? and l.operated_at>?
                 """, Long.class, versions.application(), versions.feedback(), dbUserId(query),

@@ -562,7 +562,7 @@ v2 的最小 EasyV 定义包含：`easyv-ai-application`、`prototype-generation
 ### 13.8 M5 EasyV Runtime 实施证据（2026-08-31）
 
 - `easyv/internal/application` 已实现 creator-owned scope、typed `EasyVGenerationFacts`、确定性 workflow、五类受限 claim、EvidenceReference 与只允许时间变化的 follow-up policy；`easyv/internal/adapter/out/llm` 仅允许一次 Spring AI Tool Call。
-- `easyv/internal/adapter/out/postgres/EasyVCanonicalFactAdapter` 当前从已发布且 execution-pinned 的 canonical facts 读取四类 source；部分 duration 缺失会显式披露 timed/eligible 覆盖率，只有全量缺失才返回 duration missing。此前已删除的旧 source-reader 仅作为历史实现背景，不代表当前 runtime 仍直连源表；`is_delete`/`is_deleted` 的 active、tombstone 与 history 口径仍未冻结。
+- `easyv/internal/adapter/out/postgres/EasyVCanonicalFactAdapter` 当前从已发布且 execution-pinned 的 canonical facts 读取四类 source；部分 duration 缺失会显式披露 timed/eligible 覆盖率，只有全量缺失才返回 duration missing。此前已删除的旧 source-reader 仅作为历史实现背景，不代表当前 runtime 仍直连源表。Application 删除口径已冻结：源 `is_delete='1'` 作为 tombstone 写入 `facts.easyv_ai_application.is_deleted`，随 product version 保留；问数只统计 `not is_deleted` 的 active Application。Prototype / Pipeline / Forge / Feedback 无独立删除字段，跟随 active Application 归属。
 - Java 21 定向测试覆盖 scope、日期、follow-up、workflow freshness/空事实/范围一致性与 PostgreSQL Testcontainers；这些是源码和开发环境证据，不代表 M6 展示契约或生产验证完成。
 
 ## 14. 最小代码演进方向
@@ -749,7 +749,7 @@ V1 只读问数不需要 Action Ontology。后续若展示“停止失败任务�
 - `backend-java/src/main/java/com/dip3/ontologyagent/ontology/bootstrap/OntologyBootstrapRepository.java:146-285`：物业基线定义；
 - `backend-java/src/main/java/com/dip3/ontologyagent/property/internal/application/AnalysisWorkflow.java`：Property 分析 workflow、证据一致性与渲染；
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVGenerationWorkflow.java`：EasyV 四源 facts、覆盖率、五类 claim 与确定性渲染；
-- `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/adapter/out/postgres/EasyVCanonicalFactAdapter.java`：EasyV 已发布 canonical facts reader 与 freshness/耗时边界；来源库只由 ingestion connector 读取，`is_delete`/`is_deleted` 的 active、tombstone 与 history 口径仍未冻结；
+- `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/adapter/out/postgres/EasyVCanonicalFactAdapter.java`：EasyV 已发布 canonical facts reader 与 freshness/耗时边界；来源库只由 ingestion connector 读取；Application tombstone 保留在 facts，问数只统计 active 行；
 - `backend-java/src/main/java/com/dip3/ontologyagent/property/internal/adapter/out/llm/SpringAiConclusionProvider.java`：Property claim contract；
 - `backend-java/src/main/java/com/dip3/ontologyagent/capability/api/FollowUpPolicy.java`：按冻结 capability binding 分派追问策略的公共 Port；
 - `backend-java/src/main/resources/db/migration/V1__init.sql:535-737`：Ontology/Metric/Tool/Plan/Evidence 注册表；
