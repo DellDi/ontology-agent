@@ -47,6 +47,7 @@ public final class EasyVGenerationWorkflow {
                     request.userId(),
                     request.accessMode(),
                     request.ontologyVersionId(),
+                    request.datasetVersionSetId(),
                     request.from(),
                     request.to(),
                     request.requestedAt())),

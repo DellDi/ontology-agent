@@ -11,6 +11,7 @@ public record EasyVGenerationRequest(
     String sessionId,
     String questionText,
     String ontologyVersionId,
+    String datasetVersionSetId,
     String entityKey,
     String metricKey,
     String timeKey,

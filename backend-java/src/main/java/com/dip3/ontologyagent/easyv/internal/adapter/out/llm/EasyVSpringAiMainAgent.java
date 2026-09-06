@@ -58,13 +58,15 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
       AgentTurn turn,
       String executionId,
       OntologyCatalog ontology,
+      String datasetVersionSetId,
       String traceId,
       String leaseOwner) {
     if (blank(leaseOwner)) {
       throw new BackendException("JOB_LEASE_REQUIRED", "EasyV Main Agent 必须绑定当前执行租约。");
     }
     EasyVDateRange allowedRange = allowedRange(turn);
-    BoundTool tool = new BoundTool(principal, turn, executionId, ontology, traceId, leaseOwner, allowedRange);
+    BoundTool tool = new BoundTool(principal, turn, executionId, ontology, datasetVersionSetId,
+        traceId, leaseOwner, allowedRange);
     Map<String, Object> promptInput =
         Map.of(
             "question", turn.questionText(),
@@ -104,6 +106,7 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
     private final AgentTurn turn;
     private final String executionId;
     private final OntologyCatalog ontology;
+    private final String datasetVersionSetId;
     private final String traceId;
     private final String leaseOwner;
     private final EasyVDateRange allowedRange;
@@ -115,6 +118,7 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
         AgentTurn turn,
         String executionId,
         OntologyCatalog ontology,
+        String datasetVersionSetId,
         String traceId,
         String leaseOwner,
         EasyVDateRange allowedRange) {
@@ -122,6 +126,7 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
       this.turn = turn;
       this.executionId = executionId;
       this.ontology = ontology;
+      this.datasetVersionSetId = datasetVersionSetId;
       this.traceId = traceId;
       this.leaseOwner = leaseOwner;
       this.allowedRange = allowedRange;
@@ -138,6 +143,7 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
       }
       Map<String, Object> auditInput = new LinkedHashMap<>();
       auditInput.put("ontologyVersionId", ontology.versionId());
+      auditInput.put("datasetVersionSetId", datasetVersionSetId);
       auditInput.put("entityKey", input == null ? null : input.entityKey());
       auditInput.put("metricKey", input == null ? null : input.metricKey());
       auditInput.put("timeKey", input == null ? null : input.timeKey());
@@ -165,6 +171,7 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
                     turn.sessionId(),
                     turn.questionText(),
                     ontology.versionId(),
+                    datasetVersionSetId,
                     input.entityKey(),
                     input.metricKey(),
                     input.timeKey(),

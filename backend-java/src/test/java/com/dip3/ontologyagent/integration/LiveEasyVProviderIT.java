@@ -8,6 +8,9 @@ import com.dip3.ontologyagent.execution.AgentInvocationRepository;
 import com.dip3.ontologyagent.execution.AnalysisWorker;
 import com.dip3.ontologyagent.execution.ExecutionSnapshot;
 import com.dip3.ontologyagent.execution.WakeupPublisher;
+import com.dip3.ontologyagent.ingestion.api.IngestionRun;
+import com.dip3.ontologyagent.ingestion.internal.application.DatasetReleasePublisher;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.ontology.bootstrap.OntologyBootstrapService;
 import com.dip3.ontologyagent.support.MigrationTestSupport;
 import java.time.Instant;
@@ -28,6 +31,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,7 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest(properties = {
     "dip3.worker.enabled=false",
     "dip3.easyv.enabled=true",
-    "dip3.easyv.require-read-only-role=false",
+    "dip3.easyv.source.enabled=true",
+    "dip3.easyv.source.require-read-only-role=false",
     "spring.main.web-application-type=none"
 })
 @ContextConfiguration(initializers = LiveEasyVProviderIT.RequiredEnvironment.class)
@@ -63,8 +68,11 @@ class LiveEasyVProviderIT {
       "LIVE_EASYV_FROM",
       "LIVE_EASYV_TO");
 
-  @Container
   static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.8-alpine");
+
+  @Container
+  static final Startable PLATFORM_DATABASE = PERSIST_PLATFORM_RESULTS
+      ? NoopStartable.INSTANCE : POSTGRES;
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) {
@@ -83,16 +91,16 @@ class LiveEasyVProviderIT {
     registry.add("dip3.ai.provider.mode", () -> required("LLM_PROVIDER_MODE"));
     registry.add("dip3.ai.provider.tool-calling", () -> required("LLM_PROVIDER_TOOL_CALLING"));
     registry.add("dip3.ai.provider.structured-output", () -> required("LLM_PROVIDER_STRUCTURED_OUTPUT"));
-    registry.add("dip3.easyv.jdbc-url", () -> required("EASYV_POSTGRES_JDBC_URL"));
-    registry.add("dip3.easyv.username", () -> required("EASYV_POSTGRES_USERNAME"));
-    registry.add("dip3.easyv.password", () -> required("EASYV_POSTGRES_PASSWORD"));
-    registry.add("dip3.easyv.schema", () -> "easyv_saas");
-    registry.add("dip3.easyv.maximum-pool-size", () -> "1");
-    registry.add("dip3.easyv.connection-timeout", () -> "5s");
-    registry.add("dip3.easyv.validation-timeout", () -> "1s");
-    registry.add("dip3.easyv.statement-timeout", () -> "10s");
-    registry.add("dip3.easyv.lock-timeout", () -> "1s");
-    registry.add("dip3.easyv.idle-in-transaction-session-timeout", () -> "5s");
+    registry.add("dip3.easyv.source.jdbc-url", () -> required("EASYV_POSTGRES_JDBC_URL"));
+    registry.add("dip3.easyv.source.username", () -> required("EASYV_POSTGRES_USERNAME"));
+    registry.add("dip3.easyv.source.password", () -> required("EASYV_POSTGRES_PASSWORD"));
+    registry.add("dip3.easyv.source.schema", () -> "easyv_saas");
+    registry.add("dip3.easyv.source.maximum-pool-size", () -> "1");
+    registry.add("dip3.easyv.source.connection-timeout", () -> "5s");
+    registry.add("dip3.easyv.source.validation-timeout", () -> "1s");
+    registry.add("dip3.easyv.source.statement-timeout", () -> "30s");
+    registry.add("dip3.easyv.source.lock-timeout", () -> "1s");
+    registry.add("dip3.easyv.source.idle-in-transaction-session-timeout", () -> "5s");
     registry.add("spring.ai.chat.memory.repository.jdbc.initialize-schema", () -> "never");
     registry.add("dip3.session-secret", () -> "live-easyv-session-secret-with-adequate-entropy");
     registry.add("dip3.redis-key-prefix", () -> "live-easyv");
@@ -124,6 +132,7 @@ class LiveEasyVProviderIT {
   @Autowired AnalysisService analyses;
   @Autowired AnalysisWorker worker;
   @Autowired AgentInvocationRepository invocations;
+  @Autowired DatasetReleasePublisher releases;
 
   @MockitoBean WakeupPublisher wakeups;
 
@@ -136,6 +145,7 @@ class LiveEasyVProviderIT {
         new AccessScope("live-easyv", List.of(), List.of(), List.of("PLATFORM_ADMIN")),
         Instant.now().plusSeconds(600));
     assertTrue(bootstrap.bootstrap(admin, "live-easyv-bootstrap").status().ready());
+    String datasetVersionSetId = publishCanonicalEasyV();
 
     String userId = required("LIVE_EASYV_USER_ID");
     LocalDate from = LocalDate.parse(required("LIVE_EASYV_FROM"));
@@ -165,6 +175,7 @@ class LiveEasyVProviderIT {
     assertEquals("easyv", snapshot.capabilityBinding().get("domainKey"));
     assertEquals("generation-quality-analysis", snapshot.capabilityBinding().get("capabilityKey"));
     assertEquals("deterministic-read-only", snapshot.planSnapshot().get("mode"));
+    assertEquals(datasetVersionSetId, snapshot.datasetVersionSetId());
 
     List<Map<String, Object>> evidence = listOfMaps(snapshot.conclusionState().get("evidence"));
     List<Map<String, Object>> claims = listOfMaps(snapshot.conclusionState().get("claims"));
@@ -181,6 +192,15 @@ class LiveEasyVProviderIT {
         executionId,
         EasyVInvocationContract.CONTRACT.invocationType(),
         EasyVInvocationContract.TOOL_NAME));
+  }
+
+  private String publishCanonicalEasyV() {
+    String suffix = UUID.randomUUID().toString();
+    String setId = "live-easyv-set-" + suffix;
+    return releases.publish(new DatasetReleasePublisher.Command(
+        setId, "easyv", EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS,
+        IngestionRun.Mode.FULL, IngestionRun.TriggerType.MANUAL,
+        "live-integration", "live-easyv-" + suffix, 2_000)).versionSet().publicationId();
   }
 
   private static List<Map<String, Object>> listOfMaps(Object value) {
@@ -231,6 +251,20 @@ class LiveEasyVProviderIT {
                   + String.join(", ", missingPlatform));
         }
       }
+    }
+  }
+
+  private enum NoopStartable implements Startable {
+    INSTANCE;
+
+    @Override
+    public void start() {
+      // The persistent platform database is managed outside Testcontainers.
+    }
+
+    @Override
+    public void stop() {
+      // Nothing to stop in persistent mode.
     }
   }
 }

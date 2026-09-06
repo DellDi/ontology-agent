@@ -14,6 +14,7 @@ public interface EasyVGenerationFacts {
       String userId,
       String accessMode,
       String ontologyVersionId,
+      String datasetVersionSetId,
       LocalDate from,
       LocalDate to,
       Instant requestedAt) {}
