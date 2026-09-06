@@ -1,5 +1,9 @@
 # 自托管容器部署指南
 
+仅部署 EasyV Domain Pack、复用共享平台 PostgreSQL 的 `easyv-dev` 内部演示流程见
+[`easyv-dev-deployment.md`](./easyv-dev-deployment.md)。该流程将 source ingestion 与长期运行的
+API/Worker 凭据严格分离，不启动第二套 PostgreSQL。
+
 ## 组件边界
 
 | 服务 | 镜像来源 | 用途 |
@@ -79,8 +83,9 @@ Next 侧 6 个认证路由与业务路由一样是透明代理，Web 容器不�
    ```
 
    `DIP3_SESSION_COOKIE` 必须来自已登录的 `PLATFORM_ADMIN` 会话。Ontology API 仅在 registry 全空时写入；
-   完整 current 重复调用只读返回，半成品或多 current 会明确失败。Graph bootstrap 捕获七类 ERP watermark，
-   只有所有组织成功后才一次性初始化 cursors；失败 parent/child run 保留在 PostgreSQL 供诊断。
+   完整 current 重复调用只读返回，半成品或多 current 会明确失败。Graph bootstrap 在开始时冻结同一个
+   `DatasetVersionSet` 及其产品版本，只有所有组织都成功投影后 parent run 才完成；失败 parent/child run
+   保留在 PostgreSQL 供诊断，已完成组织在 Neo4j 留有同版本的 projection manifest。
 
 ## 必填配置
 
@@ -95,8 +100,8 @@ Next 侧 6 个认证路由与业务路由一样是透明代理，Web 容器不�
 - `LLM_PROVIDER_TOOL_CALLING=true`。
 - `LLM_PROVIDER_STRUCTURED_OUTPUT`：通用 Provider 可用 `native-json-schema` 或 `json-object`；
   DashScope 必须是 `json-object`。
-- `JAVA_GRAPH_SYNC_ENABLED=true`：生产启用 Java 增量图同步；本地模板默认关闭，避免开发机意外扫描共享 ERP。
-- `JAVA_GRAPH_SYNC_POLL_DELAY` 与 `JAVA_GRAPH_SYNC_SOURCES`：显式控制扫描频率和七类 ERP 来源。
+- `JAVA_GRAPH_SYNC_ENABLED=true`：生产启用 canonical 图投影调度；本地模板默认关闭。
+- `JAVA_GRAPH_SYNC_POLL_DELAY`：检查新 frozen Dataset Version Set 的频率；Graph Sync 不再扫描 ERP 来源。
 - `GRAPH_SYNC_OPS_SECRET`：仅 Java system-only full bootstrap 使用的长随机密钥；不配置时接口直接拒绝执行。
 
 Provider 声明、HTTPS 地址、零重试和禁用并行工具调用在 Java 启动时校验；不符合时容器直接失败，
@@ -119,9 +124,10 @@ docker compose --env-file .env.example up -d --build
 - `web`：`http://127.0.0.1:3000/`
 - `backend`：容器内 `/actuator/health`
 - 任务事实：`platform.jobs`、`platform.job_events`、`platform.analysis_execution_events`
-- Graph Sync：`platform.graph_sync_runs/cursors/dirty_scopes`
+- Graph Sync：`platform.graph_sync_runs`；历史 `cursors/dirty_scopes` 表只保留迁移审计，不参与活动链路
 - Graph Sync 管理 API：经 Web 透明代理访问 `/api/admin/graph-sync/status`、组织 rebuild/status 与
-  consistency sweep；全局 source incremental 只由 Java scheduler 执行，组织操作只接受同组织 `PLATFORM_ADMIN`。
+  consistency sweep；Java scheduler 只检查是否出现新的 frozen Dataset Version Set，不直接扫描 ERP
+  来源。组织操作只接受同组织 `PLATFORM_ADMIN`。
 - 关键失败响应：`code + traceId`；日志按同一 correlation ID 检索。
 
 `llmProvider` health 在未真实探测上游时返回 `UNKNOWN`，不会泄露 API key/base URL，也不会伪报 `UP`。

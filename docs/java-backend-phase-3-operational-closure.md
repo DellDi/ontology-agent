@@ -1,5 +1,10 @@
 # Java 后端三阶段目标：治理、图同步与运行切换闭环
 
+> 历史阶段说明：本文记录 Java 切换阶段当时的目标。Graph Sync 的 ERP watermark、cursor、dirty scope
+> 方案已由 canonical data product 架构取代，不再代表当前运行模型。当前实现与运维以
+> [Java Graph Sync 运行模型](./data-contracts/graph-sync-operating-model.md) 和
+> [Ontology 数据平台实施计划](./architecture/ontology-data-platform-implementation-plan.md) 为准。
+
 ## Goal
 
 在二阶段“首次分析 + 多轮追问”已经由 Java 完整承载的基础上，交付 Java 后端的生产运行闭环：Ontology 的读取、变更申请、审批与发布由 Java 负责；ERP 到 Neo4j 的图数据同步由 Java 负责；PC 管理端与移动分析入口只保留 Next.js 展示和透明代理，不再调用 TypeScript 业务用例；模型侧继续以 Spring AI 2.0 为唯一核心底座，并通过自有 Agent/Provider Adapter 验证 DashScope 的 OpenAI-compatible 接入。完成后，关键业务链不再要求 TypeScript Worker 或 Composition Root 才能运行。
@@ -8,7 +13,7 @@
 
 - Java 继续采用 package-by-feature；业务状态机、权限和事务留在 feature 内，不新增全局 Repository/Service 抽象层。
 - PostgreSQL 是 Ontology、Graph Sync、Job、Event、Snapshot、Audit 与 Chat Memory 的事实源；Redis 只做唤醒，Neo4j 只做可重建的图查询投影。
-- Ontology 发布、Graph Sync 游标推进和执行终态必须使用数据库事务与行锁保证一致性，不做吞错、默认成功或内存态补偿。
+- Ontology 发布、canonical dataset version 发布、Graph projection 提交和执行终态必须保持事务边界，不做吞错、默认成功或内存态补偿。
 - Main Agent 仍是唯一智能决策入口；Workflow 仍是一次受治理 Tool Call。本阶段不引入第二套 Agent loop 或 Alibaba Graph 编排。
 - Next.js route 仅认证透传、Cookie/状态码/重定向适配；不再持有 Ontology、Graph Sync 或 Mobile 分析业务规则。
 
@@ -28,14 +33,14 @@
 - 发布事务原子完成目标版本生效、前一版本 deprecated、关联申请 published 和 publish record；并发发布只能成功一个。
 - 已入队和历史执行继续使用各自 pinned ontology version，不随新发布漂移。
 
-### 2. Java Graph Sync
+### 2. Java Graph Sync（当前 canonical projection）
 
-- 迁移 full bootstrap、organization rebuild、incremental scan、dirty-scope dispatch、consistency sweep 和 status/read model。
-- 复用现有 `graph_sync_runs`、`graph_sync_cursors`、`graph_sync_dirty_scopes`，不建立第二套任务事实。
-- ERP 源扫描使用 MyBatis，Neo4j 写入使用官方 Java Driver；每次组织重建携带 `runId`，完成后清理该组织内未被本次看到的投影。
-- 游标仅在该来源全部 dirty scopes 成功后推进；失败范围保留诊断、attempt count 与 last run，不返回部分成功为完成。
-- 同一组织/来源并发执行必须被数据库 claim 或锁串行化；重跑可恢复但不产生重复节点/边。
-- 提供受权限保护的手工触发与状态 API，并用 Spring `@Scheduled` 承载可配置的增量调度，不引入自造调度框架。
+- full bootstrap、organization rebuild 与 consistency sweep 均从 PostgreSQL canonical facts 构建投影。
+- 复用 `graph_sync_runs` 记录运行事实；历史 `graph_sync_cursors`、`graph_sync_dirty_scopes` 仅作迁移审计遗留。
+- 每次运行在开始时冻结一个 `DatasetVersionSet`，Neo4j writer 校验节点、边的产品版本属于该集合。
+- 组织与历史版本由 `organization + datasetVersionSetId` 隔离；失败 run 和 projection manifest 保留可诊断状态。
+- 同一组织并发执行由数据库 advisory lock 与 active-run 检查串行化；重跑幂等但不覆盖其他版本。
+- 提供受权限保护的手工触发与状态 API；Spring `@Scheduled` 只检查新的 frozen set，不扫描 ERP source。
 
 ### 3. PC 管理端与移动端切换
 
@@ -71,7 +76,7 @@
 1. 管理端全部读写经 Java；越权、非法状态转换、重复审批与并发发布有确定错误码和审计记录。
 2. Ontology 发布在真实 PostgreSQL 上原子提交；任何完整性校验或写入失败都保持旧版本为 current。
 3. 新发布版本只影响之后提交的执行；已提交 root/follow-up 继续按 pinned version 可重放读取。
-4. Java Graph Sync 能在真实 PostgreSQL + Neo4j 上完成组织 rebuild、增量扫描、失败保留和恢复；游标不越过失败范围。
+4. Java Graph Sync 能在真实 PostgreSQL + Neo4j 上按指定 frozen set 完成组织 rebuild、失败保留、恢复与历史版本隔离。
 5. PC 管理页和移动分析不再引用 TypeScript Composition Root 的 Ontology、Graph Sync、Follow-up 或执行用例。
 6. DashScope live gate 真实完成一次 Main Agent → Workflow Tool → Structured Conclusion；没有凭据时明确报告未验证，不伪造通过。
 7. Java 单元测试、PostgreSQL/Neo4j Testcontainers、JSON Schema + Zod contract、Next route/component tests、lint、typecheck、production build 和 migration diff 全部通过。

@@ -1,0 +1,28 @@
+ARG NODE_RUNTIME_BASE=registry.access.redhat.com/ubi9/nodejs-24-minimal@sha256:c7b8cb436feace96ca0b43eab7326394893e0ac9c2c6b46895727e3b9202fb9d
+
+FROM ${NODE_RUNTIME_BASE} AS dependencies
+USER 0
+RUN npm install --global pnpm@11.7.0
+RUN mkdir -p /app && chown 1001:0 /app
+WORKDIR /app
+COPY --chown=1001:0 package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+USER 1001
+RUN pnpm install --frozen-lockfile
+
+FROM dependencies AS builder
+COPY --chown=1001:0 . .
+RUN pnpm build
+
+FROM ${NODE_RUNTIME_BASE} AS runner
+ARG BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision=${BUILD_REVISION}
+ENV NODE_ENV=production
+ENV APP_PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV GIT_COMMIT_SHA=${BUILD_REVISION}
+WORKDIR /app
+COPY --from=builder --chown=1001:0 /app/.next/standalone ./
+COPY --from=builder --chown=1001:0 /app/.next/static ./.next/static
+USER 1001
+EXPOSE 3000
+CMD ["node", "server.js"]

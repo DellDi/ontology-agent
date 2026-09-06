@@ -96,18 +96,31 @@ test('Cube 本地模型至少提供 FinanceReceivables、FinancePayments 与 Ser
 
   assert.match(receivablesModel, /cube\(`FinanceReceivables`/);
   assert.match(receivablesModel, /receivableAmount/);
+  assert.match(receivablesModel, /from facts\.property_receivable/);
+  assert.match(receivablesModel, /product_version_id/);
+  assert.doesNotMatch(receivablesModel, /erp_staging/);
+  assert.match(receivablesModel, /projectId:\s*\{\s*sql: `project_id`/s);
+  assert.match(receivablesModel, /projectName:\s*\{\s*sql: `project_name`/s);
 
   assert.match(paymentsModel, /cube\(`FinancePayments`/);
   assert.match(paymentsModel, /paidAmount/);
+  assert.match(paymentsModel, /from facts\.property_payment/);
+  assert.match(paymentsModel, /product_version_id/);
+  assert.doesNotMatch(paymentsModel, /erp_staging/);
+  assert.match(paymentsModel, /projectId:\s*\{\s*sql: `project_id`/s);
+  assert.match(paymentsModel, /projectName:\s*\{\s*sql: `project_name`/s);
 
   assert.match(serviceOrdersModel, /cube\(`ServiceOrders`/);
+  assert.match(serviceOrdersModel, /from facts\.property_service_order/);
+  assert.match(serviceOrdersModel, /product_version_id/);
+  assert.doesNotMatch(serviceOrdersModel, /erp_staging/);
   assert.match(serviceOrdersModel, /averageResponseDurationHours/);
   assert.match(serviceOrdersModel, /averageCloseDurationHours/);
   assert.match(serviceOrdersModel, /averageSatisfaction/);
   assert.match(serviceOrdersModel, /NULLIF\(satisfaction,\s*0\)/);
-  assert.match(serviceOrdersModel, /accept_date - \${CUBE}\.create_date_time/);
+  assert.match(serviceOrdersModel, /accepted_at - \${CUBE}\.created_at/);
   assert.match(serviceOrdersModel, /completedAt/);
-  assert.match(serviceOrdersModel, /accomplish_date/);
+  assert.match(serviceOrdersModel, /completed_at/);
 });
 
 test('package.json 不再暴露 TypeScript Graph Sync 或 Neo4j 运行入口', async () => {
@@ -115,4 +128,44 @@ test('package.json 不再暴露 TypeScript Graph Sync 或 Neo4j 运行入口', a
 
   assert.doesNotMatch(packageJson, /"graph:sync:/, 'Graph Sync 已由 Java 独占，不得保留 TS 写入口');
   assert.doesNotMatch(packageJson, /"test:smoke:neo4j"/);
+});
+
+test('easyv-dev 使用共享平台 PostgreSQL，并提供独立 Cube Store 与 Neo4j', async () => {
+  const compose = await readRepoFile('compose.easyv-dev.yaml');
+
+  for (const service of ['cube:', 'cubestore-router:', 'cubestore-worker:', 'neo4j:']) {
+    assert.match(compose, new RegExp(`^  ${service}$`, 'm'));
+  }
+  assert.doesNotMatch(compose, /^  postgres:/m, 'easyv-dev 不得启动本地 PostgreSQL');
+  assert.match(compose, /CUBEJS_DB_HOST: \$\{PLATFORM_POSTGRES_HOST:\?PLATFORM_POSTGRES_HOST is required\}/);
+  assert.match(compose, /CUBEJS_CUBESTORE_HOST: cubestore-router/);
+  assert.match(compose, /CUBESTORE_META_ADDR: cubestore-router:9999/);
+  assert.match(compose, /NEO4J_URI: bolt:\/\/neo4j:7687/);
+  assert.match(compose, /CUBE_API_SECRET: \$\{CUBE_API_SECRET:\?CUBE_API_SECRET is required\}/);
+  assert.match(compose, /GRAPH_SYNC_OPS_SECRET: \$\{GRAPH_SYNC_OPS_SECRET:\?GRAPH_SYNC_OPS_SECRET is required\}/);
+  const backendBlock = compose.match(/^  backend:\r?\n[\s\S]*?(?=^  web:)/m)?.[0];
+  assert.ok(backendBlock, '应能定位 easyv-dev backend service 配置');
+  assert.doesNotMatch(backendBlock, /EASYV_POSTGRES_(JDBC_URL|USERNAME|PASSWORD)/,
+    'backend 不得持有 EasyV source credentials');
+  assert.match(compose, /condition: service_healthy/);
+});
+
+test('easyv-dev 运维入口覆盖 Property ingestion、graph bootstrap 与基础设施 smoke', async () => {
+  const script = await readRepoFile('scripts/easyv-dev');
+  const compose = await readRepoFile('compose.easyv-dev.yaml');
+  const envExample = await readRepoFile('.env.easyv-dev.example');
+
+  assert.match(script, /property-ingest/);
+  assert.match(compose, /--dip3\.ingestion\.source-key=property/);
+  assert.match(script, /graph-bootstrap/);
+  assert.match(script, /X-Graph-Sync-Ops-Secret/);
+  assert.match(script, /infrastructure-smoke\|smoke/);
+  assert.match(script, /cube cubestore-router cubestore-worker neo4j/);
+  assert.match(script, /actuator\/health\/easyv/);
+  assert.match(script, /readyz/);
+  assert.match(envExample, /^PLATFORM_POSTGRES_HOST=/m);
+  assert.match(envExample, /^CUBE_API_SECRET=/m);
+  assert.match(envExample, /^NEO4J_PASSWORD=/m);
+  assert.match(envExample, /^GRAPH_SYNC_OPS_SECRET=/m);
+  assert.doesNotMatch(script, /echo .*PASSWORD|echo .*SECRET/);
 });

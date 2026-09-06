@@ -190,7 +190,7 @@ dip3.easyv.enabled = ${EASYV_POSTGRES_ENABLED:false}
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVCapabilityRegistration.java`：EasyV descriptor、ontology keys、claim/evidence contract。
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVScopeResolver.java`：creator-owned scope resolve/validate。
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVGenerationWorkflow.java`：四源 facts、确定性 plan、coverage 和五类 claims。
-- `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/adapter/out/postgres/EasyVPostgresFactAdapter.java`：开发源只读聚合、freshness 和 duration coverage。
+- `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/adapter/out/postgres/EasyVCanonicalFactAdapter.java`：已发布 canonical facts reader、freshness 和 duration coverage；来源库只由 ingestion connector 读取。
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/adapter/out/llm/EasyVSpringAiMainAgent.java`：一次 Tool Call 与调用审计。
 - `backend-java/src/main/java/com/dip3/ontologyagent/followup/AnalysisFollowUpService.java`：follow-up 创建、重规划与提交外壳。
 - `docs/data-contracts/easyv-ai-generation-ontology-v1.md`：EasyV Domain Pack、Ontology v2、开发库观测和生产未知边界。

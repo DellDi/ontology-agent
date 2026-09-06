@@ -112,7 +112,6 @@ services:
       JAVA_WORKER_ENABLED: "true"
       JAVA_GRAPH_SYNC_ENABLED: ${JAVA_GRAPH_SYNC_ENABLED:-false}
       JAVA_GRAPH_SYNC_POLL_DELAY: ${JAVA_GRAPH_SYNC_POLL_DELAY:-5m}
-      JAVA_GRAPH_SYNC_SOURCES: ${JAVA_GRAPH_SYNC_SOURCES:-erp.organizations,erp.projects,erp.owners,erp.charge_items,erp.receivables,erp.payments,erp.service_orders}
       GRAPH_SYNC_OPS_SECRET: ${GRAPH_SYNC_OPS_SECRET}
     ports:
       - "127.0.0.1:${JAVA_BACKEND_PORT:-8080}:8080"
