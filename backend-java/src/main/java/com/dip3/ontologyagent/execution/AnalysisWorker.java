@@ -13,6 +13,7 @@ import com.dip3.ontologyagent.capability.api.CapabilityInvocationContract;
 import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.capability.api.CapabilityResult;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
@@ -40,6 +41,7 @@ public final class AnalysisWorker {
     private final AnalysisSessionRepository sessions;
     private final OntologyRepository ontologies;
     private final CapabilityRegistry capabilities;
+    private final DatasetVersionSetRegistry datasetVersionSets;
     private final AgentInvocationRepository invocations;
     private final InvocationEventRecorder recorder;
     private final ScheduledExecutorService leaseHeartbeats = Executors.newSingleThreadScheduledExecutor(r ->
@@ -48,13 +50,15 @@ public final class AnalysisWorker {
     public AnalysisWorker(ExecutionRepository executions, AnalysisSessionRepository sessions,
                           OntologyRepository ontologies,
                           AgentInvocationRepository invocations, InvocationEventRecorder recorder,
-                          CapabilityRegistry capabilities) {
+                          CapabilityRegistry capabilities,
+                          DatasetVersionSetRegistry datasetVersionSets) {
         this.executions = executions;
         this.sessions = sessions;
         this.ontologies = ontologies;
         this.invocations = invocations;
         this.recorder = recorder;
         this.capabilities = capabilities;
+        this.datasetVersionSets = datasetVersionSets;
     }
 
     public boolean runOne(String workerId) {
@@ -77,6 +81,7 @@ public final class AnalysisWorker {
             }
             var ontology = ontologies.published(job.ontologyVersionId());
             CapabilityDescriptor capability = capabilities.require(job.capabilityBinding(), ontology, owner);
+            validateDatasetVersionSet(job, capability);
             CapabilityInvocationContract invocation = capability.invocationContract();
             if (job.attemptCount() > 1
                     && invocations.count(job.executionId(), invocation.invocationType(), invocation.toolName()) > 0) {
@@ -91,6 +96,7 @@ public final class AnalysisWorker {
             agentInput.put("domainKey", capability.id().domainKey());
             agentInput.put("capabilityKey", capability.id().capabilityKey());
             agentInput.put("capabilityBinding", job.capabilityBinding().snapshot());
+            agentInput.put("datasetVersionSetId", job.datasetVersionSetId());
             agentInput.put("attemptCount", job.attemptCount());
             agentInput.put("executionContract", job.contract());
             agentInput.put("questionText", job.questionText());
@@ -104,7 +110,7 @@ public final class AnalysisWorker {
                     job.referencedExecutionId(), job.referencedConclusion(), job.effectiveContext(), session.createdAt());
             CapabilityResult<WorkflowResult, Evidence> capabilityResult = capabilities.execute(
                     job.capabilityBinding(), new CapabilityExecutionContext(owner, turn, job.executionId(), ontology,
-                            job.traceId(), job.workerId()));
+                            job.datasetVersionSetId(), job.traceId(), job.workerId()));
             long invocationCount = invocations.count(job.executionId(), invocation.invocationType(), invocation.toolName());
             if (invocationCount != invocation.exactCount()) {
                 throw new BackendException("AGENT_TOOL_CONTRACT_VIOLATION",
@@ -140,6 +146,22 @@ public final class AnalysisWorker {
         } finally {
             heartbeat.cancel(false);
         }
+    }
+
+    private void validateDatasetVersionSet(ExecutionJob job, CapabilityDescriptor capability) {
+        Set<String> required = capability.requiredDataProductKeys();
+        if (required.isEmpty()) {
+            if (job.datasetVersionSetId() != null) {
+                throw new BackendException("DATASET_VERSION_SET_UNEXPECTED",
+                        "当前能力不声明 canonical 数据产品。");
+            }
+            return;
+        }
+        if (job.datasetVersionSetId() == null) {
+            throw new BackendException("DATASET_VERSION_SET_MISSING",
+                    "执行任务缺少冻结的数据版本集合，拒绝调用模型。");
+        }
+        datasetVersionSets.requireFrozen(job.datasetVersionSetId(), required);
     }
 
     private void renewLease(ExecutionJob job, AtomicBoolean leaseLost) {
@@ -201,6 +223,7 @@ public final class AnalysisWorker {
         Map<String, Object> terminalMetadata = new java.util.LinkedHashMap<>();
         terminalMetadata.put("ontologyVersionId", ontologyVersionId);
         terminalMetadata.put("capabilityBinding", job.capabilityBinding().snapshot());
+        terminalMetadata.put("datasetVersionSetId", job.datasetVersionSetId());
         terminalMetadata.put("executionContract", job.contract());
         terminalMetadata.put("followUpId", job.followUpId());
         ExecutionEvent terminal = new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(),
@@ -214,6 +237,7 @@ public final class AnalysisWorker {
         ExecutionSnapshot snapshot = new ExecutionSnapshot(job.executionId(), job.sessionId(), job.ownerUserId(),
                 job.followUpId(), ontologyVersionId, ontologyBinding(ontologyVersionId,
                 job.followUpId() == null ? "grounded-context" : "inherited"), job.capabilityBinding().snapshot(),
+                job.datasetVersionSetId(),
                 "completed", result.plan(),
                 List.of(), conclusionState, result.renderBlocks(),
                 mobileProjection(result.conclusion(), "completed", now), null, null, job.traceId(), now, now);
@@ -221,6 +245,7 @@ public final class AnalysisWorker {
         completion.put(capability.invocationContract().completionMetricKey(), invocationCount);
         completion.put("ontologyVersionId", ontologyVersionId);
         completion.put("capabilityBinding", job.capabilityBinding().snapshot());
+        completion.put("datasetVersionSetId", job.datasetVersionSetId());
         completion.put("executionContract", job.contract());
         completion.put("followUpId", job.followUpId());
         completion.put("evidenceSources", capabilityResult.evidence().stream()
@@ -263,7 +288,8 @@ public final class AnalysisWorker {
         }
         ExecutionSnapshot snapshot = new ExecutionSnapshot(job.executionId(), job.sessionId(), job.ownerUserId(),
                 job.followUpId(), job.ontologyVersionId(), ontologyBinding(job.ontologyVersionId(),
-                job.followUpId() == null ? "grounded-context" : "inherited"), job.capabilityBinding().snapshot(), "failed",
+                job.followUpId() == null ? "grounded-context" : "inherited"), job.capabilityBinding().snapshot(),
+                job.datasetVersionSetId(), "failed",
                 Map.copyOf(failedPlan),
                 List.of(), Map.of("causes", List.of(), "renderBlocks", List.of()), List.of(),
                 mobileProjection(message, "failed", now), Map.of("id", "execution", "order", 0, "title",
@@ -284,6 +310,7 @@ public final class AnalysisWorker {
         metadata.put("traceId", job.traceId());
         metadata.put("executionContract", job.contract());
         metadata.put("capabilityBinding", job.capabilityBinding().snapshot());
+        metadata.put("datasetVersionSetId", job.datasetVersionSetId());
         if (job.followUpId() != null) metadata.put("followUpId", job.followUpId());
         if (code != null) metadata.put("errorCode", code);
         return new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(), job.executionId(), 0,

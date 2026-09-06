@@ -17,6 +17,7 @@ public interface AnalysisFollowUpMapper extends BaseMapper<AnalysisFollowUpEntit
                 referenced_conclusion_summary=#{row.referencedConclusionSummary},
                 result_execution_id=#{row.resultExecutionId},ontology_version_id=#{row.ontologyVersionId},
                 ontology_version_binding_source=#{row.ontologyVersionBindingSource},
+                dataset_version_set_id=#{row.datasetVersionSetId},
                 capability_binding=#{row.capabilityBinding,jdbcType=OTHER,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},
                 inherited_context=#{row.inheritedContext,jdbcType=OTHER,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},
                 merged_context=#{row.mergedContext,jdbcType=OTHER,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},

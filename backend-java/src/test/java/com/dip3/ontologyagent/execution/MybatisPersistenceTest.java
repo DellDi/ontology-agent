@@ -5,11 +5,8 @@ import com.dip3.ontologyagent.analysis.AnalysisService;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
-import com.dip3.ontologyagent.config.EasyVPostgresProperties;
-import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVPostgresFactAdapter;
-import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVReadOnlyRoleGate;
+import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVCanonicalFactAdapter;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationFacts;
-import com.zaxxer.hikari.HikariDataSource;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.integration.erp.ErpEvidenceMapper;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -19,7 +16,6 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import com.dip3.ontologyagent.support.MigrationTestSupport;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,11 +38,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,8 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 @Testcontainers
 @SpringBootTest(properties = {
         "dip3.worker.enabled=false",
-        "dip3.easyv.enabled=true",
-        "dip3.easyv.require-read-only-role=false"
+        "dip3.easyv.enabled=true"
 })
 class MybatisPersistenceTest {
     @Container
@@ -72,10 +65,6 @@ class MybatisPersistenceTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("dip3.easyv.jdbc-url", POSTGRES::getJdbcUrl);
-        registry.add("dip3.easyv.username", POSTGRES::getUsername);
-        registry.add("dip3.easyv.password", POSTGRES::getPassword);
-        registry.add("dip3.easyv.schema", () -> "public");
         registry.add("spring.data.redis.url", () -> "redis://127.0.0.1:1");
         registry.add("spring.ai.openai.base-url", () -> "http://127.0.0.1:1");
         registry.add("spring.ai.openai.api-key", () -> "test-key");
@@ -111,9 +100,6 @@ class MybatisPersistenceTest {
     @Autowired InvocationEventRecorder invocationEvents;
     @Autowired AnalysisService analyses;
     @Autowired CapabilityRegistry capabilities;
-    @Autowired EasyVPostgresProperties easyVProperties;
-    @Autowired @Qualifier("easyvDataSource") DataSource easyVDataSource;
-    @Autowired EasyVReadOnlyRoleGate easyVReadOnlyRoleGate;
     @Autowired EasyVGenerationFacts easyVGenerationFacts;
     @Autowired JdbcTemplate jdbc;
     @Autowired ErpEvidenceMapper erpEvidence;
@@ -223,9 +209,15 @@ class MybatisPersistenceTest {
                 "_executionContract", ExecutionRepository.EXECUTION_CONTRACT,
                 "_capabilityId", Map.of("domainKey", EASYV_ID.domainKey(), "capabilityKey", EASYV_ID.capabilityKey())));
         var expected = easyvBinding(owner, "ontology-v2");
+        String versionSetId = "easyv-set-" + suffix;
+        jdbc.update("""
+                insert into ingestion.dataset_version_sets
+                  (set_id,status,captured_at,frozen_at,created_by,created_at)
+                values (?,'frozen',now(),now(),'test',now())
+                """, versionSetId);
 
         ExecutionSubmission submission = executions.submit(session, "easyv-roundtrip-" + suffix,
-                "trace-easyv-" + suffix, expected);
+                "trace-easyv-" + suffix, expected, versionSetId);
         ExecutionJob reloaded = executions.claim("worker-easyv-" + suffix, Duration.ofMinutes(1)).orElseThrow();
 
         assertEquals(submission.executionId(), reloaded.executionId());
@@ -238,20 +230,18 @@ class MybatisPersistenceTest {
         assertEquals(expected.scopeSnapshotRef(submission.executionId()),
                 reloaded.capabilityBinding().scopeSnapshotRef(submission.executionId()));
         assertEquals(expected.snapshot(), reloaded.capabilityBinding().snapshot());
+        assertEquals(versionSetId, reloaded.datasetVersionSetId());
+        assertEquals(versionSetId, jdbc.queryForObject(
+                "select dataset_version_set_id from platform.jobs where id=?", String.class,
+                submission.executionId()));
 
         executions.fail(reloaded.executionId(), reloaded.workerId(), "TEST_END", "test cleanup",
                 reloaded.traceId());
     }
 
     @Test
-    void enabledSpringContextWiresBothDomainRegistrationsAndEasyVReadOnlyBeans() {
-        assertTrue(easyVProperties.enabled());
-        assertEquals(POSTGRES.getJdbcUrl(), easyVProperties.jdbcUrl());
-        assertEquals("public", easyVProperties.schema());
-        HikariDataSource hikari = assertInstanceOf(HikariDataSource.class, easyVDataSource);
-        assertEquals(POSTGRES.getJdbcUrl(), hikari.getJdbcUrl());
-        assertInstanceOf(EasyVPostgresFactAdapter.class, easyVGenerationFacts);
-        assertNotNull(easyVReadOnlyRoleGate);
+    void enabledSpringContextWiresBothDomainRegistrationsAndCanonicalEasyVReader() {
+        assertInstanceOf(EasyVCanonicalFactAdapter.class, easyVGenerationFacts);
         assertEquals(PROPERTY_ID, capabilities.selectInitial("分析项目收缴率"));
         assertEquals(EASYV_ID, capabilities.selectInitial("分析 EasyV 大屏生成质量"));
     }

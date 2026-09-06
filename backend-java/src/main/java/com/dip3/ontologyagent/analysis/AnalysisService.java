@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.analysis;
 
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.CapabilityBinding;
+import com.dip3.ontologyagent.capability.api.CapabilityDescriptor;
 import com.dip3.ontologyagent.capability.api.CapabilityId;
 import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.capability.api.FollowUpPolicy;
@@ -10,6 +11,7 @@ import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.execution.ExecutionSnapshot;
 import com.dip3.ontologyagent.execution.ExecutionSubmission;
 import com.dip3.ontologyagent.execution.WakeupPublisher;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.support.BackendException;
 import java.text.Normalizer;
@@ -29,18 +31,21 @@ public final class AnalysisService {
   private final WakeupPublisher wakeups;
   private final OntologyRepository ontologies;
   private final CapabilityRegistry capabilities;
+  private final DatasetVersionSetRegistry datasetVersionSets;
 
   public AnalysisService(
       AnalysisSessionRepository sessions,
       ExecutionRepository executions,
       WakeupPublisher wakeups,
       OntologyRepository ontologies,
-      CapabilityRegistry capabilities) {
+      CapabilityRegistry capabilities,
+      DatasetVersionSetRegistry datasetVersionSets) {
     this.sessions = sessions;
     this.executions = executions;
     this.wakeups = wakeups;
     this.ontologies = ontologies;
     this.capabilities = capabilities;
+    this.datasetVersionSets = datasetVersionSets;
   }
 
   public AnalysisSession createSession(AuthSession owner, String rawQuestion) {
@@ -66,8 +71,12 @@ public final class AnalysisService {
     var ontology = ontologies.currentPublished();
     CapabilityBinding binding =
         capabilities.bind(capabilityId(session.savedContext()), ontology, owner);
-    ExecutionSubmission submission =
-        executions.submit(session, normalizeIdempotencyKey(idempotencyKey), traceId, binding);
+    CapabilityDescriptor descriptor = capabilities.require(binding, ontology, owner);
+    String datasetVersionSetId = latestDatasetVersionSet(descriptor);
+    String key = normalizeIdempotencyKey(idempotencyKey);
+    ExecutionSubmission submission = datasetVersionSetId == null
+        ? executions.submit(session, key, traceId, binding)
+        : executions.submit(session, key, traceId, binding, datasetVersionSetId);
     if (!submission.created()) return submission.executionId();
     try {
       wakeups.publish(submission.executionId());
@@ -102,6 +111,27 @@ public final class AnalysisService {
     capabilities.require(binding, ontologies.published(binding.ontologyVersionId()), owner);
   }
 
+  /** Validates an inherited execution data binding without selecting newer product versions. */
+  public void validateDatasetVersionSet(
+      AuthSession owner, CapabilityBinding binding, String datasetVersionSetId) {
+    if (binding == null) {
+      throw new BackendException("CAPABILITY_BINDING_INVALID", "执行任务缺少能力绑定。");
+    }
+    var ontology = ontologies.published(binding.ontologyVersionId());
+    CapabilityDescriptor descriptor = capabilities.require(binding, ontology, owner);
+    if (descriptor.requiredDataProductKeys().isEmpty()) {
+      if (datasetVersionSetId != null) {
+        throw new BackendException("DATASET_VERSION_SET_UNEXPECTED", "当前能力不声明 canonical 数据产品。");
+      }
+      return;
+    }
+    if (datasetVersionSetId == null) {
+      throw new BackendException("DATASET_VERSION_SET_MISSING",
+          "来源执行没有冻结的数据版本集合，不能保证事实可复核。");
+    }
+    datasetVersionSets.requireFrozen(datasetVersionSetId, descriptor.requiredDataProductKeys());
+  }
+
   public AnalysisSession ownedSession(String sessionId, AuthSession owner) {
     return sessions
         .findOwned(sessionId, owner)
@@ -131,6 +161,14 @@ public final class AnalysisService {
       throw new BackendException("INVALID_IDEMPOTENCY_KEY", "Idempotency-Key 不能超过 128 个字符。");
     }
     return normalized;
+  }
+
+  private String latestDatasetVersionSet(CapabilityDescriptor descriptor) {
+    if (descriptor.requiredDataProductKeys().isEmpty()) return null;
+    return datasetVersionSets.latestFrozen(descriptor.requiredDataProductKeys())
+        .orElseThrow(() -> new BackendException("DATASET_VERSION_SET_NOT_PUBLISHED",
+            "当前能力尚无包含全部所需数据产品的已冻结版本集合。"))
+        .publicationId();
   }
 
   private static Map<String, Object> initialContext(CapabilityId capabilityId) {

@@ -125,12 +125,6 @@ public interface GraphSyncRunMapper {
 
     @Select("""
             select count(*) from platform.graph_sync_runs
-            where mode='incremental-scan' and status in ('pending','running')
-            """)
-    int activeIncrementalCount();
-
-    @Select("""
-            select count(*) from platform.graph_sync_runs
             where mode='full-bootstrap' and scope_type='all' and scope_key='all'
               and status in ('pending','running')
             """)

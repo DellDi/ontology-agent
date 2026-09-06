@@ -22,6 +22,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 class GraphSyncServiceTest {
+    private static final GraphProjection PROJECTION = new GraphProjection(
+            "property-set-1", Map.of("property-project", "project-version-1"));
     private final GraphSyncRunRepository runs = mock(GraphSyncRunRepository.class);
     private final GraphBatchBuilder batches = mock(GraphBatchBuilder.class);
     private final GraphWriter graph = mock(GraphWriter.class);
@@ -31,6 +33,7 @@ class GraphSyncServiceTest {
 
     GraphSyncServiceTest() {
         when(leases.start(anyString())).thenReturn(guard);
+        when(batches.latestProjection()).thenReturn(PROJECTION);
         service = new GraphSyncService(runs, batches, graph, leases);
     }
 
@@ -55,16 +58,16 @@ class GraphSyncServiceTest {
         GraphWriter.WriteResult write = new GraphWriter.WriteResult(3, 2, 1, 1);
         when(runs.createLocked(anyString(), anyString(), anyString(), anyString(), anyString(), any()))
                 .thenReturn(pending);
-        when(batches.build("org-1", "run-1")).thenReturn(batch);
-        when(graph.replaceOrganization("org-1", "run-1", 10L, batch)).thenReturn(write);
+        when(batches.build("org-1", "run-1", PROJECTION)).thenReturn(batch);
+        when(graph.replaceOrganization("org-1", PROJECTION, "run-1", 10L, batch)).thenReturn(write);
         when(runs.latest("org-1")).thenReturn(Optional.of(completed));
 
         assertEquals("completed", service.rebuild("org-1", admin).status());
         var order = inOrder(runs, batches, graph);
         order.verify(runs).running("run-1");
-        order.verify(batches).build("org-1", "run-1");
+        order.verify(batches).build("org-1", "run-1", PROJECTION);
         order.verify(runs).heartbeat("run-1");
-        order.verify(graph).replaceOrganization("org-1", "run-1", 10L, batch);
+        order.verify(graph).replaceOrganization("org-1", PROJECTION, "run-1", 10L, batch);
         order.verify(runs).heartbeat("run-1");
         order.verify(runs).completed("run-1", write);
     }
@@ -76,8 +79,8 @@ class GraphSyncServiceTest {
         GraphBatch batch = new GraphBatch(List.of(), List.of());
         when(runs.createLocked(anyString(), anyString(), anyString(), anyString(), anyString(), any()))
                 .thenReturn(pending);
-        when(batches.build("org-1", "run-1")).thenReturn(batch);
-        when(graph.replaceOrganization("org-1", "run-1", 10L, batch)).thenThrow(
+        when(batches.build("org-1", "run-1", PROJECTION)).thenReturn(batch);
+        when(graph.replaceOrganization("org-1", PROJECTION, "run-1", 10L, batch)).thenThrow(
                 new GraphSyncException("NEO4J_GRAPH_SYNC_FAILED", "write failed", true));
 
         BackendException error = assertThrows(BackendException.class, () -> service.rebuild("org-1", admin));
@@ -92,9 +95,10 @@ class GraphSyncServiceTest {
         GraphSyncRun completed = run("run-delete", "completed");
         when(runs.createLocked(anyString(), anyString(), anyString(), anyString(), anyString(), any()))
                 .thenReturn(pending);
-        when(batches.build("org-1", "run-delete")).thenThrow(new GraphSyncException(
+        when(batches.build("org-1", "run-delete", PROJECTION)).thenThrow(new GraphSyncException(
                 "GRAPH_SYNC_ORGANIZATION_NOT_FOUND", "missing", false));
-        when(graph.replaceOrganization("org-1", "run-delete", 10L, new GraphBatch(List.of(), List.of())))
+        when(graph.replaceOrganization("org-1", PROJECTION, "run-delete", 10L,
+                new GraphBatch(List.of(), List.of())))
                 .thenReturn(new GraphWriter.WriteResult(0, 0, 2, 1));
         when(runs.latest("org-1")).thenReturn(Optional.of(completed));
 
@@ -102,7 +106,8 @@ class GraphSyncServiceTest {
                 Map.of("organizationDeleted", true));
 
         assertEquals("completed", result.status());
-        verify(graph).replaceOrganization("org-1", "run-delete", 10L, new GraphBatch(List.of(), List.of()));
+        verify(graph).replaceOrganization("org-1", PROJECTION, "run-delete", 10L,
+                new GraphBatch(List.of(), List.of()));
     }
 
     private static GraphSyncRun run(String id, String status) {

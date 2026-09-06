@@ -49,11 +49,12 @@ class GraphSyncControllerTest {
         GraphSyncRun run = run("completed");
         when(auth.authenticate(any())).thenReturn(Optional.of(admin));
         when(service.rebuild(org.mockito.ArgumentMatchers.eq("org-1"), org.mockito.ArgumentMatchers.eq(admin),
-                org.mockito.ArgumentMatchers.anyMap())).thenReturn(run);
+                org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.isNull())).thenReturn(run);
         mvc.perform(post("/api/admin/graph-sync/organizations/org-1/rebuild"))
                 .andExpect(request -> org.mockito.Mockito.verify(service).rebuild(
                         org.mockito.ArgumentMatchers.eq("org-1"), org.mockito.ArgumentMatchers.eq(admin),
-                        org.mockito.ArgumentMatchers.argThat(metadata -> metadata.containsKey("correlationId"))))
+                        org.mockito.ArgumentMatchers.argThat(metadata -> metadata.containsKey("correlationId")),
+                        org.mockito.ArgumentMatchers.isNull()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("completed"));
     }

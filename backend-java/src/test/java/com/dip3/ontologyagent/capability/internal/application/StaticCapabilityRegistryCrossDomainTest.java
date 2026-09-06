@@ -94,6 +94,7 @@ class StaticCapabilityRegistryCrossDomainTest {
         id,
         id.toString(),
         Set.of("definition"),
+        Set.of(),
         Set.of("evidence"),
         Set.of("claim"),
         new CapabilityInvocationContract(

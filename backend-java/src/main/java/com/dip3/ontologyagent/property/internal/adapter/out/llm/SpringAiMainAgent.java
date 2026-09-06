@@ -61,11 +61,12 @@ public final class SpringAiMainAgent implements MainAgent {
 
     @Override
     public WorkflowResult execute(AuthSession owner, AgentTurn turn, String executionId,
-                                  OntologyCatalog ontology, String traceId, String leaseOwner) {
+                                  OntologyCatalog ontology, String datasetVersionSetId,
+                                  String traceId, String leaseOwner) {
         if (blank(leaseOwner)) throw new BackendException("JOB_LEASE_REQUIRED", "Main Agent 必须绑定当前执行租约。");
         QuestionDateRange allowedDateRange = resolveDateRange(turn);
         List<ScopedProjectTarget> allowedProjects = scopedProjects.targets(owner);
-        BoundWorkflowTool tool = new BoundWorkflowTool(owner, turn, executionId, ontology, traceId,
+        BoundWorkflowTool tool = new BoundWorkflowTool(owner, turn, executionId, ontology, datasetVersionSetId, traceId,
                 allowedDateRange, allowedProjects, leaseOwner);
         List<OntologyCatalog.Item> entities = AnalysisRuntimeCapability.advertised(ontology.entities(),
                 AnalysisRuntimeCapability.ENTITY_KEY);
@@ -95,6 +96,7 @@ public final class SpringAiMainAgent implements MainAgent {
             agentInput.put("referencedConclusion", turn.referencedConclusion());
             agentInput.put("effectiveContext", turn.effectiveContext());
             agentInput.put("ontologyVersionId", ontology.versionId());
+            agentInput.put("datasetVersionSetId", datasetVersionSetId);
             agentInput.put("entities", keys(entities));
             agentInput.put("metricDefinitions", keys(metrics));
             agentInput.put("metricVariants", keys(variants));
@@ -130,6 +132,7 @@ public final class SpringAiMainAgent implements MainAgent {
         private final AgentTurn turn;
         private final String executionId;
         private final OntologyCatalog ontology;
+        private final String datasetVersionSetId;
         private final String traceId;
         private final QuestionDateRange allowedDateRange;
         private final List<ScopedProjectTarget> allowedProjects;
@@ -138,12 +141,14 @@ public final class SpringAiMainAgent implements MainAgent {
         private final AtomicReference<WorkflowResult> result = new AtomicReference<>();
 
         private BoundWorkflowTool(AuthSession owner, AgentTurn turn, String executionId,
-                                  OntologyCatalog ontology, String traceId, QuestionDateRange allowedDateRange,
+                                  OntologyCatalog ontology, String datasetVersionSetId, String traceId,
+                                  QuestionDateRange allowedDateRange,
                                   List<ScopedProjectTarget> allowedProjects, String leaseOwner) {
             this.owner = owner;
             this.turn = turn;
             this.executionId = executionId;
             this.ontology = ontology;
+            this.datasetVersionSetId = datasetVersionSetId;
             this.traceId = traceId;
             this.allowedDateRange = allowedDateRange;
             this.allowedProjects = allowedProjects;
@@ -168,6 +173,7 @@ public final class SpringAiMainAgent implements MainAgent {
                 auditInput.put("to", input.to() == null ? null : input.to().toString());
             }
             auditInput.put("ontologyVersionId", ontology.versionId());
+            auditInput.put("datasetVersionSetId", datasetVersionSetId);
             auditInput.put("questionText", turn.questionText());
             auditInput.put("referencedConclusion", turn.referencedConclusion());
             String invocationId = recorder.start(turn.sessionId(), executionId, owner.userId(), "main-agent",
@@ -176,7 +182,8 @@ public final class SpringAiMainAgent implements MainAgent {
             try {
                 validate(input, allowedProjects, effectiveScopeText(turn), allowedDateRange);
                 WorkflowResult value = workflow.execute(owner,
-                        new WorkflowRequest(executionId, turn.sessionId(), ontology.versionId(), turn.questionText(),
+                        new WorkflowRequest(executionId, turn.sessionId(), ontology.versionId(), datasetVersionSetId,
+                                turn.questionText(),
                                 input.entityKey(),
                                 input.metricDefinitionKey(), input.metricVariantKey(), input.timeSemanticKey(),
                                 List.copyOf(input.projectIds()), input.from(), input.to(), leaseOwner,

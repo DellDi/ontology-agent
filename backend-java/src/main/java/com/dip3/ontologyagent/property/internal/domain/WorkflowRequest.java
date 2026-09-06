@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 public record WorkflowRequest(String executionId, String sessionId, String ontologyVersionId,
+                              String datasetVersionSetId,
                               String questionText,
                               String entityKey, String metricDefinitionKey, String metricVariantKey,
                               String timeSemanticKey, List<String> projectIds,
@@ -15,16 +16,34 @@ public record WorkflowRequest(String executionId, String sessionId, String ontol
                            String entityKey, String metricDefinitionKey, String metricVariantKey,
                            String timeSemanticKey, List<String> projectIds,
                            LocalDate from, LocalDate to, String leaseOwner) {
-        this(executionId, sessionId, ontologyVersionId, "兼容构造的分析问题", entityKey,
+        this(executionId, sessionId, ontologyVersionId, null, "兼容构造的分析问题", entityKey,
                 metricDefinitionKey, metricVariantKey,
                 timeSemanticKey, projectIds, from, to, leaseOwner,
                 com.dip3.ontologyagent.execution.ExecutionRepository.EXECUTION_CONTRACT,
                 null, null, Map.of(), Map.of());
     }
 
+    public WorkflowRequest(String executionId, String sessionId, String ontologyVersionId,
+                           String questionText,
+                           String entityKey, String metricDefinitionKey, String metricVariantKey,
+                           String timeSemanticKey, List<String> projectIds,
+                           LocalDate from, LocalDate to, String leaseOwner,
+                           String executionContract, String followUpId, String referencedExecutionId,
+                           Map<String, Object> referencedConclusion, Map<String, Object> effectiveContext) {
+        this(executionId, sessionId, ontologyVersionId, null, questionText,
+                entityKey, metricDefinitionKey, metricVariantKey,
+                timeSemanticKey, projectIds, from, to, leaseOwner,
+                executionContract, followUpId, referencedExecutionId,
+                referencedConclusion, effectiveContext);
+    }
+
     public WorkflowRequest {
         effectiveContext = effectiveContext == null ? Map.of() : Map.copyOf(effectiveContext);
         referencedConclusion = referencedConclusion == null ? Map.of() : Map.copyOf(referencedConclusion);
+        if (datasetVersionSetId != null && datasetVersionSetId.isBlank()) {
+            throw new com.dip3.ontologyagent.support.BackendException(
+                    "WORKFLOW_REQUEST_INVALID", "Workflow 数据版本集合 ID 不能为空白。");
+        }
         if (questionText == null || questionText.isBlank()) {
             throw new com.dip3.ontologyagent.support.BackendException(
                     "WORKFLOW_REQUEST_INVALID", "Workflow 缺少本轮问题。");

@@ -19,14 +19,14 @@ public interface JobMapper extends BaseMapper<JobEntity> {
             insert into platform.jobs
               (id,type,status,payload,result,error,attempt_count,max_attempts,available_at,locked_by,locked_until,
                redis_stream_entry_id,dispatch_status,owner_user_id,organization_id,session_id,
-               origin_correlation_id,created_at,updated_at,started_at,completed_at,failed_at)
+               dataset_version_set_id,origin_correlation_id,created_at,updated_at,started_at,completed_at,failed_at)
             values
               (#{row.id},#{row.type},#{row.status},
                #{row.payload,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},
                #{row.result,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},#{row.error},
                #{row.attemptCount},#{row.maxAttempts},#{row.availableAt},#{row.lockedBy},#{row.lockedUntil},
                #{row.redisStreamEntryId},#{row.dispatchStatus},#{row.ownerUserId},#{row.organizationId},
-               #{row.sessionId},#{row.originCorrelationId},#{row.createdAt},#{row.updatedAt},#{row.startedAt},
+               #{row.sessionId},#{row.datasetVersionSetId},#{row.originCorrelationId},#{row.createdAt},#{row.updatedAt},#{row.startedAt},
                #{row.completedAt},#{row.failedAt})
             on conflict (id) do nothing
             """)
@@ -40,13 +40,14 @@ public interface JobMapper extends BaseMapper<JobEntity> {
                       and ((status in ('pending','queued') and available_at<=now())
                            or (status='processing' and locked_until<now()))
                       order by available_at,created_at for update skip locked limit 1)
-            returning id,session_id,owner_user_id,organization_id,origin_correlation_id,payload,
+            returning id,session_id,owner_user_id,organization_id,dataset_version_set_id,origin_correlation_id,payload,
                       attempt_count,max_attempts
             """)
     @Results({
             @Result(property = "sessionId", column = "session_id"),
             @Result(property = "ownerUserId", column = "owner_user_id"),
             @Result(property = "organizationId", column = "organization_id"),
+            @Result(property = "datasetVersionSetId", column = "dataset_version_set_id"),
             @Result(property = "originCorrelationId", column = "origin_correlation_id"),
             @Result(property = "payload", column = "payload", typeHandler = JsonbTypeHandler.class)
     })

@@ -36,7 +36,8 @@ class GraphSyncBootstrapControllerTest {
     @Test
     void validSecretCanTriggerAndReadParentFact() throws Exception {
         GraphSyncRun run = run();
-        when(service.run(org.mockito.ArgumentMatchers.anyString())).thenReturn(run);
+        when(service.run(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(run);
         when(service.status()).thenReturn(run);
         MockMvc mvc = mvc(new GraphSyncOpsAuthenticator("ops-secret"));
 

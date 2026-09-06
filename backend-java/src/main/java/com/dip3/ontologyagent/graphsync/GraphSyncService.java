@@ -4,6 +4,8 @@ import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.support.BackendException;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -26,12 +28,27 @@ public final class GraphSyncService {
     }
 
     public GraphSyncRun rebuild(String organizationId, AuthSession actor, java.util.Map<String, Object> metadata) {
+        return rebuild(organizationId, actor, metadata, null);
+    }
+
+    public GraphSyncRun rebuild(String organizationId, AuthSession actor, Map<String, Object> metadata,
+                                String datasetVersionSetId) {
         requirePlatformAdmin(organizationId, actor);
-        return rebuild(organizationId, actor.userId(), "org-rebuild", "manual", metadata);
+        GraphProjection projection = datasetVersionSetId == null
+                ? batches.latestProjection() : batches.requireProjection(datasetVersionSetId);
+        return rebuild(organizationId, actor.userId(), "org-rebuild", "manual", metadata,
+                projection);
     }
 
     GraphSyncRun rebuild(String organizationId, String triggeredBy, String mode, String triggerType,
                          java.util.Map<String, Object> cursorSnapshot) {
+        return rebuild(organizationId, triggeredBy, mode, triggerType, cursorSnapshot,
+                batches.latestProjection());
+    }
+
+    GraphSyncRun rebuild(String organizationId, String triggeredBy, String mode, String triggerType,
+                         Map<String, Object> metadata, GraphProjection projection) {
+        Map<String, Object> cursorSnapshot = projectionMetadata(metadata, projection);
         GraphSyncRun pending = runs.createLocked(UUID.randomUUID().toString(), organizationId, triggeredBy,
                 mode, triggerType, cursorSnapshot);
         try {
@@ -39,7 +56,7 @@ public final class GraphSyncService {
             try (GraphSyncLease.Guard ignored = leases.start(pending.id())) {
             GraphBatch batch;
             try {
-                batch = batches.build(organizationId, pending.id());
+                batch = batches.build(organizationId, pending.id(), projection);
             } catch (GraphSyncException error) {
                 boolean deletedOrganization = "incremental-rebuild".equals(mode)
                         && "GRAPH_SYNC_ORGANIZATION_NOT_FOUND".equals(error.code())
@@ -48,8 +65,8 @@ public final class GraphSyncService {
                 batch = new GraphBatch(java.util.List.of(), java.util.List.of());
             }
             runs.heartbeat(pending.id());
-            GraphWriter.WriteResult result = graph.replaceOrganization(organizationId, pending.id(),
-                    fencingToken(pending), batch);
+            GraphWriter.WriteResult result = graph.replaceOrganization(organizationId,
+                    projection, pending.id(), fencingToken(pending), batch);
             runs.heartbeat(pending.id());
             runs.completed(pending.id(), result);
             return runs.latest(organizationId).orElseThrow();
@@ -61,6 +78,20 @@ public final class GraphSyncService {
             runs.failed(pending.id(), false, "GRAPH_SYNC_FAILED", "组织图谱重建失败。 ");
             throw error;
         }
+    }
+
+    private static Map<String, Object> projectionMetadata(Map<String, Object> metadata,
+                                                           GraphProjection projection) {
+        if (metadata == null) throw new IllegalArgumentException("metadata must not be null");
+        Object requested = metadata.get("datasetVersionSetId");
+        if (requested != null && !projection.datasetVersionSetId().equals(requested)) {
+            throw new BackendException("GRAPH_SYNC_DATASET_VERSION_SET_CONFLICT",
+                    "Graph Sync 请求的数据版本与实际投影版本不一致。");
+        }
+        Map<String, Object> result = new LinkedHashMap<>(metadata);
+        result.put("datasetVersionSetId", projection.datasetVersionSetId());
+        result.put("productVersionIds", projection.productVersionIds());
+        return Map.copyOf(result);
     }
 
     private static long fencingToken(GraphSyncRun run) {

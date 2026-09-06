@@ -80,6 +80,7 @@ public class AnalysisFollowUpService {
       throw new BackendException(
           "FOLLOW_UP_CAPABILITY_BINDING_INVALID", "来源执行的能力绑定与本体版本不一致，无法发起追问。");
     }
+    analyses.validateDatasetVersionSet(owner, sourceBinding, source.datasetVersionSetId);
     FollowUpPolicy policy = analyses.followUpPolicy(owner, sourceBinding);
     policy.validateQuestion(question);
     Map<String, Object> context = policy.inheritedContext(source.planSnapshot);
@@ -100,6 +101,7 @@ public class AnalysisFollowUpService {
             ontologyVersionId,
             binding(ontologyVersionId, "inherited"),
             sourceBinding.snapshot(),
+            source.datasetVersionSetId,
             context,
             mergedContext,
             null,
@@ -149,6 +151,7 @@ public class AnalysisFollowUpService {
               current.ontologyVersionId(),
               current.ontologyVersionBinding(),
               current.capabilityBinding(),
+              current.datasetVersionSetId(),
               current.inheritedContext(),
               result.mergedContext(),
               changed ? null : current.planVersion(),
@@ -204,6 +207,7 @@ public class AnalysisFollowUpService {
             current.ontologyVersionId(),
             current.ontologyVersionBinding(),
             current.capabilityBinding(),
+            current.datasetVersionSetId(),
             current.inheritedContext(),
             current.mergedContext(),
             version,
@@ -247,6 +251,7 @@ public class AnalysisFollowUpService {
             current.ontologyVersionId(),
             current.ontologyVersionBinding(),
             current.capabilityBinding(),
+            current.datasetVersionSetId(),
             current.inheritedContext(),
             current.mergedContext(),
             current.planVersion(),
@@ -284,6 +289,17 @@ public class AnalysisFollowUpService {
     if (!followUp.ontologyVersionId().equals(persistedBinding.ontologyVersionId()))
       throw new BackendException("FOLLOW_UP_CAPABILITY_BINDING_INVALID", "追问的能力绑定与追问本体版本不一致。");
     analyses.validateCapabilityBinding(owner, persistedBinding);
+    ExecutionSnapshotEntity source =
+        followUps
+            .completedSourceSnapshot(followUp)
+            .orElseThrow(
+                () -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND",
+                    "来源执行已失效或不再是已完成状态。"));
+    if (!Objects.equals(followUp.datasetVersionSetId(), source.datasetVersionSetId)) {
+      throw new BackendException("FOLLOW_UP_DATASET_VERSION_SET_MISMATCH",
+          "追问绑定的数据版本集合与来源执行不一致。");
+    }
+    analyses.validateDatasetVersionSet(owner, persistedBinding, followUp.datasetVersionSetId());
     Map<String, Object> effectiveContext =
         analyses
             .followUpPolicy(owner, persistedBinding)
@@ -310,7 +326,8 @@ public class AnalysisFollowUpService {
             effectiveContext,
             key,
             traceId,
-            persistedBinding);
+            persistedBinding,
+            followUp.datasetVersionSetId());
     attach(followUp, submission.executionId(), followUp.ontologyVersionId());
     if (submission.created()) publishAfterCommit(submission.executionId(), traceId);
     return submission.executionId();

@@ -117,6 +117,9 @@ public final class AnalysisWorkflow {
         fence(request);
         Map<String, Object> auditInput = new LinkedHashMap<>();
         auditInput.put("ontologyVersionId", request.ontologyVersionId());
+        if (request.datasetVersionSetId() != null) {
+            auditInput.put("datasetVersionSetId", request.datasetVersionSetId());
+        }
         auditInput.put("entityKey", request.entityKey());
         auditInput.put("metricDefinitionKey", request.metricDefinitionKey());
         auditInput.put("metricVariantKey", request.metricVariantKey());
@@ -358,6 +361,9 @@ public final class AnalysisWorkflow {
         plan.put("steps", steps);
         plan.put("_executionContract", request.executionContract());
         plan.put("_groundedSource", request.ontologyVersionId());
+        if (request.datasetVersionSetId() != null) {
+            plan.put("_datasetVersionSetId", request.datasetVersionSetId());
+        }
         plan.put("_groundingStatus", "grounded");
         plan.put("_toolBindings", toolBindings);
         plan.put("_executionAssumptions", List.of());

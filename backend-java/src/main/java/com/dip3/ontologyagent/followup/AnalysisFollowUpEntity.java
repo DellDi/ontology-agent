@@ -23,6 +23,7 @@ public class AnalysisFollowUpEntity {
     public String resultExecutionId;
     public String ontologyVersionId;
     public String ontologyVersionBindingSource;
+    public String datasetVersionSetId;
     @TableField(typeHandler = JsonbTypeHandler.class)
     public Map<String, Object> capabilityBinding;
     @TableField(typeHandler = JsonbTypeHandler.class)

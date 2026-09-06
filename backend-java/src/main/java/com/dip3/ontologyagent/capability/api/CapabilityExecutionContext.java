@@ -5,12 +5,21 @@ import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 
 public record CapabilityExecutionContext(AuthSession principal, AgentTurn turn, String executionId,
-                                         OntologyCatalog ontology, String traceId, String leaseOwner) {
+                                         OntologyCatalog ontology, String datasetVersionSetId,
+                                         String traceId, String leaseOwner) {
+    public CapabilityExecutionContext(AuthSession principal, AgentTurn turn, String executionId,
+                                      OntologyCatalog ontology, String traceId, String leaseOwner) {
+        this(principal, turn, executionId, ontology, null, traceId, leaseOwner);
+    }
+
     public CapabilityExecutionContext {
         if (principal == null) throw new IllegalArgumentException("principal must not be null");
         if (turn == null) throw new IllegalArgumentException("turn must not be null");
         if (ontology == null) throw new IllegalArgumentException("ontology must not be null");
         executionId = requireText(executionId, "executionId");
+        if (datasetVersionSetId != null && datasetVersionSetId.isBlank()) {
+            throw new IllegalArgumentException("datasetVersionSetId must not be blank");
+        }
         traceId = requireText(traceId, "traceId");
         leaseOwner = requireText(leaseOwner, "leaseOwner");
     }

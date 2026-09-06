@@ -102,6 +102,7 @@ public class AnalysisFollowUpRepository {
         row.resultExecutionId = source.resultExecutionId();
         row.ontologyVersionId = source.ontologyVersionId();
         row.ontologyVersionBindingSource = text(source.ontologyVersionBinding().get("source"));
+        row.datasetVersionSetId = source.datasetVersionSetId();
         row.capabilityBinding = source.capabilityBinding();
         row.inheritedContext = source.inheritedContext();
         row.mergedContext = source.mergedContext();
@@ -121,7 +122,8 @@ public class AnalysisFollowUpRepository {
         return new AnalysisFollowUp(row.id, row.sessionId, row.ownerUserId, row.questionText,
                 row.parentFollowUpId, row.referencedExecutionId, row.referencedConclusionTitle,
                 row.referencedConclusionSummary, row.resultExecutionId, row.ontologyVersionId, binding,
-                row.capabilityBinding, row.inheritedContext, row.mergedContext, row.planVersion, row.currentPlanSnapshot,
+                row.capabilityBinding, row.datasetVersionSetId, row.inheritedContext, row.mergedContext,
+                row.planVersion, row.currentPlanSnapshot,
                 row.previousPlanSnapshot, row.currentPlanDiff, row.createdAt, row.updatedAt);
     }
 

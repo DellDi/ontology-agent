@@ -6,14 +6,12 @@
 
 运行时交付与持续同步方案见：
 
-- [graph-sync-operating-model.md]({project-root}/docs/data-contracts/graph-sync-operating-model.md)
+- [Java Graph Sync 运行模型](./graph-sync-operating-model.md)
 
 ## 首批实体
 
 - Organization
 - Project
-- House
-- Owner
 - ChargeItem
 - Receivable
 - Payment
@@ -24,7 +22,6 @@
 ## 首批关系
 
 - Organization -> Project
-- Project -> Owner
 - Project -> Receivable
 - Project -> Payment
 - Project -> ServiceOrder
@@ -35,22 +32,26 @@
 
 ## 来源说明
 
-- `erp-master-data`
-  - 组织、项目、业主等主数据关系
-- `erp-derived`
-  - 应收、实收、工单、投诉、满意度等由 staging 事实投影出的关系
-- `governed-rule`
-  - 治理后的因果边、候选因素边与解释语义
+- `property-organization`、`property-project`、`property-charge-item`
+  - 组织、项目与收费项目 canonical 主数据关系；
+- `property-receivable`、`property-payment`、`property-service-order`
+  - 应收、实收、工单、投诉与满意度 canonical 事实关系；
+- 每个节点和边必须保存 `datasetVersionSetId`、`sourceProductKey` 与 `productVersionId`，writer
+  校验产品版本属于同一个 frozen set。
+
+当前六产品没有 `property-owner` 或 `property-house`，因此 P5 不生成 Owner/House 节点及关系。未来只有在
+增加对应 canonical product 与真实消费者后才能扩展，禁止借用其他产品版本伪造。
 
 ## 受控写入原则
 
 - 运行时分析请求不得直接写入 Neo4j
 - 所有写入必须通过受控 sync/import 流程
-- 图谱边必须带 `source`、`direction`、`explanation`
+- 图谱边必须带来源产品、产品版本、方向和解释语义；
+- evidence 读取前必须确认目标 set 的 `GraphProjection(status=complete)`，未就绪时明确失败。
 
 ## 已确认业务口径的映射提醒
 
-- 收缴率分母使用 `chargeSum`
+- 收缴率分母使用 canonical `receivable_amount`（来源业务字段 `actualChargeSum`）
 - 工单时效同时保留“响应时长”和“关闭时长”
 - 满意度以 `satisfaction` 为主，同时纳入 `satisfactionEval`
 

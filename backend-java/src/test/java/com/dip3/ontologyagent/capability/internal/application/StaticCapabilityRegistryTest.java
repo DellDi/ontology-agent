@@ -219,6 +219,7 @@ class StaticCapabilityRegistryTest {
               new CapabilityId(domainKey, capabilityKey),
               capabilityKey,
               Set.of("definition"),
+              Set.of(),
               Set.of("evidence"),
               Set.of("claim"),
               new CapabilityInvocationContract(

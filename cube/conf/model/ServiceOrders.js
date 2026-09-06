@@ -1,5 +1,20 @@
 cube(`ServiceOrders`, {
-  sql_table: `erp_staging.dw_datacenter_services`,
+  sql: `
+    select
+      s.service_order_id,
+      s.product_version_id,
+      s.organization_id,
+      s.project_id,
+      s.project_name,
+      s.service_type_name,
+      s.service_style_name,
+      s.created_at,
+      s.accepted_at,
+      s.completed_at,
+      s.satisfaction
+    from facts.property_service_order s
+    where not s.is_deleted
+  `,
 
   measures: {
     count: {
@@ -25,8 +40,8 @@ cube(`ServiceOrders`, {
 
     averageResponseDurationHours: {
       sql: `CASE
-        WHEN ${CUBE}.accept_date IS NULL OR ${CUBE}.create_date_time IS NULL THEN NULL
-        ELSE EXTRACT(EPOCH FROM (${CUBE}.accept_date - ${CUBE}.create_date_time)) / 3600.0
+        WHEN ${CUBE}.accepted_at IS NULL OR ${CUBE}.created_at IS NULL THEN NULL
+        ELSE EXTRACT(EPOCH FROM (${CUBE}.accepted_at - ${CUBE}.created_at)) / 3600.0
       END`,
       type: `avg`,
       title: `平均响应时长（小时）`,
@@ -34,8 +49,8 @@ cube(`ServiceOrders`, {
 
     averageCloseDurationHours: {
       sql: `CASE
-        WHEN ${CUBE}.accomplish_date IS NULL OR ${CUBE}.create_date_time IS NULL THEN NULL
-        ELSE EXTRACT(EPOCH FROM (${CUBE}.accomplish_date - ${CUBE}.create_date_time)) / 3600.0
+        WHEN ${CUBE}.completed_at IS NULL OR ${CUBE}.created_at IS NULL THEN NULL
+        ELSE EXTRACT(EPOCH FROM (${CUBE}.completed_at - ${CUBE}.created_at)) / 3600.0
       END`,
       type: `avg`,
       title: `平均关闭时长（小时）`,
@@ -44,9 +59,15 @@ cube(`ServiceOrders`, {
 
   dimensions: {
     servicesNo: {
-      sql: `services_no`,
+      sql: `service_order_id`,
       type: `string`,
       primary_key: true,
+      shown: false,
+    },
+
+    productVersionId: {
+      sql: `product_version_id`,
+      type: `string`,
       shown: false,
     },
 
@@ -57,13 +78,13 @@ cube(`ServiceOrders`, {
     },
 
     projectId: {
-      sql: `precinct_id`,
+      sql: `project_id`,
       type: `string`,
       title: `项目 ID`,
     },
 
     projectName: {
-      sql: `precinct_name`,
+      sql: `project_name`,
       type: `string`,
       title: `项目名称`,
     },
@@ -81,13 +102,13 @@ cube(`ServiceOrders`, {
     },
 
     createdAt: {
-      sql: `create_date_time`,
+      sql: `created_at`,
       type: `time`,
       title: `创建时间`,
     },
 
     completedAt: {
-      sql: `accomplish_date`,
+      sql: `completed_at`,
       type: `time`,
       title: `完成时间`,
     },
