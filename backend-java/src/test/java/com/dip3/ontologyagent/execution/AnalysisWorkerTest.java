@@ -42,8 +42,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyBinding;
 import static com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyDescriptor;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyProvenance;
 import static com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvBinding;
 import static com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvDescriptor;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvProvenance;
 import static com.dip3.ontologyagent.support.CapabilityTestFixtures.EASYV_ID;
 
 class AnalysisWorkerTest {
@@ -60,7 +62,7 @@ class AnalysisWorkerTest {
     private final CapabilityBinding binding = propertyBinding(workerOwner, "ontology-1");
     private final ExecutionJob job = new ExecutionJob("execution-1", ExecutionRepository.EXECUTION_CONTRACT,
             "session-1", "user-1", "org-1", List.of("project-1"), List.of(), "分析收缴率", "trace-1",
-            "ontology-1", binding, null, null, Map.of(), Map.of(), "worker-1", 1, 2);
+            "ontology-1", binding, "property-set-1", null, null, Map.of(), Map.of(), "worker-1", 1, 2);
     private final AnalysisSession session = new AnalysisSession("session-1", "user-1",
             workerOwner.scope(), "分析收缴率",
             Map.of(), "pending", Instant.now(), Instant.now());
@@ -170,7 +172,7 @@ class AnalysisWorkerTest {
     @Test
     void invocationTypeToolNameAndExactCountComeFromTheCapabilityDescriptor() {
         CapabilityDescriptor custom = new CapabilityDescriptor(binding.id(), "自定义能力",
-                java.util.Set.of("project"), java.util.Set.of(),
+                java.util.Set.of("project"), propertyDescriptor().requiredDataProductKeys(),
                 java.util.Set.of("erp-staging", "cube", "neo4j"),
                 java.util.Set.of("collection-rate", "erp-balance", "charge-structure"),
                 new CapabilityInvocationContract("custom-invocation", "custom_workflow", 2,
@@ -223,9 +225,9 @@ class AnalysisWorkerTest {
     void retryFenceUsesTheCapabilityInvocationContract() {
         ExecutionJob retry = new ExecutionJob("execution-1", ExecutionRepository.EXECUTION_CONTRACT,
                 "session-1", "user-1", "org-1", List.of("project-1"), List.of(), "分析收缴率", "trace-1",
-                "ontology-1", binding, null, null, Map.of(), Map.of(), "worker-2", 2, 2);
+                "ontology-1", binding, "property-set-1", null, null, Map.of(), Map.of(), "worker-2", 2, 2);
         CapabilityDescriptor custom = new CapabilityDescriptor(binding.id(), "自定义能力",
-                java.util.Set.of("project"), java.util.Set.of(),
+                java.util.Set.of("project"), propertyDescriptor().requiredDataProductKeys(),
                 java.util.Set.of("erp-staging", "cube", "neo4j"),
                 java.util.Set.of("collection-rate", "erp-balance", "charge-structure"),
                 new CapabilityInvocationContract("custom-invocation", "custom_workflow", 2,
@@ -283,7 +285,7 @@ class AnalysisWorkerTest {
     void expiredLeaseNeverStartsASecondAgentLoopAfterAWorkflowCallWasAudited() {
         ExecutionJob retry = new ExecutionJob("execution-1", ExecutionRepository.EXECUTION_CONTRACT,
                 "session-1", "user-1", "org-1", List.of("project-1"), List.of(), "分析收缴率", "trace-1",
-                "ontology-1", binding, null, null, Map.of(), Map.of(), "worker-2", 2, 2);
+                "ontology-1", binding, "property-set-1", null, null, Map.of(), Map.of(), "worker-2", 2, 2);
         when(executions.claim(anyString(), any())).thenReturn(Optional.of(retry));
         when(invocations.count("execution-1", "workflow-tool", "analysis_workflow")).thenReturn(1L);
 
@@ -300,7 +302,7 @@ class AnalysisWorkerTest {
     void missingRequiredEvidenceIsPersistedAsAnExplicitFailure() {
         when(mainAgent.execute(any(), any(AgentTurn.class), anyString(), any(), anyString(), anyString()))
                 .thenReturn(new WorkflowResult(Map.of("_executionContract", ExecutionRepository.EXECUTION_CONTRACT),
-                        List.of(new Evidence("erp-staging", "ERP", List.of(Map.of("value", 1)))),
+                        List.of(new Evidence("erp-staging", "ERP", List.of(Map.of("value", 1)), propertyProvenance())),
                         "结论", List.of(), List.of()));
         when(invocations.count("execution-1", "workflow-tool", "analysis_workflow")).thenReturn(1L);
 
@@ -409,7 +411,7 @@ class AnalysisWorkerTest {
         ExecutionJob followUp = new ExecutionJob("execution-2",
                 ExecutionRepository.FOLLOW_UP_EXECUTION_CONTRACT, "session-1", "user-1", "org-1",
                 List.of("project-1"), List.of(), "为什么下降", "trace-2", "ontology-1",
-                binding,
+                binding, "property-set-1",
                 "follow-up-1", "execution-1", Map.of("title", "上一轮结论", "summary", "收缴率下降。"),
                 context, "worker-2", 1, 2);
         when(executions.claim(anyString(), any())).thenReturn(Optional.of(followUp));
@@ -447,9 +449,9 @@ class AnalysisWorkerTest {
 
     private static List<Evidence> requiredEvidence() {
         return List.of(
-                new Evidence("erp-staging", "ERP", List.of(Map.of("value", 1))),
-                new Evidence("cube", "Cube", List.of(Map.of("value", 1))),
-                new Evidence("neo4j", "Neo4j", List.of(Map.of("value", 1))));
+                new Evidence("erp-staging", "ERP", List.of(Map.of("value", 1)), propertyProvenance()),
+                new Evidence("cube", "Cube", List.of(Map.of("value", 1)), propertyProvenance()),
+                new Evidence("neo4j", "Neo4j", List.of(Map.of("value", 1)), propertyProvenance()));
     }
 
     private static List<com.dip3.ontologyagent.tooling.GroundedConclusion.Claim> claims() {
@@ -466,10 +468,10 @@ class AnalysisWorkerTest {
 
     private static WorkflowResult easyvWorkflowResult() {
         List<Evidence> evidence = List.of(
-                new Evidence("easyv-ai-application", "应用", List.of(Map.of("count", 1))),
-                new Evidence("easyv-pipeline-node", "流水线", List.of(Map.of("count", 1))),
-                new Evidence("easyv-forge-task", "Forge", List.of(Map.of("count", 1))),
-                new Evidence("easyv-generation-feedback", "反馈", List.of(Map.of("count", 1))));
+                new Evidence("easyv-ai-application", "应用", List.of(Map.of("count", 1)), easyvProvenance()),
+                new Evidence("easyv-pipeline-node", "流水线", List.of(Map.of("count", 1)), easyvProvenance()),
+                new Evidence("easyv-forge-task", "Forge", List.of(Map.of("count", 1)), easyvProvenance()),
+                new Evidence("easyv-generation-feedback", "反馈", List.of(Map.of("count", 1)), easyvProvenance()));
         List<com.dip3.ontologyagent.tooling.GroundedConclusion.Claim> claims = List.of(
                 claim("generation-quality", "easyv-forge-task"),
                 claim("stage-bottleneck", "easyv-pipeline-node"),

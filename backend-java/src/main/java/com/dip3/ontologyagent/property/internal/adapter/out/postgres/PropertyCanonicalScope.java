@@ -6,7 +6,10 @@ import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.property.internal.application.PropertyDataProducts;
 import com.dip3.ontologyagent.property.internal.domain.WorkflowRequest;
 import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.tooling.Evidence;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +76,7 @@ public final class PropertyCanonicalScope {
       throw new BackendException("ANALYSIS_SCOPE_LIMIT_EXCEEDED", "首次分析最多支持 100 个项目，禁止截断取样。");
     }
     assertProjectsExist(versions.get(PropertyDataProducts.PROJECT), selected);
-    return new Resolved(set.publicationId(), versions, selected);
+    return new Resolved(set.publicationId(), versions, selected, set.capturedAt());
   }
 
   private List<String> projectsForAreas(AuthSession owner, Map<String, String> versions,
@@ -122,10 +125,13 @@ public final class PropertyCanonicalScope {
   }
 
   public record Resolved(String datasetVersionSetId, Map<String, String> productVersionIds,
-                         List<String> projectIds) {
+                         List<String> projectIds, Instant capturedAt) {
     public Resolved {
       productVersionIds = Map.copyOf(productVersionIds);
       projectIds = List.copyOf(projectIds);
+      if (capturedAt == null) {
+        throw new IllegalArgumentException("capturedAt must not be null");
+      }
     }
 
     public String version(String productKey) {
@@ -135,6 +141,14 @@ public final class PropertyCanonicalScope {
             "物业数据版本集合缺少产品: " + productKey);
       }
       return version;
+    }
+
+    public Evidence.Provenance provenance(String ontologyVersionId, String... productKeys) {
+      Map<String, String> versions = new LinkedHashMap<>();
+      for (String productKey : productKeys) {
+        versions.put(productKey, version(productKey));
+      }
+      return new Evidence.Provenance(ontologyVersionId, datasetVersionSetId, capturedAt, versions);
     }
   }
 }

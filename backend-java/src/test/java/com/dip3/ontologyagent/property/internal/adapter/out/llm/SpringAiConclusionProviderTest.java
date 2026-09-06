@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.propertyProvenance;
 
 class SpringAiConclusionProviderTest {
     private final ChatClient.Builder builder = mock(ChatClient.Builder.class);
@@ -153,11 +154,11 @@ class SpringAiConclusionProviderTest {
     private static List<Evidence> evidence() {
         return List.of(new Evidence("erp-staging", "ERP", List.of(Map.of(
                         "projectName", "项目一", "receivableAmount", 1000,
-                        "paidAmount", 800, "arrearsAmount", 200))),
-                new Evidence("cube", "Cube", List.of(Map.of("value", 1))),
+                        "paidAmount", 800, "arrearsAmount", 200)), propertyProvenance()),
+                new Evidence("cube", "Cube", List.of(Map.of("value", 1)), propertyProvenance()),
                 new Evidence("neo4j", "Neo4j", List.of(Map.of(
                         "rootLabel", "项目一", "factorLabel", "物业费", "factType", "has-receivable",
-                        "relationType", "belongs-to"))));
+                        "relationType", "belongs-to")), propertyProvenance()));
     }
 
     private static SpringAiConclusionProvider.ConclusionDraft validDraft() {

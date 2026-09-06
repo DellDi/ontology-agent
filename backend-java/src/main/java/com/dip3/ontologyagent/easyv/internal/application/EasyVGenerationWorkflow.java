@@ -158,7 +158,7 @@ public final class EasyVGenerationWorkflow {
 
   private EasyVGenerationResult buildResult(
       EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot) {
-    List<Evidence> evidence = evidence(snapshot);
+    List<Evidence> evidence = evidence(request, snapshot);
     List<GroundedConclusion.Claim> claims = claims(snapshot, evidence);
     Map<String, Object> resolvedContext =
         Map.of(
@@ -193,7 +193,8 @@ public final class EasyVGenerationWorkflow {
     return new EasyVGenerationResult(plan, evidence, claims, blocks);
   }
 
-  private static List<Evidence> evidence(EasyVGenerationFacts.Snapshot snapshot) {
+  private static List<Evidence> evidence(
+      EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot) {
     EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
     EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
     EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
@@ -205,7 +206,9 @@ public final class EasyVGenerationWorkflow {
             List.of(Map.of(
                 "applicationCount", application.applicationCount(),
                 "prototypeCount", application.prototypeCount(),
-                "freshnessAt", application.window().freshnessAt().toString()))),
+                "freshnessAt", application.window().freshnessAt().toString())),
+            provenance(request, snapshot, application.window().freshnessAt(),
+                "easyv-ai-application", "easyv-prototype-task")),
         new Evidence(
             "easyv-pipeline-node",
             "EasyV 原型阶段聚合",
@@ -219,7 +222,8 @@ public final class EasyVGenerationWorkflow {
                     "timedNodeCount", pipeline.timedNodeCount(),
                     "bottleneckStep", pipeline.bottleneckStep(),
                     "bottleneckP95Millis", pipeline.bottleneckP95Millis(),
-                    "freshnessAt", pipeline.window().freshnessAt().toString()))),
+                    "freshnessAt", pipeline.window().freshnessAt().toString())),
+            provenance(request, snapshot, pipeline.window().freshnessAt(), "easyv-pipeline-node")),
         new Evidence(
             "easyv-forge-task",
             "EasyV Forge 任务聚合",
@@ -234,7 +238,8 @@ public final class EasyVGenerationWorkflow {
                     "p50DurationMillis", forge.p50DurationMillis(),
                     "p95DurationMillis", forge.p95DurationMillis(),
                     "failureReasonCounts", forge.failureReasonCounts(),
-                    "freshnessAt", forge.window().freshnessAt().toString()))),
+                    "freshnessAt", forge.window().freshnessAt().toString())),
+            provenance(request, snapshot, forge.window().freshnessAt(), "easyv-forge-task")),
         new Evidence(
             "easyv-generation-feedback",
             "EasyV 生成反馈聚合",
@@ -246,7 +251,25 @@ public final class EasyVGenerationWorkflow {
                     "saveAsEditCount", feedback.saveAsEditCount(),
                     "combinedExecuteSuccessCount", feedback.combinedExecuteSuccessCount(),
                     "combinedExecuteFailureCount", feedback.combinedExecuteFailureCount(),
-                    "freshnessAt", feedback.window().freshnessAt().toString()))));
+                    "freshnessAt", feedback.window().freshnessAt().toString())),
+            provenance(request, snapshot, feedback.window().freshnessAt(),
+                "easyv-generation-feedback")));
+  }
+
+  private static Evidence.Provenance provenance(
+      EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot, Instant freshnessAt,
+      String... productKeys) {
+    Map<String, String> versions = new LinkedHashMap<>();
+    for (String productKey : productKeys) {
+      String versionId = snapshot.productVersionIds().get(productKey);
+      if (versionId == null || versionId.isBlank()) {
+        throw new BackendException("DATASET_VERSION_SET_INCOMPLETE",
+            "EasyV 数据版本集合缺少产品: " + productKey);
+      }
+      versions.put(productKey, versionId);
+    }
+    return new Evidence.Provenance(
+        request.ontologyVersionId(), request.datasetVersionSetId(), freshnessAt, versions);
   }
 
   private static List<GroundedConclusion.Claim> claims(

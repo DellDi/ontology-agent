@@ -101,7 +101,10 @@ public final class Neo4jEvidenceAdapter implements EvidenceProvider {
                 for (String key : result.keys()) row.put(key, record.get(key).isNull() ? null : record.get(key).asObject());
                 return row;
             }).toList();
-            return new Evidence("neo4j", "受范围约束的收费项目结构关系", rows);
+            return new Evidence("neo4j", "受范围约束的收费项目结构关系", rows,
+                    scope.provenance(request.ontologyVersionId(),
+                            PropertyDataProducts.PROJECT, PropertyDataProducts.CHARGE_ITEM,
+                            PropertyDataProducts.RECEIVABLE, PropertyDataProducts.PAYMENT));
         } catch (BackendException error) {
             throw error;
         } catch (RuntimeException error) {

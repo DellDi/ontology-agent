@@ -16,7 +16,6 @@ import com.dip3.ontologyagent.property.internal.application.AnalysisWorkflow;
 import com.dip3.ontologyagent.property.internal.application.MainAgent;
 import com.dip3.ontologyagent.property.internal.domain.PropertyInvocationContract;
 import com.dip3.ontologyagent.property.internal.domain.WorkflowRequest;
-import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import com.dip3.ontologyagent.property.internal.adapter.out.llm.WorkflowToolInput;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +43,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static com.dip3.ontologyagent.support.CapabilityTestFixtures.evidence;
 
 class SpringAiMainAgentTest {
     private final ChatClient.Builder builder = mock(ChatClient.Builder.class);
@@ -79,7 +79,7 @@ class SpringAiMainAgentTest {
     @Test
     void executesExactlyOneStronglyTypedWorkflowToolCall() {
         WorkflowResult expected = new WorkflowResult(Map.of("steps", List.of()),
-                List.of(new Evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
+                List.of(evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
         when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
         when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
             SpringAiMainAgent.BoundWorkflowTool tool =
@@ -115,7 +115,7 @@ class SpringAiMainAgentTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     void propagatesTheBoundDatasetVersionSetToWorkflowAndAudit() {
         WorkflowResult expected = new WorkflowResult(Map.of(),
-                List.of(new Evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
+                List.of(evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
         when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
         when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
             SpringAiMainAgent.BoundWorkflowTool tool =
@@ -142,7 +142,7 @@ class SpringAiMainAgentTest {
     @Test
     void returnDirectToolResultIsAMinimalMemoryProjectionWithoutRawEvidence() {
         WorkflowResult expected = new WorkflowResult(Map.of("secretPlan", "do-not-copy"),
-                List.of(new Evidence("erp", "ERP", List.of(Map.of("secretRow", "do-not-copy")))),
+                List.of(evidence("erp", "ERP", List.of(Map.of("secretRow", "do-not-copy")))),
                 "受控小结论", List.of(), List.of(Map.of("secretBlock", "do-not-copy")));
         when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
         AtomicReference<String> directResult = new AtomicReference<>();
@@ -177,7 +177,7 @@ class SpringAiMainAgentTest {
                 "为什么下降", "follow-up-1", "execution-0", referencedConclusion(), context,
                 Instant.parse("2026-02-01T00:00:00Z"));
         WorkflowResult expected = new WorkflowResult(Map.of(),
-                List.of(new Evidence("erp", "ERP", List.of(Map.of("value", 1)))), "追问结论", List.of(), List.of());
+                List.of(evidence("erp", "ERP", List.of(Map.of("value", 1)))), "追问结论", List.of(), List.of());
         when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
         when(prompt.advisors(any(org.springframework.ai.chat.client.advisor.api.Advisor[].class))).thenReturn(prompt);
         when(prompt.advisors(any(java.util.function.Consumer.class))).thenReturn(prompt);
@@ -220,7 +220,7 @@ class SpringAiMainAgentTest {
                 "再分析 2026 年 1 月收缴率", "follow-up-1", "execution-0", referencedConclusion(), context,
                 Instant.parse("2026-03-01T00:00:00Z"));
         WorkflowResult expected = new WorkflowResult(Map.of(),
-                List.of(new Evidence("erp", "ERP", List.of(Map.of("value", 1)))), "追问结论", List.of(), List.of());
+                List.of(evidence("erp", "ERP", List.of(Map.of("value", 1)))), "追问结论", List.of(), List.of());
         when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
         when(prompt.advisors(any(org.springframework.ai.chat.client.advisor.api.Advisor[].class))).thenReturn(prompt);
         when(prompt.advisors(any(java.util.function.Consumer.class))).thenReturn(prompt);
@@ -390,7 +390,7 @@ class SpringAiMainAgentTest {
         when(scopedProjects.targets(multiOwner)).thenReturn(List.of(
                 new ScopedProjectTarget("project-1", "项目一"), new ScopedProjectTarget("project-2", "项目二")));
         WorkflowResult expected = new WorkflowResult(Map.of(),
-                List.of(new Evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
+                List.of(evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
         when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
         when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
             SpringAiMainAgent.BoundWorkflowTool tool =
@@ -440,7 +440,7 @@ class SpringAiMainAgentTest {
         when(scopedProjects.targets(multiOwner)).thenReturn(List.of(
                 new ScopedProjectTarget("project-1", "项目一"), new ScopedProjectTarget("project-2", "项目二")));
         WorkflowResult expected = new WorkflowResult(Map.of(),
-                List.of(new Evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
+                List.of(evidence("erp", "ERP", List.of(Map.of("value", 1)))), "结论", List.of(), List.of());
         when(workflow.execute(any(), any(), anyString(), anyString())).thenReturn(expected);
         when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
             SpringAiMainAgent.BoundWorkflowTool tool =

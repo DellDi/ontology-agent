@@ -116,7 +116,8 @@ public final class AnalysisWorker {
                 throw new BackendException("AGENT_TOOL_CONTRACT_VIOLATION",
                         invocation.contractViolationMessage(invocationCount));
             }
-            validateResult(capability, job.capabilityBinding(), job.executionId(), capabilityResult);
+            validateResult(capability, job.capabilityBinding(), job.executionId(),
+                    job.datasetVersionSetId(), capabilityResult);
             recorder.succeedWhileLeased(agentRunId, Map.of(invocation.completionMetricKey(), invocationCount),
                     job.executionId(), job.workerId());
             agentRunId = null;
@@ -256,6 +257,7 @@ public final class AnalysisWorker {
     private static void validateResult(CapabilityDescriptor descriptor,
                                        CapabilityBinding expectedBinding,
                                        String executionId,
+                                       String datasetVersionSetId,
                                        CapabilityResult<WorkflowResult, Evidence> envelope) {
         WorkflowResult result = envelope.result();
         Set<String> evidenceTypes = envelope.evidence().stream().map(CapabilityEvidence::evidenceType)
@@ -266,7 +268,13 @@ public final class AnalysisWorker {
         if (!expectedBinding.equals(envelope.binding())
                 || !expectedBinding.scopeSnapshotRef(executionId).equals(envelope.scopeSnapshotRef())
                 || !evidenceTypes.equals(descriptor.requiredEvidenceTypes())
-                || result.evidence().stream().anyMatch(item -> item.rows().isEmpty())
+                || result.evidence().stream().anyMatch(item -> item.rows().isEmpty()
+                        || !expectedBinding.ontologyVersionId().equals(item.provenance().ontologyVersionId())
+                        || datasetVersionSetId == null
+                        || !datasetVersionSetId.equals(item.provenance().datasetVersionSetId())
+                        || item.provenance().productVersionIds().isEmpty()
+                        || !descriptor.requiredDataProductKeys().containsAll(
+                                item.provenance().productVersionIds().keySet()))
                 || !claimKinds.equals(descriptor.allowedClaimKinds())
                 || result.claims() == null || result.claims().size() != claimKinds.size()) {
             throw new BackendException("WORKFLOW_RESULT_INVALID", "Workflow 完成态不符合能力的证据或结论类型契约。");

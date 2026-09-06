@@ -553,6 +553,7 @@ mise exec java@21.0.2 -- mvn -f backend-java/pom.xml \
 - `backend-java/src/main/java/com/dip3/ontologyagent/analysis/AnalysisSessionRepository.java:13-45`：具体 MyBatis repository；
 - `backend-java/src/main/java/com/dip3/ontologyagent/execution/ExecutionRepository.java:17-168`：持久化、幂等、lease 和状态迁移边界；
 - `backend-java/src/main/java/com/dip3/ontologyagent/execution/AnalysisWorker.java:30-215`：Worker 编排与物业结果验证；
+- `backend-java/src/main/java/com/dip3/ontologyagent/tooling/Evidence.java`：M8 evidence provenance 外壳，完成态必须冻结 Ontology/Dataset Version；
 - `backend-java/src/main/java/com/dip3/ontologyagent/tooling/EvidenceProvider.java:1-6`：现有 evidence port；
 - `backend-java/src/main/java/com/dip3/ontologyagent/tooling/ConclusionProvider.java:1-7`：现有 conclusion port；
 - `backend-java/src/main/java/com/dip3/ontologyagent/graphsync/GraphWriter.java:1-7`：现有 graph writer port；

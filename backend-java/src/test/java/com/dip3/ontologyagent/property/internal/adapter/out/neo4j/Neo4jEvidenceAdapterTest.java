@@ -45,7 +45,7 @@ class Neo4jEvidenceAdapterTest {
     WorkflowRequest request = request("property-set-old");
     PropertyCanonicalScope scopes = mock(PropertyCanonicalScope.class);
     when(scopes.resolve(owner, request)).thenReturn(new PropertyCanonicalScope.Resolved(
-        "property-set-old", versions(), List.of("project-1")));
+        "property-set-old", versions(), List.of("project-1"), Instant.parse("2026-08-01T03:00:00Z")));
     Neo4jEvidenceAdapter adapter = new Neo4jEvidenceAdapter(driver, properties(), scopes);
 
     var rows = adapter.collect(owner, request).rows();
@@ -61,7 +61,7 @@ class Neo4jEvidenceAdapterTest {
     WorkflowRequest request = request("property-set-missing");
     PropertyCanonicalScope scopes = mock(PropertyCanonicalScope.class);
     when(scopes.resolve(owner, request)).thenReturn(new PropertyCanonicalScope.Resolved(
-        "property-set-missing", versions(), List.of("project-1")));
+        "property-set-missing", versions(), List.of("project-1"), Instant.parse("2026-08-01T03:00:00Z")));
 
     var error = org.junit.jupiter.api.Assertions.assertThrows(
         com.dip3.ontologyagent.support.BackendException.class,

@@ -197,7 +197,13 @@ class EasyVGenerationWorkflowTest {
         new EasyVGenerationFacts.ApplicationFacts(window(freshness), 10, 8),
         new EasyVGenerationFacts.PipelineFacts(window(freshness), 10, 6, 2, 2, 10, 9, "Step2-Main", 1200),
         new EasyVGenerationFacts.ForgeFacts(window(freshness), 10, 7, 2, 1, 10, 9, 100, 300, Map.of("unknown", 2L)),
-        new EasyVGenerationFacts.FeedbackFacts(window(freshness), 6, 2, 4.5, 1, 5, 1));
+        new EasyVGenerationFacts.FeedbackFacts(window(freshness), 6, 2, 4.5, 1, 5, 1),
+        Map.of(
+            "easyv-ai-application", "product-easyv-ai-application",
+            "easyv-prototype-task", "product-easyv-prototype-task",
+            "easyv-pipeline-node", "product-easyv-pipeline-node",
+            "easyv-forge-task", "product-easyv-forge-task",
+            "easyv-generation-feedback", "product-easyv-generation-feedback"));
   }
 
   private static EasyVGenerationFacts.FactWindow window(Instant freshness) {

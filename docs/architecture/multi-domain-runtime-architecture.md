@@ -619,6 +619,7 @@ M3/M5 稳定后，新增第三领域不应修改：
 | M5 | J4 | D2 | P2 | EasyV 成为第二个真实 capability |
 | M6 | - | D3 | P3 | 跨领域、失败与展示验收通过 |
 | M7 | - | D4 | P4 | 只读闭环后再单独审批 Action/血缘 |
+| M8 | - | - | - | 完成态 evidence 必须携带冻结 Ontology/Dataset Version 出处 |
 
 ```text
 M0  两份架构基线                               本轮
@@ -629,6 +630,7 @@ M4  EasyV D0/D1 read-only verification          可连接开发库
 M5  EasyV Domain Pack                           第二真实领域
 M6  Cross-domain acceptance                     证明可扩展性
 M7  Optional Action                             只读闭环之后
+M8  Evidence provenance invariant               完成态 evidence 必须可复核
 ```
 
 每个阶段独立测试。M1/M2 不启用第二领域；M3 物业等价门禁通过后进入 M4/M5，M6 再验证跨领域读契约、失败语义与展示投影。以下阶段说明保留为历史实施记录；当前 M6 已完成源码、契约与 EasyV test 环境联合验收。
@@ -677,7 +679,7 @@ M7  Optional Action                             只读闭环之后
 - `backend-java/src/main/java/com/dip3/ontologyagent/ontology/OntologyRepository.java:16-60`：current/pinned version 读取；
 - `backend-java/src/main/java/com/dip3/ontologyagent/ontology/OntologyMapper.java:15-26`：approved current 与 approved/deprecated pinned version SQL；
 - `backend-java/src/main/java/com/dip3/ontologyagent/ontology/bootstrap/CanonicalOntologyBaseline.java:6-23`：当前 Java baseline；
-- `backend-java/src/main/java/com/dip3/ontologyagent/tooling/Evidence.java`：当前通用 evidence 外壳；
+- `backend-java/src/main/java/com/dip3/ontologyagent/tooling/Evidence.java`：M8 通用 evidence 外壳，完成态必须携带冻结 Ontology/Dataset Version 出处；
 - `backend-java/src/main/java/com/dip3/ontologyagent/tooling/EvidenceProvider.java`：当前 evidence port；
 - `backend-java/src/main/java/com/dip3/ontologyagent/tooling/ConclusionProvider.java`：当前 conclusion port；
 - `backend-java/src/main/resources/db/migration/V1__init.sql:535-737`：Ontology/Metric/Tool/Plan/Evidence 注册表；
