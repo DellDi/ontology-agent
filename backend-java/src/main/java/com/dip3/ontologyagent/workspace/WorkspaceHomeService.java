@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.workspace;
 
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.auth.ViewerResponse;
+import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +16,12 @@ import java.util.stream.Collectors;
 @Service
 public class WorkspaceHomeService {
     private final WorkspaceHomeMapper mapper;
+    private final CapabilityRegistry capabilities;
 
-    public WorkspaceHomeService(WorkspaceHomeMapper mapper) {
+    public WorkspaceHomeService(WorkspaceHomeMapper mapper,
+            CapabilityRegistry capabilities) {
         this.mapper = mapper;
+        this.capabilities = capabilities;
     }
 
     @Transactional(readOnly = true)
@@ -44,7 +48,7 @@ public class WorkspaceHomeService {
         List<WorkspaceHomeResponse.ProjectSummary> projects = projectRows.values().stream()
                 .map(row -> new WorkspaceHomeResponse.ProjectSummary(row.id, row.code, row.name,
                         row.organizationId, row.areaId, row.areaName)).toList();
-        return new WorkspaceHomeResponse(ViewerResponse.from(viewer), sessions, projects);
+        return new WorkspaceHomeResponse(ViewerResponse.from(viewer), sessions, projects, capabilities.availableFor(viewer));
     }
 
     private static WorkspaceHomeResponse.SessionSummary session(WorkspaceHomeMapper.SessionRow row,

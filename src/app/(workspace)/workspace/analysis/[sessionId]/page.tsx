@@ -14,6 +14,7 @@ import {
   type JavaAnalysisSession,
 } from '@/infrastructure/java-backend';
 
+import { AnalysisUserMessage } from './_components/analysis-user-message';
 import { AnalysisAutoExecuteGate } from './_components/analysis-auto-execute-gate';
 import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
 import { AnalysisFollowUpInput } from './_components/analysis-follow-up-input';
@@ -248,8 +249,6 @@ export default async function AnalysisSessionPage({
         </div>
       ) : null}
 
-      <AnalysisRuntimeContractPanel snapshot={aggregate.snapshot} />
-
       {resolvedExecutionId && readModel && !activeFollowUpPending ? (
         <AnalysisExecutionLiveShell
           sessionId={sessionId}
@@ -267,12 +266,12 @@ export default async function AnalysisSessionPage({
           followUpLabel={displayedFollowUp ? '追问模式' : undefined}
           ontologyVersionBadge={aggregate.snapshot?.ontologyVersionId ?? undefined}
           drawerContents={{
-            history: (
+            history: historyReadModel.rounds.length >= 2 ? (
               <AnalysisHistoryPanel
                 sessionId={sessionId}
                 readModel={historyReadModel}
               />
-            ),
+            ) : null,
           }}
         >
           {followUpInput}
@@ -282,15 +281,9 @@ export default async function AnalysisSessionPage({
           className="mx-auto w-full max-w-[860px] space-y-6 px-4"
           data-testid="analysis-pending-conversation"
         >
-          <div className="flex justify-end">
-            <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-primary px-5 py-3.5">
-              <p className="text-base leading-7 text-primary-foreground">
-                {displayedQuestion}
-              </p>
-            </div>
-          </div>
+          <AnalysisUserMessage questionText={displayedQuestion} badges={[]} />
           <div className="flex justify-start">
-            <div className="w-full max-w-[90%]">
+            <div className="w-full">
               <p className="text-sm font-medium text-foreground">
                 {activeFollowUp
                   ? '正在准备追问分析'
@@ -346,10 +339,13 @@ export default async function AnalysisSessionPage({
         />
       ) : null}
 
-      <AnalysisHistoryPanel
-        sessionId={sessionId}
-        readModel={historyReadModel}
-      />
+      <AnalysisRuntimeContractPanel snapshot={aggregate.snapshot} />
+      {(!resolvedExecutionId || !readModel || activeFollowUpPending) && historyReadModel.rounds.length >= 2 ? (
+        <details className="border-t border-border pt-4">
+          <summary className="cursor-pointer text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring">历史问答</summary>
+          <AnalysisHistoryPanel sessionId={sessionId} readModel={historyReadModel} />
+        </details>
+      ) : null}
     </section>
   );
 }

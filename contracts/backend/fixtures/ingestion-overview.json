@@ -1,0 +1,67 @@
+{
+  "scope": "platform",
+  "runLimit": 50,
+  "releaseLimit": 20,
+  "sources": [
+    {
+      "key": "property",
+      "connectorType": "postgres",
+      "status": "active"
+    }
+  ],
+  "datasets": [
+    {
+      "key": "property-payment",
+      "sourceKey": "property",
+      "status": "active",
+      "schemaVersion": 1
+    }
+  ],
+  "products": [
+    {
+      "key": "property-payment",
+      "domainKey": "property",
+      "status": "active",
+      "datasetKeys": [
+        "property-payment"
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-failed",
+      "kind": "source",
+      "targetKey": "property",
+      "mode": "incremental",
+      "status": "failed",
+      "errorCode": "SOURCE_CONNECTION_FAILED",
+      "correlationId": "trace-run-failed",
+      "createdAt": "2026-09-12T02:00:00Z",
+      "startedAt": "2026-09-12T02:00:01Z",
+      "finishedAt": "2026-09-12T02:00:03Z"
+    }
+  ],
+  "releases": [
+    {
+      "id": "release-20260912",
+      "status": "frozen",
+      "capturedAt": "2026-09-12T01:00:00Z",
+      "products": [
+        {
+          "key": "property-payment",
+          "versionId": "product-v1",
+          "status": "published",
+          "rowCount": 1234,
+          "runId": "product-run-1",
+          "sources": [
+            {
+              "datasetKey": "property-payment",
+              "versionId": "source-v1",
+              "runId": "source-run-1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

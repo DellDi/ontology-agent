@@ -694,3 +694,28 @@ test('Next auth routes are pure Java proxies and Set-Cookie passes through', asy
     'Set-Cookie 必须原样透传到浏览器',
   );
 });
+
+test('workspace capability availability is required and rejects contradictory scope states', async () => {
+  const ajv = await contractValidator();
+  const validate = ajv.getSchema('workspace-home.schema.json');
+  const home = await jsonFixture('workspace-home.json');
+  const malformedScope = structuredClone(home);
+  malformedScope.capabilities[0].resolvedScope.values.projectIds = 'not-an-array';
+  assert.equal(validate(malformedScope), false);
+  assert.equal(javaWorkspaceHomeSchema.safeParse(malformedScope).success, false);
+  const missing = structuredClone(home);
+  delete missing.capabilities;
+  assert.equal(validate(missing), false);
+  assert.equal(javaWorkspaceHomeSchema.safeParse(missing).success, false);
+  for (const available of [true, false]) {
+    const input = structuredClone(home);
+    input.capabilities[0].available = available;
+    input.capabilities[0].unavailableReason = available ? null : '未分配项目范围';
+    input.capabilities[0].resolvedScope = available ? home.capabilities[0].resolvedScope : null;
+    assert.equal(validate(input), true, ajv.errorsText(validate.errors));
+    assert.equal(javaWorkspaceHomeSchema.safeParse(input).success, true);
+    input.capabilities[0].unavailableReason = available ? '无权限' : null;
+    assert.equal(validate(input), false);
+    assert.equal(javaWorkspaceHomeSchema.safeParse(input).success, false);
+  }
+});

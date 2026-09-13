@@ -74,8 +74,8 @@ wait_for_health() {
 run_ingestion() {
   local mode=${1:-INCREMENTAL}
   mode=${mode^^}
-  if [[ "$mode" != "FULL" && "$mode" != "INCREMENTAL" ]]; then
-    echo "ingest mode must be FULL or INCREMENTAL" >&2
+  if [[ "$mode" != "FULL" && "$mode" != "INCREMENTAL" && "$mode" != "RECONCILE" ]]; then
+    echo "ingest mode must be FULL, INCREMENTAL or RECONCILE" >&2
     exit 1
   fi
   local key
@@ -93,8 +93,8 @@ run_ingestion() {
 run_property_ingestion() {
   local mode=${1:-INCREMENTAL}
   mode=${mode^^}
-  if [[ "$mode" != "FULL" && "$mode" != "INCREMENTAL" ]]; then
-    echo "property-ingest mode must be FULL or INCREMENTAL" >&2
+  if [[ "$mode" != "FULL" && "$mode" != "INCREMENTAL" && "$mode" != "RECONCILE" ]]; then
+    echo "property-ingest mode must be FULL, INCREMENTAL or RECONCILE" >&2
     exit 1
   fi
   PROPERTY_INGEST_MODE="$mode" compose --profile ops run --rm property-ingest
@@ -168,6 +168,21 @@ case "$command" in
     require_env_file
     run_ingestion "${2:-INCREMENTAL}"
     ;;
+  admin-seed)
+    require_env_file
+    : "${ADMIN_SEED_USERNAME:?ADMIN_SEED_USERNAME is required}"
+    : "${ADMIN_SEED_PASSWORD:?ADMIN_SEED_PASSWORD is required}"
+    compose --profile ops run --rm admin-seed
+    ;;
+  release-worker)
+    require_env_file
+    for key in EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD; do
+      if [[ -z ${!key:-} ]]; then echo "Missing source environment variable: $key" >&2; exit 1; fi
+    done
+    EASYV_POSTGRES_SCHEMA=${EASYV_POSTGRES_SCHEMA:-easyv_saas} \
+    EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE=${EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE:-true} \
+      compose --profile ops up -d --no-deps release-worker
+    ;;
   property-ingest)
     require_env_file
     run_property_ingestion "${2:-INCREMENTAL}"
@@ -200,7 +215,7 @@ case "$command" in
     wait_for_health
     ;;
   *)
-    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL]|property-ingest [FULL|INCREMENTAL]|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
     exit 2
     ;;
 esac

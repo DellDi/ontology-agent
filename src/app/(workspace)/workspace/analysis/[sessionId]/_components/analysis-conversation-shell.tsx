@@ -44,6 +44,7 @@ export function AnalysisConversationShell({
   }, []);
 
   const turns = thread?.turns;
+  const availableDetails = Object.keys(drawerContents).filter(key => drawerContents[key] != null) as Exclude<DetailDrawerType, null>[];
 
   return (
     <>
@@ -71,6 +72,7 @@ export function AnalysisConversationShell({
                   metricCards={turn.viewModel.assistantMessage.metricCards}
                   visualizations={turn.viewModel.assistantMessage.visualizations}
                   toolTimeline={turn.viewModel.assistantMessage.toolTimeline}
+                  availableDetails={availableDetails}
                   onOpenDetail={handleOpenDetail}
                 />
               ) : (
@@ -99,7 +101,8 @@ export function AnalysisConversationShell({
               metricCards={viewModel.assistantMessage.metricCards}
               visualizations={viewModel.assistantMessage.visualizations}
               toolTimeline={viewModel.assistantMessage.toolTimeline}
-              onOpenDetail={handleOpenDetail}
+              availableDetails={availableDetails}
+                  onOpenDetail={handleOpenDetail}
             />
           </>
         )}

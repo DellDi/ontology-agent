@@ -1,13 +1,15 @@
 package com.dip3.ontologyagent.workspace;
 
 import com.dip3.ontologyagent.auth.ViewerResponse;
+import com.dip3.ontologyagent.capability.api.CapabilityAvailability;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 public record WorkspaceHomeResponse(ViewerResponse viewer, List<SessionSummary> sessions,
-                                    List<ProjectSummary> projects) {
+                                    List<ProjectSummary> projects,
+                                    List<CapabilityAvailability> capabilities) {
     public record SessionSummary(String id, String questionText, String status, SessionScope scope,
                                  Map<String, Object> savedContext, Instant createdAt, Instant updatedAt,
                                  LatestExecutionSummary latestExecution) {}

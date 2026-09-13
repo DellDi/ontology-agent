@@ -1,0 +1,16 @@
+{
+  "id": "91cefa0f-e04c-47a1-83b6-b1ebfe1c8181",
+  "sourceKey": "property",
+  "productKeys": [
+    "property-payment"
+  ],
+  "mode": "full",
+  "status": "failed",
+  "retryOf": null,
+  "requestedBy": "admin",
+  "correlationId": "web-trace-1",
+  "errorCode": "SOURCE_CONNECTION_RESOLUTION_FAILED",
+  "createdAt": "2026-09-12T01:00:00Z",
+  "startedAt": "2026-09-12T01:00:01Z",
+  "finishedAt": "2026-09-12T01:00:05Z"
+}

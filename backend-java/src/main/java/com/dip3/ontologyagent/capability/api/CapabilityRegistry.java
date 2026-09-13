@@ -4,9 +4,12 @@ import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
+import java.util.List;
 
 public interface CapabilityRegistry {
   CapabilityId selectInitial(String question);
+
+  List<CapabilityAvailability> availableFor(AuthSession principal);
 
   CapabilityBinding bind(
       CapabilityId capabilityId, OntologyCatalog ontology, AuthSession principal);

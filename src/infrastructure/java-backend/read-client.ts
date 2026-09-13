@@ -503,7 +503,29 @@ const latestExecutionSchema = z.strictObject({
   }
 });
 
+const workspaceCapabilitySchema = z.strictObject({
+  domainKey: z.string().min(1),
+  capabilityKey: z.string().min(1),
+  displayName: z.string().min(1),
+  available: z.boolean(),
+  unavailableReason: z.string().min(1).nullable(),
+  exampleQuestion: z.string().min(1),
+  resolvedScope: z.union([
+    propertyCapabilityBindingSchema.shape.resolvedScope,
+    easyVCapabilityBindingSchema.shape.resolvedScope,
+  ]).nullable(),
+}).superRefine((value, context) => {
+  if (value.available ? !value.resolvedScope || value.unavailableReason !== null
+    : value.resolvedScope !== null || value.unavailableReason === null) {
+    context.addIssue({ code: 'custom', message: '能力可用状态与授权范围/不可用原因不一致。' });
+  }
+  if (value.resolvedScope && value.domainKey !== value.resolvedScope.domainKey) {
+    context.addIssue({ code: 'custom', message: '能力与授权范围的领域不一致。' });
+  }
+});
+
 export const javaWorkspaceHomeSchema = z.strictObject({
+  capabilities: z.array(workspaceCapabilitySchema),
   viewer: javaViewerSchema,
   sessions: z.array(z.strictObject({
     id: z.string().min(1),

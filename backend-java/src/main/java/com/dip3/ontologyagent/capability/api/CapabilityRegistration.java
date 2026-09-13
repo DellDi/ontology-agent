@@ -7,6 +7,8 @@ import com.dip3.ontologyagent.tooling.WorkflowResult;
 public interface CapabilityRegistration {
   CapabilityDescriptor descriptor();
 
+  String exampleQuestion();
+
   InitialCapabilityCandidate initialQuestionCandidate(String question);
 
   void validateInitialQuestion(String question);

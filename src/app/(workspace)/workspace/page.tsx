@@ -47,6 +47,7 @@ export default async function WorkspacePage({
           ? {
               executionId: execution.executionId,
               status: execution.status,
+              capabilityBinding: execution.capabilityBinding,
               conclusionState: execution.conclusionState,
               failurePoint: failurePoint(execution.failurePoint),
             }
@@ -59,6 +60,8 @@ export default async function WorkspacePage({
     home.sessions,
     home.projects.map(({ id, name }) => ({ id, name })),
     latestSnapshots,
+    null,
+    home.capabilities,
   );
   const params = (await searchParams) ?? {};
   const errorDetails = [

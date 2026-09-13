@@ -68,7 +68,7 @@ class PropertyCanonicalIngestionTest {
     jdbc = new JdbcTemplate(dataSource);
     transactions = new JdbcTransactionManager(dataSource);
     jdbc.execute("""
-        truncate facts.property_organization,facts.property_project,
+        truncate ingestion.release_tasks, facts.property_organization,facts.property_project,
           facts.property_charge_item,facts.property_receivable,facts.property_payment,
           facts.property_service_order,ingestion.dataset_version_set_items,
           ingestion.dataset_version_sets,ingestion.data_product_version_lineage,
@@ -159,6 +159,70 @@ class PropertyCanonicalIngestionTest {
         AnalysisRuntimeCapability.TIME_SEMANTIC_KEY,
         projectIds, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), "worker-1",
         "java-initial-v1", null, null, Map.of(), Map.of());
+  }
+
+  @Test
+  void failedWebReleaseCanBeRetriedAndConsumedAsPinnedPropertyEvidence() {
+    JsonCodec json = new JsonCodec();
+    var persistence = new IngestionPostgresPersistenceAdapter(jdbc, json, transactions);
+    var sources = new SourceCatalogPostgresAdapter(jdbc, json);
+    var products = new ProductCatalogPostgresAdapter(jdbc, json, sources);
+    var unavailable = new java.util.concurrent.atomic.AtomicBoolean(true);
+    PostgresSourceConnectionProvider connections = ref -> {
+      if (unavailable.get()) throw new com.dip3.ontologyagent.ingestion.internal.application.SourceConnectorException(
+          "SOURCE_TEST_UNAVAILABLE", "test-only source unavailable");
+      return new PostgresSourceConnectionProvider.ResolvedConnection(jdbc.getDataSource(), transactions, 30);
+    };
+    var codec = new RowPackV1Codec();
+    var transforms = new CanonicalProductTransformRegistry(Arrays.stream(PropertyCanonicalTransform.Kind.values())
+        .map(kind -> (CanonicalProductTransform) new PropertyCanonicalTransform(kind, jdbc)).toList());
+    var publisher = new DatasetReleasePublisher(
+        new SourceIngestionOrchestrator(sources,
+            new SourceConnectorRegistry(List.of(new PostgresSourceConnector(connections))), codec, persistence),
+        sources, products, new ProductMaterializer(products, transforms, codec, persistence), persistence);
+    var tasks = new com.dip3.ontologyagent.ingestion.internal.adapter.out.persistence.IngestionReleasePostgresAdapter(
+        jdbc, transactions, persistence);
+    var service = new com.dip3.ontologyagent.ingestion.internal.application.IngestionReleaseService(tasks, sources, products, transforms, new com.dip3.ontologyagent.ingestion.internal.application.IngestionAccessService(new com.dip3.ontologyagent.ingestion.internal.adapter.out.persistence.IngestionAccessPostgresAdapter(jdbc)));
+    var worker = new com.dip3.ontologyagent.ingestion.internal.application.IngestionReleaseWorker(tasks, publisher);
+    var actor = new AuthSession("auth", "admin", "Admin",
+        new AccessScope("1", List.of(), List.of(), List.of("PLATFORM_ADMIN")), Instant.MAX);
+    String first = java.util.UUID.randomUUID().toString();
+    service.submit(first, new com.dip3.ontologyagent.ingestion.internal.application.IngestionReleaseService.Command(
+        "property", PropertyDataProducts.REQUIRED.stream().sorted().toList(), "full"), actor, "web-trace");
+    worker.runOne();
+    assertEquals("failed", tasks.find(first).orElseThrow().status());
+    assertEquals("SOURCE_CONNECTION_RESOLUTION_FAILED", tasks.find(first).orElseThrow().errorCode());
+
+    unavailable.set(false);
+    String retry = java.util.UUID.randomUUID().toString();
+    service.retry(first, retry, actor, "retry-trace");
+    worker.runOne();
+    assertEquals("failed", tasks.find(first).orElseThrow().status());
+    assertEquals("completed", tasks.find(retry).orElseThrow().status());
+    assertEquals(first, tasks.find(retry).orElseThrow().retryOf());
+    var versionSets = new DatasetVersionSetPostgresAdapter(jdbc, json);
+    assertEquals(PropertyDataProducts.REQUIRED, versionSets.requireFrozen(retry, PropertyDataProducts.REQUIRED).productVersionIds().keySet());
+    var evidence = new PostgresErpEvidenceAdapter(jdbc, new PropertyCanonicalScope(jdbc, versionSets, transactions), transactions);
+    var owner = new AuthSession("owner", "user-1", "User",
+        new AccessScope("1", List.of(), List.of("area-1"), List.of("analyst")), Instant.MAX);
+    assertEquals(new BigDecimal("70"), evidence.collect(owner, request(retry, List.of("project-1"))).rows().getFirst().get("paidAmount"));
+    assertEquals(6L, jdbc.queryForObject("select count(*) from platform.audit_events where payload->>'releaseTaskId' in (?,?)",
+        Long.class, first, retry));
+
+    // Physical source deletion must disappear only from the new complete snapshot.
+    jdbc.update("delete from erp_staging.dw_datacenter_bill where record_id=202");
+    String reconcile = java.util.UUID.randomUUID().toString();
+    service.submit(reconcile, new com.dip3.ontologyagent.ingestion.internal.application.IngestionReleaseService.Command(
+        "property", PropertyDataProducts.REQUIRED.stream().sorted().toList(), "reconcile"), actor, "reconcile-trace");
+    worker.runOne();
+    assertEquals("completed", tasks.find(reconcile).orElseThrow().status());
+    assertEquals(new BigDecimal("80"), evidence.collect(owner, request(reconcile, List.of("project-1"))).rows().getFirst().get("paidAmount"));
+    assertEquals(new BigDecimal("70"), evidence.collect(owner, request(retry, List.of("project-1"))).rows().getFirst().get("paidAmount"));
+    assertEquals(0L, jdbc.queryForObject("""
+        select count(*) from ingestion.source_dataset_versions v
+        join ingestion.source_ingestion_runs r on r.id=v.source_ingestion_run_id
+        where r.correlation_id=? and v.parent_version_id is not null
+        """, Long.class, reconcile));
   }
 
   private void seedStaging() {

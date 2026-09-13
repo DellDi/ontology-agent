@@ -94,8 +94,9 @@ public final class DatasetReleaseIngestionRunner implements ApplicationRunner {
         return switch (normalized) {
             case "FULL" -> IngestionRun.Mode.FULL;
             case "INCREMENTAL" -> IngestionRun.Mode.INCREMENTAL;
+            case "RECONCILE" -> IngestionRun.Mode.RECONCILE;
             default -> throw new IllegalArgumentException(
-                    "mode must be FULL or INCREMENTAL: " + value);
+                    "mode must be FULL, INCREMENTAL or RECONCILE: " + value);
         };
     }
 

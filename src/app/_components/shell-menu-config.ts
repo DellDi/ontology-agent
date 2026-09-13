@@ -12,6 +12,7 @@ export const WORKSPACE_MENU: ShellMenuItem[] = [
 
 export const ADMIN_MENU: ShellMenuItem[] = [
   { href: '/workspace', label: '← 返回工作台', activePrefix: '/workspace' },
+  { href: '/admin/ingestion', label: '数据接入', activePrefix: '/admin/ingestion' },
   { href: '/admin/ontology', label: '概览', activePrefix: '/admin/ontology' },
   {
     href: '/admin/ontology/definitions',

@@ -15,17 +15,18 @@ function isActive(item: ShellMenuItem, current: string): boolean {
   return false;
 }
 
-export function ShellMenu({ items }: { items: ShellMenuItem[] }) {
+export function ShellMenu({ items, horizontal = false }: { items: ShellMenuItem[]; horizontal?: boolean }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav aria-label="主导航" className={horizontal ? "flex flex-wrap gap-1" : "flex flex-col gap-1"}>
       {items.map((item) => {
         const active = isActive(item, pathname);
         return (
           <Link
             key={item.href + item.label}
             href={item.href}
+            aria-current={active ? 'page' : undefined}
             className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
               active
                 ? 'bg-primary/10 text-primary'

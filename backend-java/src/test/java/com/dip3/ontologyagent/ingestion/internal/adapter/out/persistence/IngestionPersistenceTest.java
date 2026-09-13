@@ -70,6 +70,20 @@ class IngestionPersistenceTest {
     }
 
     @Test
+    void sourceViewGrantsAreIdempotentRevocableAndAudited() {
+        var port = new IngestionAccessPostgresAdapter(jdbc);
+        var actor = new com.dip3.ontologyagent.auth.AuthSession("session", "admin", "Admin",
+                new com.dip3.ontologyagent.auth.AccessScope("platform", List.of(), List.of(), List.of("PLATFORM_ADMIN")), Instant.MAX);
+        port.setGrant("source-a", "grants-test-org", true, actor);
+        port.setGrant("source-a", "grants-test-org", true, actor);
+        assertEquals(1, port.grants("grants-test-org").size());
+        assertEquals(0, port.grants("other-org").size());
+        port.setGrant("source-a", "grants-test-org", false, actor);
+        assertEquals(0, port.grants("grants-test-org").size());
+        assertEquals(2, jdbc.queryForObject("select count(*) from platform.audit_events where event_type='ingestion.access.changed' and payload->>'targetOrganizationId'='grants-test-org'", Integer.class));
+    }
+
+    @Test
     void publishesOneSourceSnapshotWithTwoDatasetVersionsAndCursorsAtomically() {
         reserveAndAppendSource("source-run-a", "1");
         var publication = sourcePublication("source-run-a", "1", "1");
@@ -592,6 +606,127 @@ class IngestionPersistenceTest {
             String versionId, long batchNumber, long rowCount, byte[] payload) {
         return persistence.appendSourceBatch(new IngestionPersistencePort.SourceBatchAppend(
                 versionId, batchNumber, rowCount, payload));
+    }
+
+    @Test
+    void managementReadsPublishedLineageAndBoundedRunsWithoutSensitiveDetails() {
+        publishSource("source-run-a");
+        publishProduct("product-run-a", "product-a", "product-version-a",
+                Map.of("input-a", "version-a-1", "input-b", "version-b-1"));
+        persistence.freezeVersionSet(new IngestionPersistencePort.VersionSetPublication(
+                "set-a", Map.of("product-a", "product-version-a"), Instant.now(), "operator"));
+        for (int i = 0; i < 55; i++) {
+            persistence.createSourceRun(sourceRunRequest("failed-" + i));
+            persistence.failSourceRun("failed-" + i, "SOURCE_CONNECTION_FAILED",
+                    Map.of("password", "secret-sentinel", "sql", "private-sql"));
+        }
+        var overview = new IngestionManagementPostgresAdapter(jdbc).overview();
+        assertEquals("platform", overview.scope());
+        assertEquals(50, overview.runs().size());
+        assertEquals("SOURCE_CONNECTION_FAILED", overview.runs().getFirst().errorCode());
+        assertEquals(2, overview.datasets().size());
+        assertEquals(List.of("dataset-a", "dataset-b"), overview.products().getFirst().datasetKeys());
+        var product = overview.releases().getFirst().products().getFirst();
+        assertEquals("product-version-a", product.versionId());
+        assertEquals("product-run-a", product.runId());
+        assertEquals(List.of("version-a-1", "version-b-1"),
+                product.sources().stream().map(item -> item.versionId()).toList());
+        assertEquals("source-run-a", product.sources().getFirst().runId());
+        String serialized = new JsonCodec().write(overview);
+        org.junit.jupiter.api.Assertions.assertFalse(serialized.contains("secret-sentinel"));
+        org.junit.jupiter.api.Assertions.assertFalse(serialized.contains("private-sql"));
+        org.junit.jupiter.api.Assertions.assertFalse(serialized.contains("connectionRef"));
+    }
+
+    @Test
+    void managementIncludesDisabledCatalogsAndLimitsReleaseHistory() {
+        jdbc.update("update ingestion.source_definitions set status='disabled'");
+        for (int i = 0; i < 25; i++) {
+            jdbc.update("insert into ingestion.dataset_version_sets (set_id) values (?)", "draft-" + i);
+        }
+        var overview = new IngestionManagementPostgresAdapter(jdbc).overview();
+        assertEquals("disabled", overview.sources().getFirst().status());
+        assertEquals(20, overview.releases().size());
+        assertEquals(List.of(), overview.releases().getFirst().products());
+        assertEquals(List.of(), overview.runs());
+    }
+
+    @Test
+    void releaseRequestsAreIdempotentAndAuditedAndRejectChangedPayloads() {
+        var tasks = releaseTasks();
+        String id = java.util.UUID.randomUUID().toString();
+        var actor = releaseActor();
+        var first = tasks.submit(id, "source-a", List.of("product-a"), "full", null, actor, "trace");
+        assertEquals(first, tasks.submit(id, "source-a", List.of("product-a"), "full", null, actor, "trace-2"));
+        assertThrows(BackendException.class, () -> tasks.submit(id, "source-a", List.of("product-a"),
+                "incremental", null, actor, "trace"));
+        assertEquals(1L, jdbc.queryForObject("select count(*) from platform.audit_events where payload->>'releaseTaskId'=?",
+                Long.class, id));
+        tasks.withNext(task -> { tasks.start(task.id()); tasks.finish(task.id(), "SOURCE_FAILED"); });
+        assertEquals("failed", tasks.find(id).orElseThrow().status());
+        assertEquals(3L, jdbc.queryForObject("select count(*) from platform.audit_events where payload->>'releaseTaskId'=?",
+                Long.class, id));
+    }
+
+    @Test
+    void interruptedReleaseClosesOnlyItsOwnUnfinishedRuns() {
+        var tasks = releaseTasks();
+        String id = java.util.UUID.randomUUID().toString();
+        tasks.submit(id, "source-a", List.of("product-a"), "full", null, releaseActor(), "trace");
+        tasks.start(id);
+        persistence.createSourceRun(new IngestionPersistencePort.SourceRunRequest("interrupted-source", "source-a",
+                IngestionRun.Mode.FULL, IngestionRun.TriggerType.MANUAL, "admin", id, Map.of("phase", "planned")));
+        tasks.withNext(task -> { assertEquals("running", task.status()); tasks.recover(task.id(), "INGESTION_RELEASE_INTERRUPTED"); });
+        assertEquals("failed", value("select status from ingestion.source_ingestion_runs where id='interrupted-source'"));
+        assertEquals("INGESTION_RELEASE_INTERRUPTED", tasks.find(id).orElseThrow().errorCode());
+        tasks.submit(java.util.UUID.randomUUID().toString(), "source-a", List.of("product-a"), "full", id, releaseActor(), "trace");
+        assertEquals(2, tasks.recent().size());
+    }
+
+    @Test
+    void twoWorkerConnectionsCannotExecuteTheSameRequestConcurrently() throws Exception {
+        var tasks = releaseTasks();
+        tasks.submit(java.util.UUID.randomUUID().toString(), "source-a", List.of("product-a"), "full", null, releaseActor(), "trace");
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var running = executor.submit(() -> tasks.withNext(task -> {
+                entered.countDown();
+                try { if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("test timeout"); }
+                catch (InterruptedException error) { throw new RuntimeException(error); }
+            }));
+            org.junit.jupiter.api.Assertions.assertTrue(entered.await(10, TimeUnit.SECONDS));
+            try { tasks.withNext(task -> org.junit.jupiter.api.Assertions.fail("second worker acquired lock")); }
+            finally { release.countDown(); }
+            running.get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void recoveryRecognizesACommittedManifestAndNeverRepublishesIt() {
+        var tasks = releaseTasks();
+        String id = java.util.UUID.randomUUID().toString();
+        tasks.submit(id, "source-a", List.of("product-a"), "full", null, releaseActor(), "trace");
+        tasks.start(id);
+        publishSource("source-run-a");
+        publishProduct("product-run-a", "product-a", "product-version-a",
+                Map.of("input-a", "version-a-1", "input-b", "version-b-1"));
+        persistence.freezeVersionSet(new IngestionPersistencePort.VersionSetPublication(id,
+                Map.of("product-a", "product-version-a"), Instant.now(), "admin"));
+        tasks.withNext(task -> tasks.recover(task.id(), "INGESTION_RELEASE_INTERRUPTED"));
+        assertEquals("completed", tasks.find(id).orElseThrow().status());
+        assertEquals(null, tasks.find(id).orElseThrow().errorCode());
+        assertEquals(1L, count("ingestion.data_product_versions"));
+    }
+
+    private IngestionReleasePostgresAdapter releaseTasks() {
+        return new IngestionReleasePostgresAdapter(jdbc,
+                new JdbcTransactionManager(java.util.Objects.requireNonNull(jdbc.getDataSource())), persistence);
+    }
+
+    private com.dip3.ontologyagent.auth.AuthSession releaseActor() {
+        return new com.dip3.ontologyagent.auth.AuthSession("session", "admin", "Admin",
+                new com.dip3.ontologyagent.auth.AccessScope("org", List.of(), List.of(), List.of("PLATFORM_ADMIN")), Instant.MAX);
     }
 
     private DataProductVersion publishProduct(String runId, String productKey, String versionId,
