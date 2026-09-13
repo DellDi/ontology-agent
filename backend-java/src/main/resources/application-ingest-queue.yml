@@ -1,4 +1,6 @@
 spring:
+  main:
+    keep-alive: true
   config:
     import: classpath:application-ingest.yml
 dip3:
