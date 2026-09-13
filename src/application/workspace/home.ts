@@ -8,7 +8,6 @@ import {
   UNSUPPORTED_ANALYSIS_AREAS,
 } from '@/domain/scope-boundary/policy';
 import {
-  hasScopedTargets,
   type AuthIdentity,
 } from '@/domain/auth/models';
 import { formatScopeSummary } from '@/shared/permissions/format-scope-summary';
@@ -19,6 +18,7 @@ export type WorkspaceHomeSnapshotSummary = {
   executionId: string;
   conclusionState: { causes: { title: string }[] } | null;
   failurePoint: { title: string } | null;
+  capabilityBinding?: { domainKey: string; capabilityKey: string } | { source: 'legacy/unknown' };
 };
 
 export type WorkspaceHomeSessionSummary = Pick<
@@ -52,7 +52,18 @@ export type WorkspaceHomeDegradedState = {
   occurredAt: string;
 };
 
+export type WorkspaceHomeCapability = {
+  domainKey: string;
+  capabilityKey: string;
+  displayName: string;
+  available: boolean;
+  unavailableReason: string | null;
+  exampleQuestion: string;
+  resolvedScope: { domainKey: string; schemaVersion: number; values: Record<string, unknown> } | null;
+};
+
 export type WorkspaceHomeModel = {
+  capabilities: Array<WorkspaceHomeCapability & { scopeDescription: string }>;
   greeting: string;
   analysisActions: WorkspaceHomeAction[];
   metrics: WorkspaceHomeMetric[];
@@ -60,6 +71,7 @@ export type WorkspaceHomeModel = {
   historyItems: Array<{
     id: string;
     title: string;
+    domainLabel: string;
     statusLabel: string;
     statusTone: 'neutral' | 'info' | 'success' | 'error';
     derivedStatus: 'pending' | 'running' | 'completed' | 'failed' | 'unavailable';
@@ -94,6 +106,22 @@ export type WorkspaceHomeModel = {
   /** 数据降级状态：当 Redis/stream fallback 失败时由调用方注入。 */
   degradedState: WorkspaceHomeDegradedState | null;
 };
+
+/** 首页只筛选已加载且后端授权可见的会话，不请求或推断其他范围。 */
+export function filterWorkspaceHistory(
+  items: WorkspaceHomeModel['historyItems'],
+  status: 'all' | 'running' | 'failed' | 'completed',
+  query: string,
+) {
+  const search = query.trim().toLocaleLowerCase();
+  return items.filter(item => {
+    const matchesStatus = status === 'all'
+      || (status === 'running'
+        ? item.derivedStatus === 'running' || item.derivedStatus === 'pending'
+        : item.derivedStatus === status);
+    return matchesStatus && `${item.title} ${item.domainLabel}`.toLocaleLowerCase().includes(search);
+  });
+}
 
 export type DerivedSessionStatus = {
   derivedStatus: 'pending' | 'running' | 'completed' | 'failed' | 'unavailable';
@@ -179,9 +207,10 @@ export function createWorkspaceHomeModel(
   scopedProjects: Pick<ErpProject, 'id' | 'name'>[] = [],
   latestSnapshots: Map<string, WorkspaceHomeSnapshotSummary | null> = new Map(),
   degradedState: WorkspaceHomeDegradedState | null = null,
+  capabilities: WorkspaceHomeCapability[] = [],
 ): WorkspaceHomeModel {
   const scopeSummary = formatScopeSummary(session);
-  const hasTargets = hasScopedTargets(session);
+  const hasTargets = capabilities.some(capability => capability.available);
   const projectsById = new Map(
     scopedProjects.map((project) => [project.id, project.name]),
   );
@@ -209,6 +238,10 @@ export function createWorkspaceHomeModel(
     return {
       id: analysisSession.id,
       title: createAnalysisSessionTitle(analysisSession.questionText),
+      domainLabel: snapshot?.capabilityBinding && 'domainKey' in snapshot.capabilityBinding
+        ? ({ property: '物业分析', easyv: 'EasyV 生成质量' }[snapshot.capabilityBinding.domainKey]
+          ?? snapshot.capabilityBinding.domainKey)
+        : '领域待确认',
       statusLabel: derived.statusLabel,
       statusTone: derived.statusTone,
       derivedStatus: derived.derivedStatus,
@@ -235,7 +268,7 @@ export function createWorkspaceHomeModel(
       id: 'recent-total',
       label: '历史分析',
       value: String(historyItems.length),
-      helper: '当前账号可见会话总数',
+      helper: '本次加载的可见会话',
     },
     {
       id: 'running',
@@ -257,14 +290,23 @@ export function createWorkspaceHomeModel(
     },
   ];
 
-  const newAnalysisHref = hasTargets ? '/workspace' : undefined;
+  const newAnalysisHref = hasTargets ? '#new-analysis' : undefined;
 
   return {
+    capabilities: capabilities.map(capability => {
+      const values = capability.resolvedScope?.values;
+      const scopeDescription = !capability.available ? capability.unavailableReason!
+        : capability.domainKey === 'easyv' ? '仅限当前账号创建的 EasyV 应用与生成任务'
+        : capability.domainKey === 'property' && values
+          ? `授权项目 ${Array.isArray(values.projectIds) ? values.projectIds.length : 0} 个 · 区域 ${Array.isArray(values.areaIds) ? values.areaIds.length : 0} 个`
+          : '以本轮分析的授权范围为准';
+      return { ...capability, scopeDescription };
+    }),
     greeting: `${session.displayName}，从你有权限的范围开始今天的分析`,
     analysisActions: [
       {
         label: '新建分析',
-        description: '准备进入下一条故事中的问题输入与分析会话创建。',
+        description: '描述业务问题，查看分析计划、执行进展与证据结论。',
         status: hasTargets ? 'ready' : 'soon',
         href: newAnalysisHref,
       },
@@ -288,17 +330,17 @@ export function createWorkspaceHomeModel(
     scopeSummary,
     projectScopeSummary,
     projectDisplayNames,
-    boundaryMessage: '当前版本仅支持物业分析',
+    boundaryMessage: '分析范围以本轮授权与能力绑定为准',
     boundaryGuidance: {
       supported: [...SUPPORTED_ANALYSIS_TOPICS],
       unsupported: [...UNSUPPORTED_ANALYSIS_AREAS],
-      note: '客服系统相关能力不在当前版本范围内，请把问题聚焦在物业经营与服务分析本身。',
+      note: '此处展示物业项目范围；其他领域的授权范围请查看具体分析的「分析依据」。',
     },
     emptyState: hasTargets
       ? null
       : {
-          title: '当前会话还没有可直接发起分析的项目范围',
-          description: '请联系管理员补充分配项目权限，当前仍可确认组织与角色上下文。',
+          title: '当前账号没有可发起的分析能力',
+          description: '请查看能力范围中的不可用原因，或联系管理员开通分析权限。',
         },
     canCreateAnalysis: hasTargets,
     degradedState,
@@ -315,6 +357,7 @@ function formatHistoryTimestamp(timestamp: string) {
 const workspaceHomeModule = {
   createWorkspaceHomeModel,
   deriveSessionStatus,
+  filterWorkspaceHistory,
 };
 
 export default workspaceHomeModule;

@@ -64,29 +64,7 @@ function formatScope(binding: ConcreteCapabilityBinding) {
 }
 
 function evidenceFreshness(evidence: EvidenceProjection) {
-  for (const row of evidence.rows) {
-    const direct = readString(row, [
-      'freshnessAt',
-      'freshness',
-      'sourceUpdatedAt',
-      'ingestedAt',
-      'updatedAt',
-    ]);
-    if (direct) return direct;
-
-    const nested = isRecord(row.window)
-      ? readString(row.window, [
-          'freshnessAt',
-          'freshness',
-          'sourceUpdatedAt',
-          'ingestedAt',
-          'updatedAt',
-        ])
-      : null;
-    if (nested) return nested;
-  }
-
-  return null;
+  return evidence.freshnessAt;
 }
 
 function evidenceCoverage(evidence: EvidenceProjection) {
@@ -142,30 +120,27 @@ export function AnalysisRuntimeContractPanel({
   const evidence = snapshot.conclusionState.evidence ?? [];
 
   return (
-    <article
+    <details
+      open={snapshot.status === 'failed' || snapshot.status === 'dead_letter'}
       className="rounded-md border border-border bg-card p-5 shadow-[var(--shadow-panel)]"
       data-testid="analysis-runtime-contract-panel"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium tracking-[0.12em] text-primary">
-            运行时契约
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-foreground">
-            本轮分析的领域、计划与证据边界
-          </h2>
-        </div>
-        <span
-          className="rounded-md bg-muted px-3 py-1 text-xs font-medium text-muted-foreground"
-          data-testid="analysis-runtime-status"
-        >
-          {snapshot.status}
+      <summary className="cursor-pointer rounded-sm text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        分析依据
+        <span className="ml-3 font-normal text-muted-foreground" data-testid="analysis-runtime-status">
+          {concreteBinding ? domainLabel(concreteBinding.domainKey) : '领域待确认'} · {evidence.length} 类证据 · {{
+            completed: '已完成', failed: '分析失败', dead_letter: '分析失败',
+            processing: '分析中', queued: '排队中', pending: '待执行',
+          }[snapshot.status]}
         </span>
-      </div>
+        <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">
+          查看授权范围、执行计划与数据版本
+        </span>
+      </summary>
 
       <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg bg-muted p-3" data-testid="analysis-runtime-domain">
-          <dt className="text-xs text-muted-foreground">domain</dt>
+          <dt className="text-xs text-muted-foreground">分析领域</dt>
           <dd className="mt-1 text-sm font-semibold text-foreground">
             {concreteBinding ? domainLabel(concreteBinding.domainKey) : '未绑定'}
             {concreteBinding ? (
@@ -176,13 +151,13 @@ export function AnalysisRuntimeContractPanel({
           </dd>
         </div>
         <div className="rounded-lg bg-muted p-3" data-testid="analysis-runtime-capability">
-          <dt className="text-xs text-muted-foreground">capability</dt>
+          <dt className="text-xs text-muted-foreground">分析能力</dt>
           <dd className="mt-1 break-all text-sm font-semibold text-foreground">
             {concreteBinding?.capabilityKey ?? '未绑定'}
           </dd>
         </div>
         <div className="rounded-lg bg-muted p-3" data-testid="analysis-runtime-ontology-version">
-          <dt className="text-xs text-muted-foreground">ontology version</dt>
+          <dt className="text-xs text-muted-foreground">本体版本</dt>
           <dd className="mt-1 break-all text-sm font-semibold text-foreground">
             {snapshot.ontologyVersionId
               ?? concreteBinding?.ontologyVersionId
@@ -190,7 +165,7 @@ export function AnalysisRuntimeContractPanel({
           </dd>
         </div>
         <div className="rounded-lg bg-muted p-3" data-testid="analysis-runtime-scope">
-          <dt className="text-xs text-muted-foreground">scope</dt>
+          <dt className="text-xs text-muted-foreground">授权范围</dt>
           <dd className="mt-1 text-sm font-semibold text-foreground">
             {concreteBinding ? formatScope(concreteBinding) : 'legacy/unknown'}
           </dd>
@@ -199,7 +174,7 @@ export function AnalysisRuntimeContractPanel({
 
       <section className="mt-5 border-t border-border pt-5" data-testid="analysis-runtime-plan">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-foreground">执行计划（plan）</h3>
+          <h3 className="text-sm font-semibold text-foreground">执行计划</h3>
           <span className="text-xs text-muted-foreground">
             {snapshot.planSnapshot.mode} · {snapshot.planSnapshot.steps.length} 步
           </span>
@@ -223,7 +198,7 @@ export function AnalysisRuntimeContractPanel({
       <section className="mt-5 border-t border-border pt-5" data-testid="analysis-runtime-evidence">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold text-foreground">
-            证据新鲜度与覆盖率（evidence freshness / coverage）
+            数据出处与覆盖情况
           </h3>
           <span className="text-xs text-muted-foreground">
             {evidence.length} 类证据
@@ -245,10 +220,17 @@ export function AnalysisRuntimeContractPanel({
                     {item.source}
                   </code>
                   <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                    新鲜度：{freshness ?? '源投影未提供 freshnessAt'}
+                    数据更新时间：{freshness ?? '未提供'}
                   </p>
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    覆盖率：{coverage.join(' · ')}
+                  <dl className="mt-3 space-y-2 border-t border-border pt-3 text-xs">
+                    <div><dt className="text-muted-foreground">冻结数据集</dt><dd className="mt-1 break-all font-mono">{item.datasetVersionSetId}</dd></div>
+                    <div><dt className="text-muted-foreground">证据本体版本</dt><dd className="mt-1 break-all font-mono">{item.ontologyVersionId}</dd></div>
+                    {Object.entries(item.productVersionIds).map(([product, version]) => (
+                      <div key={product}><dt className="break-all text-muted-foreground">{product}</dt><dd className="mt-1 break-all font-mono">{version}</dd></div>
+                    ))}
+                  </dl>
+                  <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                    覆盖情况：{coverage.join(' · ')}
                   </p>
                 </div>
               );
@@ -260,22 +242,22 @@ export function AnalysisRuntimeContractPanel({
       </section>
 
       <section className="mt-5 border-t border-border pt-5" data-testid="analysis-runtime-failure">
-        <h3 className="text-sm font-semibold text-foreground">失败与诊断（failure）</h3>
+        <h3 className="text-sm font-semibold text-foreground">运行诊断</h3>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
           <div>
-            <dt className="text-xs text-muted-foreground">code</dt>
+            <dt className="text-xs text-muted-foreground">错误码</dt>
             <dd className="mt-1 break-all font-mono text-foreground">{failureCode ?? '未提供'}</dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">trace</dt>
+            <dt className="text-xs text-muted-foreground">追踪 ID</dt>
             <dd className="mt-1 break-all font-mono text-foreground">{traceId ?? '未提供'}</dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">failure point</dt>
+            <dt className="text-xs text-muted-foreground">失败位置</dt>
             <dd className="mt-1 break-all text-foreground">{failurePoint ?? '无'}</dd>
           </div>
         </dl>
       </section>
-    </article>
+    </details>
   );
 }

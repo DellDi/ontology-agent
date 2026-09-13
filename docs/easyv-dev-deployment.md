@@ -2,7 +2,7 @@
 
 这套部署复用共享 Ontology PostgreSQL，不启动新的平台数据库，也不让 API/Worker
 直连 EasyV 源库。平台事实、审计、版本和 lineage 写入共享库；EasyV 源账号只注入
-一次性 `ingest` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
+一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
 ## 运行边界
@@ -70,7 +70,7 @@ UI 默认只绑定 `127.0.0.1`。需要供内网演示时，把 `EASYV_DEMO_BIND
 
 ## 初次全量与后续增量
 
-源凭据只存在于执行命令的进程环境，并且不进入 `.env.easyv-dev`：
+源凭据只注入采集进程，不进入 `.env.easyv-dev` 或 backend：
 
 ```bash
 export EASYV_POSTGRES_JDBC_URL='jdbc:postgresql://source-host:5432/easyv'
@@ -136,3 +136,29 @@ bootstrap 状态，不触发新的 ingestion 或 bootstrap。没有完成 `graph
 修改通用 ingestion 编排；领域只注册 source/dataset/product 定义、canonical transform、Ontology
 语义和 Capability。源数据更新通过独立 ingestion release 热发布，已运行的分析继续使用自己绑定的
 Dataset Version Set，新分析才选择新发布版本。
+
+
+## Web 发布任务与管理员初始化（V11–V14）
+
+Web/API 只写入发布任务队列，不执行源库读取。独立 `release-worker` 使用 `ingest-queue`
+profile 轮询队列，持有 EasyV 只读源凭据，同时可以执行平台 staging 的 Property 发布。
+它不启动 HTTP、分析 Worker 或图同步。必须使用直连 PostgreSQL 或 session pooling，
+不能经过 transaction pooling，因为队列互斥使用会话级 advisory lock。
+
+迁移后，通过进程环境注入 `ADMIN_SEED_USERNAME` 与至少 16 位随机 `ADMIN_SEED_PASSWORD`，
+执行 `scripts/easyv-dev admin-seed`。种子只在账号不存在时插入 PBKDF2-SHA256 哈希；重复执行不重置密码。
+完成后移除该进程环境变量，凭据交由部署方管理。登录页“平台管理员登录”会建立正式签名会话，
+连续五次密码错误锁定五分钟。该身份不包含 Property 项目范围或 EasyV 用户身份。
+默认禁用手填权限的开发登录；不得为验收开启任意身份登录。
+
+通过原有只读源环境变量执行 `scripts/easyv-dev release-worker` 启动队列执行器。
+源凭据留在这个独立采集容器的运行环境，只有宿主机运维人员可读取；backend 与 web 均不持有它们。
+升级时也必须用同一份私有采集配置重新创建 release-worker，不能只更新 API。
+
+全量、增量与全量对账均为显式发布操作。RECONCILE 忽略历史游标并建立新版本根，
+删除的数据不再出现在新版本；旧冻结版本保持原样。
+
+平台管理员在“数据接入 → 组织授权”维护共享源查看授权。组织只能读取被授权源的目录、
+任务与完整冻结版本；混合包含未授权源的版本整体不可见。记录窗口是平台最近 50 条任务、
+20 个版本中的可见记录。授权不改变业务分析范围，也不代表源数据按组织物理隔离。
+发布、重跑及授权变更始终要求 PLATFORM_ADMIN，授权修改记入平台审计。

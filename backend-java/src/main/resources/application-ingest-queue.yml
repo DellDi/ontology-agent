@@ -1,0 +1,7 @@
+spring:
+  config:
+    import: classpath:application-ingest.yml
+dip3:
+  ingestion:
+    release-worker:
+      enabled: true

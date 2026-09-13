@@ -58,6 +58,11 @@ final class PropertyCapabilityRegistration implements CapabilityRegistration {
   }
 
   @Override
+  public String exampleQuestion() {
+    return "分析本月授权项目的收缴率";
+  }
+
+  @Override
   public InitialCapabilityCandidate initialQuestionCandidate(String question) {
     return !AnalysisCapabilityPolicy.unsupportedBusinessScope(question)
                 && AnalysisCapabilityPolicy.supportsInitialCollectionRate(question)
@@ -91,6 +96,9 @@ final class PropertyCapabilityRegistration implements CapabilityRegistration {
   @Override
   public ResolvedScopeSnapshot resolveScope(AuthSession principal) {
     AccessScope scope = principal.scope();
+    if (scope.projectIds().isEmpty() && scope.areaIds().isEmpty()) {
+      throw new BackendException("CAPABILITY_SCOPE_INVALID", "当前账号未分配物业项目或区域范围，请联系管理员。");
+    }
     return new ResolvedScopeSnapshot(
         ID.domainKey(),
         SCOPE_SCHEMA_VERSION,

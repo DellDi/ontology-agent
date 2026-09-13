@@ -6,6 +6,7 @@ import { ThemeToggle } from './workbench/theme-toggle';
 
 type ShellLayoutProps = {
   menuItems: ShellMenuItem[];
+  horizontalNavigation?: boolean;
   userDisplayName: string;
   userId: string;
   children: ReactNode;
@@ -13,6 +14,7 @@ type ShellLayoutProps = {
 
 export function ShellLayout({
   menuItems,
+  horizontalNavigation = false,
   userDisplayName,
   userId,
   children,
@@ -45,9 +47,11 @@ export function ShellLayout({
       </header>
 
       {/* Body: sidebar + main */}
-      <div className="mx-auto grid w-full max-w-7xl flex-1 gap-4 px-4 py-6 sm:gap-6 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-10 lg:py-8">
-        <aside className="space-y-1">
-          <ShellMenu items={menuItems} />
+      <div className={horizontalNavigation
+        ? "mx-auto w-full max-w-5xl flex-1 px-4 pb-12 sm:px-6"
+        : "mx-auto grid w-full max-w-7xl flex-1 gap-4 px-4 py-6 sm:gap-6 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-10 lg:py-8"}>
+        <aside className={horizontalNavigation ? "mb-8 border-b border-border py-3" : "space-y-1"}>
+          <ShellMenu items={menuItems} horizontal={horizontalNavigation} />
         </aside>
         <section className="min-w-0">{children}</section>
       </div>

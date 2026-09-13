@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.capability.internal.application;
 
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.CapabilityBinding;
+import com.dip3.ontologyagent.capability.api.CapabilityAvailability;
 import com.dip3.ontologyagent.capability.api.CapabilityDescriptor;
 import com.dip3.ontologyagent.capability.api.CapabilityEvidence;
 import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
@@ -35,6 +36,31 @@ final class StaticCapabilityRegistry implements CapabilityRegistry {
       }
     }
     this.registrations = Map.copyOf(indexed);
+  }
+
+  @Override
+  public List<CapabilityAvailability> availableFor(AuthSession principal) {
+    return registrations.values().stream()
+        .sorted(Comparator.comparing(registration -> registration.descriptor().id().toString()))
+        .map(registration -> availability(registration, principal))
+        .toList();
+  }
+
+  private CapabilityAvailability availability(CapabilityRegistration registration, AuthSession principal) {
+    var descriptor = registration.descriptor();
+    var id = descriptor.id();
+    try {
+      var scope = registration.resolveScope(principal);
+      registration.validateScope(scope, principal);
+      return new CapabilityAvailability(id.domainKey(), id.capabilityKey(), descriptor.displayName(),
+          true, null, registration.exampleQuestion(), scope);
+    } catch (BackendException error) {
+      // Only known authorization rejections become unavailable entries. Integration failures propagate.
+      if (!java.util.Set.of("CAPABILITY_SCOPE_INVALID", "EASYV_SCOPE_INVALID", "EASYV_SCOPE_FORBIDDEN")
+          .contains(error.code())) throw error;
+      return new CapabilityAvailability(id.domainKey(), id.capabilityKey(), descriptor.displayName(),
+          false, error.getMessage(), registration.exampleQuestion(), null);
+    }
   }
 
   @Override

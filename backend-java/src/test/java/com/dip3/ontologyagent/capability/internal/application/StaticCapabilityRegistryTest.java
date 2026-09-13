@@ -45,6 +45,18 @@ class StaticCapabilityRegistryTest {
           Instant.MAX);
 
   @Test
+  void availabilityDoesNotHideUnexpectedProviderFailures() {
+    var registration = org.mockito.Mockito.mock(CapabilityRegistration.class);
+    var descriptor = new FakeRegistration("property", "collection-rate-analysis").descriptor();
+    org.mockito.Mockito.when(registration.descriptor()).thenReturn(descriptor);
+    org.mockito.Mockito.when(registration.resolveScope(OWNER))
+        .thenThrow(new BackendException("DATABASE_UNAVAILABLE", "数据库不可用"));
+    var error = assertThrows(BackendException.class,
+        () -> new StaticCapabilityRegistry(List.of(registration)).availableFor(OWNER));
+    assertEquals("DATABASE_UNAVAILABLE", error.code());
+  }
+
+  @Test
   void selectsAndBindsTheMatchedCapability() {
     FakeRegistration registration = new FakeRegistration("property", "collection-rate-analysis");
     StaticCapabilityRegistry registry = new StaticCapabilityRegistry(List.of(registration));
@@ -206,6 +218,7 @@ class StaticCapabilityRegistryTest {
   }
 
   private static final class FakeRegistration implements CapabilityRegistration {
+    @Override public String exampleQuestion() { return "supported"; }
     private final CapabilityDescriptor descriptor;
     private final boolean matched;
 

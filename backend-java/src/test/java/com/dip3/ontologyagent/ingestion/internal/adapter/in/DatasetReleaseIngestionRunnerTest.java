@@ -54,12 +54,22 @@ class DatasetReleaseIngestionRunnerTest {
         DatasetReleaseIngestionRunner runner = new DatasetReleaseIngestionRunner(
                 publisher, properties, ignored -> { });
 
-        properties.setMode("RECONCILE");
+        properties.setSourceKey("easyv");
+        properties.setProductKeys(DEFAULT_PRODUCTS);
+        properties.setMode("UNSUPPORTED");
         assertThrows(IllegalArgumentException.class, runner::command);
 
         properties.setMode("FULL");
         properties.setProductKeys(List.of("easyv", "easyv"));
         assertThrows(IllegalArgumentException.class, runner::command);
+    }
+
+    @Test
+    void acceptsReconcileAsAnExplicitFullSnapshotMode() {
+        var properties = easyVProperties();
+        properties.setMode("RECONCILE");
+        var runner = new DatasetReleaseIngestionRunner(mock(DatasetReleasePublisher.class), properties, ignored -> {});
+        assertEquals(com.dip3.ontologyagent.ingestion.api.IngestionRun.Mode.RECONCILE, runner.command().mode());
     }
 
     @Test

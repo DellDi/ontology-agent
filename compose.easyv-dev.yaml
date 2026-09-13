@@ -54,7 +54,7 @@ services:
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-easyv-dev}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
       ERP_API_BASE_URL: ${ERP_API_BASE_URL:-}
-      ENABLE_DEV_ERP_AUTH: ${ENABLE_DEV_ERP_AUTH:-true}
+      ENABLE_DEV_ERP_AUTH: ${ENABLE_DEV_ERP_AUTH:-false}
       ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE:-false}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CUBE_API_URL: http://cube:4000/cubejs-api/v1
@@ -208,6 +208,31 @@ services:
       - --dip3.ingestion.trigger=${INGEST_TRIGGER:-MANUAL}
       - --dip3.ingestion.requested-by=${INGEST_REQUESTED_BY:-easyv-dev}
       - --dip3.ingestion.page-size=${INGEST_PAGE_SIZE:-2000}
+    restart: "no"
+
+  release-worker:
+    <<: *java-image
+    profiles: ["ops"]
+    environment:
+      <<: *platform-database
+      EASYV_DOMAIN_ENABLED: "true"
+      EASYV_POSTGRES_ENABLED: "true"
+      EASYV_POSTGRES_JDBC_URL:
+      EASYV_POSTGRES_USERNAME:
+      EASYV_POSTGRES_PASSWORD:
+      EASYV_POSTGRES_SCHEMA:
+      EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE:
+    command: ["--spring.profiles.active=ingest-queue"]
+    restart: unless-stopped
+
+  admin-seed:
+    <<: *java-image
+    profiles: ["ops"]
+    environment:
+      <<: *platform-database
+      ADMIN_SEED_USERNAME:
+      ADMIN_SEED_PASSWORD:
+    command: ["--spring.profiles.active=admin-seed"]
     restart: "no"
 
   property-ingest:

@@ -1,4 +1,5 @@
 {
+  "capabilities": [{"domainKey": "property", "capabilityKey": "collection-rate-analysis", "displayName": "物业项目收缴率分析", "available": true, "unavailableReason": null, "exampleQuestion": "分析本月授权项目的收缴率", "resolvedScope": {"domainKey": "property", "schemaVersion": 1, "values": {"organizationId": "org-1", "projectIds": ["project-1"], "areaIds": ["area-1"]}}}],
   "viewer": {
     "userId": "user-1",
     "displayName": "测试用户",

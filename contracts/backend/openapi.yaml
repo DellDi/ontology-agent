@@ -3,6 +3,153 @@ info:
   title: DIP3 Java Analysis Backend
   version: 2.0.0
 paths:
+  /api/auth/admin-login:
+    post:
+      summary: Authenticate an initialized platform administrator
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [account, password]
+              properties:
+                account: { type: string, maxLength: 100 }
+                password: { type: string, maxLength: 1024 }
+      responses:
+        '303': { description: Signed session and ingestion redirect on success; generic login error redirect on invalid credentials or lockout }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/admin/ingestion/access:
+    get:
+      summary: Read current ingestion access; grant list is admin-only
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Current authorization
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-access.schema.json' } }
+        '401': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Grant or revoke organization read access (PLATFORM_ADMIN only)
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceKey, organizationId, enabled]
+              properties:
+                sourceKey: { type: string }
+                organizationId: { type: string, maxLength: 200 }
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: Updated access list
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-access.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/ingestion/release-tasks:
+    get:
+      summary: List visible tasks from the latest 50 platform release tasks
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Durable release history
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-release-task-list.schema.json' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Queue one source-to-product release (PLATFORM_ADMIN only)
+      description: The request key is the task and eventual version-set ID. Replay with the same actor and command returns the original task; a changed command conflicts. Acceptance is not publication success.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceKey, productKeys, mode]
+              properties:
+                sourceKey: { type: string }
+                productKeys: { type: array, minItems: 1, maxItems: 100, items: { type: string } }
+                mode: { type: string, enum: [full, incremental, reconcile] }
+      responses:
+        '202':
+          description: Persisted task; terminal state must be read separately
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-release-task.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /api/admin/ingestion/release-tasks/{id}:
+    get:
+      summary: Read a persisted release task (PLATFORM_ADMIN only)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Task with original parameters and terminal outcome
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-release-task.schema.json' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/admin/ingestion/release-tasks/{id}/retry:
+    post:
+      summary: Create a new request from a failed release (PLATFORM_ADMIN only)
+      description: Copies source, products and mode on the server; retains the failed task and retryOf. No automatic retry.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object } }
+      responses:
+        '202':
+          description: New durable task or idempotent replay
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-release-task.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/admin/ingestion/overview:
+    get:
+      summary: Read platform ingestion catalogs, latest 50 runs and latest 20 version sets with lineage
+      description: Platform administrators see all metadata; other authenticated users see only sources explicitly granted to their organization. Filtering applies within the latest global window. Mixed or unauthorized version sets are omitted entirely. Shared sources retain platform ownership. Excludes credentials, raw error details and source row payloads. No write operations.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Read-only platform control-plane snapshot
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-overview.schema.json' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/auth/me:
     get:
       summary: Return the server-verified viewer and scope

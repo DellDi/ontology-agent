@@ -53,7 +53,8 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(10, applied, "新库应执行到 V10 Property canonical facts");
+        assertEquals(14, applied, "新库应执行到 V14 reconcile release mode");
+        assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
                 where table_schema='platform' and table_name='analysis_execution_snapshots'
@@ -109,11 +110,11 @@ class DatabaseMigrationServiceTest {
                 select count(*) from ingestion.data_product_definitions
                 where domain_key='property' and status='active'
                 """, Integer.class), "V10 应注册 Property data products");
-        assertEquals(18, jdbc.queryForObject(
+        assertEquals(21, jdbc.queryForObject(
                 "select count(*) from pg_constraint c join pg_class t on c.conrelid=t.oid "
                         + "join pg_namespace n on t.relnamespace=n.oid "
                         + "where c.contype='f' and n.nspname='ingestion'", Integer.class),
-                "V5 两阶段 ingestion 表之间应建立完整外键约束");
+                "ingestion 控制面与发布任务应建立完整外键约束");
         String sourceVersionParentFk = jdbc.queryForObject("""
                 select pg_get_constraintdef(oid)
                 from pg_constraint
@@ -429,7 +430,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(10, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(14, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -446,7 +447,7 @@ class DatabaseMigrationServiceTest {
         assertTrue(platformTables >= 20, "重复执行后表结构应保持不变");
         Integer foreignKeys = jdbc.queryForObject(
                 "select count(*) from pg_constraint where contype = 'f'", Integer.class);
-        assertEquals(48, foreignKeys, "重复执行不应产生重复外键约束");
+        assertEquals(51, foreignKeys, "重复执行不应产生重复外键约束");
     }
 
     @Test
@@ -461,7 +462,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(10, applied, "旧库补全应记录 V1-V10（baseline 0 标记不计入）");
+        assertEquals(14, applied, "旧库补全应记录 V1-V14（baseline 0 标记不计入）");
     }
 
     @Test

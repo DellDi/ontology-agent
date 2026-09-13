@@ -61,6 +61,11 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
   }
 
   @Override
+  public String exampleQuestion() {
+    return "分析本月 EasyV 大屏生成质量与各阶段耗时";
+  }
+
+  @Override
   public InitialCapabilityCandidate initialQuestionCandidate(String question) {
     return EasyVCapabilityPolicy.supportsInitial(question)
         ? InitialCapabilityCandidate.matched(ID)

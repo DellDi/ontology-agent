@@ -5,6 +5,9 @@ import {
   JavaBackendHttpError,
 } from '@/infrastructure/java-backend';
 
+import { ingestionAccessSchema } from '@/infrastructure/java-backend/ingestion-schema';
+import { readJavaBackend } from '@/infrastructure/java-backend/read-client';
+import { canViewOntologyGovernance } from '@/domain/ontology/governance';
 import { ShellLayout } from '../_components/shell-layout';
 import { WORKSPACE_MENU } from '../_components/shell-menu-config';
 
@@ -16,8 +19,12 @@ export default async function WorkspaceLayout({
   children,
 }: WorkspaceLayoutProps) {
   let viewer;
+  let access;
   try {
-    viewer = await getCurrentViewer();
+    [viewer, access] = await Promise.all([
+      getCurrentViewer(),
+      readJavaBackend('/api/admin/ingestion/access', ingestionAccessSchema),
+    ]);
   } catch (error) {
     if (error instanceof JavaBackendHttpError && error.status === 401) {
       return <>{children}</>;
@@ -41,7 +48,10 @@ export default async function WorkspaceLayout({
             </p>
             <div className="mt-6">
               <form action="/api/auth/logout" method="post">
-                <button className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60" type="submit">
+                <button
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  type="submit"
+                >
                   退出当前会话
                 </button>
               </form>
@@ -54,7 +64,23 @@ export default async function WorkspaceLayout({
 
   return (
     <ShellLayout
-      menuItems={WORKSPACE_MENU}
+      horizontalNavigation
+      menuItems={[
+        ...WORKSPACE_MENU.filter(
+          (item) =>
+            item.href === '/workspace' ||
+            canViewOntologyGovernance(viewer.scope.roleCodes),
+        ),
+        ...(access.canView
+          ? [
+              {
+                href: '/admin/ingestion',
+                label: '数据接入',
+                activePrefix: '/admin/ingestion',
+              },
+            ]
+          : []),
+      ]}
       userDisplayName={viewer.displayName}
       userId={viewer.userId}
     >

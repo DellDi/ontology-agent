@@ -8,17 +8,18 @@ import {
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
 import { Badge } from '@/app/_components/workbench/badge';
 import { StatusBanner } from '@/app/_components/workbench/status-banner';
-import { Surface, SurfaceBody, SurfaceHeader } from '@/app/_components/workbench/surface';
+import {
+  Surface,
+  SurfaceBody,
+  SurfaceHeader,
+} from '@/app/_components/workbench/surface';
 import { DirectoryLoginForm } from './_components/directory-login-form';
 
 type LoginPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function readSearchParam(
-  value: string | string[] | undefined,
-  fallback = '',
-) {
+function readSearchParam(value: string | string[] | undefined, fallback = '') {
   if (typeof value === 'string') {
     return value;
   }
@@ -100,31 +101,65 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           />
 
           <SurfaceBody className="pt-5">
-          <div className="space-y-3">
-            {errorMessage ? (
-              <StatusBanner tone="error">
-                {errorMessage}
+            <div className="space-y-3">
+              {errorMessage ? (
+                <StatusBanner tone="error">{errorMessage}</StatusBanner>
+              ) : null}
+              {loggedOut === '1' ? (
+                <StatusBanner tone="success">已安全退出当前会话。</StatusBanner>
+              ) : null}
+            </div>
+
+            <details className="my-5 border-y border-border py-4">
+              <summary className="cursor-pointer text-sm font-medium">
+                平台管理员登录
+              </summary>
+              <form
+                action="/api/auth/admin-login"
+                method="post"
+                className="mt-4 space-y-3"
+              >
+                <label className="grid gap-2 text-sm">
+                  管理员账号
+                  <input
+                    name="account"
+                    autoComplete="username"
+                    required
+                    maxLength={100}
+                    className="rounded-md border border-input bg-background px-3 py-2"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  密码
+                  <input
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    maxLength={1024}
+                    className="rounded-md border border-input bg-background px-3 py-2"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                >
+                  登录管理后台
+                </button>
+              </form>
+            </details>
+            {directoryAvailable ? (
+              <DirectoryLoginForm
+                nextPath={nextPath}
+                prefillAccount={prefillAccount}
+              />
+            ) : null}
+
+            {!directoryAvailable ? (
+              <StatusBanner tone="warning" className="mt-5">
+                {devAuthState.disabledMessage}
               </StatusBanner>
             ) : null}
-            {loggedOut === '1' ? (
-              <StatusBanner tone="success">
-                已安全退出当前会话。
-              </StatusBanner>
-            ) : null}
-          </div>
-
-          {directoryAvailable ? (
-            <DirectoryLoginForm
-              nextPath={nextPath}
-              prefillAccount={prefillAccount}
-            />
-          ) : null}
-
-          {!directoryAvailable ? (
-            <StatusBanner tone="warning" className="mt-5">
-              {devAuthState.disabledMessage}
-            </StatusBanner>
-          ) : null}
           </SurfaceBody>
         </Surface>
 
@@ -140,11 +175,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
           <div className="grid gap-3">
             {businessCapabilities.map((capability) => (
-              <Surface
-                key={capability.title}
-                variant="subtle"
-                className="p-5"
-              >
+              <Surface key={capability.title} variant="subtle" className="p-5">
                 <h3 className="text-base font-semibold text-foreground">
                   {capability.title}
                 </h3>

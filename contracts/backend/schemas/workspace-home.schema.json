@@ -3,13 +3,192 @@
   "$id": "workspace-home.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["viewer", "sessions", "projects"],
+  "required": ["viewer", "sessions", "projects", "capabilities"],
   "properties": {
     "viewer": { "$ref": "viewer.schema.json" },
+    "capabilities": { "type": "array", "items": { "$ref": "#/$defs/capabilityAvailability" } },
     "sessions": { "type": "array", "items": { "$ref": "#/$defs/session" } },
     "projects": { "type": "array", "items": { "$ref": "#/$defs/project" } }
   },
   "$defs": {
+    "capabilityAvailability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domainKey",
+        "capabilityKey",
+        "displayName",
+        "available",
+        "unavailableReason",
+        "exampleQuestion",
+        "resolvedScope"
+      ],
+      "properties": {
+        "domainKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilityKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exampleQuestion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "unavailableReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "resolvedScope": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "domainKey",
+                "schemaVersion",
+                "values"
+              ],
+              "properties": {
+                "domainKey": {
+                  "const": "property"
+                },
+                "schemaVersion": {
+                  "const": 1
+                },
+                "values": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "organizationId",
+                    "projectIds",
+                    "areaIds"
+                  ],
+                  "properties": {
+                    "organizationId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "projectIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "areaIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "projectIds": {
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "areaIds": {
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "domainKey",
+                "schemaVersion",
+                "values"
+              ],
+              "properties": {
+                "domainKey": {
+                  "const": "easyv"
+                },
+                "schemaVersion": {
+                  "const": 1
+                },
+                "values": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "userId",
+                    "accessMode"
+                  ],
+                  "properties": {
+                    "userId": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "accessMode": {
+                      "const": "creator-owned"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "unavailableReason": {
+                "type": "null"
+              },
+              "resolvedScope": {
+                "type": "object"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "unavailableReason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "resolvedScope": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
     "sessionScope": {
       "type": "object",
       "additionalProperties": false,

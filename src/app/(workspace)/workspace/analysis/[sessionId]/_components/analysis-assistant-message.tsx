@@ -57,6 +57,7 @@ export function AnalysisAssistantMessage({
   visualizations,
   toolTimeline,
   onOpenDetail,
+  availableDetails = [],
 }: {
   status: ConversationAssistantStatus;
   headline: string;
@@ -70,6 +71,7 @@ export function AnalysisAssistantMessage({
   visualizations: Visualization[];
   toolTimeline: AnalysisConversationViewModel['assistantMessage']['toolTimeline'];
   onOpenDetail: (drawer: DetailDrawerType) => void;
+  availableDetails?: Exclude<DetailDrawerType, null>[];
 }) {
   const hasDiagnostics =
     diagnostics.timelineBlocks.length > 0 ||
@@ -81,7 +83,7 @@ export function AnalysisAssistantMessage({
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[90%] w-full">
+      <div className="min-w-0 w-full">
         {/* 状态行 */}
         <div className="flex items-center gap-2.5">
           {getStatusIcon(status)}
@@ -200,50 +202,13 @@ export function AnalysisAssistantMessage({
 
         {/* 底部信息入口（业务语言，不暴露工程术语） */}
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={() => onOpenDetail('plan')}
-            type="button"
-          >
-            分析计划
-          </button>
-          <button
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={() => onOpenDetail('context')}
-            type="button"
-          >
-            背景信息
-          </button>
-          <button
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={() => onOpenDetail('history')}
-            type="button"
-          >
-            历史问答
-          </button>
-          <button
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={() => onOpenDetail('candidates')}
-            type="button"
-          >
-            可能原因
-          </button>
-          <button
-            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={() => onOpenDetail('execution-log')}
-            type="button"
-          >
-            详细信息
-          </button>
-          {hasDiagnostics ? (
-            <button
-              className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              onClick={() => onOpenDetail('diagnostics')}
-              type="button"
-            >
-              诊断信息
+          {availableDetails.filter(detail => detail !== 'diagnostics' || hasDiagnostics).map(detail => (
+            <button key={detail}
+              className="rounded-md px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onOpenDetail(detail)} type="button">
+              {{ plan: '分析计划', context: '背景信息', history: '历史问答', candidates: '可能原因', 'execution-log': '执行记录', diagnostics: '诊断信息' }[detail]}
             </button>
-          ) : null}
+          ))}
         </div>
       </div>
     </div>
