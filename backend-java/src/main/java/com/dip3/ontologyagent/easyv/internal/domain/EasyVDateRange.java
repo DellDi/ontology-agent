@@ -15,8 +15,12 @@ import java.util.regex.Pattern;
 /** EasyV business dates use Asia/Shanghai and inclusive local-date boundaries. */
 public record EasyVDateRange(LocalDate from, LocalDate to) {
   public static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
+  /** Sentinel lower bound meaning "all collected data" for free-form questions. */
+  public static final LocalDate UNBOUNDED_FROM = LocalDate.of(2000, 1, 1);
   private static final Pattern ISO_DATE =
       Pattern.compile("(?<!\\d)(\\d{4}-\\d{2}-\\d{2})(?!\\d)");
+  private static final Pattern ALL_DATA_PATTERN =
+      Pattern.compile("截至 (\\d{4}-\\d{2}-\\d{2}) 的全部已采集数据");
 
   public EasyVDateRange {
     if (from == null || to == null || from.isAfter(to)) {
@@ -56,6 +60,40 @@ public record EasyVDateRange(LocalDate from, LocalDate to) {
     }
     throw new BackendException(
         "EASYV_TIME_RANGE_REQUIRED", "EasyV 问题必须提供单日、两个 ISO 日期、本周、上周、近7天或本月。");
+  }
+
+  public boolean coversAllData() {
+    return !from.isAfter(UNBOUNDED_FROM);
+  }
+
+  public String describe() {
+    if (coversAllData()) return "截至 " + to + " 的全部已采集数据";
+    return from + "/" + to;
+  }
+
+  /** Parses a display value produced by {@link #describe()} back into a range. */
+  public static EasyVDateRange parseDisplay(String raw) {
+    String value = raw == null ? "" : raw.trim();
+    Matcher all = ALL_DATA_PATTERN.matcher(value);
+    try {
+      if (all.matches()) {
+        return new EasyVDateRange(UNBOUNDED_FROM, LocalDate.parse(all.group(1)));
+      }
+      String[] boundaries = value.split("/", -1);
+      if (boundaries.length != 2) {
+        throw new BackendException(
+            "FOLLOW_UP_TIME_RANGE_INVALID", "时间范围必须使用 yyyy-MM-dd/yyyy-MM-dd。");
+      }
+      LocalDate from = LocalDate.parse(boundaries[0].trim());
+      LocalDate to = LocalDate.parse(boundaries[1].trim());
+      if (from.isAfter(to)) {
+        throw new BackendException("FOLLOW_UP_TIME_RANGE_INVALID", "时间范围起始日期不能晚于结束日期。");
+      }
+      return new EasyVDateRange(from, to);
+    } catch (java.time.format.DateTimeParseException | IllegalArgumentException error) {
+      throw new BackendException(
+          "FOLLOW_UP_TIME_RANGE_INVALID", "时间范围必须使用有效日期。", error);
+    }
   }
 
   private static List<String> isoDates(String question) {

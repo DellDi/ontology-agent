@@ -90,6 +90,17 @@ class StaticCapabilityRegistryTest {
   }
 
   @Test
+  void soleCapabilityAcceptsFreeFormQuestions() {
+    StaticCapabilityRegistry registry =
+        new StaticCapabilityRegistry(
+            List.of(new FakeRegistration("easyv", "generation-quality-analysis", false)));
+
+    assertEquals(
+        new CapabilityId("easyv", "generation-quality-analysis"),
+        registry.selectInitial("unsupported"));
+  }
+
+  @Test
   void unmatchedCandidatesReturnUnsupportedWithoutUsingValidationExceptionsToMatch() {
     StaticCapabilityRegistry registry =
         new StaticCapabilityRegistry(

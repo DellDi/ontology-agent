@@ -155,4 +155,34 @@ class EasyVSpringAiMainAgentTest {
         assertEquals("AGENT_TOOL_NOT_CALLED", error.code());
         verify(prompt, times(2)).tools(any(Object[].class));
     }
+
+    @Test
+    void freeFormQuestionWithoutTimeWordsUsesTheFullDataRange() {
+        AgentTurn freeForm = new AgentTurn(
+                "java-initial-v1", "session-1", "现在有多少用户了",
+                null, null, Map.of(), Map.of(), anchoredAt);
+        EasyVToolInput[] captured = new EasyVToolInput[1];
+        when(workflow.execute(any())).thenReturn(
+                new WorkflowResult(Map.of(), List.of(), "结论", List.of(), List.of()));
+        when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
+            EasyVSpringAiMainAgent.BoundTool tool =
+                    (EasyVSpringAiMainAgent.BoundTool) invocation.getArguments()[0];
+            EasyVToolInput input = new EasyVToolInput(
+                    EasyVGenerationOntology.ENTITY_KEY,
+                    EasyVGenerationOntology.METRIC_KEY,
+                    EasyVGenerationOntology.TIME_KEY,
+                    EasyVDateRange.UNBOUNDED_FROM,
+                    java.time.LocalDate.parse("2026-09-14"));
+            tool.run(input);
+            captured[0] = input;
+            return prompt;
+        });
+
+        WorkflowResult actual = agent.execute(owner, freeForm, "execution-1", ontology(),
+                "easyv-set-1", "trace-1", "lease-1");
+
+        assertEquals("结论", actual.conclusion());
+        assertEquals(EasyVDateRange.UNBOUNDED_FROM, captured[0].from());
+        assertEquals(java.time.LocalDate.parse("2026-09-14"), captured[0].to());
+    }
 }

@@ -96,8 +96,8 @@ final class StaticCapabilityRegistry implements CapabilityRegistry {
               + "。请明确领域或问题范围。");
     }
     if (registrations.size() == 1) {
-      // Preserve the sole domain's established, user-facing rejection semantics.
-      registrations.values().iterator().next().validateInitialQuestion(question);
+      // 单能力部署接受自由提问：不做关键词硬门禁，由领域基于事实如实回答。
+      return registrations.values().iterator().next().descriptor().id();
     }
     throw new BackendException("ANALYSIS_CAPABILITY_UNSUPPORTED", "当前问题没有可执行的分析能力。");
   }

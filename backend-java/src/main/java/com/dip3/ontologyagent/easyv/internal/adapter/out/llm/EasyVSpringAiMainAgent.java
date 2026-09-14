@@ -265,7 +265,19 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
   }
 
   private static EasyVDateRange allowedRange(AgentTurn turn) {
-    if (!turn.followUp()) return EasyVDateRange.resolve(turn.questionText(), turn.anchoredAt());
+    if (!turn.followUp()) {
+      try {
+        return EasyVDateRange.resolve(turn.questionText(), turn.anchoredAt());
+      } catch (BackendException error) {
+        // 自由提问无时间表达时使用全量窗口；追问仍按上文继承或显式重生成。
+        if ("EASYV_TIME_RANGE_REQUIRED".equals(error.code())) {
+          java.time.LocalDate anchor =
+              turn.anchoredAt().atZone(EasyVDateRange.BUSINESS_ZONE).toLocalDate();
+          return new EasyVDateRange(EasyVDateRange.UNBOUNDED_FROM, anchor);
+        }
+        throw error;
+      }
+    }
     Object from = turn.effectiveContext().get("from");
     Object to = turn.effectiveContext().get("to");
     if (!(from instanceof String fromText) || !(to instanceof String toText)) {
