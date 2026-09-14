@@ -53,12 +53,12 @@ test('workspace home | loading route gives immediate feedback while server data 
   assert.ok(source.includes('正在加载你的工作台'), 'Loading route should use user-facing loading copy');
 });
 
-test('login | directory login form exposes pending state while navigating to workspace', () => {
-  const source = readFileSync('src/app/(auth)/login/_components/directory-login-form.tsx', 'utf-8');
+test('login | account login form exposes pending state while navigating to workspace', () => {
+  const source = readFileSync('src/app/(auth)/login/_components/account-login-form.tsx', 'utf-8');
   const page = readFileSync('src/app/(auth)/login/page.tsx', 'utf-8');
   assert.ok(source.includes('useFormStatus'), 'Login form should use form pending state');
   assert.ok(source.includes('loading={pending}'), 'Submit button should show loading while pending');
   assert.ok(source.includes('disabled={pending}'), 'Inputs should be disabled while pending');
-  assert.ok(source.includes('正在校验账号并加载你的工作台数据'), 'Pending copy should explain the wait');
-  assert.ok(page.includes('DirectoryLoginForm'), 'Login page should use the client pending form');
+  assert.ok(source.includes('正在登录'), 'Pending copy should explain the wait');
+  assert.ok(page.includes('AccountLoginForm'), 'Login page should use the client pending form');
 });

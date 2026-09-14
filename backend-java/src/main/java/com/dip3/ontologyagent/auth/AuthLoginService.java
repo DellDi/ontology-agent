@@ -2,102 +2,73 @@ package com.dip3.ontologyagent.auth;
 
 import com.dip3.ontologyagent.config.BackendProperties;
 import com.dip3.ontologyagent.support.BackendException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * 登录用例：开发联调登录、目录账号密码登录、URL 桥接登录、回调登录、登出。
+ * 登录用例：Provider 账号密码登录、URL 桥接登录、登出。
  *
- * <p>错误语义沿用历史实现：凭证类错误带具体中文原因（code=INVALID_ERP_CREDENTIALS），
- * 开发入口关闭使用 code=DEV_AUTH_DISABLED。
+ * <p>Provider 只证明身份；登录后的 AccessScope 由平台身份库
+ * （identity.accounts + identity.role_grants）装配，不存在账号名特判。
  */
 @Service
 public final class AuthLoginService {
-    private static final Logger log = LoggerFactory.getLogger(AuthLoginService.class);
-
-    public static final String DEV_AUTH_DISABLED = "DEV_AUTH_DISABLED";
-    public static final String INVALID_ERP_CREDENTIALS = "INVALID_ERP_CREDENTIALS";
+    public static final String INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
+    public static final String BRIDGE_DISABLED = "BRIDGE_DISABLED";
 
     private static final List<String> ALLOWED_RETURN_PATH_ROOTS = List.of("/workspace", "/admin");
-
-    public record DevLoginCommand(String employeeId, String displayName, String organizationId,
-                                  List<String> projectIds, List<String> areaIds, List<String> roleCodes) {
-        public DevLoginCommand {
-            projectIds = projectIds == null ? List.of() : projectIds;
-            areaIds = areaIds == null ? List.of() : areaIds;
-            roleCodes = roleCodes == null ? List.of() : roleCodes;
-        }
-    }
 
     public record LoginResult(AuthSession session, String nextPath) {}
 
     private final BackendProperties properties;
     private final AuthSessionRepository sessions;
-    private final ErpDirectoryService directory;
-    private final ErpPasswordEncryptor encryptor;
+    private final IdentityAccountService accounts;
+    private final List<IdentityProvider> providers;
 
     public AuthLoginService(BackendProperties properties, AuthSessionRepository sessions,
-                            ErpDirectoryService directory, ErpPasswordEncryptor encryptor) {
+                            IdentityAccountService accounts, List<IdentityProvider> providers) {
         this.properties = properties;
         this.sessions = sessions;
-        this.directory = directory;
-        this.encryptor = encryptor;
+        this.accounts = accounts;
+        this.providers = providers;
     }
 
-    /** 开发联调登录（手填 scope）；ENABLE_DEV_ERP_AUTH 未开启时拒绝。 */
-    public LoginResult devLogin(DevLoginCommand command, String next) {
-        requireDevAuth("手填 scope 登录入口已关闭，请使用目录账号密码登录。");
-        String userId = command.employeeId().trim();
-        String organizationId = command.organizationId().trim();
-        if (userId.isEmpty() || organizationId.isEmpty()) {
-            throw new BackendException(INVALID_ERP_CREDENTIALS, "ERP 身份校验失败，请检查账号与组织范围后重试。");
+    /** 统一账号密码登录：依次尝试启用的 Provider，首个成功为准。 */
+    public LoginResult login(String account, String password, String next) {
+        String normalized = account == null ? "" : account.trim();
+        if (normalized.isEmpty() || password == null || password.isEmpty()) {
+            throw new BackendException(INVALID_CREDENTIALS, "账号或密码错误，请重试。");
         }
-        AccessScope scope = new AccessScope(organizationId,
-                uniqueNonBlank(command.projectIds()),
-                uniqueNonBlank(command.areaIds()),
-                uniqueNonBlank(command.roleCodes()));
-        String displayName = command.displayName() != null && !command.displayName().isBlank()
-                ? command.displayName().trim()
-                : "ERP 用户 " + userId;
-        return createLoginResult(new AuthIdentity(userId, displayName, scope), next);
-    }
-
-    /** 目录账号密码登录。 */
-    public LoginResult directoryLogin(String account, String password, String next) {
-        ErpDirectoryUser user = requireActiveUser(account);
-        String encrypted = encryptor.encrypt(password == null ? "" : password)
-                .orElseThrow(() -> new BackendException(INVALID_ERP_CREDENTIALS, "密码验证失败，请稍后重试。"));
-        String storedPassword = user.userPassword == null ? "" : user.userPassword.trim();
-        if (storedPassword.isEmpty() || !storedPassword.equals(encrypted)) {
-            throw new BackendException(INVALID_ERP_CREDENTIALS, "密码错误，请重试。");
+        Optional<ProviderIdentity> authenticated = providers.stream()
+                .map(provider -> provider.authenticatePassword(normalized, password))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+        if (authenticated.isEmpty()) {
+            accounts.auditLogin(normalized, IdentityAccountService.PLATFORM_ORGANIZATION, "denied");
+            throw new BackendException(INVALID_CREDENTIALS, "账号或密码错误，请重试。");
         }
-        return identityResult(user, next);
+        IdentityAccount row = accounts.findByAccount(authenticated.get().account())
+                .orElseThrow(() -> new BackendException(INVALID_CREDENTIALS,
+                        "该账号未开通平台访问权限，请联系管理员。"));
+        return issueSession(row, next);
     }
 
-    /** URL 桥接登录：目录账号直接换取会话（不校验密码）。 */
-    public LoginResult urlBridgeLogin(String account, String next) {
-        return identityResult(requireActiveUser(account), next);
-    }
-
-    /** 回调登录：优先解析 ticket（employeeId|displayName|organizationId|projects|areas|roles）。 */
-    public LoginResult callbackLogin(String ticket, String employeeId, String displayName,
-                                     String organizationId, String projectIds, String areaIds,
-                                     String roleCodes, String next) {
-        requireDevAuth("当前环境未开放开发联调登录入口，请改用真实 ERP 登录流程或显式开启开发认证开关。");
-        if (ticket != null && !ticket.isBlank()) {
-            String[] parts = ticket.split("\\|", -1);
-            String projects = at(parts, 3);
-            String areas = at(parts, 4);
-            String roles = at(parts, 5);
-            return devLogin(new DevLoginCommand(at(parts, 0), at(parts, 1), at(parts, 2),
-                    parseScopeParam(projects), parseScopeParam(areas), parseScopeParam(roles)), next);
+    /**
+     * URL 桥接登录：可信上游平台携带已验证账号换取会话。
+     * 账号须预先供给（password_hash 可为空，走桥接通道），不自动注册未知账号。
+     */
+    public LoginResult bridgeLogin(String account, String next) {
+        if (!properties.auth().providers().bridge().enabled()) {
+            throw new BackendException(BRIDGE_DISABLED, "URL 桥接登录未开启。");
         }
-        return devLogin(new DevLoginCommand(employeeId, displayName, organizationId,
-                parseScopeParam(projectIds), parseScopeParam(areaIds), parseScopeParam(roleCodes)), next);
+        String normalized = account == null ? "" : account.trim();
+        IdentityAccount row = accounts.findByAccount(normalized)
+                .orElseThrow(() -> new BackendException(INVALID_CREDENTIALS,
+                        "桥接账号未开通平台访问权限，请联系管理员。"));
+        return issueSession(row, next);
     }
 
     public void logout(String sessionId) {
@@ -125,67 +96,20 @@ public final class AuthLoginService {
         return allowed ? path + suffix : "/workspace";
     }
 
-    private void requireDevAuth(String message) {
-        if (!properties.devAuthEnabled()) {
-            throw new BackendException(DEV_AUTH_DISABLED, message);
+    private LoginResult issueSession(IdentityAccount account, String next) {
+        if (account.disabled()) {
+            throw new BackendException(INVALID_CREDENTIALS, "该账号已停用，请联系管理员。");
         }
-    }
-
-    private ErpDirectoryUser requireActiveUser(String account) {
-        String trimmedAccount = account == null ? "" : account.trim();
-        if (trimmedAccount.isEmpty()) {
-            throw new BackendException(INVALID_ERP_CREDENTIALS, "账号不能为空。");
+        if (account.locked()) {
+            throw new BackendException(INVALID_CREDENTIALS, "账号已锁定，请稍后重试。");
         }
-        List<ErpDirectoryUser> users = directory.findUserByAccount(trimmedAccount);
-        if (users.isEmpty()) {
-            throw new BackendException(INVALID_ERP_CREDENTIALS, "账号不存在，请检查后重试。");
-        }
-        if (users.size() > 1) {
-            throw new BackendException(INVALID_ERP_CREDENTIALS, "账号命中多条记录，请联系管理员处理。");
-        }
-        ErpDirectoryUser user = users.get(0);
-        if (user.disabled()) {
-            throw new BackendException(INVALID_ERP_CREDENTIALS, "该账号已停用，请联系管理员。");
-        }
-        return user;
-    }
-
-    private LoginResult identityResult(ErpDirectoryUser user, String next) {
-        if (user.organizationId == null) {
-            throw new BackendException(INVALID_ERP_CREDENTIALS, "该账号未关联组织，无法登录。");
-        }
-        String userId = String.valueOf(user.sourceId);
-        AccessScope scope = directory.resolveUserScope(userId, user.organizationId, user.userAccount);
-        String displayName = user.sentryName != null && !user.sentryName.isBlank()
-                ? user.sentryName.trim()
-                : (user.userAccount != null && !user.userAccount.isBlank() ? user.userAccount : userId);
-        return createLoginResult(new AuthIdentity(userId, displayName, scope), next);
-    }
-
-    private LoginResult createLoginResult(AuthIdentity identity, String next) {
-        AuthSession session = sessions.create(identity);
-        return new LoginResult(session, sanitizeNextPath(next));
-    }
-
-    private static List<String> parseScopeParam(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return List.of();
-        }
-        return uniqueNonBlank(List.of(raw.split(",")));
-    }
-
-    private static List<String> uniqueNonBlank(List<String> values) {
-        List<String> result = new ArrayList<>();
-        for (String value : values) {
-            String trimmed = value == null ? "" : value.trim();
-            if (!trimmed.isEmpty() && !result.contains(trimmed)) {
-                result.add(trimmed);
-            }
-        }
-        return List.copyOf(result);
-    }
-
-    private static String at(String[] parts, int index) {
-        return index < parts.length ? parts[index] : null;
+        AccessScope scope = accounts.scope(account);
+        AuthSession session = sessions.create(new AuthIdentity(
+                String.valueOf(account.id()), account.displayName(), scope));
+        accounts.auditLogin(String.valueOf(account.id()), scope.organizationId(), "success");
+        String target = (next == null || next.isBlank())
+                && scope.roleCodes().contains(IdentityAccountService.PLATFORM_ADMIN)
+                ? "/admin/ingestion" : sanitizeNextPath(next);
+        return new LoginResult(session, target);
     }
 }

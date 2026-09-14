@@ -49,8 +49,6 @@ services:
       REDIS_URL: redis://valkey:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-easyv-dev}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
-      ERP_API_BASE_URL: ${ERP_API_BASE_URL:-}
-      ENABLE_DEV_ERP_AUTH: ${ENABLE_DEV_ERP_AUTH:-false}
       ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE:-false}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CUBE_API_URL: http://cube:4000/cubejs-api/v1

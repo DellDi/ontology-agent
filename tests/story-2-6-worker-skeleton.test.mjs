@@ -49,8 +49,6 @@ test('全部认证路由与业务路由一样是 Java 透明代理', async () =>
   for (const route of [
     'src/app/api/auth/login/route.ts',
     'src/app/api/auth/logout/route.ts',
-    'src/app/api/auth/callback/route.ts',
-    'src/app/api/auth/directory-login/route.ts',
     'src/app/api/auth/bridge/route.ts',
     'src/app/api/auth/me/route.ts',
   ]) {

@@ -47,8 +47,6 @@ services:
       REDIS_URL: redis://redis:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-dip3}
       SESSION_SECRET: ${SESSION_SECRET}
-      ERP_API_BASE_URL: ${ERP_API_BASE_URL}
-      ENABLE_DEV_ERP_AUTH: "0"
       ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE:-0}
       COOKIE_SECURE: "true"
       CUBE_API_URL: http://cube:4000/cubejs-api/v1

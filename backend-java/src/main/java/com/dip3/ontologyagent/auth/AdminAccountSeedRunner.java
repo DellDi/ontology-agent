@@ -9,11 +9,11 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("admin-seed")
 public class AdminAccountSeedRunner implements ApplicationRunner {
-    private final AdminAccountService accounts;
+    private final IdentityAccountService accounts;
     private final Environment environment;
-    public AdminAccountSeedRunner(AdminAccountService accounts, Environment environment) { this.accounts = accounts; this.environment = environment; }
+    public AdminAccountSeedRunner(IdentityAccountService accounts, Environment environment) { this.accounts = accounts; this.environment = environment; }
     @Override public void run(ApplicationArguments args) {
-        accounts.seed(environment.getRequiredProperty("ADMIN_SEED_USERNAME"), environment.getRequiredProperty("ADMIN_SEED_PASSWORD"));
+        accounts.seedAdmin(environment.getRequiredProperty("ADMIN_SEED_USERNAME"), environment.getRequiredProperty("ADMIN_SEED_PASSWORD"));
         System.out.println("Administrator account initialized; existing credentials are preserved.");
         System.exit(0);
     }

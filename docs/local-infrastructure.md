@@ -26,7 +26,7 @@ cp .env.example .env
 
 关键约定：
 
-- `ENABLE_DEV_ERP_AUTH=1` 只用于本地联调，不能复制成生产或试点环境默认值
+- `AUTH_LOCAL_PROVIDER_ENABLED` 默认开启，本地经 `admin-seed` 或管理员 API 供给账号后登录；不存在绕过身份表的手填 scope 入口
 - 宿主机 `.env` 中的 `POSTGRES_*` / `REDIS_URL` 默认指向 `127.0.0.1`；数据库迁移直接通过 Maven 启动 Java `migrate` profile，并以 `JAVA_DATABASE_URL`（由 `POSTGRES_*` 派生）执行 Flyway
 - `compose.yaml` 只为 `backend` 容器注入数据库与 Redis 连接；`web` 容器只持有 `JAVA_BACKEND_URL`
 - `SESSION_SECRET` 需要在本地 `.env` 中设置为自定义值

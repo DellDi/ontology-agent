@@ -896,8 +896,7 @@ export async function readJavaBackend<T>(path: string, schema: z.ZodType<T>): Pr
 }
 
 export const javaAuthConfigSchema = z.strictObject({
-  directoryAuthAvailable: z.boolean(),
-  devAuthEnabled: z.boolean(),
+  accountLoginAvailable: z.boolean(),
   urlBridgeEnabled: z.boolean(),
 });
 
