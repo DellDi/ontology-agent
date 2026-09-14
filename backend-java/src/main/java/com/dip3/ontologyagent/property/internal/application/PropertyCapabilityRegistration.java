@@ -19,9 +19,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 final class PropertyCapabilityRegistration implements CapabilityRegistration {
   static final CapabilityId ID = new CapabilityId("property", "collection-rate-analysis");
   private static final int SCOPE_SCHEMA_VERSION = 1;

@@ -1,11 +1,13 @@
 package com.dip3.ontologyagent.graphsync;
 
 import org.neo4j.driver.Driver;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.stereotype.Component;
 
 @Component("neo4j")
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class Neo4jHealthIndicator implements HealthIndicator {
     private final Driver driver;
 

@@ -1,5 +1,6 @@
 package com.dip3.ontologyagent.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -9,6 +10,7 @@ import org.springframework.web.client.RestClient;
 import java.net.URI;
 
 @Component("cube")
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class CubeHealthIndicator implements HealthIndicator {
     private final RestClient http;
     private final URI readyUrl;

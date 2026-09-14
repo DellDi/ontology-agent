@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.graphsync;
 
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.support.BackendException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class GraphSyncService {
     private final GraphSyncRunRepository runs;
     private final GraphBatchBuilder batches;

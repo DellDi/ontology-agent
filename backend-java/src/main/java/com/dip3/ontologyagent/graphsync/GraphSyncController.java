@@ -5,6 +5,7 @@ import com.dip3.ontologyagent.auth.CookieSessionAuthenticator;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.config.TraceFilter;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.Map;
 
 @RestController
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class GraphSyncController {
     private final CookieSessionAuthenticator auth;
     private final GraphSyncService service;

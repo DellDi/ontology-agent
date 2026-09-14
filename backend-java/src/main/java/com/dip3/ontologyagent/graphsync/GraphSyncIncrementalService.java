@@ -4,10 +4,12 @@ import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.support.BackendException;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /** Admin operations retained at the existing API boundary after canonical projection cutover. */
 @Service
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class GraphSyncIncrementalService {
     private final GraphSyncService rebuilds;
     private final GraphSyncRunRepository runs;

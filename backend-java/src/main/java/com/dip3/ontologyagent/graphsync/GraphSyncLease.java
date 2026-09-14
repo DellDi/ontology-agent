@@ -1,5 +1,6 @@
 package com.dip3.ontologyagent.graphsync;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
@@ -8,6 +9,7 @@ import java.time.Instant;
 import java.util.concurrent.ScheduledFuture;
 
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class GraphSyncLease {
     private final TaskScheduler scheduler;
     private final GraphSyncRunRepository runs;

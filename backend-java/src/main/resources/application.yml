@@ -60,6 +60,10 @@ dip3:
       # Local spooling keeps the source snapshot independent from remote platform writes.
       idle-in-transaction-session-timeout: ${EASYV_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS:5000}ms
       require-read-only-role: ${EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE:true}
+  property:
+    # 物业域开关：关闭后整个 property domain pack（能力注册、分析链路、图投影）不装配。
+    # 默认开启以保持存量环境行为；EasyV-only 部署显式置 false。
+    enabled: ${PROPERTY_DOMAIN_ENABLED:true}
   ai:
     provider:
       mode: ${LLM_PROVIDER_MODE}

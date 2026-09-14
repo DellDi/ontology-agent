@@ -11,6 +11,7 @@ import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(prefix = "dip3.graph-sync", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class GraphSyncScheduler {
     private static final Logger log = LoggerFactory.getLogger(GraphSyncScheduler.class);
     private final GraphSyncBootstrapService sync;

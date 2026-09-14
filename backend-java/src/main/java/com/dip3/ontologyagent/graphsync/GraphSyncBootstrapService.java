@@ -6,10 +6,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /** Rebuilds Neo4j from one complete frozen canonical dataset version set. */
 @Service
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class GraphSyncBootstrapService {
     private final GraphSyncRunRepository runs;
     private final GraphBatchBuilder batches;

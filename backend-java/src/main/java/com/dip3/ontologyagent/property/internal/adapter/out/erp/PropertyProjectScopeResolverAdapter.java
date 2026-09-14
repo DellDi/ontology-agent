@@ -4,10 +4,12 @@ import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.integration.erp.ScopedProjectResolver;
 import com.dip3.ontologyagent.property.internal.application.PropertyProjectScopeResolver;
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /** Adapts the shared ERP resolver to the property capability's application port. */
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class PropertyProjectScopeResolverAdapter implements PropertyProjectScopeResolver {
   private final ScopedProjectResolver delegate;
 

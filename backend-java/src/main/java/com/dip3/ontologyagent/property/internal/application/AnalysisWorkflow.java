@@ -13,6 +13,7 @@ import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.GroundedConclusion;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -28,6 +29,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 @Service
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class AnalysisWorkflow {
     private final OntologyRepository ontologies;
     private final EvidenceProvider erp;
