@@ -660,6 +660,16 @@ test('Next auth routes are pure Java proxies and Set-Cookie passes through', asy
     assert.doesNotMatch(source, /server-auth|getRequestSession|NextResponse/, `${path} 不得持有 Node 会话逻辑`);
   }
 
+  for (const path of [
+    'src/app/api/admin/identity/accounts/route.ts',
+    'src/app/api/admin/identity/accounts/[id]/route.ts',
+    'src/app/api/admin/identity/accounts/[id]/roles/route.ts',
+  ]) {
+    const source = await readFile(new URL(path, root), 'utf8');
+    assert.match(source, /forwardJavaBackendRequest\(request\)/, `${path} 必须是 Java 代理`);
+    assert.doesNotMatch(source, /server-auth|getRequestSession|NextResponse/, `${path} 不得持有 Node 会话逻辑`);
+  }
+
   const loginPage = await readFile(new URL('src/app/(auth)/login/page.tsx', root), 'utf8');
   assert.match(loginPage, /getCurrentViewer/, '登录页通过 Java viewer 判断会话');
   assert.match(loginPage, /getAuthConfig/, '登录页通过 Java config 读取能力状态');
