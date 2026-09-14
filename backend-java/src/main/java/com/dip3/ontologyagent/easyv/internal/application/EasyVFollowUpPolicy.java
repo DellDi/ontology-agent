@@ -58,7 +58,7 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     EasyVDateRange range = resolveFollowUpRange(question, domain);
     Map<String, Object> next = mutableContext(displayContext(domain));
     if (range != null) {
-      next.put("timeRange", field("时间范围", range.from() + "/" + range.to(), "confirmed"));
+      next.put("timeRange", field("时间范围", range.describe(), "confirmed"));
     }
     return immutableContext(next);
   }
@@ -78,17 +78,7 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     if (timeRange.isEmpty()) {
       throw new BackendException("INVALID_FOLLOW_UP_ADJUSTMENT", "至少需要补充一个范围条件。");
     }
-    String[] boundaries = timeRange.split("/", -1);
-    if (boundaries.length != 2) {
-      throw new BackendException("FOLLOW_UP_TIME_RANGE_INVALID", "时间范围必须使用 yyyy-MM-dd/yyyy-MM-dd。");
-    }
-    try {
-      LocalDate from = LocalDate.parse(boundaries[0].trim());
-      LocalDate to = LocalDate.parse(boundaries[1].trim());
-      if (from.isAfter(to)) throw new IllegalArgumentException("from > to");
-    } catch (RuntimeException error) {
-      throw new BackendException("FOLLOW_UP_TIME_RANGE_INVALID", "时间范围必须使用有效日期。", error);
-    }
+    EasyVDateRange.parseDisplay(timeRange);
     Map<String, Object> next = mutableContext(mergedContext);
     String previous = fieldValue(mergedContext, "timeRange");
     next.put("timeRange", field("时间范围", timeRange, "confirmed"));
@@ -170,7 +160,7 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     Map<String, Object> context = new LinkedHashMap<>();
     context.put("targetMetric", field("目标指标", METRIC_LABEL, "confirmed"));
     context.put("entity", field("实体对象", ENTITY_LABEL, "confirmed"));
-    context.put("timeRange", field("时间范围", domain.get("from") + "/" + domain.get("to"), "confirmed"));
+    context.put("timeRange", field("时间范围", describeRange(domain), "confirmed"));
     context.put("comparison", field("比较方式", "无需比较", "confirmed"));
     context.put("constraints", List.of(
         Map.of("label", "实体 business key", "value", String.valueOf(domain.get("entity"))),
@@ -201,12 +191,14 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     domain.put("time", constraintValue(source, "时间语义 business key"));
     domain.put("accessMode", constraintValue(source, "访问模式"));
     domain.put("userId", constraintValue(source, "执行账号 ID"));
-    String[] boundaries = fieldValue(source, "timeRange").split("/", -1);
-    if (boundaries.length != 2) {
-      throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "追问时间范围必须使用 yyyy-MM-dd/yyyy-MM-dd。");
+    EasyVDateRange range;
+    try {
+      range = EasyVDateRange.parseDisplay(fieldValue(source, "timeRange"));
+    } catch (BackendException error) {
+      throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", error.getMessage(), error);
     }
-    domain.put("from", boundaries[0].trim());
-    domain.put("to", boundaries[1].trim());
+    domain.put("from", range.from().toString());
+    domain.put("to", range.to().toString());
     return validateDomain(domain);
   }
 
@@ -254,6 +246,13 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     if (principal == null || !principal.userId().equals(domain.get("userId"))) {
       throw new BackendException("FOLLOW_UP_SCOPE_INVALID", "EasyV 追问不能改变执行者身份。");
     }
+  }
+
+  private static String describeRange(Map<String, Object> domain) {
+    return new EasyVDateRange(
+            LocalDate.parse(String.valueOf(domain.get("from"))),
+            LocalDate.parse(String.valueOf(domain.get("to"))))
+        .describe();
   }
 
   private static Map<String, Object> field(String label, String value, String state) {
