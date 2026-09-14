@@ -102,6 +102,7 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                     values.text(row, "app_id"),
                     values.text(row, "status").toLowerCase(Locale.ROOT),
                     md5(values.value(row, "failure_reason")),
+                    failureReasonText(values.value(row, "failure_reason")),
                     values.nullableInstant(row, "started_at"),
                     values.nullableInstant(row, "finished_at"),
                     values.instant(row, "create_time"), values.instant(row, "update_time"));
@@ -129,6 +130,19 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
         if (value == null || "0".equals(value)) return false;
         if ("1".equals(value)) return true;
         throw new IllegalArgumentException("EasyV is_delete must be null, 0, or 1");
+    }
+
+    /** 源列是 jsonb（{kind, message}）；存人可读的 message 文本，hash 列仍做稳定分组键。 */
+    private String failureReasonText(Object value) {
+        if (value == null) return null;
+        String text;
+        if (value instanceof Map<?, ?> map
+                && map.get("message") instanceof String message && !message.isBlank()) {
+            text = message;
+        } else {
+            text = value instanceof CharSequence s ? s.toString() : json.write(value);
+        }
+        return text.length() <= 4000 ? text : text.substring(0, 4000);
     }
 
     private String md5(Object value) {
@@ -197,11 +211,12 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                    task_id,step_name,branch,status,duration_ms,created_at)
                 values (?,?,?,?,?,?,?,?,?,?)
                 """),
-        FORGE("easyv-forge-task", "easyv_forge_generation_task", "easyv-forge-task-v1", """
+        FORGE("easyv-forge-task", "easyv_forge_generation_task", "easyv-forge-task-v2", """
                 insert into facts.easyv_forge_generation_task
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
-                   task_id,app_id,status,failure_reason_hash,started_at,finished_at,created_at,updated_at)
-                values (?,?,?,?,?,?,?,?,?,?,?,?)
+                   task_id,app_id,status,failure_reason_hash,failure_reason,started_at,finished_at,
+                   created_at,updated_at)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """),
         FEEDBACK("easyv-generation-feedback", "easyv_generation_feedback",
                 "easyv-generation-feedback-v1", """

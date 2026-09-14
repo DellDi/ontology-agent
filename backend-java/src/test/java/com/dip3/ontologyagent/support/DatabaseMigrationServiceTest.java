@@ -53,7 +53,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(16, applied, "新库应执行到 V16 平台身份体系");
+        assertEquals(17, applied, "新库应执行到 V17 EasyV 失败原因原文列");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -414,10 +414,15 @@ class DatabaseMigrationServiceTest {
                                       'intent','pages_progress','user_input','fail_reason',
                                       'description','remark','metadata')
                 """, Integer.class), "facts 不得落地大 JSON/XML、用户输入或描述字段");
-        assertEquals(0, jdbc.queryForObject("""
+        assertEquals(1, jdbc.queryForObject("""
                 select count(*) from information_schema.columns
-                where table_schema='facts' and column_name='failure_reason'
-                """, Integer.class), "Forge canonical facts 只允许保存失败原因 hash");
+                where table_schema='facts' and table_name='easyv_forge_generation_task'
+                  and column_name='failure_reason' and data_type='text'
+                """, Integer.class), "V17 起 Forge facts 保存失败原因原文文本");
+        assertEquals("easyv-forge-task-v2", jdbc.queryForObject("""
+                select transform_ref from ingestion.data_product_definitions
+                where product_key='easyv-forge-task'
+                """, String.class), "V17 应将 Forge transform 升级到 v2");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject(
                 "select to_regclass('public.spring_ai_chat_memory') is not null", Boolean.class)));
         assertEquals(0, service().pendingMigrations().length);
@@ -430,7 +435,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(16, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(17, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -462,7 +467,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(16, applied, "旧库补全应记录 V1-V16（baseline 0 标记不计入）");
+        assertEquals(17, applied, "旧库补全应记录 V1-V17（baseline 0 标记不计入）");
     }
 
     @Test
