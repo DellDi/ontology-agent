@@ -21,6 +21,11 @@ public class IngestionAccessPostgresAdapter implements IngestionAccessPort {
                 organizationId == null ? new Object[0] : new Object[]{organizationId});
     }
     @Override
+    public List<String> sourceKeys() {
+        return jdbc.queryForList(
+                "select source_key from ingestion.source_definitions order by source_key", String.class);
+    }
+    @Override
     @Transactional
     public void setGrant(String sourceKey, String organizationId, boolean enabled, AuthSession actor) {
         if (jdbc.queryForObject("select count(*) from ingestion.source_definitions where source_key=?", Integer.class, sourceKey) != 1)

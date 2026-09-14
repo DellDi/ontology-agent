@@ -39,15 +39,16 @@ class IngestionManagementControllerTest {
     }
 
     @Test
-    void rejectsDomainAndOntologyRolesAcrossOrganizations() throws Exception {
+    void anyAuthenticatedRoleReadsThePlatformWideCatalog() throws Exception {
+        when(port.overview()).thenReturn(new IngestionManagementPort.Overview("platform", 50, 20,
+                List.of(), List.of(), List.of(), List.of(), List.of()));
         for (String organization : List.of("org-a", "org-b")) {
             for (String role : List.of("PROPERTY_ANALYST", "EASYV_ANALYST", "ONTOLOGY_PUBLISHER", "ONTOLOGY_VIEWER")) {
                 actor(organization, role);
-                mvc.perform(get("/api/admin/ingestion/overview")).andExpect(status().isForbidden())
-                        .andExpect(jsonPath("$.code").value("INGESTION_MANAGEMENT_FORBIDDEN"));
+                mvc.perform(get("/api/admin/ingestion/overview")).andExpect(status().isOk())
+                        .andExpect(jsonPath("$.scope").value("platform"));
             }
         }
-        verifyNoInteractions(port);
     }
 
     @Test
