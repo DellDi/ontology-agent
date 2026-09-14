@@ -3,240 +3,1085 @@
   "$id": "analysis-session-aggregate.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["session", "followUps", "history", "job", "events", "snapshot", "runtime"],
+  "required": [
+    "session",
+    "followUps",
+    "history",
+    "job",
+    "events",
+    "snapshot",
+    "runtime"
+  ],
   "properties": {
-    "session": { "$ref": "#/$defs/session" },
-    "followUps": { "type": "array", "items": { "$ref": "analysis-follow-up.schema.json" } },
-    "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/round" } },
-    "job": { "oneOf": [{ "$ref": "#/$defs/job" }, { "type": "null" }] },
-    "events": { "type": "array", "items": { "$ref": "execution-event.schema.json" } },
-    "snapshot": { "oneOf": [{ "$ref": "#/$defs/snapshot" }, { "type": "null" }] },
-    "runtime": { "$ref": "#/$defs/runtime" }
+    "session": {
+      "$ref": "#/$defs/session"
+    },
+    "followUps": {
+      "type": "array",
+      "items": {
+        "$ref": "analysis-follow-up.schema.json"
+      }
+    },
+    "history": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/round"
+      }
+    },
+    "job": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/job"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "execution-event.schema.json"
+      }
+    },
+    "snapshot": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/snapshot"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    }
   },
   "$defs": {
     "sessionScope": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["organizationId", "projectIds", "areaIds"],
+      "required": [
+        "organizationId",
+        "projectIds",
+        "areaIds"
+      ],
       "properties": {
-        "organizationId": { "type": "string", "minLength": 1 },
-        "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "areaIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "organizationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "areaIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
     "session": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "questionText", "status", "scope", "savedContext", "createdAt", "updatedAt"],
+      "required": [
+        "id",
+        "questionText",
+        "status",
+        "scope",
+        "savedContext",
+        "createdAt",
+        "updatedAt"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "questionText": { "type": "string", "minLength": 1 },
-        "status": { "type": "string", "minLength": 1 },
-        "scope": { "$ref": "#/$defs/sessionScope" },
-        "savedContext": { "type": "object" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "questionText": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/sessionScope"
+        },
+        "savedContext": {
+          "type": "object"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "round": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "kind", "questionText", "followUpId", "executionId", "status", "ontologyVersionId", "ontologyVersionBindingSource", "planSnapshot", "conclusionState", "createdAt"],
+      "required": [
+        "id",
+        "kind",
+        "questionText",
+        "followUpId",
+        "executionId",
+        "status",
+        "ontologyVersionId",
+        "ontologyVersionBindingSource",
+        "planSnapshot",
+        "conclusionState",
+        "createdAt"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "kind": { "enum": ["initial", "follow-up"] },
-        "questionText": { "type": "string", "minLength": 1 },
-        "followUpId": { "type": ["string", "null"], "minLength": 1 },
-        "executionId": { "type": ["string", "null"], "minLength": 1 },
-        "status": {
-          "oneOf": [
-            { "enum": ["pending", "queued", "processing", "completed", "failed", "dead_letter"] },
-            { "type": "null" }
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "initial",
+            "follow-up"
           ]
         },
-        "ontologyVersionId": { "type": ["string", "null"], "minLength": 1 },
+        "questionText": {
+          "type": "string",
+          "minLength": 1
+        },
+        "followUpId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "executionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "status": {
+          "oneOf": [
+            {
+              "enum": [
+                "pending",
+                "queued",
+                "processing",
+                "completed",
+                "failed",
+                "dead_letter"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ontologyVersionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
         "ontologyVersionBindingSource": {
           "oneOf": [
-            { "enum": ["grounded-context", "inherited", "switched", "legacy/unknown"] },
-            { "type": "null" }
+            {
+              "enum": [
+                "grounded-context",
+                "inherited",
+                "switched",
+                "legacy/unknown"
+              ]
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "planSnapshot": {
           "oneOf": [
             {
               "type": "object",
-              "required": ["mode", "summary", "steps", "_executionContract", "_resolvedContext"],
+              "required": [
+                "mode",
+                "summary",
+                "steps",
+                "_executionContract",
+                "_resolvedContext"
+              ],
               "properties": {
-                "mode": { "enum": ["minimal", "multi-step", "deterministic-read-only"] },
-                "summary": { "type": "string", "minLength": 1 },
-                "steps": { "type": "array" },
-                "_executionContract": { "enum": ["java-initial-v1", "java-follow-up-v1"] },
-                "_resolvedContext": { "type": "object" }
+                "mode": {
+                  "enum": [
+                    "minimal",
+                    "multi-step",
+                    "deterministic-read-only"
+                  ]
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "steps": {
+                  "type": "array"
+                },
+                "_executionContract": {
+                  "enum": [
+                    "java-initial-v1",
+                    "java-follow-up-v1"
+                  ]
+                },
+                "_resolvedContext": {
+                  "type": "object"
+                }
               }
             },
-            { "type": "null" }
+            {
+              "type": "null"
+            }
           ]
         },
         "conclusionState": {
-          "oneOf": [{ "$ref": "conclusion-state.schema.json" }, { "type": "null" }]
+          "oneOf": [
+            {
+              "$ref": "conclusion-state.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
           "then": {
             "properties": {
               "planSnapshot": {
                 "type": "object",
                 "properties": {
-                  "steps": { "type": "array", "minItems": 1 },
-                    "_resolvedContext": { "type": "object" }
+                  "steps": {
+                    "type": "array",
+                    "minItems": 1
+                  },
+                  "_resolvedContext": {
+                    "type": "object"
+                  }
                 }
               }
             }
           }
         },
         {
-          "if": { "properties": { "kind": { "const": "initial" } }, "required": ["kind"] },
-          "then": { "properties": { "followUpId": { "type": "null" } } },
-          "else": { "properties": { "followUpId": { "type": "string", "minLength": 1 } } }
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "initial"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "followUpId": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "followUpId": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         },
         {
-          "if": { "properties": { "status": { "const": "completed" }, "capabilityBinding": { "type": "object", "properties": { "domainKey": { "const": "property" } }, "required": ["domainKey"] } }, "required": ["status", "capabilityBinding"] },
-          "then": { "type": "object", "properties": {
-            "planSnapshot": { "type": "object", "properties": { "_resolvedContext": { "type": "object", "properties": { "entityKey": {}, "metricDefinitionKey": {}, "metricVariantKey": {}, "timeSemanticKey": {}, "projectIds": {}, "from": {}, "to": {} }, "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"] } } },
-            "conclusionState": { "type": "object", "properties": {
-              "evidence": { "type": "array", "minItems": 3, "maxItems": 3, "allOf": [
-                { "contains": { "type": "object", "properties": { "source": { "const": "erp-staging" } }, "required": ["source"] } },
-                { "contains": { "type": "object", "properties": { "source": { "const": "cube" } }, "required": ["source"] } },
-                { "contains": { "type": "object", "properties": { "source": { "const": "neo4j" } }, "required": ["source"] } }
-              ] },
-              "claims": { "type": "array", "allOf": [
-                { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "erp-staging" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } },
-                { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "cube" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } },
-                { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "neo4j" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } }
-              ] }
-            } }
-          } }
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              },
+              "capabilityBinding": {
+                "type": "object",
+                "properties": {
+                  "domainKey": {
+                    "const": "property"
+                  }
+                },
+                "required": [
+                  "domainKey"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "capabilityBinding"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "planSnapshot": {
+                "type": "object",
+                "properties": {
+                  "_resolvedContext": {
+                    "type": "object",
+                    "properties": {
+                      "entityKey": {},
+                      "metricDefinitionKey": {},
+                      "metricVariantKey": {},
+                      "timeSemanticKey": {},
+                      "projectIds": {},
+                      "from": {},
+                      "to": {}
+                    },
+                    "required": [
+                      "entityKey",
+                      "metricDefinitionKey",
+                      "metricVariantKey",
+                      "timeSemanticKey",
+                      "projectIds",
+                      "from",
+                      "to"
+                    ]
+                  }
+                }
+              },
+              "conclusionState": {
+                "type": "object",
+                "properties": {
+                  "evidence": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "erp-staging"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "cube"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "neo4j"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "claims": {
+                    "type": "array",
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "evidenceRefs": {
+                              "type": "array",
+                              "contains": {
+                                "type": "object",
+                                "properties": {
+                                  "source": {
+                                    "const": "erp-staging"
+                                  }
+                                },
+                                "required": [
+                                  "source"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "evidenceRefs"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "evidenceRefs": {
+                              "type": "array",
+                              "contains": {
+                                "type": "object",
+                                "properties": {
+                                  "source": {
+                                    "const": "cube"
+                                  }
+                                },
+                                "required": [
+                                  "source"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "evidenceRefs"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "evidenceRefs": {
+                              "type": "array",
+                              "contains": {
+                                "type": "object",
+                                "properties": {
+                                  "source": {
+                                    "const": "neo4j"
+                                  }
+                                },
+                                "required": [
+                                  "source"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "evidenceRefs"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
         },
         {
-          "if": { "properties": { "status": { "const": "completed" }, "capabilityBinding": { "type": "object", "properties": { "domainKey": { "const": "easyv" } }, "required": ["domainKey"] } }, "required": ["status", "capabilityBinding"] },
-          "then": { "properties": {
-            "planSnapshot": { "type": "object", "properties": { "_resolvedContext": { "type": "object", "properties": { "entity": {}, "metric": {}, "time": {}, "from": {}, "to": {}, "accessMode": {}, "userId": {} }, "required": ["entity", "metric", "time", "from", "to", "accessMode", "userId"] } } },
-            "conclusionState": { "type": "object", "properties": {
-              "evidence": { "type": "array", "minItems": 4, "maxItems": 4, "allOf": [
-                { "contains": { "type": "object", "properties": { "source": { "const": "easyv-ai-application" } }, "required": ["source"] } },
-                { "contains": { "type": "object", "properties": { "source": { "const": "easyv-pipeline-node" } }, "required": ["source"] } },
-                { "contains": { "type": "object", "properties": { "source": { "const": "easyv-forge-task" } }, "required": ["source"] } },
-                { "contains": { "type": "object", "properties": { "source": { "const": "easyv-generation-feedback" } }, "required": ["source"] } }
-              ] },
-              "claims": { "type": "array", "allOf": [
-                { "contains": { "type": "object", "properties": { "kind": { "const": "generation-quality" } }, "required": ["kind"] } },
-                { "contains": { "type": "object", "properties": { "kind": { "const": "stage-bottleneck" } }, "required": ["kind"] } },
-                { "contains": { "type": "object", "properties": { "kind": { "const": "failure-concentration" } }, "required": ["kind"] } },
-                { "contains": { "type": "object", "properties": { "kind": { "const": "feedback-association" } }, "required": ["kind"] } },
-                { "contains": { "type": "object", "properties": { "kind": { "const": "business-success-settlement-distinct" } }, "required": ["kind"] } }
-              ] }
-            } }
-          } }
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              },
+              "capabilityBinding": {
+                "type": "object",
+                "properties": {
+                  "domainKey": {
+                    "const": "easyv"
+                  }
+                },
+                "required": [
+                  "domainKey"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "capabilityBinding"
+            ]
+          },
+          "then": {
+            "properties": {
+              "planSnapshot": {
+                "type": "object",
+                "properties": {
+                  "_resolvedContext": {
+                    "type": "object",
+                    "properties": {
+                      "entity": {},
+                      "metric": {},
+                      "time": {},
+                      "from": {},
+                      "to": {},
+                      "accessMode": {},
+                      "userId": {}
+                    },
+                    "required": [
+                      "entity",
+                      "metric",
+                      "time",
+                      "from",
+                      "to",
+                      "accessMode",
+                      "userId"
+                    ]
+                  }
+                }
+              },
+              "conclusionState": {
+                "type": "object",
+                "properties": {
+                  "evidence": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-ai-application"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-pipeline-node"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-forge-task"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-generation-feedback"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "claims": {
+                    "type": "array",
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "generation-quality"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "stage-bottleneck"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "failure-concentration"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "feedback-association"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "business-success-settlement-distinct"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
     "job": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["executionId", "status", "result", "error", "attemptCount", "maxAttempts", "dispatchStatus", "traceId", "createdAt", "updatedAt", "startedAt", "completedAt", "failedAt"],
+      "required": [
+        "executionId",
+        "status",
+        "result",
+        "error",
+        "attemptCount",
+        "maxAttempts",
+        "dispatchStatus",
+        "traceId",
+        "createdAt",
+        "updatedAt",
+        "startedAt",
+        "completedAt",
+        "failedAt"
+      ],
       "properties": {
-        "executionId": { "type": "string", "minLength": 1 },
-        "status": { "type": "string", "minLength": 1 },
-        "result": { "type": ["object", "null"] },
-        "error": { "type": ["string", "null"] },
-        "attemptCount": { "type": "integer", "minimum": 0 },
-        "maxAttempts": { "type": "integer", "minimum": 1 },
-        "dispatchStatus": { "type": "string", "minLength": 1 },
-        "traceId": { "type": ["string", "null"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "startedAt": { "type": ["string", "null"], "format": "date-time" },
-        "completedAt": { "type": ["string", "null"], "format": "date-time" },
-        "failedAt": { "type": ["string", "null"], "format": "date-time" }
+        "executionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attemptCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dispatchStatus": {
+          "type": "string",
+          "minLength": 1
+        },
+        "traceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "failedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
       }
     },
     "snapshot": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["executionId", "sessionId", "followUpId", "ontologyVersionId", "ontologyVersionBindingSource", "capabilityBinding", "status", "planSnapshot", "stepResults", "conclusionState", "resultBlocks", "mobileProjection", "failurePoint", "errorCode", "traceId", "createdAt", "updatedAt"],
+      "required": [
+        "executionId",
+        "sessionId",
+        "followUpId",
+        "ontologyVersionId",
+        "ontologyVersionBindingSource",
+        "capabilityBinding",
+        "status",
+        "planSnapshot",
+        "stepResults",
+        "conclusionState",
+        "resultBlocks",
+        "mobileProjection",
+        "failurePoint",
+        "errorCode",
+        "traceId",
+        "createdAt",
+        "updatedAt"
+      ],
       "properties": {
-        "executionId": { "type": "string", "minLength": 1 },
-        "sessionId": { "type": "string", "minLength": 1 },
-        "followUpId": { "type": ["string", "null"] },
-        "ontologyVersionId": { "type": ["string", "null"] },
-        "ontologyVersionBindingSource": { "enum": ["grounded-context", "inherited", "switched", "legacy/unknown"] },
-        "capabilityBinding": {
-          "oneOf": [
-            { "type": "object", "additionalProperties": false, "required": ["source"], "properties": { "source": { "const": "legacy/unknown" } } },
-            { "type": "object", "additionalProperties": false, "required": ["domainKey", "capabilityKey", "ontologyVersionId", "resolvedScope"],
-              "properties": {
-                "domainKey": { "enum": ["property", "easyv"] }, "capabilityKey": { "enum": ["collection-rate-analysis", "generation-quality-analysis"] },
-                "ontologyVersionId": { "type": "string", "minLength": 1 },
-                "resolvedScope": { "type": "object", "additionalProperties": false, "required": ["domainKey", "schemaVersion", "values"],
-                  "properties": { "domainKey": { "enum": ["property", "easyv"] }, "schemaVersion": { "const": 1 }, "values": { "type": "object", "minProperties": 1 } } }
-              } }
+        "executionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "followUpId": {
+          "type": [
+            "string",
+            "null"
           ]
         },
-        "status": { "type": "string", "minLength": 1 },
+        "ontologyVersionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ontologyVersionBindingSource": {
+          "enum": [
+            "grounded-context",
+            "inherited",
+            "switched",
+            "legacy/unknown"
+          ]
+        },
+        "capabilityBinding": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source"
+              ],
+              "properties": {
+                "source": {
+                  "const": "legacy/unknown"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "domainKey",
+                "capabilityKey",
+                "ontologyVersionId",
+                "resolvedScope"
+              ],
+              "properties": {
+                "domainKey": {
+                  "enum": [
+                    "property",
+                    "easyv"
+                  ]
+                },
+                "capabilityKey": {
+                  "enum": [
+                    "collection-rate-analysis",
+                    "generation-quality-analysis"
+                  ]
+                },
+                "ontologyVersionId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "resolvedScope": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "domainKey",
+                    "schemaVersion",
+                    "values"
+                  ],
+                  "properties": {
+                    "domainKey": {
+                      "enum": [
+                        "property",
+                        "easyv"
+                      ]
+                    },
+                    "schemaVersion": {
+                      "const": 1
+                    },
+                    "values": {
+                      "type": "object",
+                      "minProperties": 1
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
         "planSnapshot": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["mode", "summary", "steps", "_executionContract", "_resolvedContext"],
+          "required": [
+            "mode",
+            "summary",
+            "steps",
+            "_executionContract",
+            "_resolvedContext"
+          ],
           "properties": {
-            "mode": { "enum": ["minimal", "multi-step", "deterministic-read-only"] },
-            "summary": { "type": "string", "minLength": 1 },
-            "steps": { "type": "array" },
-            "_executionContract": { "enum": ["java-initial-v1", "java-follow-up-v1"] },
-            "_followUpId": { "type": "string", "minLength": 1 },
-            "_referencedExecutionId": { "type": "string", "minLength": 1 },
-            "_groundedSource": { "type": "string", "minLength": 1 },
-            "_groundingStatus": { "enum": ["success", "failed", "ambiguous", "partial", "grounded"] },
-            "_toolBindings": { "type": "object" },
-            "_executionAssumptions": { "type": "array", "items": { "type": "string" } },
-                  "_resolvedContext": { "type": "object" }
+            "mode": {
+              "enum": [
+                "minimal",
+                "multi-step",
+                "deterministic-read-only"
+              ]
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "steps": {
+              "type": "array"
+            },
+            "_executionContract": {
+              "enum": [
+                "java-initial-v1",
+                "java-follow-up-v1"
+              ]
+            },
+            "_followUpId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "_referencedExecutionId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "_groundedSource": {
+              "type": "string",
+              "minLength": 1
+            },
+            "_groundingStatus": {
+              "enum": [
+                "success",
+                "failed",
+                "ambiguous",
+                "partial",
+                "grounded"
+              ]
+            },
+            "_toolBindings": {
+              "type": "object"
+            },
+            "_executionAssumptions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "_resolvedContext": {
+              "type": "object"
+            }
           }
         },
-        "stepResults": { "type": "array", "items": { "$ref": "execution-event.schema.json" } },
-        "conclusionState": { "$ref": "conclusion-state.schema.json" },
-        "resultBlocks": { "type": "array", "items": { "$ref": "conclusion-state.schema.json#/$defs/renderBlock" } },
+        "stepResults": {
+          "type": "array",
+          "items": {
+            "$ref": "execution-event.schema.json"
+          }
+        },
+        "conclusionState": {
+          "$ref": "conclusion-state.schema.json"
+        },
+        "resultBlocks": {
+          "type": "array",
+          "items": {
+            "$ref": "conclusion-state.schema.json#/$defs/renderBlock"
+          }
+        },
         "mobileProjection": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["summary", "status", "updatedAt"],
+          "required": [
+            "summary",
+            "status",
+            "updatedAt"
+          ],
           "properties": {
-            "summary": { "type": "string", "minLength": 1 },
-            "status": { "enum": ["pending", "processing", "completed", "failed"] },
-            "updatedAt": { "type": "string", "format": "date-time" }
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "pending",
+                "processing",
+                "completed",
+                "failed"
+              ]
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         },
-        "failurePoint": { "type": ["object", "null"] },
-        "errorCode": { "type": ["string", "null"] },
-        "traceId": { "type": ["string", "null"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "failurePoint": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "traceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
       "allOf": [
         {
           "oneOf": [
             {
               "properties": {
-                "followUpId": { "type": "null" },
+                "followUpId": {
+                  "type": "null"
+                },
                 "planSnapshot": {
                   "type": "object",
-                  "required": ["_executionContract"],
-                  "properties": { "_executionContract": { "const": "java-initial-v1" } },
+                  "required": [
+                    "_executionContract"
+                  ],
+                  "properties": {
+                    "_executionContract": {
+                      "const": "java-initial-v1"
+                    }
+                  },
                   "not": {
                     "anyOf": [
-                      { "properties": { "_followUpId": true }, "required": ["_followUpId"] },
-                      { "properties": { "_referencedExecutionId": true }, "required": ["_referencedExecutionId"] }
+                      {
+                        "properties": {
+                          "_followUpId": true
+                        },
+                        "required": [
+                          "_followUpId"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "_referencedExecutionId": true
+                        },
+                        "required": [
+                          "_referencedExecutionId"
+                        ]
+                      }
                     ]
                   }
                 }
@@ -244,14 +1089,29 @@
             },
             {
               "properties": {
-                "followUpId": { "type": "string", "minLength": 1 },
+                "followUpId": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "planSnapshot": {
                   "type": "object",
-                  "required": ["_executionContract", "_followUpId", "_referencedExecutionId"],
+                  "required": [
+                    "_executionContract",
+                    "_followUpId",
+                    "_referencedExecutionId"
+                  ],
                   "properties": {
-                    "_executionContract": { "const": "java-follow-up-v1" },
-                    "_followUpId": { "type": "string", "minLength": 1 },
-                    "_referencedExecutionId": { "type": "string", "minLength": 1 }
+                    "_executionContract": {
+                      "const": "java-follow-up-v1"
+                    },
+                    "_followUpId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "_referencedExecutionId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
                   }
                 }
               }
@@ -259,12 +1119,26 @@
           ]
         },
         {
-          "if": { "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
           "then": {
             "properties": {
               "capabilityBinding": {
                 "type": "object",
-                "required": ["domainKey", "capabilityKey", "ontologyVersionId", "resolvedScope"],
+                "required": [
+                  "domainKey",
+                  "capabilityKey",
+                  "ontologyVersionId",
+                  "resolvedScope"
+                ],
                 "properties": {
                   "domainKey": {},
                   "capabilityKey": {},
@@ -276,14 +1150,27 @@
           }
         },
         {
-          "if": { "type": "object", "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
           "then": {
             "type": "object",
             "properties": {
               "planSnapshot": {
                 "type": "object",
                 "properties": {
-                  "steps": { "type": "array", "minItems": 1 },
+                  "steps": {
+                    "type": "array",
+                    "minItems": 1
+                  },
                   "_resolvedContext": {
                     "type": "object"
                   }
@@ -291,152 +1178,733 @@
               },
               "conclusionState": {
                 "allOf": [
-                  { "$ref": "conclusion-state.schema.json" },
+                  {
+                    "$ref": "conclusion-state.schema.json"
+                  },
                   {
                     "type": "object",
-                    "required": ["evidence", "claims"],
+                    "required": [
+                      "evidence",
+                      "claims"
+                    ],
                     "properties": {
-                      "evidence": { "type": "array", "minItems": 1 },
-                      "claims": { "type": "array", "minItems": 1 }
+                      "evidence": {
+                        "type": "array",
+                        "minItems": 1
+                      },
+                      "claims": {
+                        "type": "array",
+                        "minItems": 1
+                      }
                     }
                   }
                 ]
               },
-              "resultBlocks": { "type": "array", "minItems": 5 }
+              "resultBlocks": {
+                "type": "array",
+                "minItems": 5
+              }
             }
           }
         },
         {
-          "if": { "properties": { "status": { "const": "completed" }, "capabilityBinding": { "type": "object", "properties": { "domainKey": { "const": "property" } }, "required": ["domainKey"] } }, "required": ["status", "capabilityBinding"] },
-          "then": { "type": "object", "properties": {
-            "capabilityBinding": {
-              "type": "object",
-              "required": ["capabilityKey", "resolvedScope"],
-              "properties": {
-                "capabilityKey": { "const": "collection-rate-analysis" },
-                "resolvedScope": {
-                  "type": "object",
-                  "required": ["domainKey", "schemaVersion", "values"],
-                  "properties": {
-                    "domainKey": { "const": "property" },
-                    "schemaVersion": { "const": 1 },
-                    "values": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["organizationId", "projectIds", "areaIds"],
-                      "properties": {
-                        "organizationId": { "type": "string", "minLength": 1 },
-                        "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-                        "areaIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              },
+              "capabilityBinding": {
+                "type": "object",
+                "properties": {
+                  "domainKey": {
+                    "const": "property"
+                  }
+                },
+                "required": [
+                  "domainKey"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "capabilityBinding"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "capabilityBinding": {
+                "type": "object",
+                "required": [
+                  "capabilityKey",
+                  "resolvedScope"
+                ],
+                "properties": {
+                  "capabilityKey": {
+                    "const": "collection-rate-analysis"
+                  },
+                  "resolvedScope": {
+                    "type": "object",
+                    "required": [
+                      "domainKey",
+                      "schemaVersion",
+                      "values"
+                    ],
+                    "properties": {
+                      "domainKey": {
+                        "const": "property"
                       },
-                      "anyOf": [
-                        { "required": ["projectIds"], "properties": { "projectIds": { "type": "array", "minItems": 1 } } },
-                        { "required": ["areaIds"], "properties": { "areaIds": { "type": "array", "minItems": 1 } } }
-                      ]
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "values": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "organizationId",
+                          "projectIds",
+                          "areaIds"
+                        ],
+                        "properties": {
+                          "organizationId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "projectIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "areaIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          }
+                        },
+                        "anyOf": [
+                          {
+                            "required": [
+                              "projectIds"
+                            ],
+                            "properties": {
+                              "projectIds": {
+                                "type": "array",
+                                "minItems": 1
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "areaIds"
+                            ],
+                            "properties": {
+                              "areaIds": {
+                                "type": "array",
+                                "minItems": 1
+                              }
+                            }
+                          }
+                        ]
+                      }
                     }
                   }
                 }
-              }
-            },
-            "planSnapshot": { "type": "object", "properties": {
-              "steps": { "type": "array", "minItems": 1, "items": {
-                "type": "object", "additionalProperties": false,
-                "required": ["id", "order", "title", "objective", "dependencyIds"],
+              },
+              "planSnapshot": {
+                "type": "object",
                 "properties": {
-                  "id": { "type": "string", "minLength": 1 }, "order": { "type": "integer", "minimum": 1 },
-                  "title": { "type": "string", "minLength": 1 }, "objective": { "type": "string", "minLength": 1 },
-                  "dependencyIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
-                }
-              } },
-              "_resolvedContext": { "type": "object", "additionalProperties": false, "properties": {
-                "entityKey": { "type": "string", "minLength": 1 }, "metricDefinitionKey": { "type": "string", "minLength": 1 },
-                "metricVariantKey": { "type": "string", "minLength": 1 }, "timeSemanticKey": { "type": "string", "minLength": 1 },
-                "projectIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-                "from": { "type": "string", "format": "date" }, "to": { "type": "string", "format": "date" }
-              }, "required": ["entityKey", "metricDefinitionKey", "metricVariantKey", "timeSemanticKey", "projectIds", "from", "to"] }
-            } },
-            "conclusionState": { "type": "object", "properties": { "evidence": { "type": "array", "minItems": 3, "maxItems": 3, "allOf": [
-              { "contains": { "type": "object", "properties": { "source": { "const": "erp-staging" } }, "required": ["source"] } },
-              { "contains": { "type": "object", "properties": { "source": { "const": "cube" } }, "required": ["source"] } },
-              { "contains": { "type": "object", "properties": { "source": { "const": "neo4j" } }, "required": ["source"] } }
-            ] }, "claims": { "type": "array", "minItems": 3, "maxItems": 3, "allOf": [
-              { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "erp-staging" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } },
-              { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "cube" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } },
-              { "contains": { "type": "object", "properties": { "evidenceRefs": { "type": "array", "contains": { "type": "object", "properties": { "source": { "const": "neo4j" } }, "required": ["source"] } } }, "required": ["evidenceRefs"] } }
-            ], "items": { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["collection-rate", "erp-balance", "charge-structure"] } } } } } }
-          } }
-        },
-        {
-          "if": { "properties": { "status": { "const": "completed" }, "capabilityBinding": { "type": "object", "properties": { "domainKey": { "const": "easyv" } }, "required": ["domainKey"] } }, "required": ["status", "capabilityBinding"] },
-          "then": { "type": "object", "properties": {
-            "capabilityBinding": {
-              "type": "object",
-              "required": ["capabilityKey", "resolvedScope"],
-              "properties": {
-                "capabilityKey": { "const": "generation-quality-analysis" },
-                "resolvedScope": {
-                  "type": "object",
-                  "required": ["domainKey", "schemaVersion", "values"],
-                  "properties": {
-                    "domainKey": { "const": "easyv" },
-                    "schemaVersion": { "const": 1 },
-                    "values": {
+                  "steps": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["userId", "accessMode"],
+                      "required": [
+                        "id",
+                        "order",
+                        "title",
+                        "objective",
+                        "dependencyIds"
+                      ],
                       "properties": {
-                        "userId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
-                        "accessMode": { "const": "creator-owned" }
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "objective": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "dependencyIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "_resolvedContext": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "entityKey": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "metricDefinitionKey": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "metricVariantKey": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "timeSemanticKey": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "projectIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "from": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "to": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [
+                      "entityKey",
+                      "metricDefinitionKey",
+                      "metricVariantKey",
+                      "timeSemanticKey",
+                      "projectIds",
+                      "from",
+                      "to"
+                    ]
+                  }
+                }
+              },
+              "conclusionState": {
+                "type": "object",
+                "properties": {
+                  "evidence": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "erp-staging"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "cube"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "neo4j"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "claims": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "evidenceRefs": {
+                              "type": "array",
+                              "contains": {
+                                "type": "object",
+                                "properties": {
+                                  "source": {
+                                    "const": "erp-staging"
+                                  }
+                                },
+                                "required": [
+                                  "source"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "evidenceRefs"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "evidenceRefs": {
+                              "type": "array",
+                              "contains": {
+                                "type": "object",
+                                "properties": {
+                                  "source": {
+                                    "const": "cube"
+                                  }
+                                },
+                                "required": [
+                                  "source"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "evidenceRefs"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "evidenceRefs": {
+                              "type": "array",
+                              "contains": {
+                                "type": "object",
+                                "properties": {
+                                  "source": {
+                                    "const": "neo4j"
+                                  }
+                                },
+                                "required": [
+                                  "source"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "evidenceRefs"
+                          ]
+                        }
+                      }
+                    ],
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "kind"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "collection-rate",
+                            "erp-balance",
+                            "charge-structure"
+                          ]
+                        }
                       }
                     }
                   }
                 }
               }
-            },
-            "planSnapshot": { "type": "object", "properties": {
-              "steps": { "type": "array", "minItems": 1, "items": {
-                "type": "object", "additionalProperties": false,
-                "required": ["id", "order", "kind"],
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              },
+              "capabilityBinding": {
+                "type": "object",
                 "properties": {
-                  "id": { "type": "string", "minLength": 1 }, "order": { "type": "integer", "minimum": 1 },
-                  "kind": { "type": "string", "minLength": 1 }
+                  "domainKey": {
+                    "const": "easyv"
+                  }
+                },
+                "required": [
+                  "domainKey"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "capabilityBinding"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "capabilityBinding": {
+                "type": "object",
+                "required": [
+                  "capabilityKey",
+                  "resolvedScope"
+                ],
+                "properties": {
+                  "capabilityKey": {
+                    "const": "generation-quality-analysis"
+                  },
+                  "resolvedScope": {
+                    "type": "object",
+                    "required": [
+                      "domainKey",
+                      "schemaVersion",
+                      "values"
+                    ],
+                    "properties": {
+                      "domainKey": {
+                        "const": "easyv"
+                      },
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "values": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "userId",
+                          "accessMode"
+                        ],
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]*$"
+                          },
+                          "accessMode": {
+                            "const": "creator-owned"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
-              } },
-              "_resolvedContext": { "type": "object", "additionalProperties": false, "properties": {
-                "entity": { "type": "string", "minLength": 1 }, "metric": { "type": "string", "minLength": 1 },
-                "time": { "type": "string", "minLength": 1 }, "from": { "type": "string", "format": "date" },
-                "to": { "type": "string", "format": "date" }, "accessMode": { "const": "creator-owned" },
-                "userId": { "type": "string", "pattern": "^[1-9][0-9]*$" }
-              }, "required": ["entity", "metric", "time", "from", "to", "accessMode", "userId"] }
-            } },
-            "conclusionState": { "type": "object", "properties": { "evidence": { "type": "array", "minItems": 4, "maxItems": 4, "allOf": [
-              { "contains": { "type": "object", "properties": { "source": { "const": "easyv-ai-application" } }, "required": ["source"] } },
-              { "contains": { "type": "object", "properties": { "source": { "const": "easyv-pipeline-node" } }, "required": ["source"] } },
-              { "contains": { "type": "object", "properties": { "source": { "const": "easyv-forge-task" } }, "required": ["source"] } },
-              { "contains": { "type": "object", "properties": { "source": { "const": "easyv-generation-feedback" } }, "required": ["source"] } }
-            ] }, "claims": { "type": "array", "minItems": 5, "maxItems": 5, "allOf": [
-              { "contains": { "type": "object", "properties": { "kind": { "const": "generation-quality" } }, "required": ["kind"] } },
-              { "contains": { "type": "object", "properties": { "kind": { "const": "stage-bottleneck" } }, "required": ["kind"] } },
-              { "contains": { "type": "object", "properties": { "kind": { "const": "failure-concentration" } }, "required": ["kind"] } },
-              { "contains": { "type": "object", "properties": { "kind": { "const": "feedback-association" } }, "required": ["kind"] } },
-              { "contains": { "type": "object", "properties": { "kind": { "const": "business-success-settlement-distinct" } }, "required": ["kind"] } }
-            ], "items": { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["generation-quality", "stage-bottleneck", "failure-concentration", "feedback-association", "business-success-settlement-distinct"] } } } } } }
-          } }
+              },
+              "planSnapshot": {
+                "type": "object",
+                "properties": {
+                  "steps": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "id",
+                        "order",
+                        "kind",
+                        "title"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "kind": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  },
+                  "_resolvedContext": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "entity": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "metric": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "time": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "from": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "to": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "accessMode": {
+                        "const": "creator-owned"
+                      },
+                      "userId": {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "entity",
+                      "metric",
+                      "time",
+                      "from",
+                      "to",
+                      "accessMode",
+                      "userId"
+                    ]
+                  }
+                }
+              },
+              "conclusionState": {
+                "type": "object",
+                "properties": {
+                  "evidence": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-ai-application"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-pipeline-node"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-forge-task"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-generation-feedback"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "claims": {
+                    "type": "array",
+                    "minItems": 5,
+                    "maxItems": 5,
+                    "allOf": [
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "generation-quality"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "stage-bottleneck"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "failure-concentration"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "feedback-association"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      },
+                      {
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "const": "business-success-settlement-distinct"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      }
+                    ],
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "kind"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "generation-quality",
+                            "stage-bottleneck",
+                            "failure-concentration",
+                            "feedback-association",
+                            "business-success-settlement-distinct"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["requestedExecutionId", "resolvedExecutionId", "status", "autoExecute", "streamEnabled", "terminal", "resumeAfterSequence"],
+      "required": [
+        "requestedExecutionId",
+        "resolvedExecutionId",
+        "status",
+        "autoExecute",
+        "streamEnabled",
+        "terminal",
+        "resumeAfterSequence"
+      ],
       "properties": {
-        "requestedExecutionId": { "type": ["string", "null"] },
-        "resolvedExecutionId": { "type": ["string", "null"] },
-        "status": { "type": ["string", "null"] },
-        "autoExecute": { "type": "boolean" },
-        "streamEnabled": { "type": "boolean" },
-        "terminal": { "type": "boolean" },
-        "resumeAfterSequence": { "type": "integer", "minimum": 0 }
+        "requestedExecutionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolvedExecutionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "autoExecute": {
+          "type": "boolean"
+        },
+        "streamEnabled": {
+          "type": "boolean"
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "resumeAfterSequence": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     }
   }
