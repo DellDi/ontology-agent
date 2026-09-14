@@ -188,7 +188,8 @@ public final class EasyVGenerationWorkflow {
             "steps", steps);
     List<Map<String, Object>> blocks =
         claims.stream()
-            .map(claim -> Map.<String, Object>of("type", "claim", "kind", claim.kind(), "text", claim.text()))
+            .map(claim -> Map.<String, Object>of(
+                "type", "markdown", "title", claimTitle(claim.kind()), "content", claim.text()))
             .toList();
     return new EasyVGenerationResult(plan, evidence, claims, blocks);
   }
@@ -228,17 +229,18 @@ public final class EasyVGenerationWorkflow {
             "easyv-forge-task",
             "EasyV Forge 任务聚合",
             List.of(
-                Map.of(
-                    "taskCount", forge.taskCount(),
-                    "completedTaskCount", forge.completedTaskCount(),
-                    "failedTaskCount", forge.failedTaskCount(),
-                    "cancelledTaskCount", forge.cancelledTaskCount(),
-                    "terminalTaskCount", forge.terminalTaskCount(),
-                    "timedTerminalTaskCount", forge.timedTerminalTaskCount(),
-                    "p50DurationMillis", forge.p50DurationMillis(),
-                    "p95DurationMillis", forge.p95DurationMillis(),
-                    "failureReasonCounts", forge.failureReasonCounts(),
-                    "freshnessAt", forge.window().freshnessAt().toString())),
+                Map.ofEntries(
+                    Map.entry("taskCount", forge.taskCount()),
+                    Map.entry("completedTaskCount", forge.completedTaskCount()),
+                    Map.entry("failedTaskCount", forge.failedTaskCount()),
+                    Map.entry("cancelledTaskCount", forge.cancelledTaskCount()),
+                    Map.entry("terminalTaskCount", forge.terminalTaskCount()),
+                    Map.entry("timedTerminalTaskCount", forge.timedTerminalTaskCount()),
+                    Map.entry("p50DurationMillis", forge.p50DurationMillis()),
+                    Map.entry("p95DurationMillis", forge.p95DurationMillis()),
+                    Map.entry("failureReasonCounts", forge.failureReasonCounts()),
+                    Map.entry("topFailureReason", topFailureReason(forge)),
+                    Map.entry("freshnessAt", forge.window().freshnessAt().toString()))),
             provenance(request, snapshot, forge.window().freshnessAt(), "easyv-forge-task")),
         new Evidence(
             "easyv-generation-feedback",
@@ -274,20 +276,21 @@ public final class EasyVGenerationWorkflow {
 
   private static List<GroundedConclusion.Claim> claims(
       EasyVGenerationFacts.Snapshot snapshot, List<Evidence> evidence) {
+    EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
     EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
     EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
     EasyVGenerationFacts.FeedbackFacts feedback = snapshot.feedback();
-    String topFailure =
-        forge.failureReasonCounts().entrySet().stream()
-            .max(Map.Entry.comparingByValue())
-            .map(entry -> entry.getKey() + " (" + entry.getValue() + ")")
-            .orElse("无已归类失败原因");
+    String topFailure = topFailureReason(forge);
     return List.of(
         claim(
             "generation-quality",
-            "Forge 生成完成率为 " + ratio(forge.completedTaskCount(), forge.completedTaskCount() + forge.failedTaskCount())
+            "覆盖 " + application.applicationCount() + " 个 AI 应用、" + application.prototypeCount()
+                + " 个原型；Forge 生成完成率为 "
+                + ratio(forge.completedTaskCount(), forge.completedTaskCount() + forge.failedTaskCount())
                 + "；耗时覆盖 " + forge.timedTerminalTaskCount() + "/" + forge.terminalTaskCount()
                 + " 个终态任务，取消任务单列。",
+            ref(evidence.get(0), "applicationCount", application.applicationCount()),
+            ref(evidence.get(0), "prototypeCount", application.prototypeCount()),
             ref(evidence.get(2), "completedTaskCount", forge.completedTaskCount()),
             ref(evidence.get(2), "failedTaskCount", forge.failedTaskCount())),
         claim(
@@ -299,7 +302,7 @@ public final class EasyVGenerationWorkflow {
         claim(
             "failure-concentration",
             "Forge 失败原因最多的是 " + topFailure + "；该结论描述失败集中分布，不表述为模型因果。",
-            ref(evidence.get(2), "failureReasonCounts", forge.failureReasonCounts()),
+            ref(evidence.get(2), "topFailureReason", topFailureReason(forge)),
             ref(evidence.get(2), "failedTaskCount", forge.failedTaskCount())),
         claim(
             "feedback-association",
@@ -323,6 +326,24 @@ public final class EasyVGenerationWorkflow {
 
   private static GroundedConclusion.EvidenceReference ref(Evidence evidence, String field, Object value) {
     return new GroundedConclusion.EvidenceReference(evidence.source(), 0, field, value);
+  }
+
+  private static String claimTitle(String kind) {
+    return switch (kind) {
+      case "generation-quality" -> "生成质量";
+      case "stage-bottleneck" -> "阶段瓶颈";
+      case "failure-concentration" -> "失败集中";
+      case "feedback-association" -> "反馈关联";
+      case "business-success-settlement-distinct" -> "业务成功与结算区分";
+      default -> "结论";
+    };
+  }
+
+  private static String topFailureReason(EasyVGenerationFacts.ForgeFacts forge) {
+    return forge.failureReasonCounts().entrySet().stream()
+        .max(Map.Entry.comparingByValue())
+        .map(entry -> entry.getKey() + " (" + entry.getValue() + ")")
+        .orElse("无已归类失败原因");
   }
 
   private static String ratio(long numerator, long denominator) {
