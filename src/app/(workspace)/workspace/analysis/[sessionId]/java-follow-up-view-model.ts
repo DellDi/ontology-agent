@@ -101,10 +101,13 @@ export function buildJavaHistoryReadModel(
   const followUpById = new Map(aggregate.followUps.map((item) => [item.id, item]));
   const rootRound = aggregate.history[0];
   const rootResolved = rootRound?.planSnapshot?._resolvedContext;
+  const rootProjectIds = Array.isArray(rootResolved?.projectIds)
+    ? (rootResolved.projectIds as string[])
+    : [];
   const rootSummary = rootResolved
     ? [
-        `指标：${String(rootResolved.metricVariantKey)}`,
-        `实体：${(rootResolved.projectIds as string[]).join('、') || String(rootResolved.entityKey)}`,
+        `指标：${String(rootResolved.metricVariantKey ?? rootResolved.metric)}`,
+        `实体：${rootProjectIds.join('、') || String(rootResolved.entityKey ?? rootResolved.entity)}`,
         `时间：${String(rootResolved.from)}/${String(rootResolved.to)}`,
       ]
     : [];

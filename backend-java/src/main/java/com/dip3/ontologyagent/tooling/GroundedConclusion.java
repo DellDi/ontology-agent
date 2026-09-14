@@ -20,5 +20,11 @@ public record GroundedConclusion(List<Claim> claims) {
         }
     }
 
-    public record EvidenceReference(String source, int row, String field, Object value) {}
+    public record EvidenceReference(String source, int row, String field, Object value) {
+        public EvidenceReference {
+            if (!(value instanceof String || value instanceof Number || value instanceof Boolean)) {
+                throw new IllegalArgumentException("value must be a scalar (String/Number/Boolean)");
+            }
+        }
+    }
 }

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.tooling.GroundedConclusion;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -45,6 +46,23 @@ class EasyVGenerationWorkflowTest {
     String distinct = result.claims().getLast().text();
     org.junit.jupiter.api.Assertions.assertTrue(distinct.contains("不能拆分"));
     result.claims().forEach(claim -> claim.evidenceRefs().forEach(ref -> assertEquals(0, ref.row())));
+    result.claims().forEach(claim -> claim.evidenceRefs().forEach(ref -> {
+      Map<String, Object> row = result.evidence().stream()
+          .filter(item -> item.source().equals(ref.source())).findFirst().orElseThrow()
+          .rows().get(ref.row());
+      org.junit.jupiter.api.Assertions.assertTrue(row.containsKey(ref.field()));
+      assertEquals(row.get(ref.field()), ref.value());
+    }));
+  }
+
+  @Test
+  void evidenceReferenceValueMustBeScalarPerPublishedContract() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new GroundedConclusion.EvidenceReference("src", 0, "field", Map.of("a", 1L)));
+    new GroundedConclusion.EvidenceReference("src", 0, "field", "文本");
+    new GroundedConclusion.EvidenceReference("src", 0, "field", 1L);
+    new GroundedConclusion.EvidenceReference("src", 0, "field", true);
   }
 
   @Test

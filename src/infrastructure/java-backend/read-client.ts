@@ -169,6 +169,7 @@ const planRuntimeFields = {
   _executionAssumptions: z.array(z.string()).optional(),
   _followUpId: z.string().min(1).optional(),
   _referencedExecutionId: z.string().min(1).optional(),
+  _evidenceTypes: z.array(z.string()).optional(),
   _resolvedContext: resolvedContextSchema,
 };
 
@@ -196,6 +197,7 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
   _executionAssumptions: z.array(z.string()).optional(),
   _followUpId: z.string().min(1).optional(),
   _referencedExecutionId: z.string().min(1).optional(),
+  _evidenceTypes: z.array(z.string()).optional(),
   _resolvedContext: jsonObjectSchema,
 });
 
