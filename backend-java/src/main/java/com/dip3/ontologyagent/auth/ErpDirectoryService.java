@@ -7,11 +7,13 @@ import java.util.List;
 /**
  * ERP 目录权限范围解析：组织节点路径 → propertyProject 组织 → 项目（precinct）。
  *
- * <p>角色只授予 PROPERTY_ANALYST，不做任何账号名特判（不存在内置平台管理员）。
+ * <p>角色不做账号名特判（不存在内置平台管理员）。当前阶段产品聚焦 EasyV 域且
+ * 不限制可见范围，目录账号统一授予 EASYV_ANALYST 与 PROPERTY_ANALYST。
  */
 @Service
 public final class ErpDirectoryService {
     public static final String PROPERTY_ANALYST = "PROPERTY_ANALYST";
+    public static final String EASYV_ANALYST = "EASYV_ANALYST";
 
     private final ErpDirectoryMapper mapper;
 
@@ -37,6 +39,6 @@ public final class ErpDirectoryService {
                 ? List.of()
                 : mapper.findProjectIdsByOrgIds(propertyProjectOrgIds);
 
-        return new AccessScope(orgId, projectIds, List.of(), List.of(PROPERTY_ANALYST));
+        return new AccessScope(orgId, projectIds, List.of(), List.of(PROPERTY_ANALYST, EASYV_ANALYST));
     }
 }
