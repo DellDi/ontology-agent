@@ -64,11 +64,7 @@ export default async function WorkspacePage({
     home.capabilities,
   );
   const params = (await searchParams) ?? {};
-  const errorDetails = [
-    readSearchParam(params.error),
-    readSearchParam(params.errorCode) && `错误码：${readSearchParam(params.errorCode)}`,
-    readSearchParam(params.traceId) && `Trace ID：${readSearchParam(params.traceId)}`,
-  ].filter(Boolean).join(' · ');
+  const errorDetails = readSearchParam(params.error);
 
   return (
     <WorkspaceHomeShell
