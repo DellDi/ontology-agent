@@ -261,7 +261,8 @@ class EasyVGenerationWorkflowTest {
         "java-initial-v1", "execution-1", "session-1", "分析大屏生成质量", "easyv-ontology-v1",
         "easyv-set-1",
         EasyVGenerationOntology.ENTITY_KEY, EasyVGenerationOntology.METRIC_KEY,
-        EasyVGenerationOntology.TIME_KEY, ontology(), FROM, TO, "123", "all", Map.of(), REQUESTED_AT);
+        EasyVGenerationOntology.TIME_KEY, ontology(), FROM, TO, "123", "all", Map.of(), REQUESTED_AT,
+        null, null);
   }
 
   private static EasyVGenerationFacts.Snapshot facts(Instant freshness) {

@@ -21,7 +21,9 @@ public record EasyVGenerationRequest(
     String userId,
     String accessMode,
     Map<String, Object> effectiveContext,
-    Instant requestedAt) {
+    Instant requestedAt,
+    String followUpId,
+    String referencedExecutionId) {
   public EasyVGenerationRequest {
     effectiveContext = effectiveContext == null ? Map.of() : Map.copyOf(effectiveContext);
   }
