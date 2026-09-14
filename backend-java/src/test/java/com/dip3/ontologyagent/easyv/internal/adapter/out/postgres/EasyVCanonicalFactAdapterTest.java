@@ -187,6 +187,15 @@ class EasyVCanonicalFactAdapterTest {
     }
 
     @Test
+    void globalOperationFeedbackWithoutAppIdIsAllowed() {
+        // promptCompletion 等全局操作日志不携带 app_id，本就不属于应用 cohort 归属校验；
+        // 它们不参与应用域指标聚合，但不得把整份分析拒掉。
+        EasyVGenerationFacts.Snapshot snapshot = reader.collect(query("1"));
+
+        assertEquals(2, snapshot.feedback().operationCount());
+    }
+
+    @Test
     void pipelineSuccessFailureConflictIsExplicitlyRejected() {
         BackendException error = assertThrows(BackendException.class,
                 () -> reader.collect(query("1")));
@@ -229,6 +238,7 @@ class EasyVCanonicalFactAdapterTest {
             case "allForgeDurationMissingFailsLoudlyInsteadOfReturningZero" ->
                     Fixture.ALL_FORGE_DURATION_MISSING;
             case "orphanFeedbackIsRejectedInsteadOfEscapingCreatorCohort" -> Fixture.ORPHAN_FEEDBACK;
+            case "globalOperationFeedbackWithoutAppIdIsAllowed" -> Fixture.GLOBAL_OPERATION_FEEDBACK;
             case "pipelineSuccessFailureConflictIsExplicitlyRejected" -> Fixture.PIPELINE_CONFLICT;
             case "futureFactInSelectedCohortIsRejectedWithFutureDataCode" -> Fixture.FUTURE_FACT;
             case "deletedApplicationTombstonesAreRetainedButExcludedFromActiveCohort" ->
@@ -422,6 +432,18 @@ class EasyVCanonicalFactAdapterTest {
         if (fixture == Fixture.ORPHAN_FEEDBACK) {
             insertFeedback(99, 1, "missing-app", 1, 4, false);
         }
+        if (fixture == Fixture.GLOBAL_OPERATION_FEEDBACK) {
+            jdbc.update("""
+                    insert into facts.easyv_generation_feedback
+                      (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
+                       space_id,user_id,operated_at,ai_action_type,execute_result,rating,
+                       app_id,task_id,is_save_as_edit)
+                    values (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """, PRODUCT_VERSIONS.get("easyv-generation-feedback"),
+                    "easyv-generation-feedback", "source-easyv-generation-feedback", 98L,
+                    11L, 1L, FEEDBACK_TIME, "promptCompletion", 1,
+                    null, null, null, false);
+        }
         if (fixture == Fixture.PIPELINE_CONFLICT) {
             insertPipelineNode(99, "java-task-1", "FailureAfterSuccess", "FAILED", 50L);
         }
@@ -501,6 +523,7 @@ class EasyVCanonicalFactAdapterTest {
         PARTIAL_FORGE,
         ALL_FORGE_DURATION_MISSING,
         ORPHAN_FEEDBACK,
+        GLOBAL_OPERATION_FEEDBACK,
         PIPELINE_CONFLICT,
         FUTURE_FACT,
         DELETED_APPLICATION

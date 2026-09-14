@@ -361,12 +361,14 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
     }
 
     private void assertNoOrphanFeedback(Query query, Versions versions, Bounds bounds) {
+        // 只校验应用域反馈（app_id 非空）能否归属 cohort；promptCompletion 等
+        // 全局操作日志本就不携带 app_id，不属于"关联缺失"，不计入孤儿判定。
         long orphaned = jdbc.queryForObject("""
                 select count(*) from facts.easyv_generation_feedback l
                 left join facts.easyv_ai_application a
                   on a.product_version_id=? and a.app_id=l.app_id and a.user_id=?
                  and a.created_at>=? and a.created_at<?
-                where l.product_version_id=? and l.user_id=?
+                where l.product_version_id=? and l.user_id=? and l.app_id is not null
                   and l.operated_at>=? and l.operated_at<? and a.app_id is null
                 """, Long.class, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
                 versions.feedback(), dbUserId(query), bounds.from(), bounds.to());
