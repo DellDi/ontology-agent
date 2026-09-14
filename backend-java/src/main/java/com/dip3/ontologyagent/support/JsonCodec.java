@@ -3,6 +3,7 @@ package com.dip3.ontologyagent.support;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.stereotype.Component;
 
 import java.sql.Array;
@@ -14,7 +15,8 @@ import java.util.Map;
 public final class JsonCodec {
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {};
     private static final TypeReference<List<Map<String, Object>>> LIST = new TypeReference<>() {};
-    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     public String write(Object value) {
         try {
