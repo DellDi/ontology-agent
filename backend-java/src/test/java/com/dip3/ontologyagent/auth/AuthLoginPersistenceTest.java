@@ -167,8 +167,9 @@ class AuthLoginPersistenceTest {
         assertEquals("1", result.session().scope().organizationId());
         // 组织 1 的后代 propertyProject（2、3）下的未删除项目
         assertEquals(List.of("project-2", "project-3"), result.session().scope().projectIds());
-        // 目录登录只授予 PROPERTY_ANALYST，不存在账号名特判
-        assertEquals(List.of(ErpDirectoryService.PROPERTY_ANALYST), result.session().scope().roleCodes());
+        // 目录登录统一授予业务分析角色（当前阶段含 EasyV 域），不存在账号名特判
+        assertEquals(List.of(ErpDirectoryService.PROPERTY_ANALYST, ErpDirectoryService.EASYV_ANALYST),
+                result.session().scope().roleCodes());
     }
 
     @Test
@@ -181,7 +182,8 @@ class AuthLoginPersistenceTest {
         when(passwordEncryptor.encrypt(anyString())).thenReturn(Optional.of("encrypted-admin"));
         AuthLoginService.LoginResult result = auth.directoryLogin("admin", "plain", "/workspace");
 
-        assertEquals(List.of(ErpDirectoryService.PROPERTY_ANALYST), result.session().scope().roleCodes());
+        assertEquals(List.of(ErpDirectoryService.PROPERTY_ANALYST, ErpDirectoryService.EASYV_ANALYST),
+                result.session().scope().roleCodes());
         assertFalse(result.session().scope().roleCodes().contains("PLATFORM_ADMIN"));
     }
 
