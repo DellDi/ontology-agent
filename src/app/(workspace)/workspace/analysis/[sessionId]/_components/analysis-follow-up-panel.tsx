@@ -72,6 +72,7 @@ type AnalysisFollowUpPanelProps = {
   latestConclusionSummary: string | null;
   inheritedContext: AnalysisContext;
   followUps: AnalysisSessionFollowUp[];
+  domainKey?: 'property' | 'easyv';
   adjustmentDraft?: {
     targetMetric?: string;
     entity?: string;
@@ -130,6 +131,7 @@ export function AnalysisFollowUpPanel({
   latestConclusionSummary,
   inheritedContext,
   followUps,
+  domainKey = 'property',
   adjustmentDraft,
   conflictItems = [],
   feedback,
@@ -138,6 +140,7 @@ export function AnalysisFollowUpPanel({
   showCards = true,
 }: AnalysisFollowUpPanelProps) {
   const activeFollowUp = buildActiveFollowUp(followUps, activeFollowUpId);
+  const fullAdjustment = domainKey === 'property';
 
   return (
     <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)]" data-testid="analysis-follow-up-panel">
@@ -205,7 +208,7 @@ export function AnalysisFollowUpPanel({
           <textarea
             className="min-h-28 w-full resize-y rounded-md border border-input bg-card px-3.5 py-2.5 text-sm leading-7 text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
             name="question"
-            placeholder="例如：那物业服务为什么波动？"
+            placeholder={domainKey === 'easyv' ? '例如：上周的失败原因分布是什么？' : '例如：那物业服务为什么波动？'}
             required
           />
         </label>
@@ -219,10 +222,12 @@ export function AnalysisFollowUpPanel({
           <section className="rounded-lg border border-border bg-card p-5">
             <div>
               <p className="text-xs font-medium tracking-[0.12em] text-primary">
-                补充因素或缩小范围
+                {fullAdjustment ? '补充因素或缩小范围' : '调整时间范围'}
               </p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                只补充本轮新增条件。系统会在服务端合并到当前轮次上下文，并明确标识新增项与覆盖项。
+                {fullAdjustment
+                  ? '只补充本轮新增条件。系统会在服务端合并到当前轮次上下文，并明确标识新增项与覆盖项。'
+                  : 'EasyV 追问仅允许调整时间范围（yyyy-MM-dd/yyyy-MM-dd），其余上下文沿用冻结值。'}
               </p>
             </div>
 
@@ -255,26 +260,30 @@ export function AnalysisFollowUpPanel({
               className="mt-4 grid gap-4 md:grid-cols-2"
               method="post"
             >
-              <label className="space-y-2">
-                <span className="block text-sm font-semibold text-foreground">目标指标</span>
-                <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
-                  defaultValue={adjustmentDraft?.targetMetric ?? ''}
-                  name="targetMetric"
-                  placeholder={activeFollowUp.mergedContext.targetMetric.value}
-                  type="text"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="block text-sm font-semibold text-foreground">实体对象</span>
-                <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
-                  defaultValue={adjustmentDraft?.entity ?? ''}
-                  name="entity"
-                  placeholder={activeFollowUp.mergedContext.entity.value}
-                  type="text"
-                />
-              </label>
+              {fullAdjustment ? (
+                <label className="space-y-2">
+                  <span className="block text-sm font-semibold text-foreground">目标指标</span>
+                  <input
+                    className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                    defaultValue={adjustmentDraft?.targetMetric ?? ''}
+                    name="targetMetric"
+                    placeholder={activeFollowUp.mergedContext.targetMetric.value}
+                    type="text"
+                  />
+                </label>
+              ) : null}
+              {fullAdjustment ? (
+                <label className="space-y-2">
+                  <span className="block text-sm font-semibold text-foreground">实体对象</span>
+                  <input
+                    className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                    defaultValue={adjustmentDraft?.entity ?? ''}
+                    name="entity"
+                    placeholder={activeFollowUp.mergedContext.entity.value}
+                    type="text"
+                  />
+                </label>
+              ) : null}
               <label className="space-y-2">
                 <span className="block text-sm font-semibold text-foreground">时间范围</span>
                 <input
@@ -285,26 +294,30 @@ export function AnalysisFollowUpPanel({
                   type="text"
                 />
               </label>
-              <label className="space-y-2">
-                <span className="block text-sm font-semibold text-foreground">比较方式</span>
-                <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
-                  defaultValue={adjustmentDraft?.comparison ?? ''}
-                  name="comparison"
-                  placeholder={activeFollowUp.mergedContext.comparison.value}
-                  type="text"
-                />
-              </label>
-              <label className="space-y-2 md:col-span-2">
-                <span className="block text-sm font-semibold text-foreground">候选因素</span>
-                <input
-                  className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
-                  defaultValue={adjustmentDraft?.factor ?? ''}
-                  name="factor"
-                  placeholder="例如：物业服务"
-                  type="text"
-                />
-              </label>
+              {fullAdjustment ? (
+                <label className="space-y-2">
+                  <span className="block text-sm font-semibold text-foreground">比较方式</span>
+                  <input
+                    className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                    defaultValue={adjustmentDraft?.comparison ?? ''}
+                    name="comparison"
+                    placeholder={activeFollowUp.mergedContext.comparison.value}
+                    type="text"
+                  />
+                </label>
+              ) : null}
+              {fullAdjustment ? (
+                <label className="space-y-2 md:col-span-2">
+                  <span className="block text-sm font-semibold text-foreground">候选因素</span>
+                  <input
+                    className="h-11 w-full rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                    defaultValue={adjustmentDraft?.factor ?? ''}
+                    name="factor"
+                    placeholder="例如：物业服务"
+                    type="text"
+                  />
+                </label>
+              ) : null}
               <div className="flex flex-wrap justify-end gap-3 md:col-span-2">
                 <FollowUpPrimaryButton type="submit">
                   提交增量条件

@@ -91,7 +91,7 @@ test('M6 runtime contract projection displays Property binding, plan, evidence c
   assert.match(html, /collection-rate-analysis/);
   assert.match(html, /property-ontology-v2/);
   assert.match(html, /物业收缴率分析计划/);
-  assert.match(html, /2026-09-01T09:00:00Z/);
+  assert.match(html, /2026\/09\/01 17:00:00/);
   assert.match(html, /证据行 1\/1/);
   assert.doesNotMatch(html, /1999-01-01/);
   assert.match(html, /property-set-1/);
@@ -115,7 +115,7 @@ test('M6 runtime contract projection displays EasyV plan, freshness coverage and
         schemaVersion: 1,
         values: {
           userId: '123',
-          accessMode: 'creator-owned',
+          accessMode: 'all',
         },
       },
     },
@@ -159,7 +159,7 @@ test('M6 runtime contract projection displays EasyV plan, freshness coverage and
   assert.match(html, /generation-quality-analysis/);
   assert.match(html, /ontology-multidomain-v2/);
   assert.match(html, /deterministic-read-only/);
-  assert.match(html, /2026-09-01T09:30:00Z/);
+  assert.match(html, /2026\/09\/01 17:30:00/);
   assert.match(html, /2\/3/);
   assert.match(html, /EASYV_FACTS_EMPTY/);
   assert.match(html, /trace-from-failure-point/);
@@ -258,7 +258,7 @@ test('workspace creation uses backend availability, including EasyV-only viewers
     }};
     const easyv = { domainKey: 'easyv', capabilityKey: 'generation-quality-analysis', displayName: 'EasyV 生成质量',
       available: true, unavailableReason: null, exampleQuestion: '分析本月 EasyV 生成质量',
-      resolvedScope: { domainKey: 'easyv', schemaVersion: 1, values: { userId: '123', accessMode: 'creator-owned' } } };
+      resolvedScope: { domainKey: 'easyv', schemaVersion: 1, values: { userId: '123', accessMode: 'all' } } };
     const project = { domainKey: 'property', capabilityKey: 'collection-rate-analysis', displayName: '物业收缴率',
       available: false, unavailableReason: '未分配项目范围', exampleQuestion: '分析收缴率', resolvedScope: null };
     const make = caps => homeModule.createWorkspaceHomeModel(viewer, [], [], new Map(), null, caps);

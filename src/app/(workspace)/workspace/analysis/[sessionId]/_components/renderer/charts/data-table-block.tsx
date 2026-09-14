@@ -1,5 +1,6 @@
 'use client';
 
+import { formatShanghaiDateTime } from '@/lib/format-datetime';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
 import { EmptyState } from '@/app/_components/workbench/empty-state';
@@ -53,19 +54,14 @@ function formatCellValue(text: string): string {
 
   if (isMidnight) {
     return date.toLocaleDateString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
   }
 
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatShanghaiDateTime(date);
 }
 
 export function DataTableBlock({ block, className }: DataTableBlockProps) {
