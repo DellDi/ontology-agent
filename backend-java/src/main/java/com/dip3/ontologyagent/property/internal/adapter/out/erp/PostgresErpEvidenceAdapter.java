@@ -8,6 +8,7 @@ import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.property.internal.application.EvidenceProvider;
 import com.dip3.ontologyagent.property.internal.domain.AnalysisRuntimeCapability;
 import com.dip3.ontologyagent.property.internal.domain.WorkflowRequest;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component("erpEvidenceProvider")
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class PostgresErpEvidenceAdapter implements EvidenceProvider {
     private static final List<String> PAYMENT_SUBJECTS = List.of(
             "已缴款", "红冲", "退款", "押金类转", "押金类转红冲", "临时缴款",

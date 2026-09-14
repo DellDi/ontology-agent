@@ -4,6 +4,7 @@ import com.dip3.ontologyagent.ingestion.api.CanonicalProductTransform;
 import com.dip3.ontologyagent.ingestion.spi.PostgresSourceConnectionProvider;
 import com.dip3.ontologyagent.property.internal.adapter.out.ingestion.PropertyCanonicalTransform;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -20,6 +21,7 @@ import javax.sql.DataSource;
  */
 @Configuration(proxyBeanMethods = false)
 @Profile("ingest")
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class PropertyDomainDataConfiguration {
     private static final int SOURCE_QUERY_TIMEOUT_SECONDS = 30;
 

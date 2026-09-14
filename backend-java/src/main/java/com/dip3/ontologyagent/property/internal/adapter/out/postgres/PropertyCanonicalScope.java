@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /** Resolves an execution-pinned Property product set and its authorized canonical projects. */
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class PropertyCanonicalScope {
   private final JdbcTemplate jdbc;
   private final DatasetVersionSetRegistry versionSets;

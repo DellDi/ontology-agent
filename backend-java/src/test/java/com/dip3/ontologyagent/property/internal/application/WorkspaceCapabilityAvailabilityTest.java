@@ -88,6 +88,26 @@ class WorkspaceCapabilityAvailabilityTest {
   }
 
   @Test
+  void sealedPropertyIsAbsentWhileEasyvStaysAvailable() {
+    runner.withPropertyValues("dip3.property.enabled=false", "dip3.easyv.enabled=true").run(context -> {
+      assertNull(context.getStartupFailure());
+      var items = context.getBean(CapabilityRegistry.class).availableFor(viewer("123", true, true));
+      assertEquals(List.of("easyv"), items.stream().map(CapabilityAvailability::domainKey).toList());
+      assertTrue(items.getFirst().available());
+    });
+  }
+
+  @Test
+  void sealedPropertyContextStillStartsWithoutPropertyBeans() {
+    runner.withPropertyValues("dip3.property.enabled=false").run(context -> {
+      assertNull(context.getStartupFailure());
+      var names = java.util.Arrays.stream(context.getBeanNamesForType(
+          com.dip3.ontologyagent.capability.api.CapabilityRegistration.class)).toList();
+      assertTrue(names.stream().noneMatch(name -> name.toLowerCase().contains("property")));
+    });
+  }
+
+  @Test
   void invalidEasyvIdentityIsUnavailableWithoutGrantingScope() {
     runner.withPropertyValues("dip3.easyv.enabled=true").run(context -> {
       var easyv = capability(context.getBean(CapabilityRegistry.class)

@@ -15,6 +15,7 @@ import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.property.internal.application.EvidenceProvider;
 import com.dip3.ontologyagent.property.internal.domain.AnalysisRuntimeCapability;
 import com.dip3.ontologyagent.property.internal.domain.WorkflowRequest;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component("cubeEvidenceProvider")
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class CubeEvidenceAdapter implements EvidenceProvider {
     private final OntologyMetricVariantMapper metrics;
     private final OntologyTimeSemanticMapper times;

@@ -21,6 +21,7 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -33,6 +34,7 @@ import java.text.Normalizer;
 import java.util.Comparator;
 
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class SpringAiMainAgent implements MainAgent {
     private static final String SYSTEM_PROMPT = """
             你是企业经营分析 Main Agent。你必须且只能调用一次 %s；禁止直接编造结论，

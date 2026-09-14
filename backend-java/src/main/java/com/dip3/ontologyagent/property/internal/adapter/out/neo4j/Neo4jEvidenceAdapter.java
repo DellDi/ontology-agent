@@ -11,6 +11,7 @@ import com.dip3.ontologyagent.property.internal.domain.AnalysisRuntimeCapability
 import com.dip3.ontologyagent.property.internal.domain.WorkflowRequest;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.QueryConfig;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component("graphEvidenceProvider")
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class Neo4jEvidenceAdapter implements EvidenceProvider {
     private static final String READY_CYPHER = """
             match (projection:GraphProjection {scope_org_id:$organizationId,

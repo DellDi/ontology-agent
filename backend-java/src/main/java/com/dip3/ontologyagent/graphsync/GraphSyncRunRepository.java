@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.graphsync;
 
 import com.dip3.ontologyagent.support.BackendException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Optional;
 
 @Repository
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class GraphSyncRunRepository {
     static final Duration STALE_AFTER = Duration.ofMinutes(30);
     private final GraphSyncRunMapper mapper;

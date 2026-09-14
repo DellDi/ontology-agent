@@ -53,7 +53,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(14, applied, "新库应执行到 V14 reconcile release mode");
+        assertEquals(15, applied, "新库应执行到 V15 property 封存目录状态");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -108,8 +108,8 @@ class DatabaseMigrationServiceTest {
                 """, Integer.class), "V10 应建齐 Property typed facts");
         assertEquals(6, jdbc.queryForObject("""
                 select count(*) from ingestion.data_product_definitions
-                where domain_key='property' and status='active'
-                """, Integer.class), "V10 应注册 Property data products");
+                where domain_key='property' and status='disabled'
+                """, Integer.class), "V15 应将 Property data products 封存为 disabled");
         assertEquals(21, jdbc.queryForObject(
                 "select count(*) from pg_constraint c join pg_class t on c.conrelid=t.oid "
                         + "join pg_namespace n on t.relnamespace=n.oid "
@@ -430,7 +430,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(14, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(15, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -462,7 +462,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(14, applied, "旧库补全应记录 V1-V14（baseline 0 标记不计入）");
+        assertEquals(15, applied, "旧库补全应记录 V1-V15（baseline 0 标记不计入）");
     }
 
     @Test

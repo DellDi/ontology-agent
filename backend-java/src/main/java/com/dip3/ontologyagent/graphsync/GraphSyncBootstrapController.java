@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.graphsync;
 
 import com.dip3.ontologyagent.config.TraceFilter;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class GraphSyncBootstrapController {
     static final String SECRET_HEADER = "X-Graph-Sync-Ops-Secret";
     private final GraphSyncOpsAuthenticator auth;

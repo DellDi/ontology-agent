@@ -13,6 +13,7 @@ import org.springframework.ai.chat.client.advisor.StructuredOutputValidationAdvi
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.Set;
 import java.math.BigDecimal;
 
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class SpringAiConclusionProvider implements ConclusionProvider {
     private static final Set<String> REQUIRED_KINDS = Set.of(
             "collection-rate", "erp-balance", "charge-structure");

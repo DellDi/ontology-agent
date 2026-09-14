@@ -4,11 +4,13 @@ import com.dip3.ontologyagent.config.BackendProperties;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.SessionConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class Neo4jGraphWriter implements GraphWriter {
     static final String DROP_LEGACY_FENCE_CONSTRAINT = """
             drop constraint graph_sync_fence_scope if exists

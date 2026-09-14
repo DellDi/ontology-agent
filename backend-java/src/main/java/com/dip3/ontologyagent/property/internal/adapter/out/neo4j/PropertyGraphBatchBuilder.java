@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /** Builds the Property relationship projection exclusively from canonical facts. */
 @Component
+@ConditionalOnProperty(prefix = "dip3.property", name = "enabled", havingValue = "true", matchIfMissing = true)
 public final class PropertyGraphBatchBuilder implements GraphBatchBuilder {
   private final JdbcTemplate jdbc;
   private final DatasetVersionSetRegistry versionSets;

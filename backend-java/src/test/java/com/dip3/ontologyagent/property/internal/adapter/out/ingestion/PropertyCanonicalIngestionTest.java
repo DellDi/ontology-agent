@@ -79,6 +79,12 @@ class PropertyCanonicalIngestionTest {
           erp_staging.dw_datacenter_chargeitem,erp_staging.dw_datacenter_charge,
           erp_staging.dw_datacenter_bill,erp_staging.dw_datacenter_services cascade
         """);
+    // V15 将 property 目录置为 disabled；本测试覆盖解封状态下的发布路径，恢复 active。
+    jdbc.execute("""
+        update ingestion.source_definitions set status='active' where source_key='property';
+        update ingestion.dataset_definitions set status='active' where source_key='property';
+        update ingestion.data_product_definitions set status='active' where domain_key='property'
+        """);
     seedStaging();
   }
 
