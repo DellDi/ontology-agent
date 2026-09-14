@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
+import { formatShanghaiTime } from '@/lib/format-datetime';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 
@@ -223,9 +224,5 @@ export function AnalysisExecutionLiveShell({
 }
 
 function formatLocalTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleTimeString('zh-CN', { hour12: false });
-  } catch {
-    return iso;
-  }
+  return formatShanghaiTime(iso);
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatShanghaiDateTime } from '@/lib/format-datetime';
 import {
   buildProcessBoardPart,
   normalizeExecutionRenderBlock,
@@ -78,9 +79,7 @@ export function AnalysisExecutionStreamPanel({
                     {card.stepLabel}
                   </h4>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {new Date(card.startedAt).toLocaleString('zh-CN', {
-                      hour12: false,
-                    })}
+                    {formatShanghaiDateTime(card.startedAt)}
                   </p>
                 </div>
                 <span

@@ -54,8 +54,32 @@ export function resolveJavaActiveFollowUp(
 export function rootContextFromJava(aggregate: JavaAnalysisSession): AnalysisContext | null {
   const resolved = aggregate.history.find((round) => round.kind === 'initial')
     ?.planSnapshot?._resolvedContext;
-  if (!resolved
-    || typeof resolved.entityKey !== 'string'
+  if (!resolved) return null;
+
+  // EasyV 域：_resolvedContext 为 {entity, metric, time, from, to, accessMode, userId} 形态；
+  // 展示形态与后端 EasyVFollowUpPolicy.displayContext 保持一致。
+  if (typeof resolved.entity === 'string'
+    && typeof resolved.metric === 'string'
+    && typeof resolved.from === 'string'
+    && typeof resolved.to === 'string'
+    && typeof resolved.accessMode === 'string') {
+    return {
+      targetMetric: { label: '目标指标', value: '生成质量分析', state: 'confirmed' },
+      entity: { label: '实体对象', value: 'AI 大屏应用', state: 'confirmed' },
+      timeRange: { label: '时间范围', value: `${resolved.from}/${resolved.to}`, state: 'confirmed' },
+      comparison: { label: '比较方式', value: '无需比较', state: 'confirmed' },
+      constraints: [
+        { label: '实体 business key', value: resolved.entity },
+        { label: '指标 business key', value: resolved.metric },
+        { label: '时间语义 business key', value: String(resolved.time ?? '') },
+        { label: '数据范围', value: '全量数据' },
+        { label: '访问模式', value: resolved.accessMode },
+        { label: '执行账号 ID', value: String(resolved.userId ?? '') },
+      ],
+    };
+  }
+
+  if (typeof resolved.entityKey !== 'string'
     || typeof resolved.metricDefinitionKey !== 'string'
     || typeof resolved.metricVariantKey !== 'string'
     || typeof resolved.timeSemanticKey !== 'string'

@@ -36,7 +36,7 @@ const easyVCapabilityBindingSchema = z.strictObject({
     schemaVersion: z.literal(1),
     values: z.strictObject({
       userId: z.string().regex(/^[1-9][0-9]*$/),
-      accessMode: z.literal('creator-owned'),
+      accessMode: z.literal('all'),
     }),
   }),
 });
@@ -220,7 +220,7 @@ const easyVResolvedContextSchema = z.strictObject({
   time: z.string().min(1),
   from: z.iso.date(),
   to: z.iso.date(),
-  accessMode: z.literal('creator-owned'),
+  accessMode: z.literal('all'),
   userId: z.string().regex(/^[1-9][0-9]*$/),
 }).refine(({ from, to }) => from <= to, {
   message: '_resolvedContext.from 不能晚于 to。',

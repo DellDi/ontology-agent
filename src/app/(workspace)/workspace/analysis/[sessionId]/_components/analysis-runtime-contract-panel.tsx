@@ -1,3 +1,4 @@
+import { formatShanghaiDateTime } from '@/lib/format-datetime';
 import type { JavaExecutionSnapshot } from '@/infrastructure/java-backend/read-client';
 
 type ConcreteCapabilityBinding = Exclude<
@@ -55,7 +56,7 @@ function formatScope(binding: ConcreteCapabilityBinding) {
   const values = binding.resolvedScope.values;
   if ('accessMode' in values) {
     const accessMode = values.accessMode;
-    return typeof accessMode === 'string' ? accessMode : 'creator-owned';
+    return typeof accessMode === 'string' ? accessMode : 'all';
   }
 
   const projectIds = Array.isArray(values.projectIds) ? values.projectIds.length : 0;
@@ -220,7 +221,7 @@ export function AnalysisRuntimeContractPanel({
                     {item.source}
                   </code>
                   <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                    数据更新时间：{freshness ?? '未提供'}
+                    数据更新时间：{freshness ? formatShanghaiDateTime(freshness) : '未提供'}
                   </p>
                   <dl className="mt-3 space-y-2 border-t border-border pt-3 text-xs">
                     <div><dt className="text-muted-foreground">冻结数据集</dt><dd className="mt-1 break-all font-mono">{item.datasetVersionSetId}</dd></div>

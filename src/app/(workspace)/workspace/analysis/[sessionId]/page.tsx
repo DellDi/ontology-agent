@@ -178,6 +178,9 @@ export default async function AnalysisSessionPage({
     title: activeFollowUp.referencedConclusionTitle,
     summary: activeFollowUp.referencedConclusionSummary,
   } : null);
+  const domainBinding = aggregate.followUps.at(-1)?.capabilityBinding
+    ?? aggregate.snapshot?.capabilityBinding;
+  const domainKey = domainBinding && 'domainKey' in domainBinding ? domainBinding.domainKey : undefined;
   const inheritedContext = activeFollowUp?.mergedContext ?? rootContextFromJava(aggregate);
   const canFollowUp = Boolean(completedConclusion && inheritedContext
     && (!activeFollowUp || activeHistoryRound?.status === 'completed'));
@@ -189,6 +192,7 @@ export default async function AnalysisSessionPage({
       latestConclusionSummary={displayedSourceConclusion?.summary ?? null}
       inheritedContext={inheritedContext}
       followUps={followUps}
+      domainKey={domainKey}
       adjustmentDraft={followUpFeedback.adjustmentDraft}
       conflictItems={followUpFeedback.conflictItems}
       feedback={followUpFeedback.feedback}
@@ -264,7 +268,6 @@ export default async function AnalysisSessionPage({
           planAssumptions={planAssumptions(aggregate)}
           questionText={displayedQuestion}
           followUpLabel={displayedFollowUp ? '追问模式' : undefined}
-          ontologyVersionBadge={aggregate.snapshot?.ontologyVersionId ?? undefined}
           drawerContents={{
             history: historyReadModel.rounds.length >= 2 ? (
               <AnalysisHistoryPanel
@@ -331,6 +334,7 @@ export default async function AnalysisSessionPage({
           latestConclusionSummary={displayedSourceConclusion?.summary ?? null}
           inheritedContext={inheritedContext}
           followUps={followUps}
+          domainKey={domainKey}
           adjustmentDraft={followUpFeedback.adjustmentDraft}
           conflictItems={followUpFeedback.conflictItems}
           feedback={null}
