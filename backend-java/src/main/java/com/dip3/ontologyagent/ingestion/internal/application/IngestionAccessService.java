@@ -12,9 +12,11 @@ public class IngestionAccessService {
     public record Access(boolean canView, boolean canManage, List<String> sourceKeys, List<IngestionAccessPort.Grant> grants) {}
     public Access access(AuthSession actor) {
         boolean admin = actor.scope().roleCodes().contains("PLATFORM_ADMIN");
-        var grants = port.grants(admin ? null : actor.scope().organizationId());
-        return new Access(admin || !grants.isEmpty(), admin,
-                grants.stream().map(IngestionAccessPort.Grant::sourceKey).distinct().toList(), admin ? grants : List.of());
+        // 当前阶段查看不限制：所有已认证会话可见全部数据源、组织与血缘信息。
+        // 发布/授权等写操作仍由 requireAdmin / setGrant 限定 PLATFORM_ADMIN；
+        // 如需恢复组织级只读授权，回到按 source_view_grants 过滤 sourceKeys 的实现。
+        return new Access(true, admin, port.sourceKeys(),
+                admin ? port.grants(null) : List.of());
     }
     public Access requireView(AuthSession actor) {
         var access = access(actor);

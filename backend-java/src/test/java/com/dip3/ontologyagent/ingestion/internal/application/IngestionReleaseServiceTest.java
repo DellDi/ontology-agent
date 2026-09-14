@@ -26,14 +26,14 @@ class IngestionReleaseServiceTest {
     final IngestionReleaseService.Command command = new IngestionReleaseService.Command("property", List.of("payment"), "full");
 
     @Test
-    void forbidsWritesAndReadsBeforeCatalogOrQueueAccess() {
+    void forbidsWritesForNonAdminRolesWhileReadsStayOpen() {
         for (String role : List.of("PROPERTY_ANALYST", "ONTOLOGY_PUBLISHER", "EASYV_ANALYST")) {
             assertEquals("INGESTION_MANAGEMENT_FORBIDDEN", assertThrows(BackendException.class,
                     () -> service.submit(id, command, actor(role), "trace")).code());
-            assertThrows(BackendException.class, () -> service.recent(actor(role)));
+            assertTrue(service.recent(actor(role)).items().isEmpty());
             assertThrows(BackendException.class, () -> service.retry("old", id, actor(role), "trace"));
         }
-        verifyNoInteractions(tasks, sources, products);
+        verifyNoInteractions(sources, products);
     }
 
     @Test
