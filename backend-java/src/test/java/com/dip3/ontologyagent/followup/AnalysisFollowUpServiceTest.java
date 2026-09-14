@@ -153,7 +153,7 @@ class AnalysisFollowUpServiceTest {
             "time", "easyv-generation-time",
             "from", "2026-08-01",
             "to", "2026-08-18",
-            "accessMode", "creator-owned",
+            "accessMode", "all",
             "userId", "123");
     ExecutionSnapshotEntity source = snapshot();
     source.executionId = "easyv-execution";

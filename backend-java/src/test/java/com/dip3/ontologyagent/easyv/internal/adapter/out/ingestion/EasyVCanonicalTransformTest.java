@@ -114,7 +114,7 @@ class EasyVCanonicalTransformTest {
                 EasyVCanonicalFactAdapter.REQUIRED_PRODUCTS).orElseThrow().publicationId());
         EasyVGenerationFacts.Snapshot snapshot = new EasyVCanonicalFactAdapter(
                 jdbc, new JdbcTransactionManager(jdbc.getDataSource()), versionSets).collect(
-                new EasyVGenerationFacts.Query("execution-1", "11", "creator-owned",
+                new EasyVGenerationFacts.Query("execution-1", "11", "all",
                         "ontology-1", "easyv-set-1", LocalDate.of(2026, 9, 4),
                         LocalDate.of(2026, 9, 4), Instant.now()));
 

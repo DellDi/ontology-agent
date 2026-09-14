@@ -39,7 +39,7 @@
 
 ## 🏗️ 技术架构
 
-架构现状、目标边界与迁移门禁以 [Java Architecture Baseline](./docs/architecture/java-architecture-baseline.md) 和 [Multi-domain Runtime Architecture](./docs/architecture/multi-domain-runtime-architecture.md) 为准；M3-M6 已落地并验收 Property 与 EasyV 两个真实 capability，以及跨领域 binding、读契约和运行态展示。EasyV 运行面默认关闭，启用后通过 `ontology-java-multidomain-v2`、creator-owned scope 和只读 facts adapter 执行；生产部署与生产数据仍未知。
+架构现状、目标边界与迁移门禁以 [Java Architecture Baseline](./docs/architecture/java-architecture-baseline.md) 和 [Multi-domain Runtime Architecture](./docs/architecture/multi-domain-runtime-architecture.md) 为准；M3-M6 已落地并验收 Property 与 EasyV 两个真实 capability，以及跨领域 binding、读契约和运行态展示。EasyV 运行面默认关闭，启用后通过 `ontology-java-multidomain-v2`、accessMode=all scope 和只读 facts adapter 执行；生产部署与生产数据仍未知。
 
 ```
 Next.js 16 / React 19（仅页面渲染、Java BFF、Web 观测与 UI 映射）

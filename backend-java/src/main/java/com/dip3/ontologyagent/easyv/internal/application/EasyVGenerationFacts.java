@@ -52,7 +52,15 @@ public interface EasyVGenerationFacts {
       long mainNodeCount,
       long timedNodeCount,
       String bottleneckStep,
-      long bottleneckP95Millis) {}
+      long bottleneckP95Millis,
+      List<StageDuration> stageDurations) {
+    public PipelineFacts {
+      stageDurations = stageDurations == null ? List.of() : List.copyOf(stageDurations);
+    }
+  }
+
+  /** Per-stage P95 over timed MAIN pipeline nodes, ordered by p95 desc. */
+  record StageDuration(String stepName, long p95Millis, long nodeCount) {}
 
   record ForgeFacts(
       FactWindow window,

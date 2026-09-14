@@ -2,7 +2,7 @@
 
 > 状态：Baseline（2026-08-31）
 > 适用范围：`backend-java` 后续新增代码与被当前需求触达的既有代码
-> 实施状态：Java 架构基线与 M1-M6 已实施；Property Domain Pack、EasyV 第二 Domain Pack、通用 Capability/Follow-up 边界与 `ontology-java-multidomain-v2` 已落地。M6 已完成冻结 binding 的读契约、跨领域展示和失败投影验收。EasyV 使用 creator-owned scope、只读 facts adapter，并由 `dip3.easyv.enabled` 显式开关控制，默认不启用；生产部署与生产数据仍未知。
+> 实施状态：Java 架构基线与 M1-M6 已实施；Property Domain Pack、EasyV 第二 Domain Pack、通用 Capability/Follow-up 边界与 `ontology-java-multidomain-v2` 已落地。M6 已完成冻结 binding 的读契约、跨领域展示和失败投影验收。EasyV 使用 全量 scope、只读 facts adapter，并由 `dip3.easyv.enabled` 显式开关控制，默认不启用；生产部署与生产数据仍未知。
 > 配套运行时基线：[Multi-domain Runtime Architecture](./multi-domain-runtime-architecture.md)；本文件同时保留历史阶段记录
 
 ## 1. 决策摘要
@@ -467,7 +467,7 @@ mise exec java@21.0.2 -- mvn -f backend-java/pom.xml \
 ### 8.6 M4-M6 当前实施证据（2026-09-01）
 
 - M4 已完成 EasyV 开发库只读核验：源码、开发数据与生产未知项分开记录；开发库当前连接角色权限较高，只有显式 development override 才允许绕过角色门禁，查询仍运行在 PostgreSQL READ ONLY 事务内，未执行写操作。生产权限、部署版本和数据完整性仍未知。
-- M5 已落地 EasyV 第二 Domain Pack：`easyv/generation-quality-analysis`、creator-owned scope（仅可信正数 `userId`，snapshot 为 `userId + accessMode=creator-owned`）、typed facts、确定性 workflow、证据/claim contract、follow-up 时间范围策略和 Spring AI 一次 Tool Call adapter。
+- M5 已落地 EasyV 第二 Domain Pack：`easyv/generation-quality-analysis`、全量 scope（仅可信正数 `userId`，snapshot 为 `userId + accessMode=all`）、typed facts、确定性 workflow、证据/claim contract、follow-up 时间范围策略和 Spring AI 一次 Tool Call adapter。
 - EasyV facts adapter 仅以聚合事实跨边界，四类 source 为 `easyv-ai-application`、`easyv-pipeline-node`、`easyv-forge-task`、`easyv-generation-feedback`；部分耗时缺失会披露覆盖率，全量缺失才明确失败，不以默认 0 伪装完整数据。
 - `CanonicalOntologyBaseline`/bootstrap 已发布 `ontology-java-multidomain-v2`（`2.0.0`），保留已 pin 的 v1 读取兼容；EasyV runtime 由 `dip3.easyv.enabled=true` 显式启用，默认不影响旧 Property 启动。
 - M6 已将冻结的 capability binding 投影到 session aggregate 与 workspace home；完成态前端契约严格校验 Property/EasyV 的 domain、capability、ontology version、scope、plan、evidence source 与 claim kind，不允许以 `legacy/unknown` 冒充完成态。

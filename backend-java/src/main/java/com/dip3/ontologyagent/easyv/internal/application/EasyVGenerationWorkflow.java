@@ -136,9 +136,8 @@ public final class EasyVGenerationWorkflow {
         || feedback.combinedExecuteFailureCount() < 0
         || feedback.combinedExecuteSuccessCount() + feedback.combinedExecuteFailureCount()
             > feedback.operationCount()
-        || !Double.isFinite(feedback.averageRating())
-        || feedback.averageRating() < 0
-        || feedback.averageRating() > 5) {
+        || feedback.ratedCount() > 0 && (!Double.isFinite(feedback.averageRating())
+            || feedback.averageRating() < 0 || feedback.averageRating() > 5)) {
       throw new BackendException("EASYV_FACTS_INCOMPLETE", "EasyV 聚合事实的计数或统计口径不一致。");
     }
     long failureReasonTotal =
@@ -186,12 +185,126 @@ public final class EasyVGenerationWorkflow {
             "summary", "EasyV 生成质量分析",
             "mode", "deterministic-read-only",
             "steps", steps);
-    List<Map<String, Object>> blocks =
-        claims.stream()
-            .map(claim -> Map.<String, Object>of(
-                "type", "markdown", "title", claimTitle(claim.kind()), "content", claim.text()))
+    String lead = leadSummary(request, snapshot);
+    List<Map<String, Object>> blocks = renderBlocks(request, snapshot, claims, lead);
+    return new EasyVGenerationResult(plan, evidence, claims, blocks, lead);
+  }
+
+  private static List<Map<String, Object>> renderBlocks(
+      EasyVGenerationRequest request,
+      EasyVGenerationFacts.Snapshot snapshot,
+      List<GroundedConclusion.Claim> claims,
+      String lead) {
+    EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
+    EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
+    EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
+    EasyVGenerationFacts.FeedbackFacts feedback = snapshot.feedback();
+    List<Map<String, Object>> blocks = new ArrayList<>();
+    blocks.add(Map.<String, Object>of(
+        "type", "markdown",
+        "title", "综合结论",
+        "content", lead));
+    blocks.add(Map.<String, Object>of(
+        "type", "kv-list",
+        "title", "关键指标",
+        "items", List.of(
+            kv("AI 应用", application.applicationCount()),
+            kv("原型", application.prototypeCount()),
+            kv("Forge 完成率",
+                ratio(forge.completedTaskCount(),
+                    forge.completedTaskCount() + forge.failedTaskCount())),
+            kv("流水线任务", pipeline.taskCount() + "（完成 " + pipeline.completedTaskCount()
+                + " / 失败 " + pipeline.failedTaskCount() + "）"),
+            kv("瓶颈阶段 P95", safe(pipeline.bottleneckStep()) + " · "
+                + pipeline.bottleneckP95Millis() + " ms"),
+            kv("有效评分覆盖", feedback.ratedCount() + "/" + feedback.operationCount()))));
+    blocks.add(Map.<String, Object>of(
+        "type", "chart",
+        "title", "各阶段 P95 耗时",
+        "chartType", "bar",
+        "series", List.of(Map.of(
+            "name", "P95 耗时",
+            "points", pipeline.stageDurations().stream()
+                .limit(10)
+                .map(stage -> Map.<String, Object>of(
+                    "label", stage.stepName(), "value", stage.p95Millis()))
+                .toList())),
+        "unit", "ms"));
+    blocks.add(Map.<String, Object>of(
+        "type", "chart",
+        "title", "原型流水线任务状态",
+        "chartType", "bar",
+        "series", List.of(Map.of(
+            "name", "任务数",
+            "points", List.of(
+                Map.of("label", "完成", "value", pipeline.completedTaskCount()),
+                Map.of("label", "失败", "value", pipeline.failedTaskCount()),
+                Map.of("label", "未完成", "value", pipeline.incompleteTaskCount())))),
+        "unit", "个"));
+    blocks.add(Map.<String, Object>of(
+        "type", "chart",
+        "title", "Forge 任务状态分布",
+        "chartType", "pie",
+        "series", List.of(Map.of(
+            "name", "任务数",
+            "points", List.of(
+                Map.of("label", "完成", "value", forge.completedTaskCount()),
+                Map.of("label", "失败", "value", forge.failedTaskCount()),
+                Map.of("label", "取消", "value", forge.cancelledTaskCount())))),
+        "unit", "个"));
+    blocks.add(Map.<String, Object>of(
+        "type", "chart",
+        "title", "execute_result 组合结果分布",
+        "chartType", "pie",
+        "series", List.of(Map.of(
+            "name", "记录数",
+            "points", List.of(
+                Map.of("label", "组合成功", "value", feedback.combinedExecuteSuccessCount()),
+                Map.of("label", "组合失败", "value", feedback.combinedExecuteFailureCount())))),
+        "unit", "条"));
+    blocks.add(failureReasonTable(forge));
+    claims.stream()
+        .map(claim -> Map.<String, Object>of(
+            "type", "markdown", "title", claimTitle(claim.kind()), "content", claim.text()))
+        .forEach(blocks::add);
+    return List.copyOf(blocks);
+  }
+
+  private static Map<String, Object> failureReasonTable(EasyVGenerationFacts.ForgeFacts forge) {
+    List<Map.Entry<String, Long>> sorted = forge.failureReasonCounts().entrySet().stream()
+        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+        .toList();
+    List<List<String>> rows = sorted.isEmpty()
+        ? List.of(List.of("无已归类失败原因", "0"))
+        : sorted.stream()
+            .map(entry -> List.of(entry.getKey(), String.valueOf(entry.getValue())))
             .toList();
-    return new EasyVGenerationResult(plan, evidence, claims, blocks);
+    return Map.of(
+        "type", "table",
+        "title", "失败原因分布",
+        "columns", List.of("失败原因", "任务数"),
+        "rows", rows);
+  }
+
+  private static Map<String, Object> kv(String label, Object value) {
+    return Map.of("label", label, "value", String.valueOf(value));
+  }
+
+  private static String leadSummary(
+      EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot) {
+    EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
+    EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
+    EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
+    EasyVGenerationFacts.FeedbackFacts feedback = snapshot.feedback();
+    return "本期（" + request.from() + " 至 " + request.to() + "，上海时区）共覆盖 "
+        + application.applicationCount() + " 个 AI 应用、" + application.prototypeCount() + " 个原型；"
+        + "Forge 生成完成率 " + ratio(forge.completedTaskCount(),
+            forge.completedTaskCount() + forge.failedTaskCount())
+        + "，原型流水线完成 " + pipeline.completedTaskCount() + "/" + pipeline.taskCount()
+        + "，瓶颈阶段 " + safe(pipeline.bottleneckStep()) + "（P95 " + pipeline.bottleneckP95Millis()
+        + " ms）；有效评分覆盖 " + feedback.ratedCount() + "/" + feedback.operationCount()
+        + "，组合成功 " + feedback.combinedExecuteSuccessCount() + "、组合失败 "
+        + feedback.combinedExecuteFailureCount() + "。";
   }
 
   private static List<Evidence> evidence(
@@ -245,17 +358,23 @@ public final class EasyVGenerationWorkflow {
         new Evidence(
             "easyv-generation-feedback",
             "EasyV 生成反馈聚合",
-            List.of(
-                Map.of(
-                    "operationCount", feedback.operationCount(),
-                    "ratedCount", feedback.ratedCount(),
-                    "averageRating", feedback.averageRating(),
-                    "saveAsEditCount", feedback.saveAsEditCount(),
-                    "combinedExecuteSuccessCount", feedback.combinedExecuteSuccessCount(),
-                    "combinedExecuteFailureCount", feedback.combinedExecuteFailureCount(),
-                    "freshnessAt", feedback.window().freshnessAt().toString())),
+            List.of(feedbackRow(feedback)),
             provenance(request, snapshot, feedback.window().freshnessAt(),
                 "easyv-generation-feedback")));
+  }
+
+  private static Map<String, Object> feedbackRow(EasyVGenerationFacts.FeedbackFacts feedback) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("operationCount", feedback.operationCount());
+    row.put("ratedCount", feedback.ratedCount());
+    if (Double.isFinite(feedback.averageRating())) {
+      row.put("averageRating", feedback.averageRating());
+    }
+    row.put("saveAsEditCount", feedback.saveAsEditCount());
+    row.put("combinedExecuteSuccessCount", feedback.combinedExecuteSuccessCount());
+    row.put("combinedExecuteFailureCount", feedback.combinedExecuteFailureCount());
+    row.put("freshnessAt", feedback.window().freshnessAt().toString());
+    return Map.copyOf(row);
   }
 
   private static Evidence.Provenance provenance(
@@ -304,12 +423,7 @@ public final class EasyVGenerationWorkflow {
             "Forge 失败原因最多的是 " + topFailure + "；该结论描述失败集中分布，不表述为模型因果。",
             ref(evidence.get(2), "topFailureReason", topFailureReason(forge)),
             ref(evidence.get(2), "failedTaskCount", forge.failedTaskCount())),
-        claim(
-            "feedback-association",
-            "有效评分覆盖 " + feedback.ratedCount() + "/" + feedback.operationCount() + "，平均评分 " + feedback.averageRating() + "；另存行为仅作观察性相关。",
-            ref(evidence.get(3), "ratedCount", feedback.ratedCount()),
-            ref(evidence.get(3), "averageRating", feedback.averageRating()),
-            ref(evidence.get(3), "saveAsEditCount", feedback.saveAsEditCount())),
+        feedbackClaim(feedback, evidence.get(3)),
         claim(
             "business-success-settlement-distinct",
             "execute_result 组合成功记录 " + feedback.combinedExecuteSuccessCount() + "、组合失败记录 "
@@ -317,6 +431,25 @@ public final class EasyVGenerationWorkflow {
                 + "；当前事实不能拆分模型/业务成功与积分结算失败，也不能据此推断二者任一原因。",
             ref(evidence.get(3), "combinedExecuteSuccessCount", feedback.combinedExecuteSuccessCount()),
             ref(evidence.get(3), "combinedExecuteFailureCount", feedback.combinedExecuteFailureCount())));
+  }
+
+  private static GroundedConclusion.Claim feedbackClaim(
+      EasyVGenerationFacts.FeedbackFacts feedback, Evidence evidence) {
+    if (feedback.ratedCount() > 0) {
+      return claim(
+          "feedback-association",
+          "有效评分覆盖 " + feedback.ratedCount() + "/" + feedback.operationCount() + "，平均评分 "
+              + feedback.averageRating() + "；另存行为仅作观察性相关。",
+          ref(evidence, "ratedCount", feedback.ratedCount()),
+          ref(evidence, "averageRating", feedback.averageRating()),
+          ref(evidence, "saveAsEditCount", feedback.saveAsEditCount()));
+    }
+    return claim(
+        "feedback-association",
+        "有效评分覆盖 0/" + feedback.operationCount()
+            + "：本期没有用户评分记录，不能给出平均评分；另存行为仅作观察性相关。",
+        ref(evidence, "ratedCount", feedback.ratedCount()),
+        ref(evidence, "saveAsEditCount", feedback.saveAsEditCount()));
   }
 
   private static GroundedConclusion.Claim claim(

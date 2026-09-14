@@ -2,7 +2,7 @@
 
 > 状态：Baseline（2026-08-31）
 > 适用范围：Ontology Agent 的分析运行时、Domain Pack 与未来 Action Runtime
-> 实施状态：M3-M6 已落地并完成源码与契约验收；Property 与 EasyV 已成为两个真实可执行 capability。EasyV 已通过真实 OpenAI-compatible 模型与 test PostgreSQL 联合门禁。EasyV 使用 `creator-owned` scope、只读 facts adapter，并由 `dip3.easyv.enabled` 显式开关控制，默认关闭；Ontology v2 已发布。test/开发环境观测不代表生产部署或生产数据结论。
+> 实施状态：M3-M6 已落地并完成源码与契约验收；Property 与 EasyV 已成为两个真实可执行 capability。EasyV 已通过真实 OpenAI-compatible 模型与 test PostgreSQL 联合门禁。EasyV 使用 `accessMode=all` 全量 scope、只读 facts adapter，并由 `dip3.easyv.enabled` 显式开关控制，默认关闭；Ontology v2 已发布。test/开发环境观测不代表生产部署或生产数据结论。
 > 配套 Java 分层规则：[Java Architecture Baseline](./java-architecture-baseline.md)
 > 首个新领域实例：[EasyV AI 大屏生产领域 Ontology V1](../data-contracts/easyv-ai-generation-ontology-v1.md)
 
@@ -248,10 +248,10 @@ interface ScopeResolver<S extends ResolvedScope> {
 
 ```text
 PropertyResolvedScope(organizationId, projectIds, areaIds)
-EasyVResolvedScope(userId, accessMode="creator-owned")
+EasyVResolvedScope(userId, accessMode="all")
 ```
 
-平台只负责持久化并传递带 `domainKey + schemaVersion` 的 scope snapshot；EasyV 当前冻结形状只有可信 `userId` 与 `accessMode=creator-owned`，没有已确认的 `spaceIds/teamIds`。未来若授权来源被真实确认，再由 EasyV Domain Pack 扩展其独立 snapshot，不能映射到物业 `projectIds/areaIds`。
+平台只负责持久化并传递带 `domainKey + schemaVersion` 的 scope snapshot；EasyV 当前冻结形状只有可信 `userId` 与 `accessMode=all`，没有已确认的 `spaceIds/teamIds`。未来若授权来源被真实确认，再由 EasyV Domain Pack 扩展其独立 snapshot，不能映射到物业 `projectIds/areaIds`。
 
 Property 迁移期间，现有 organization/project/area 字段先转换成 `PropertyResolvedScope` 并双向校验；历史 Job 的兼容读取、数据回填和回归通过前，不删除旧字段。
 
@@ -643,7 +643,7 @@ M8  Evidence provenance invariant               完成态 evidence 必须可复�
 - Worker 校验 required evidence、allowed claim、result binding 与 `scopeSnapshotRef`；完整 binding 进入成功/失败 snapshot、agent audit、terminal event 与 completion result；
 - M3 核心定向门禁 125/125 通过；`AnalysisFollowUpPersistenceTest` 6/6 通过；Java 21 `clean test` 全量门禁 44 个测试类、256/256 通过（0 failures、0 errors、0 skipped）；
 - M4 已完成 EasyV 开发库 READ ONLY 核验，开发库高权限角色仅通过显式 development override 使用；生产权限、部署版本和数据完整性仍未知。
-- M5 已注册并实现 EasyV 第二 capability，使用 `ontology-java-multidomain-v2`、creator-owned scope、只读 facts adapter、确定性 claims 和一次 Tool Call；EasyV 默认由 `dip3.easyv.enabled` 关闭。
+- M5 已注册并实现 EasyV 第二 capability，使用 `ontology-java-multidomain-v2`、accessMode=all scope、只读 facts adapter、确定性 claims 和一次 Tool Call；EasyV 默认由 `dip3.easyv.enabled` 关闭。
 - M6 已把冻结 binding 投影到 session aggregate 与 workspace home；前端对 Property/EasyV 完成态实施严格的 binding、scope、plan、evidence source 与 claim kind 校验，并在分析页展示 domain、capability、ontology version、scope、plan、freshness、coverage 和失败诊断。
 - `V4` 历史 binding 修复只接受 execution/session/owner/version/scope/contract 一致的可证明记录，冲突或畸形数据保持 `legacy/unknown`。
 - `LiveEasyVProviderIT` 已真实贯通 Session、Registry、冻结 binding、Worker、Spring AI 精确一次 Tool Call、EasyV test PostgreSQL 四源读取和完成态 Snapshot；首次运行暴露的单日日期契约缺口已修复并回归。

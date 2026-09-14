@@ -8,12 +8,12 @@ import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-/** V1 deliberately limits EasyV analysis to the authenticated creator. */
+/** EasyV 分析默认放开到全量事实数据（all）；userId 仅作执行者审计归属。 */
 @Component
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public final class EasyVScopeResolver {
   public static final int SCHEMA_VERSION = 1;
-  public static final String ACCESS_MODE = "creator-owned";
+  public static final String ACCESS_MODE = "all";
   public static final String REQUIRED_ROLE = "EASYV_ANALYST";
 
   public ResolvedScopeSnapshot resolveScope(AuthSession principal) {
@@ -33,7 +33,7 @@ public final class EasyVScopeResolver {
         || !snapshot.values().keySet().equals(java.util.Set.of("userId", "accessMode"))
         || !userId.equals(snapshot.values().get("userId"))
         || !ACCESS_MODE.equals(snapshot.values().get("accessMode"))) {
-      throw new BackendException("EASYV_SCOPE_INVALID", "EasyV creator-owned 授权范围快照无效。");
+      throw new BackendException("EASYV_SCOPE_INVALID", "EasyV 授权范围快照无效。");
     }
   }
 

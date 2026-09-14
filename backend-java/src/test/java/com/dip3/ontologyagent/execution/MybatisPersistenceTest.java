@@ -225,7 +225,7 @@ class MybatisPersistenceTest {
         assertEquals(EASYV_ID, reloaded.capabilityBinding().id());
         assertEquals("easyv", reloaded.capabilityBinding().resolvedScope().domainKey());
         assertEquals(1, reloaded.capabilityBinding().resolvedScope().schemaVersion());
-        assertEquals(Map.of("userId", "123", "accessMode", "creator-owned"),
+        assertEquals(Map.of("userId", "123", "accessMode", "all"),
                 reloaded.capabilityBinding().resolvedScope().values());
         assertEquals(expected.scopeSnapshotRef(submission.executionId()),
                 reloaded.capabilityBinding().scopeSnapshotRef(submission.executionId()));

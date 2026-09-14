@@ -566,7 +566,7 @@ class DatabaseMigrationServiceTest {
         // The referenced execution is not present, so a result execution can
         // be used only when it identifies this exact follow-up job.
         insertJob("result-only-job", "java-follow-up-v1", "session-1", "user-1", "ontology-result-only",
-                "easyv", "generation-quality-analysis", "{\"userId\":\"123\",\"accessMode\":\"creator-owned\"}", "follow-2");
+                "easyv", "generation-quality-analysis", "{\"userId\":\"123\",\"accessMode\":\"all\"}", "follow-2");
         insertFollowUp("follow-2", "session-1", "user-1", "missing-root", "result-only-job", null,
                 "ontology-result-only", "{\"source\":\"legacy/unknown\"}");
 

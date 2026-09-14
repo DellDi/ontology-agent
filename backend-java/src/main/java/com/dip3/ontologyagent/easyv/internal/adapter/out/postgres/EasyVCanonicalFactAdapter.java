@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,7 +31,7 @@ import java.util.Set;
  */
 public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
     public static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
-    public static final String ACCESS_MODE = "creator-owned";
+    public static final String ACCESS_MODE = "all";
     public static final Set<String> REQUIRED_PRODUCTS =
             EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS;
     public static final Map<String, String> TIME_SEMANTICS = Map.of(
@@ -105,10 +106,10 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 from facts.easyv_ai_application a
                 left join facts.easyv_prototype_task p
                   on p.product_version_id=? and p.app_id=a.app_id
-                where a.product_version_id=? and a.user_id=?
+                where a.product_version_id=?
                   and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
-                """, versions.prototype(), versions.application(), dbUserId(query),
+                """, versions.prototype(), versions.application(),
                 bounds.from(), bounds.to());
         return new ApplicationFacts(window(query, freshnessAt),
                 number(row, "application_count"), number(row, "prototype_count"));
@@ -120,7 +121,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 with task_ids as (
                   select distinct a.generation_task_id as task_id
                   from facts.easyv_ai_application a
-                  where a.product_version_id=? and a.user_id=?
+                  where a.product_version_id=?
                     and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                     and a.generation_task_id is not null
@@ -140,7 +141,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                   count(*) filter (where not completed and not failed) as incomplete_count,
                   count(*) filter (where completed and failed) as conflict_count
                 from summary
-                """, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
+                """, versions.application(), bounds.from(), bounds.to(),
                 versions.pipeline(), bounds.from(), bounds.to());
         if (number(counts, "conflict_count") > 0) {
             throw new BackendException("EASYV_FACTS_TASK_CONFLICT",
@@ -153,7 +154,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 with scoped as (
                   select distinct a.generation_task_id
                   from facts.easyv_ai_application a
-                  where a.product_version_id=? and a.user_id=?
+                  where a.product_version_id=?
                     and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                     and a.generation_task_id is not null
@@ -164,36 +165,43 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 from scoped s join facts.easyv_pipeline_node n
                   on n.product_version_id=? and n.task_id=s.generation_task_id
                 where n.created_at>=? and n.created_at<?
-                """, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
+                """, versions.application(), bounds.from(), bounds.to(),
                 versions.pipeline(), bounds.from(), bounds.to());
         long timedNodeCount = number(coverage, "timed_node_count");
         if (timedNodeCount == 0) {
             throw new BackendException("EASYV_FACTS_DURATION_MISSING",
                     "EasyV 原型阶段没有可计算耗时的主链节点记录。");
         }
-        Map<String, Object> bottleneck = jdbc.queryForList("""
+        List<Map<String, Object>> stages = jdbc.queryForList("""
                 select n.step_name,
-                  ceil(percentile_cont(0.95) within group (order by n.duration_ms))::bigint as p95
+                  ceil(percentile_cont(0.95) within group (order by n.duration_ms))::bigint as p95,
+                  count(*) as node_count
                 from facts.easyv_ai_application a join facts.easyv_pipeline_node n
                   on n.product_version_id=? and n.task_id=a.generation_task_id
-                where a.product_version_id=? and a.user_id=?
+                where a.product_version_id=?
                   and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and n.created_at>=? and n.created_at<?
                   and upper(n.branch)='MAIN' and n.duration_ms is not null
-                group by n.step_name order by p95 desc,n.step_name asc limit 1
-                """, versions.pipeline(), versions.application(), dbUserId(query),
-                bounds.from(), bounds.to(), bounds.from(), bounds.to())
-                .stream().findFirst().orElseThrow(() -> new BackendException(
-                        "EASYV_FACTS_INCOMPLETE", "EasyV 原型阶段缺少可计算耗时的主链节点记录。"));
-        String step = String.valueOf(bottleneck.get("step_name"));
-        if (step.isBlank() || "null".equals(step)) {
-            throw new BackendException("EASYV_FACTS_INCOMPLETE", "EasyV 原型阶段未返回稳定阶段名称。");
+                group by n.step_name order by p95 desc,n.step_name asc
+                """, versions.pipeline(), versions.application(),
+                bounds.from(), bounds.to(), bounds.from(), bounds.to());
+        if (stages.isEmpty()) {
+            throw new BackendException("EASYV_FACTS_INCOMPLETE",
+                    "EasyV 原型阶段缺少可计算耗时的主链节点记录。");
         }
+        List<StageDuration> stageDurations = stages.stream().map(row -> {
+            String stepName = String.valueOf(row.get("step_name"));
+            if (stepName.isBlank() || "null".equals(stepName)) {
+                throw new BackendException("EASYV_FACTS_INCOMPLETE", "EasyV 原型阶段未返回稳定阶段名称。");
+            }
+            return new StageDuration(stepName, number(row, "p95"), number(row, "node_count"));
+        }).toList();
+        StageDuration bottleneck = stageDurations.getFirst();
         return new PipelineFacts(window(query, freshnessAt), number(counts, "task_count"),
                 number(counts, "completed_count"), number(counts, "failed_count"),
                 number(counts, "incomplete_count"), number(coverage, "main_node_count"),
-                timedNodeCount, step, number(bottleneck, "p95"));
+                timedNodeCount, bottleneck.stepName(), bottleneck.p95Millis(), stageDurations);
     }
 
     private ForgeFacts forgeFacts(
@@ -201,7 +209,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
         Map<String, Object> counts = jdbc.queryForMap("""
                 with scoped as (
                   select distinct a.app_id from facts.easyv_ai_application a
-                  where a.product_version_id=? and a.user_id=?
+                  where a.product_version_id=?
                     and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                 )
@@ -216,7 +224,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 from scoped s join facts.easyv_forge_generation_task g
                   on g.product_version_id=? and g.app_id=s.app_id
                 where g.created_at>=? and g.created_at<?
-                """, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
+                """, versions.application(), bounds.from(), bounds.to(),
                 versions.forge(), bounds.from(), bounds.to());
         if (number(counts, "incomplete_count") > 0) {
             throw new BackendException("EASYV_FACTS_INCOMPLETE", "EasyV Forge 存在未终态或未知状态任务。");
@@ -227,7 +235,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
         Map<String, Object> duration = jdbc.queryForMap("""
                 with scoped as (
                   select distinct a.app_id from facts.easyv_ai_application a
-                  where a.product_version_id=? and a.user_id=?
+                  where a.product_version_id=?
                     and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                 )
@@ -247,7 +255,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                       and g.started_at is not null and g.finished_at is not null))::bigint as p95
                 from facts.easyv_forge_generation_task g join scoped s on s.app_id=g.app_id
                 where g.product_version_id=? and g.created_at>=? and g.created_at<?
-                """, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
+                """, versions.application(), bounds.from(), bounds.to(),
                 versions.forge(), bounds.from(), bounds.to());
         long timed = number(duration, "timed_terminal_task_count");
         if (timed == 0) {
@@ -258,7 +266,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
         jdbc.query("""
                 with scoped as (
                   select distinct a.app_id from facts.easyv_ai_application a
-                  where a.product_version_id=? and a.user_id=?
+                  where a.product_version_id=?
                     and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                 )
@@ -269,7 +277,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                 group by g.failure_reason_hash order by g.failure_reason_hash
                 """, (RowCallbackHandler) result -> failureReasons.put(
                         "md5:" + result.getString("bucket"), result.getLong("count")),
-                versions.application(), dbUserId(query), bounds.from(), bounds.to(),
+                versions.application(), bounds.from(), bounds.to(),
                 versions.forge(), bounds.from(), bounds.to());
         return new ForgeFacts(window(query, freshnessAt), number(counts, "task_count"),
                 number(counts, "completed_count"), number(counts, "failed_count"),
@@ -289,11 +297,11 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                   count(*) filter (where l.execute_result not in (0,1)) as unknown_result_count
                 from facts.easyv_generation_feedback l join facts.easyv_ai_application a
                   on a.product_version_id=? and a.app_id=l.app_id
-                where l.product_version_id=? and a.user_id=? and l.user_id=?
+                where l.product_version_id=?
                   and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and l.operated_at>=? and l.operated_at<?
-                """, versions.application(), versions.feedback(), dbUserId(query), dbUserId(query),
+                """, versions.application(), versions.feedback(),
                 bounds.from(), bounds.to(), bounds.from(), bounds.to());
         if (number(values, "unknown_result_count") > 0) {
             throw new BackendException("EASYV_FACTS_INCOMPLETE",
@@ -302,10 +310,8 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
         if (number(values, "operation_count") == 0) {
             throw new BackendException("EASYV_FACTS_EMPTY", "EasyV 授权范围内没有操作与反馈事实。");
         }
-        if (number(values, "rated_count") == 0) {
-            throw new BackendException("EASYV_FACTS_INCOMPLETE",
-                    "EasyV 操作日志没有有效评分，不能把平均评分默认为 0。");
-        }
+        // 有效评分可能为 0（评分功能无人使用是真实数据特征）：如实返回 NaN 平均，
+        // 由 workflow 决定如何表述，不能在此处把窗口打死或把平均默认为 0。
         Object average = values.get("average_rating");
         return new FeedbackFacts(window(query, freshnessAt), number(values, "operation_count"),
                 number(values, "rated_count"), average instanceof Number n ? n.doubleValue() : Double.NaN,
@@ -317,42 +323,42 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
             Query query, Versions versions, Bounds bounds, Instant capturedAt) {
         long futureApp = jdbc.queryForObject("""
                 select count(*) from facts.easyv_ai_application
-                where product_version_id=? and user_id=? and not is_deleted
+                where product_version_id=? and not is_deleted
                   and created_at>=? and created_at<? and created_at>?
-                """, Long.class, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
+                """, Long.class, versions.application(), bounds.from(), bounds.to(),
                 Timestamp.from(capturedAt));
         long futureNode = jdbc.queryForObject("""
                 select count(*) from facts.easyv_ai_application a
                 join facts.easyv_pipeline_node n
                   on n.product_version_id=? and n.task_id=a.generation_task_id
-                where a.product_version_id=? and a.user_id=?
+                where a.product_version_id=?
                   and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and n.created_at>=? and n.created_at<? and n.created_at>?
-                """, Long.class, versions.pipeline(), versions.application(), dbUserId(query),
+                """, Long.class, versions.pipeline(), versions.application(),
                 bounds.from(), bounds.to(), bounds.from(), bounds.to(), Timestamp.from(capturedAt));
         long futureForge = jdbc.queryForObject("""
                 select count(*) from facts.easyv_ai_application a
                 join facts.easyv_forge_generation_task g
                   on g.product_version_id=? and g.app_id=a.app_id
-                where a.product_version_id=? and a.user_id=?
+                where a.product_version_id=?
                   and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and g.created_at>=? and g.created_at<?
                   and (g.created_at>? or g.started_at>? or g.finished_at>?)
-                """, Long.class, versions.forge(), versions.application(), dbUserId(query),
+                """, Long.class, versions.forge(), versions.application(),
                 bounds.from(), bounds.to(), bounds.from(), bounds.to(), Timestamp.from(capturedAt),
                 Timestamp.from(capturedAt), Timestamp.from(capturedAt));
         long futureFeedback = jdbc.queryForObject("""
                 select count(*) from facts.easyv_generation_feedback l
                 join facts.easyv_ai_application a
                   on a.product_version_id=? and a.app_id=l.app_id
-                where l.product_version_id=? and l.user_id=? and a.user_id=?
+                where l.product_version_id=?
                   and not a.is_deleted
                   and a.created_at>=? and a.created_at<?
                   and l.operated_at>=? and l.operated_at<? and l.operated_at>?
-                """, Long.class, versions.application(), versions.feedback(), dbUserId(query),
-                dbUserId(query), bounds.from(), bounds.to(), bounds.from(), bounds.to(),
+                """, Long.class, versions.application(), versions.feedback(),
+                bounds.from(), bounds.to(), bounds.from(), bounds.to(),
                 Timestamp.from(capturedAt));
         if (futureApp + futureNode + futureForge + futureFeedback > 0) {
             throw new BackendException("EASYV_FACTS_FUTURE_DATA",
@@ -366,12 +372,12 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
         long orphaned = jdbc.queryForObject("""
                 select count(*) from facts.easyv_generation_feedback l
                 left join facts.easyv_ai_application a
-                  on a.product_version_id=? and a.app_id=l.app_id and a.user_id=?
+                  on a.product_version_id=? and a.app_id=l.app_id
                  and a.created_at>=? and a.created_at<?
-                where l.product_version_id=? and l.user_id=? and l.app_id is not null
+                where l.product_version_id=? and l.app_id is not null
                   and l.operated_at>=? and l.operated_at<? and a.app_id is null
-                """, Long.class, versions.application(), dbUserId(query), bounds.from(), bounds.to(),
-                versions.feedback(), dbUserId(query), bounds.from(), bounds.to());
+                """, Long.class, versions.application(), bounds.from(), bounds.to(),
+                versions.feedback(), bounds.from(), bounds.to());
         if (orphaned > 0) {
             throw new BackendException("EASYV_FACTS_INCOMPLETE",
                     "EasyV 操作日志存在无法按应用 cohort 归属的记录。");
@@ -391,10 +397,6 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
             throw new BackendException("EASYV_FACTS_QUERY_INVALID",
                     "EasyV 事实查询必须使用冻结数据版本、可信数字用户 ID 和有效时间窗口。");
         }
-    }
-
-    private static long dbUserId(Query query) {
-        return Long.parseLong(query.userId());
     }
 
     private static long number(Map<String, Object> row, String key) {
