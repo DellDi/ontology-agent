@@ -119,7 +119,7 @@ class EasyVCanonicalFactAdapterTest {
         assertEquals(1, snapshot.feedback().combinedExecuteFailureCount());
         assertEquals(1, snapshot.forge().failureReasonCounts().size());
         assertTrue(snapshot.forge().failureReasonCounts().keySet().stream()
-                .allMatch(key -> key.startsWith("md5:")));
+                .allMatch(key -> key.contains("Recursion limit")));
         assertEquals("1", snapshot.application().window().userId());
         assertEquals(CAPTURED_AT, snapshot.application().window().freshnessAt());
         assertTrue(EasyVCanonicalFactAdapter.TIME_SEMANTICS.get("forge")
@@ -386,28 +386,30 @@ class EasyVCanonicalFactAdapterTest {
         Timestamp secondFinished = fixture == Fixture.ALL_FORGE_DURATION_MISSING
                 ? null : FORGE_FINISHED_AT;
         insertForgeTask(UUID.fromString("00000000-0000-0000-0000-000000000001"),
-                "forge-task-1", "app-1", status, "d41d8cd98f00b204e9800998ecf8427e",
+                "forge-task-1", "app-1", status, "d41d8cd98f00b204e9800998ecf8427e", null,
                 firstStarted, firstFinished);
         insertForgeTask(UUID.fromString("00000000-0000-0000-0000-000000000002"),
                 "forge-task-2", "app-1", "failed", "9e107d9d372bb6826bd81d3542a419d6",
+                "page-1__chart_1: config agent invoke threw: Recursion limit of 25 reached",
                 secondStarted, secondFinished);
         insertForgeTask(UUID.fromString("00000000-0000-0000-0000-000000000003"),
-                "forge-task-3", "app-2", "completed", "098f6bcd4621d373cade4e832627b4f6",
+                "forge-task-3", "app-2", "completed", "098f6bcd4621d373cade4e832627b4f6", null,
                 fixture == Fixture.ALL_FORGE_DURATION_MISSING ? null : FORGE_STARTED_AT,
                 fixture == Fixture.ALL_FORGE_DURATION_MISSING ? null : FORGE_FINISHED_AT);
     }
 
     private void insertForgeTask(UUID sourceId, String taskId, String appId, String status,
-                                 String failureHash, Timestamp startedAt, Timestamp finishedAt) {
+                                 String failureHash, String failureReason,
+                                 Timestamp startedAt, Timestamp finishedAt) {
         jdbc.update("""
                 insert into facts.easyv_forge_generation_task
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
-                   task_id,app_id,status,failure_reason_hash,started_at,finished_at,
+                   task_id,app_id,status,failure_reason_hash,failure_reason,started_at,finished_at,
                    created_at,updated_at)
-                values (?,?,?,?,?,?,?,?,?,?,?,?)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, PRODUCT_VERSIONS.get("easyv-forge-task"), "easyv-forge-task",
                 "source-easyv-forge-task", sourceId, taskId, appId, status, failureHash,
-                startedAt, finishedAt, FORGE_CREATED_AT, FORGE_CREATED_AT);
+                failureReason, startedAt, finishedAt, FORGE_CREATED_AT, FORGE_CREATED_AT);
     }
 
     private void insertFeedback(Fixture fixture) {
@@ -467,7 +469,7 @@ class EasyVCanonicalFactAdapterTest {
             insertPipelineNode(4, "java-task-deleted", "PipelineCompleted", "SUCCESS", 900L);
             insertForgeTask(UUID.fromString("00000000-0000-0000-0000-000000000099"),
                     "forge-task-deleted", "app-deleted", "completed",
-                    "098f6bcd4621d373cade4e832627b4f6", FORGE_STARTED_AT, FORGE_FINISHED_AT);
+                    "098f6bcd4621d373cade4e832627b4f6", null, FORGE_STARTED_AT, FORGE_FINISHED_AT);
             insertFeedback(4, 1, "app-deleted", 1, 5, true);
         }
     }

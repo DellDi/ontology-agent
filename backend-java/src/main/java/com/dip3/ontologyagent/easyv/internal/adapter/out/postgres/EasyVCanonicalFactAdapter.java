@@ -270,13 +270,15 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     and not a.is_deleted
                     and a.created_at>=? and a.created_at<?
                 )
-                select g.failure_reason_hash as bucket,count(*) as count
+                select g.failure_reason as bucket,count(*) as count
                 from facts.easyv_forge_generation_task g join scoped s on s.app_id=g.app_id
                 where g.product_version_id=? and g.created_at>=? and g.created_at<?
                   and lower(g.status)='failed'
-                group by g.failure_reason_hash order by g.failure_reason_hash
-                """, (RowCallbackHandler) result -> failureReasons.put(
-                        "md5:" + result.getString("bucket"), result.getLong("count")),
+                group by g.failure_reason order by g.failure_reason
+                """, (RowCallbackHandler) result -> {
+                    String bucket = result.getString("bucket");
+                    failureReasons.put(bucket == null ? "" : bucket, result.getLong("count"));
+                },
                 versions.application(), bounds.from(), bounds.to(),
                 versions.forge(), bounds.from(), bounds.to());
         return new ForgeFacts(window(query, freshnessAt), number(counts, "task_count"),

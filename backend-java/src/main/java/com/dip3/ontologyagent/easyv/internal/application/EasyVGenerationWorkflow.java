@@ -2,6 +2,8 @@ package com.dip3.ontologyagent.easyv.internal.application;
 
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.execution.ExecutionRepository;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVDateRange;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVFailureReason;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
@@ -146,7 +148,6 @@ public final class EasyVGenerationWorkflow {
             .anyMatch(
                 entry ->
                     entry.getKey() == null
-                        || !entry.getKey().matches("[a-z0-9][a-z0-9._:-]{0,127}")
                         || entry.getValue() == null
                         || entry.getValue() < 0)
         || forge.failedTaskCount() > 0
@@ -281,8 +282,15 @@ public final class EasyVGenerationWorkflow {
     return List.copyOf(blocks);
   }
 
+  private static Map<String, Long> failureReasonLabels(EasyVGenerationFacts.ForgeFacts forge) {
+    Map<String, Long> labels = new LinkedHashMap<>();
+    forge.failureReasonCounts().forEach((raw, count) ->
+        labels.merge(EasyVFailureReason.label(raw), count, Long::sum));
+    return labels;
+  }
+
   private static Map<String, Object> failureReasonTable(EasyVGenerationFacts.ForgeFacts forge) {
-    List<Map.Entry<String, Long>> sorted = forge.failureReasonCounts().entrySet().stream()
+    List<Map.Entry<String, Long>> sorted = failureReasonLabels(forge).entrySet().stream()
         .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
         .toList();
     List<List<String>> rows = sorted.isEmpty()
@@ -307,7 +315,8 @@ public final class EasyVGenerationWorkflow {
     EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
     EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
     EasyVGenerationFacts.FeedbackFacts feedback = snapshot.feedback();
-    return "本期（" + request.from() + " 至 " + request.to() + "，上海时区）共覆盖 "
+    return "本期（" + new EasyVDateRange(request.from(), request.to()).describe()
+        + "，上海时区）共覆盖 "
         + application.applicationCount() + " 个 AI 应用、" + application.prototypeCount() + " 个原型；"
         + "Forge 生成完成率 " + ratio(forge.completedTaskCount(),
             forge.completedTaskCount() + forge.failedTaskCount())
@@ -362,7 +371,7 @@ public final class EasyVGenerationWorkflow {
                     Map.entry("timedTerminalTaskCount", forge.timedTerminalTaskCount()),
                     Map.entry("p50DurationMillis", forge.p50DurationMillis()),
                     Map.entry("p95DurationMillis", forge.p95DurationMillis()),
-                    Map.entry("failureReasonCounts", forge.failureReasonCounts()),
+                    Map.entry("failureReasonCounts", Map.copyOf(failureReasonLabels(forge))),
                     Map.entry("topFailureReason", topFailureReason(forge)),
                     Map.entry("freshnessAt", forge.window().freshnessAt().toString()))),
             provenance(request, snapshot, forge.window().freshnessAt(), "easyv-forge-task")),
@@ -484,7 +493,7 @@ public final class EasyVGenerationWorkflow {
   }
 
   private static String topFailureReason(EasyVGenerationFacts.ForgeFacts forge) {
-    return forge.failureReasonCounts().entrySet().stream()
+    return failureReasonLabels(forge).entrySet().stream()
         .max(Map.Entry.comparingByValue())
         .map(entry -> entry.getKey() + " (" + entry.getValue() + ")")
         .orElse("无已归类失败原因");

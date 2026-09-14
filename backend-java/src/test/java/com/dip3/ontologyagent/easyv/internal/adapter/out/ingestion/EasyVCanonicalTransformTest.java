@@ -128,14 +128,19 @@ class EasyVCanonicalTransformTest {
         assertEquals(1L, snapshot.application().applicationCount());
         assertEquals(1L, snapshot.application().prototypeCount());
         assertEquals(1L, snapshot.pipeline().completedTaskCount());
-        assertEquals(1L, snapshot.forge().completedTaskCount());
+        assertEquals(1L, snapshot.forge().failedTaskCount());
         assertEquals(1L, snapshot.feedback().combinedExecuteSuccessCount());
         assertEquals(false, jdbc.queryForObject(
                 "select is_deleted from facts.easyv_ai_application", Boolean.class));
-        assertEquals("completed", jdbc.queryForObject(
+        assertEquals("failed", jdbc.queryForObject(
                 "select status from facts.easyv_forge_generation_task", String.class));
-        assertEquals("d41d8cd98f00b204e9800998ecf8427e", jdbc.queryForObject(
-                "select failure_reason_hash from facts.easyv_forge_generation_task", String.class));
+        assertTrue(jdbc.queryForObject(
+                "select failure_reason_hash from facts.easyv_forge_generation_task", String.class)
+                .matches("[0-9a-f]{32}"));
+        assertEquals("page-1: agent invoke threw: Recursion limit of 25 reached",
+                jdbc.queryForObject(
+                        "select failure_reason from facts.easyv_forge_generation_task",
+                        String.class));
         assertNull(jdbc.queryForObject(
                 "select task_id from facts.easyv_generation_feedback", String.class));
         assertEquals(Instant.parse("2026-09-04T01:00:00Z"), jdbc.queryForObject(
@@ -192,7 +197,9 @@ class EasyVCanonicalTransformTest {
                     "PipelineCompleted", "MAIN", "SUCCESS", 120L, created);
             case "easyv-forge-task" -> row(UUID.fromString(
                             "00000000-0000-0000-0000-000000000004"),
-                    "forge-task-1", "app-1", "completed", null,
+                    "forge-task-1", "app-1", "failed",
+                    Map.of("kind", "unknown",
+                            "message", "page-1: agent invoke threw: Recursion limit of 25 reached"),
                     created, updated, created, updated);
             case "easyv-generation-feedback" -> row(5L, 22L, 11L,
                     Instant.parse("2026-09-04T01:00:00Z"), "generate", 1, 5,
