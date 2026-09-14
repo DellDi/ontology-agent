@@ -239,3 +239,59 @@ DOCKER_HOST=unix:///Users/dsy/.orbstack/run/docker.sock mise exec java@temurin-2
 | P2 | 历史检索与分页 | 当前为平台最近 50 条任务、20 个版本中的授权可见窗口，无完整历史分页；若需要运维全历史，补服务端授权后分页和前端加载入口，不仅扩大查询上限。 |
 
 后续只围绕上述缺口推进，不再重复扩展首页视觉或重做已通过的局部门禁。
+
+## P0-1 浏览器验收与 P1-1 故障演练（2026-09-14 完成）
+
+通过本机 SSH 隧道（127.0.0.1:3100 → easyv-dev）+ 系统 Chrome（playwright-core 驱动）完成真实部署的浏览器验收，全程非样例服务。
+
+### P0-1 结果（22 项检查，2 项 FAIL 均为脚本选择器问题、截图复核通过）
+
+- 真实表单登录 `platform-admin` → 303 至 `/admin/ingestion`，签名会话正常；`/api/auth/me` 返回 PLATFORM_ADMIN。
+- 发布任务默认视图：既有对账任务 `fcfbb3b9` 已完成，任务/版本集编号、提交人、追踪号、起止时间完整。
+- 采集与物化：35 条真实任务；按名称过滤与无匹配空态均正确。
+- 数据目录：easyv（5 数据集）与 property（6 数据集）真实登记。
+- 冻结版本：`fcfbb3b9` 展开含 5 产品版本、行数（99/106/760/3359/91）、物化任务、源版本、采集任务全链路。
+- 组织授权：授予测试组织 `acceptance-ui-20260914` → 列表即时可见 → 撤销 → 恢复空态；两次 `ingestion.access.changed` 已入审计。
+- 真实增量发布：UI 表单提交 easyv 5 产品 → 受理 `90df13a9` → 页面 3 秒轮询驱动 `等待执行 → 发布中 → 已完成` → 新冻结版本集 lineage 完整；`查看版本溯源` 正确进入 `?view=releases`。
+- 管理员工作台首页：两项能力均显示不可用及真实原因（EasyV 需可信数字用户 ID；Property 未分配项目范围），无提交入口，空历史与状态筛选/搜索正常。
+- 390px 窄屏（登录/首页/数据接入）无横向溢出；深色主题可读；键盘可访问原生 details/表单。
+- 控制台仅 1 条 `/favicon.ico` 404（无 favicon，装饰性缺失，建议后续补图标）；36 条 failed requests 全部是 Next RSC prefetch 中止，属正常浏览器行为。
+
+### P1-1 受控故障演练结果
+
+- 停机挂起：`docker stop` release-worker 期间提交任务 `daea3f7e` 保持 `pending`；`docker start` 后任务被领取并完成。队列持久化符合预期。
+- 中断恢复：任务 `bb872c9f` running 期间 `docker kill -s 9` → 任务遗留 `running`；手动 `docker start` 后 worker 首轮即执行 reconcile（running 任务优先），核对无已提交冻结版本 → 任务标记 `failed` + `INGESTION_RELEASE_INTERRUPTED`，关联未完成子任务同步标记失败。
+- 重跑：API 重跑创建新任务 `d1c46843`（`retryOf=bb872c9f`）→ `completed`；UI 失败行展示错误码、追踪号与“已修复，重新执行”按钮，重跑行显示“原失败任务”。
+- 审计链完整：三个任务各自 submitted/started/failed/completed 全部落 `platform.audit_events`；授权变更与管理员登录亦有记录。
+- **运维发现**：该宿主机 Docker 20.10.17 上，SIGKILL 后 `restart=unless-stopped` 未触发自动重启（daemon 日志仅见 `shim disconnected`/`ignoring event /tasks/delete`，restartCount=0），worker 停机至手动 `docker start` 约 8 分钟内 `running` 任务无看守。需要监控告警或 supervisor 层拉起；应用内恢复路径本身工作正常。
+
+### 验收后新增状态
+
+发布任务列表现有 4 条页面提交记录：`fcfbb3b9`（对账，已完成）、`90df13a9`（增量，已完成）、`daea3f7e`（停机恢复，已完成）、`bb872c9f`（中断，已失败）+ `d1c46843`（重跑，已完成）。冻结版本集 7 个。演练产生的失败任务与版本集均为真实验收证据，未清理。
+
+## Property 封存 + 登录页重构 + 查看扩权（2026-09-14 完成并部署）
+
+按用户决定执行方案 B（物业域彻底封存）、登录页纯登录化、数据接入查看扩权。
+
+### 改动
+
+- `dip3.property.enabled` 开关（`application.yml`，默认 `true` 兼容；EasyV-only 部署置 `false`）；property domain pack 与 graphsync 全部 24 处 Bean 加 `@ConditionalOnProperty`（含 `CubeHealthIndicator`/`Neo4jHealthIndicator`）；`GraphSyncScheduler` 叠加 graph-sync 开关。
+- `V15__seal_property_domain.sql`：property 源/数据集/产品幂等置 `disabled`（数据与 volume 保留，`property-ingest` ops 通道仍在）。
+- `compose.easyv-dev.yaml`：cube/cubestore/neo4j 移入 `property` profile（默认不启动），backend `PROPERTY_DOMAIN_ENABLED=false`、健康组摘除 cube/neo4j、`JAVA_GRAPH_SYNC_ENABLED=false`。
+- `IngestionAccessService`：所有已认证用户 `canView=true` 且 `sourceKeys` 为全部源；`canManage`/发布/重跑/授权写仍 `PLATFORM_ADMIN`。`source_view_grants` 表保留作审计兼容，本阶段不再限制可见性。
+- 目录账号登录授予 `PROPERTY_ANALYST + EASYV_ANALYST`（ErpdirectoryService），无账号名特判。
+- 登录页重构为纯登录卡片：仅 DIP3 标识 +「登录工作台」+ 目录表单（不可用时直接管理员表单；可用时管理员入口折叠）；删除营销文案/能力卡/语录；保留 `sanitizeNextPath` 与错误/退出横幅。
+- 登录页截图与验证产物在 /tmp/pw-accept（本机临时，不入库）。
+
+### 验证
+
+- Java 401 项测试全绿（迁移计数 15、property 测试夹具 reactivate、扩权与角色断言已更新）；Web lint/build/60 测试绿。
+- easyv-dev 部署（镜像 `seal-property-20260914`）：migrate 应用 V15；backend/web healthy；cube/neo4j 已停止移除；release-worker 新镜像运行正常。
+- 数据目录：property 源 + 6 数据集 + 6 产品显示「已停用」，发布表单无 property 可选项；workspace 能力列表仅剩 `easyv:generation-quality-analysis`（管理员无 EASYV_ANALYST 如实显示不可用），无 property 能力。
+- EasyV 增量采集（`easyv-dev ingest INCREMENTAL`）完成：`ingestion_release_complete`，5 产品正常发布。
+- **部署注意**：`.env.easyv-dev` 用 `ONTOLOGY_JAVA_IMAGE`/`ONTOLOGY_WEB_IMAGE` 固定镜像 tag；docker-compose v1 recreate 不会自动跟随 `easyv-dev` tag 移动，本次已将 pin 更新为 `seal-property-20260914`。
+
+### 阻塞项（等用户输入）
+
+- `ERP_API_BASE_URL` 未知：dev 机 dtstack 网关（Envoy）对候选 ERP 端点返回 `ERR_CLIENT_ID_NOT_FOUND`，缺少网关 client-id/路由配置；`erp_staging` 目录为空，开发账号 `18668184122` 不在其中，无法验证真实登录与 EasyV 分析端到端。
+- P0-3 真实业务分析端到端依赖该账号可登录且 userId 为正数。
