@@ -652,8 +652,6 @@ test('Next auth routes are pure Java proxies and Set-Cookie passes through', asy
   for (const path of [
     'src/app/api/auth/login/route.ts',
     'src/app/api/auth/logout/route.ts',
-    'src/app/api/auth/callback/route.ts',
-    'src/app/api/auth/directory-login/route.ts',
     'src/app/api/auth/bridge/route.ts',
     'src/app/api/auth/me/route.ts',
   ]) {

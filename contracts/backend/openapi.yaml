@@ -3,22 +3,54 @@ info:
   title: DIP3 Java Analysis Backend
   version: 2.0.0
 paths:
-  /api/auth/admin-login:
+  /api/admin/identity/accounts:
+    get:
+      summary: List provisioned platform accounts (PLATFORM_ADMIN only)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Account list }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
     post:
-      summary: Authenticate an initialized platform administrator
+      summary: Provision a platform account (PLATFORM_ADMIN only)
+      security: [{ cookieAuth: [] }]
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
               type: object
               required: [account, password]
               properties:
                 account: { type: string, maxLength: 100 }
                 password: { type: string, maxLength: 1024 }
+                displayName: { type: string, maxLength: 100 }
+                organizationId: { type: string, maxLength: 200 }
+                roles: { type: array, items: { type: string } }
       responses:
-        '303': { description: Signed session and ingestion redirect on success; generic login error redirect on invalid credentials or lockout }
-        '500': { $ref: '#/components/responses/Error' }
+        '200': { description: Created account (password never returned) }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/admin/identity/accounts/{id}:
+    patch:
+      summary: Update status / profile / reset password (PLATFORM_ADMIN only)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Updated account }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/admin/identity/accounts/{id}/roles:
+    post:
+      summary: Grant or revoke a role via { roleCode, action: grant|revoke } (PLATFORM_ADMIN only)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200': { description: Updated account }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /api/admin/ingestion/access:
     get:
       summary: Read current ingestion access; grant list is admin-only
@@ -163,40 +195,32 @@ paths:
         '500': { $ref: '#/components/responses/Error' }
   /api/auth/config:
     get:
-      summary: Return login page capability state (directory auth, dev auth, url bridge)
+      summary: Return login page capability state (account login, url bridge)
       responses:
         '200':
-          description: Directory login availability and dev/url-bridge switches; never contains secrets
+          description: Account login availability and url-bridge switch; never contains secrets
           content:
             application/json:
               schema:
                 type: object
-                required: [directoryAuthAvailable, devAuthEnabled, urlBridgeEnabled]
+                required: [accountLoginAvailable, urlBridgeEnabled]
                 properties:
-                  directoryAuthAvailable: { type: boolean }
-                  devAuthEnabled: { type: boolean }
+                  accountLoginAvailable: { type: boolean }
                   urlBridgeEnabled: { type: boolean }
   /api/auth/login:
     post:
-      summary: Dev login (manual scope), gated by ENABLE_DEV_ERP_AUTH
-      responses:
-        '303':
-          description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect
-          headers:
-            Location: { schema: { type: string } }
-            Set-Cookie: { schema: { type: string } }
-  /api/auth/directory-login:
-    post:
-      summary: ERP directory account/password login
-      responses:
-        '303':
-          description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect
-          headers:
-            Location: { schema: { type: string } }
-            Set-Cookie: { schema: { type: string } }
-  /api/auth/callback:
-    get:
-      summary: Dev callback login (ticket or query params), gated by ENABLE_DEV_ERP_AUTH
+      summary: Account/password login through the enabled identity providers
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [account, password]
+              properties:
+                account: { type: string, maxLength: 100 }
+                password: { type: string, maxLength: 1024 }
+                next: { type: string }
       responses:
         '303':
           description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect
@@ -205,7 +229,7 @@ paths:
             Set-Cookie: { schema: { type: string } }
   /api/auth/bridge:
     get:
-      summary: URL bridge login by directory account
+      summary: URL bridge login by pre-provisioned platform account
       responses:
         '303':
           description: Session cookie issued (Set-Cookie) and redirect to next path, or /login?error=... redirect

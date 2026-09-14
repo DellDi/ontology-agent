@@ -144,15 +144,16 @@ test('AC2 生产 Web 容器不持有 Cube、Neo4j 或模型 Provider 凭据', as
   assert.doesNotMatch(webBlock, /CUBE_API_SECRET|NEO4J_PASSWORD|LLM_PROVIDER_API_KEY/);
 });
 
-test('AC2 生产 compose ENABLE_DEV_ERP_AUTH 强制为 0，认证配置只注入 Java backend', async () => {
+test('AC2 生产 compose 认证开关收敛为 provider 配置，只注入 Java backend', async () => {
   const content = await readFile(path.join(ROOT, 'compose.prod.yaml'), 'utf8');
   const backendBlock = content.match(/^  backend:\r?\n[\s\S]*?(?=^  migrate:)/m)?.[0];
   assert.ok(backendBlock, '应能定位生产 backend service 配置');
-  assert.ok(
-    backendBlock.includes('ENABLE_DEV_ERP_AUTH: "0"'),
-    'Java backend 必须将 ENABLE_DEV_ERP_AUTH 固定为 "0"',
+  assert.doesNotMatch(
+    backendBlock,
+    /ENABLE_DEV_ERP_AUTH|ERP_API_BASE_URL|ERP_API_ORIGIN/,
+    'ERP 目录认证已移除，生产 backend 不得再注入该配置',
   );
-  assert.match(backendBlock, /ERP_API_BASE_URL: \$\{ERP_API_BASE_URL\}/);
+  assert.match(backendBlock, /ENABLE_URL_BRIDGE/, '桥接开关由 backend 显式控制');
   assert.match(backendBlock, /COOKIE_SECURE: "true"/, '生产会话 Cookie 必须 Secure');
   const webBlock = content.match(/^  web:\r?\n[\s\S]*?(?=^  backend:)/m)?.[0];
   assert.ok(webBlock, '应能定位生产 web service 配置');

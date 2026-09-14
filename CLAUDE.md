@@ -8,7 +8,7 @@
 ontology-agent/
 ├── src/                        # Next.js：页面渲染 + Java BFF 代理 + 观测 + UI 映射
 │   ├── app/(auth|workspace|admin)/   # 路由组；登录页由 Java /api/auth/me + /api/auth/config 驱动
-│   ├── app/api/                # 全部为 Java 透明代理（含 6 个认证路由）
+│   ├── app/api/                # 全部为 Java 透明代理（含 4 个认证路由）
 │   ├── domain/ + application/  # 纯模型 / 纯 read-model（UI 映射用）
 │   └── infrastructure/
 │       ├── java-backend/       # Java API 客户端与跨端契约
@@ -35,7 +35,7 @@ Clean Architecture（六边形），依赖方向：`domain ← application ← i
 
 - 路径别名 `@/*` → `./src/*`
 - 安全：`sanitizeNextPath()` 防 Open Redirect，仅允许 `/workspace`、`/admin` 返回路径（Java 与 Next 同一语义）
-- 权限：`PermissionScope` 四维边界（组织/项目/区域/角色）；ERP 目录解析在 Java（组织路径 → propertyProject → precinct），目录账号只授予 `PROPERTY_ANALYST`，无账号名特判
+- 权限：`PermissionScope` 四维边界（组织/项目/区域/角色）；身份由平台自有 `identity.accounts`/`identity.role_grants` 承载，`IdentityProvider` 只证明身份，角色与组织归属来自平台库，无账号名特判
 
 ## Tech Stack
 
@@ -73,14 +73,14 @@ mvn -f backend-java/pom.xml test      # Java 测试（Testcontainers）
 | `JAVA_DATABASE_URL` | Java backend JDBC（由 `POSTGRES_*` 派生） | 见 `.env.example` |
 | `REDIS_URL` / `REDIS_KEY_PREFIX` | Redis（仅 Java backend） | `redis://127.0.0.1:6379` / `dip3` |
 | `SESSION_SECRET` | 会话 Cookie 签名密钥（Java backend） | 本地设置 |
-| `ENABLE_DEV_ERP_AUTH` | 开发联调登录开关（仅本地） | `0` |
-| `ERP_API_BASE_URL` | ERP 目录认证接口（Java backend 登录必需） | - |
+| `AUTH_LOCAL_PROVIDER_ENABLED` | 平台本地账号密码登录 Provider | `true` |
+| `ENABLE_URL_BRIDGE` | URL 桥接登录（供可信上游嵌入，账号须已供给） | `0` |
 | `COOKIE_SECURE` | 会话 Cookie Secure（生产置 `true`） | `false` |
 
 ## Backend Errors（Java）
 
-- `BackendException(code, message)` 统一业务错误；认证相关：`INVALID_ERP_CREDENTIALS`、`DEV_AUTH_DISABLED`、`AUTH_REQUIRED`、`AUTH_SCOPE_INVALID`。
-- 登录/退出/回调/桥接失败一律 303 重定向 `/login?error=...`；其余接口按 `ApiExceptionHandler` 返回 JSON（`code + traceId`）。
+- `BackendException(code, message)` 统一业务错误；认证相关：`INVALID_CREDENTIALS`、`BRIDGE_DISABLED`、`AUTH_REQUIRED`、`AUTH_SCOPE_INVALID`。
+- 登录/退出/桥接失败一律 303 重定向 `/login?error=...`；其余接口按 `ApiExceptionHandler` 返回 JSON（`code + traceId`）。
 
 ## Coding Disciplines
 

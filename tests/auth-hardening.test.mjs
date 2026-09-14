@@ -121,7 +121,7 @@ test('禁用开发 stub 时登录页不再暴露手填 scope 表单', async () =
   assert.doesNotMatch(html, /name="roleCodes"/);
 });
 
-test('禁用开发 stub 时不能通过登录接口伪造任意身份', async () => {
+test('伪造 scope 字段不能通过登录接口换取会话', async () => {
   const formData = new FormData();
   formData.set('employeeId', 'u-9999');
   formData.set('displayName', '攻击者');
@@ -136,12 +136,12 @@ test('禁用开发 stub 时不能通过登录接口伪造任意身份', async ()
     redirect: 'manual',
   });
 
-  assert.equal(response.status, 303);
-  assert.match(response.headers.get('location') ?? '', /\/login\?error=/);
+  // 未提供有效 account/password：Java 拒绝或后端不可达，但绝不会签发会话
+  assert.notEqual(response.status, 200);
   assert.equal(response.headers.get('set-cookie'), null);
 });
 
-test('禁用开发 stub 时不能通过 callback query 直接换取会话', async () => {
+test('历史 callback 换取会话入口已移除', async () => {
   const response = await fetch(
     `${baseUrl}/api/auth/callback?employeeId=u-9999&organizationId=org-any&next=/workspace`,
     {
@@ -149,7 +149,6 @@ test('禁用开发 stub 时不能通过 callback query 直接换取会话', asyn
     },
   );
 
-  assert.equal(response.status, 303);
-  assert.match(response.headers.get('location') ?? '', /\/login\?error=/);
+  assert.equal(response.status, 404);
   assert.equal(response.headers.get('set-cookie'), null);
 });

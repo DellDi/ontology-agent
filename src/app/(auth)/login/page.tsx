@@ -8,8 +8,7 @@ import {
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
 import { StatusBanner } from '@/app/_components/workbench/status-banner';
 import { Surface, SurfaceBody } from '@/app/_components/workbench/surface';
-import { AdminLoginForm } from './_components/admin-login-form';
-import { DirectoryLoginForm } from './_components/directory-login-form';
+import { AccountLoginForm } from './_components/account-login-form';
 
 type LoginPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -30,7 +29,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const loggedOut = readSearchParam(params.loggedOut);
   const prefillAccount = readSearchParam(params.account);
   const authConfig = await getAuthConfig();
-  const directoryAvailable = authConfig.directoryAuthAvailable;
+  const accountLoginAvailable = authConfig.accountLoginAvailable;
 
   let viewer: Awaited<ReturnType<typeof getCurrentViewer>> | null = null;
   try {
@@ -66,29 +65,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               {loggedOut === '1' ? (
                 <StatusBanner tone="success">已安全退出当前会话。</StatusBanner>
               ) : null}
-              {!directoryAvailable ? (
+              {!accountLoginAvailable ? (
                 <StatusBanner tone="warning">
-                  目录账号登录当前不可用，请使用管理员账号登录。
+                  账号登录当前不可用，请联系管理员。
                 </StatusBanner>
               ) : null}
             </div>
 
-            {directoryAvailable ? (
-              <>
-                <DirectoryLoginForm
-                  nextPath={nextPath}
-                  prefillAccount={prefillAccount}
-                />
-                <details className="mt-6 border-t border-border pt-4">
-                  <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
-                    平台管理员登录
-                  </summary>
-                  <AdminLoginForm />
-                </details>
-              </>
-            ) : (
-              <AdminLoginForm />
-            )}
+            {accountLoginAvailable ? (
+              <AccountLoginForm
+                nextPath={nextPath}
+                prefillAccount={prefillAccount}
+              />
+            ) : null}
           </SurfaceBody>
         </Surface>
       </div>

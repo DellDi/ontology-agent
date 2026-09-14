@@ -9,7 +9,7 @@ API/Worker 凭据严格分离，并在同一 Compose 中运行 Property Cube / N
 | 服务 | 镜像来源 | 用途 |
 |---|---|---|
 | `web` | `Dockerfile` | Next.js 页面渲染、Java BFF 透明代理（含认证路由）与 Web 观测；不持有数据库/认证逻辑 |
-| `backend` | `Dockerfile.java` | Java 21 + Spring Boot 4.1 API、认证（登录/退出/ERP 目录解析）、Spring AI Agent 与异步 Worker |
+| `backend` | `Dockerfile.java` | Java 21 + Spring Boot 4.1 API、认证（登录/退出/平台身份与角色装配）、Spring AI Agent 与异步 Worker |
 | `migrate` | `Dockerfile.java` | 一次性 Flyway 初始化入口（`--spring.profiles.active=migrate`）：执行幂等的 `V1__init.sql`，可重复执行 |
 | `postgres` | `postgres:18.2-bookworm` | 业务、任务、事件、治理、图同步与审计事实源 |
 | `redis` | `redis:8.2.5-bookworm` | Java Worker 唤醒；不是任务事实源 |
@@ -21,9 +21,11 @@ API/Worker 凭据严格分离，并在同一 Compose 中运行 Property Cube / N
 生产拓扑不再启动 `src/worker/main.ts`。新 root/follow-up execution 只由 Java 领取；Node ledger 对
 `java-initial-v1` 和 `java-follow-up-v1` 的所有 claim、terminal mutation 与 lease recovery 均拒绝处理。
 
-认证（登录/退出/回调/URL 桥接/Cookie 签名/Session 读写/ERP 目录权限范围解析）全部由 Java 承载，
-Next 侧 6 个认证路由与业务路由一样是透明代理，Web 容器不再注入 `DATABASE_URL`、`REDIS_URL`、
+认证（账号密码登录/退出/URL 桥接/Cookie 签名/Session 读写/平台身份与角色装配）全部由 Java 承载，
+Next 侧认证路由与业务路由一样是透明代理，Web 容器不再注入 `DATABASE_URL`、`REDIS_URL`、
 `SESSION_SECRET` 或任何认证开关。Web 只保留页面渲染、Java BFF、观测与 UI 映射。
+账号由平台自有 `identity.accounts` 承载，经 `POST /api/admin/identity/accounts`（PLATFORM_ADMIN）
+或 `admin-seed` profile 供给；URL 桥接与本地口令登录都要求账号已存在于平台身份表。
 
 ## 发布顺序
 
@@ -90,8 +92,9 @@ Next 侧 6 个认证路由与业务路由一样是透明代理，Web 容器不�
 ## 必填配置
 
 - `SESSION_SECRET`：会话 Cookie 签名密钥（Java backend），必须是生产随机值。
-- `ERP_API_BASE_URL`：ERP 目录认证接口地址（Java backend 登录必需）；目录登录不可用时请确保
-  已配置其他受支持的登录入口，否则登录页会明确提示不可用。
+- `AUTH_LOCAL_PROVIDER_ENABLED`：平台本地账号密码登录（默认 `true`）；关闭后登录页会明确提示
+  账号登录不可用，此时必须经 `admin-seed` 或既有管理员先供给桥接可用的账号。
+- `ENABLE_URL_BRIDGE`：URL 桥接登录开关（默认关），仅供可信上游平台嵌入使用。
 - `COOKIE_SECURE=true`：生产会话 Cookie 必须带 Secure（compose.prod.yaml 已固定）。
 - `POSTGRES_*`、`REDIS_KEY_PREFIX`：容器内部地址由 Compose 固定，不填写宿主机地址。
 - `CUBE_API_SECRET`、`NEO4J_*`：Java evidence 与 Graph Sync 使用。

@@ -213,6 +213,9 @@ class CubeEvidenceAdapterTest {
                 new BackendProperties.Neo4j("bolt://neo4j", "neo4j", "password", "neo4j"),
                 new BackendProperties.Worker(false, Duration.ofSeconds(1)),
                 new BackendProperties.Stream(Duration.ofMillis(10), Duration.ofSeconds(1)),
-                "", "", false, false, false);
+                new BackendProperties.Auth(new BackendProperties.Auth.Providers(
+                        new BackendProperties.Auth.Providers.Local(true),
+                        new BackendProperties.Auth.Providers.Bridge(false))),
+                false);
     }
 }

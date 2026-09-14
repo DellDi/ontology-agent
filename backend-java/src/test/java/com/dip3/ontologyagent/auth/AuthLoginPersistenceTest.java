@@ -13,7 +13,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -25,11 +24,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
 
 @Testcontainers
 @SpringBootTest(properties = "dip3.worker.enabled=false")
@@ -64,8 +60,7 @@ class AuthLoginPersistenceTest {
         registry.add("dip3.worker.poll-delay", () -> "1s");
         registry.add("dip3.stream.poll-delay", () -> "10ms");
         registry.add("dip3.stream.timeout", () -> "1s");
-        registry.add("dip3.dev-auth-enabled", () -> "true");
-        registry.add("dip3.erp-api-base-url", () -> "http://127.0.0.1:1");
+        registry.add("dip3.auth.providers.bridge.enabled", () -> "false");
     }
 
     @BeforeAll
@@ -76,17 +71,15 @@ class AuthLoginPersistenceTest {
     @BeforeEach
     void clean() {
         jdbc.update("truncate platform.auth_sessions");
-        jdbc.update("truncate erp_staging.dw_datacenter_system_organization,"
-                + " erp_staging.dw_datacenter_precinct, erp_staging.dw_datacenter_system_user");
+        jdbc.update("truncate identity.role_grants, identity.accounts cascade");
+        jdbc.update("delete from platform.audit_events where event_type = 'auth.login'");
     }
-
-    @MockitoBean
-    ErpPasswordEncryptor passwordEncryptor;
 
     @Autowired JdbcTemplate jdbc;
     @Autowired AuthSessionRepository sessions;
     @Autowired CookieSessionAuthenticator cookieAuth;
     @Autowired AuthLoginService auth;
+    @Autowired IdentityAccountService accounts;
     @Autowired BackendProperties properties;
 
     @Test
@@ -123,121 +116,124 @@ class AuthLoginPersistenceTest {
     }
 
     @Test
-    void devLoginNormalizesScopeAndDefaultsDisplayName() {
-        AuthLoginService.LoginResult result = auth.devLogin(
-                new AuthLoginService.DevLoginCommand("  user-1 ", "  ", "org-1",
-                        List.of("p1", " p1 ", "", "p2"), List.of(), List.of("a", "b", "b")),
-                "/workspace");
-        assertEquals("user-1", result.session().userId());
-        assertEquals("ERP 用户 user-1", result.session().displayName());
-        assertEquals(List.of("p1", "p2"), result.session().scope().projectIds());
-        assertEquals(List.of("a", "b"), result.session().scope().roleCodes());
-        assertEquals("/workspace", result.nextPath());
-        assertEquals(Optional.of("user-1"),
-                sessions.findValid(result.session().sessionId()).map(AuthSession::userId));
-    }
+    void loginIssuesSessionWithScopeFromPlatformIdentity() {
+        IdentityAccount account = accounts.provision("analyst-a", "分析师甲", "password-123",
+                "org-hz-001", "local", List.of("EASYV_ANALYST"), "test");
 
-    @Test
-    void devLoginRejectedWhenDevAuthDisabled() {
-        BackendProperties disabled = withDevAuth(false);
-        AuthLoginService service = new AuthLoginService(disabled, sessions,
-                new ErpDirectoryService(null), passwordEncryptor);
-        BackendException error = assertThrows(BackendException.class, () -> service.devLogin(
-                new AuthLoginService.DevLoginCommand("user-1", null, "org-1",
-                        List.of(), List.of(), List.of()),
-                "/workspace"));
-        assertEquals("DEV_AUTH_DISABLED", error.code());
-    }
+        AuthLoginService.LoginResult result = auth.login("analyst-a", "password-123", "/workspace");
 
-    @Test
-    void directoryLoginResolvesScopeFromOrganizationPath() {
-        seedOrganization(1L, "platform", "/1");
-        seedOrganization(2L, "propertyProject", "/1/2");
-        seedOrganization(3L, "propertyProject", "/1/2/3");
-        seedPrecinct("project-2", "2", 0, 0);
-        seedPrecinct("project-3", "3", 0, 0);
-        seedPrecinct("project-deleted", "3", 1, 0);
-        seedUser(10L, "analyst-a", "encrypted-password", 1L, "1", 0, "分析师甲");
-
-        when(passwordEncryptor.encrypt(anyString())).thenReturn(Optional.of("encrypted-password"));
-        AuthLoginService.LoginResult result = auth.directoryLogin("analyst-a", "plain", "/workspace");
-
-        assertEquals("10", result.session().userId());
+        assertEquals(String.valueOf(account.id()), result.session().userId());
         assertEquals("分析师甲", result.session().displayName());
-        assertEquals("1", result.session().scope().organizationId());
-        // 组织 1 的后代 propertyProject（2、3）下的未删除项目
-        assertEquals(List.of("project-2", "project-3"), result.session().scope().projectIds());
-        // 目录登录统一授予业务分析角色（当前阶段含 EasyV 域），不存在账号名特判
-        assertEquals(List.of(ErpDirectoryService.PROPERTY_ANALYST, ErpDirectoryService.EASYV_ANALYST),
-                result.session().scope().roleCodes());
+        assertEquals("org-hz-001", result.session().scope().organizationId());
+        assertEquals(List.of("EASYV_ANALYST"), result.session().scope().roleCodes());
+        assertTrue(result.session().scope().projectIds().isEmpty());
+        assertEquals("/workspace", result.nextPath());
+        assertEquals(Optional.of(String.valueOf(account.id())),
+                sessions.findValid(result.session().sessionId()).map(AuthSession::userId));
+        assertEquals(1, jdbc.queryForObject(
+                "select count(*) from platform.audit_events where event_type='auth.login' and event_result='success'",
+                Integer.class));
     }
 
     @Test
-    void adminAccountGetsNoSpecialPlatformAdminRole() {
-        seedOrganization(1L, "platform", "/1");
-        seedOrganization(2L, "propertyProject", "/1/2");
-        seedPrecinct("project-2", "2", 0, 0);
-        seedUser(20L, "admin", "encrypted-admin", 1L, "1", 0, "管理员");
+    void loginDefaultsToAdminLandingForPlatformAdmin() {
+        accounts.provision("operator", null, "admin-password-123",
+                null, "local", List.of(IdentityAccountService.PLATFORM_ADMIN), "test");
 
-        when(passwordEncryptor.encrypt(anyString())).thenReturn(Optional.of("encrypted-admin"));
-        AuthLoginService.LoginResult result = auth.directoryLogin("admin", "plain", "/workspace");
+        AuthLoginService.LoginResult result = auth.login("operator", "admin-password-123", null);
 
-        assertEquals(List.of(ErpDirectoryService.PROPERTY_ANALYST, ErpDirectoryService.EASYV_ANALYST),
-                result.session().scope().roleCodes());
-        assertFalse(result.session().scope().roleCodes().contains("PLATFORM_ADMIN"));
+        assertEquals("/admin/ingestion", result.nextPath());
+        assertEquals("platform", result.session().scope().organizationId());
+        assertEquals(List.of("PLATFORM_ADMIN"), result.session().scope().roleCodes());
     }
 
     @Test
-    void directoryLoginRejectsWrongPasswordDisabledAccountAndUnknownAccount() {
-        seedUser(30L, "active-user", "correct", 1L, "1", 0, "正常账号");
-        seedUser(31L, "disabled-user", "correct", 1L, "0", 0, "停用账号");
+    void loginRejectsWrongPasswordUnknownAccountAndDisabledAccount() {
+        accounts.provision("active-user", null, "correct-password",
+                "org-1", "local", List.of("EASYV_ANALYST"), "test");
+        IdentityAccount disabled = accounts.provision("disabled-user", null, "correct-password",
+                "org-1", "local", List.of(), "test");
+        accounts.setStatus(disabled.id(), "disabled");
 
-        when(passwordEncryptor.encrypt(anyString())).thenReturn(Optional.of("wrong"));
         BackendException wrongPassword = assertThrows(BackendException.class,
-                () -> auth.directoryLogin("active-user", "bad", "/workspace"));
-        assertEquals("密码错误，请重试。", wrongPassword.getMessage());
-
-        when(passwordEncryptor.encrypt(anyString())).thenReturn(Optional.of("correct"));
-        BackendException disabled = assertThrows(BackendException.class,
-                () -> auth.directoryLogin("disabled-user", "correct", "/workspace"));
-        assertEquals("该账号已停用，请联系管理员。", disabled.getMessage());
+                () -> auth.login("active-user", "bad-password", "/workspace"));
+        assertEquals(AuthLoginService.INVALID_CREDENTIALS, wrongPassword.code());
 
         BackendException unknown = assertThrows(BackendException.class,
-                () -> auth.directoryLogin("nobody", "correct", "/workspace"));
-        assertEquals("账号不存在，请检查后重试。", unknown.getMessage());
+                () -> auth.login("nobody", "correct-password", "/workspace"));
+        assertEquals(AuthLoginService.INVALID_CREDENTIALS, unknown.code());
 
         BackendException empty = assertThrows(BackendException.class,
-                () -> auth.directoryLogin("  ", "correct", "/workspace"));
-        assertEquals("账号不能为空。", empty.getMessage());
+                () -> auth.login("  ", "correct-password", "/workspace"));
+        assertEquals(AuthLoginService.INVALID_CREDENTIALS, empty.code());
+
+        BackendException disabledLogin = assertThrows(BackendException.class,
+                () -> auth.login("disabled-user", "correct-password", "/workspace"));
+        assertEquals(AuthLoginService.INVALID_CREDENTIALS, disabledLogin.code());
+        assertTrue(jdbc.queryForObject(
+                "select count(*) from platform.audit_events where event_type='auth.login' and event_result='denied'",
+                Integer.class) >= 1);
     }
 
     @Test
-    void urlBridgeLoginSkipsPasswordButKeepsAccountChecks() {
-        seedOrganization(1L, "platform", "/1");
-        seedOrganization(2L, "propertyProject", "/1/2");
-        seedPrecinct("project-2", "2", 0, 0);
-        seedUser(40L, "bridge-user", "irrelevant", 1L, "1", 0, "桥接用户");
+    void failedPasswordAttemptsLockAccountTemporarily() {
+        accounts.provision("lock-user", null, "correct-password",
+                "org-1", "local", List.of("EASYV_ANALYST"), "test");
 
-        AuthLoginService.LoginResult result = auth.urlBridgeLogin("bridge-user", "/admin/ontology");
-        assertEquals("/admin/ontology", result.nextPath());
-        assertEquals(List.of("project-2"), result.session().scope().projectIds());
+        for (int i = 0; i < 5; i++) {
+            assertThrows(BackendException.class,
+                    () -> auth.login("lock-user", "wrong-password", "/workspace"));
+        }
+        // 5 次失败后即使正确密码也被锁定拒绝
+        assertThrows(BackendException.class,
+                () -> auth.login("lock-user", "correct-password", "/workspace"));
+
+        jdbc.update("update identity.accounts set locked_until = now() - interval '1 second'"
+                + " where account = 'lock-user'");
+        assertEquals("/workspace",
+                auth.login("lock-user", "correct-password", "/workspace").nextPath());
+    }
+
+    @Test
+    void bridgeLoginRequiresEnabledFlagAndProvisionedAccount() {
+        accounts.provision("bridge-user", "桥接用户", null,
+                "org-easyv", "bridge", List.of("EASYV_ANALYST"), "test");
+
+        BackendException disabled = assertThrows(BackendException.class,
+                () -> auth.bridgeLogin("bridge-user", "/workspace"));
+        assertEquals(AuthLoginService.BRIDGE_DISABLED, disabled.code());
+
+        BackendProperties enabled = new BackendProperties(properties.sessionSecret(),
+                properties.redisKeyPrefix(), properties.cube(), properties.neo4j(),
+                properties.worker(), properties.stream(),
+                new BackendProperties.Auth(new BackendProperties.Auth.Providers(
+                        new BackendProperties.Auth.Providers.Local(true),
+                        new BackendProperties.Auth.Providers.Bridge(true))),
+                properties.cookieSecure());
+        AuthLoginService bridgeAuth = new AuthLoginService(enabled, sessions, accounts,
+                List.of(new LocalIdentityProvider(accounts)));
+
+        AuthLoginService.LoginResult result = bridgeAuth.bridgeLogin("bridge-user", "/workspace");
+        assertEquals("org-easyv", result.session().scope().organizationId());
+        assertEquals(List.of("EASYV_ANALYST"), result.session().scope().roleCodes());
 
         BackendException unknown = assertThrows(BackendException.class,
-                () -> auth.urlBridgeLogin("nobody", "/workspace"));
-        assertEquals("账号不存在，请检查后重试。", unknown.getMessage());
+                () -> bridgeAuth.bridgeLogin("not-provisioned", "/workspace"));
+        assertEquals(AuthLoginService.INVALID_CREDENTIALS, unknown.code());
     }
 
     @Test
     void logoutDeletesOnlyOwnSession() {
-        AuthSession first = auth.devLogin(new AuthLoginService.DevLoginCommand("u-1", null, "org-1",
-                List.of(), List.of(), List.of()), "/workspace").session();
-        AuthSession second = auth.devLogin(new AuthLoginService.DevLoginCommand("u-2", null, "org-1",
-                List.of(), List.of(), List.of()), "/workspace").session();
+        accounts.provision("u-1", null, "password-123", "org-1", "local", List.of(), "test");
+        accounts.provision("u-2", null, "password-123", "org-1", "local", List.of(), "test");
+        AuthSession first = auth.login("u-1", "password-123", "/workspace").session();
+        AuthSession second = auth.login("u-2", "password-123", "/workspace").session();
 
         auth.logout(first.sessionId());
 
         assertEquals(Optional.empty(), sessions.findValid(first.sessionId()));
-        assertEquals(Optional.of("u-2"), sessions.findValid(second.sessionId()).map(AuthSession::userId));
+        assertEquals(Optional.of(second.userId()),
+                sessions.findValid(second.sessionId()).map(AuthSession::userId));
     }
 
     @Test
@@ -255,37 +251,8 @@ class AuthLoginPersistenceTest {
     }
 
     @Test
-    void authConfigReflectsDirectoryAvailability() {
-        assertEquals("http://127.0.0.1:1", properties.erpApiBaseUrl());
-        assertTrue(properties.directoryAuthAvailable());
-    }
-
-    private BackendProperties withDevAuth(boolean devEnabled) {
-        return new BackendProperties(properties.sessionSecret(), properties.redisKeyPrefix(),
-                properties.cube(), properties.neo4j(), properties.worker(), properties.stream(),
-                properties.erpApiBaseUrl(), properties.erpApiOrigin(), devEnabled,
-                properties.urlBridgeEnabled(), properties.cookieSecure());
-    }
-
-    private void seedOrganization(long sourceId, String nature, String path) {
-        jdbc.update("insert into erp_staging.dw_datacenter_system_organization"
-                        + " (source_id, organization_name, organization_nature, organization_path)"
-                        + " values (?, ?, ?, ?)",
-                sourceId, "组织" + sourceId, nature, path);
-    }
-
-    private void seedPrecinct(String precinctId, String orgId, int isDelete, int deleteFlag) {
-        jdbc.update("insert into erp_staging.dw_datacenter_precinct"
-                        + " (precinct_id, precinct_name, org_id, is_delete, delete_flag)"
-                        + " values (?, ?, ?, ?, ?)",
-                precinctId, "项目" + precinctId, orgId, isDelete, deleteFlag);
-    }
-
-    private void seedUser(long sourceId, String account, String password, long organizationId,
-                          String isActived, int isDeleted, String sentryName) {
-        jdbc.update("insert into erp_staging.dw_datacenter_system_user"
-                        + " (source_id, user_account, user_password, organization_id, is_actived, is_deleted, sentry_name)"
-                        + " values (?, ?, ?, ?, ?, ?, ?)",
-                sourceId, account, password, organizationId, isActived, isDeleted, sentryName);
+    void authConfigReflectsLocalProviderAvailability() {
+        assertTrue(properties.auth().providers().local().enabled());
+        assertFalse(properties.auth().providers().bridge().enabled());
     }
 }

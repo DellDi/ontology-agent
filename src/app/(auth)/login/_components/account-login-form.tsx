@@ -5,28 +5,39 @@ import { useFormStatus } from 'react-dom';
 import { Button } from '@/app/_components/workbench/button';
 import { Field, FieldInput, FieldLabel } from '@/app/_components/workbench/field';
 
-export function AdminLoginForm() {
+type AccountLoginFormProps = {
+  nextPath: string;
+  prefillAccount?: string;
+};
+
+export function AccountLoginForm({
+  nextPath,
+  prefillAccount,
+}: AccountLoginFormProps) {
   return (
-    <form
-      action="/api/auth/admin-login"
-      method="post"
-      className="mt-4 space-y-4"
-    >
-      <AdminLoginControls />
+    <form action="/api/auth/login" method="post" className="mt-5 space-y-4">
+      <input type="hidden" name="next" value={nextPath} />
+      <AccountLoginControls prefillAccount={prefillAccount} />
     </form>
   );
 }
 
-function AdminLoginControls() {
+function AccountLoginControls({
+  prefillAccount,
+}: {
+  prefillAccount?: string;
+}) {
   const { pending } = useFormStatus();
 
   return (
     <>
       <Field required disabled={pending}>
-        <FieldLabel>管理员账号</FieldLabel>
+        <FieldLabel>账号</FieldLabel>
         <FieldInput
           type="text"
           name="account"
+          placeholder="登录账号"
+          defaultValue={prefillAccount}
           autoComplete="username"
           required
           maxLength={100}
@@ -38,6 +49,7 @@ function AdminLoginControls() {
         <FieldInput
           type="password"
           name="password"
+          placeholder="登录密码"
           autoComplete="current-password"
           required
           maxLength={1024}

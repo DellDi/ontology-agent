@@ -13,8 +13,7 @@ import java.time.Duration;
 public record BackendProperties(@NotBlank String sessionSecret, @NotBlank String redisKeyPrefix,
                                 @Valid @NotNull Cube cube, @Valid @NotNull Neo4j neo4j,
                                 @Valid @NotNull Worker worker, @Valid @NotNull Stream stream,
-                                String erpApiBaseUrl, String erpApiOrigin,
-                                boolean devAuthEnabled, boolean urlBridgeEnabled,
+                                @Valid @NotNull Auth auth,
                                 boolean cookieSecure) {
     public record Cube(@NotBlank String apiUrl, @NotBlank String apiSecret, @NotNull Duration timeout) {}
     public record Neo4j(@NotBlank String uri, @NotBlank String username, @NotBlank String password,
@@ -22,8 +21,16 @@ public record BackendProperties(@NotBlank String sessionSecret, @NotBlank String
     public record Worker(boolean enabled, @NotNull Duration pollDelay) {}
     public record Stream(@NotNull Duration pollDelay, @NotNull Duration timeout) {}
 
-    /** 目录登录是否可用：必须显式配置 ERP 目录接口地址。 */
-    public boolean directoryAuthAvailable() {
-        return erpApiBaseUrl() != null && !erpApiBaseUrl().isBlank();
+    public record Auth(@Valid @NotNull Providers providers) {
+        public record Providers(@Valid @NotNull Local local, @Valid @NotNull Bridge bridge) {
+            /** 平台本地账号口令登录（identity.accounts）。 */
+            public record Local(boolean enabled) {}
+
+            /**
+             * URL 桥接登录（可信上游平台跳转，如 EasyV 嵌入）。
+             * 账号须由管理员预先供给；不自动注册未知账号。
+             */
+            public record Bridge(boolean enabled) {}
+        }
     }
 }

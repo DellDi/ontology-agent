@@ -4,7 +4,9 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { stopProcessTree } from './helpers/stop-process-tree.mjs';
 import { spawn } from 'node:child_process';
+import { pbkdf2Sync, randomBytes } from 'node:crypto';
 import net from 'node:net';
+import netns from 'node:net';
 
 import { ensureNextBuildReady } from './helpers/ensure-next-build-ready.mjs';
 
@@ -22,19 +24,25 @@ const TEST_JAVA_DATABASE_ENV = {
 const TEST_REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 const TEST_REDIS_KEY_PREFIX = process.env.REDIS_KEY_PREFIX ?? 'dip3';
 const TEST_SESSION_SECRET = 'story-7-5-test-secret';
-const TEST_ERP_API_BASE_URL = process.env.ERP_API_BASE_URL ?? '';
 
-const TEST_USER_ACCOUNT = process.env.TEST_ERP_ACCOUNT ?? '';
-const TEST_USER_PASSWORD = process.env.TEST_ERP_PASSWORD ?? '';
+const TEST_USER_ACCOUNT = 'story-7-5-user';
+const TEST_USER_PASSWORD = 'story-7-5-password';
+const TEST_USER_ORG = 'story-7-5-org';
 
-const DIRECTORY_AUTH_AVAILABLE =
-  Boolean(TEST_ERP_API_BASE_URL) &&
-  Boolean(TEST_USER_ACCOUNT) &&
-  Boolean(TEST_USER_PASSWORD);
+const JAVA_BACKEND_PORT = 8080;
+const JAVA_BACKEND_URL = `http://127.0.0.1:${JAVA_BACKEND_PORT}`;
 
 let port;
 let baseUrl;
 let serverProcess;
+let backendProcess;
+let accountAuthAvailable = false;
+
+function hashPassword(password) {
+  const salt = randomBytes(16);
+  const derived = pbkdf2Sync(password, salt, 600_000, 32, 'sha256');
+  return `pbkdf2:${salt.toString('base64')}:${derived.toString('base64')}`;
+}
 
 async function getAvailablePort() {
   return await new Promise((resolve, reject) => {
@@ -62,6 +70,21 @@ async function getAvailablePort() {
   });
 }
 
+async function tcpReachable(portToCheck) {
+  return await new Promise((resolve) => {
+    const socket = netns.createConnection({ port: portToCheck, host: '127.0.0.1' });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('error', () => resolve(false));
+    socket.setTimeout(1000, () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+
 async function waitForServerReady(processHandle) {
   const start = Date.now();
 
@@ -86,6 +109,32 @@ async function waitForServerReady(processHandle) {
   throw new Error('Next server did not become ready in time.');
 }
 
+async function waitForBackendReady(processHandle) {
+  const start = Date.now();
+
+  while (Date.now() - start < 120_000) {
+    if (processHandle.exitCode !== null) {
+      throw new Error(
+        `Java backend exited early with code ${processHandle.exitCode}.`,
+      );
+    }
+
+    try {
+      const response = await fetch(`${JAVA_BACKEND_URL}/api/auth/config`, {
+        redirect: 'manual',
+      });
+
+      if (response.status > 0) {
+        return;
+      }
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  throw new Error('Java backend did not become ready in time.');
+}
+
 async function runTsSnippet(code) {
   const { stdout } = await execFileAsync(
     'node',
@@ -98,8 +147,6 @@ async function runTsSnippet(code) {
         REDIS_URL: TEST_REDIS_URL,
         REDIS_KEY_PREFIX: TEST_REDIS_KEY_PREFIX,
         SESSION_SECRET: TEST_SESSION_SECRET,
-        ERP_API_BASE_URL: TEST_ERP_API_BASE_URL,
-        ENABLE_URL_BRIDGE: '1',
       },
     },
   );
@@ -107,12 +154,38 @@ async function runTsSnippet(code) {
   return JSON.parse(stdout.trim());
 }
 
-async function loginWithDirectory({ account, password }) {
+async function provisionTestAccount() {
+  const hash = hashPassword(TEST_USER_PASSWORD);
+  await runTsSnippet(`
+    import pg from 'pg';
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    try {
+      await pool.query(
+        'INSERT INTO identity.accounts ' +
+        '(account, password_hash, display_name, organization_id, source, status, roles, failed_attempts) ' +
+        "VALUES ($1, $2, 'Story7.5 测试', $3, 'local', 'active', '[]'::jsonb, 0) " +
+        'ON CONFLICT (account) DO UPDATE ' +
+        'SET password_hash = EXCLUDED.password_hash, ' +
+        "status = 'active', failed_attempts = 0, locked_until = NULL",
+        [${JSON.stringify(TEST_USER_ACCOUNT)}, ${JSON.stringify(hash)}, ${JSON.stringify(TEST_USER_ORG)}]
+      );
+      await pool.query(
+        'INSERT INTO identity.role_grants (account_id, role_code) ' +
+        "SELECT id, 'EASYV_ANALYST' FROM identity.accounts WHERE account = $1 " +
+        'ON CONFLICT (account_id, role_code) DO NOTHING',
+        [${JSON.stringify(TEST_USER_ACCOUNT)}]
+      );
+      console.log(JSON.stringify({ ok: true }));
+    } finally { await pool.end(); }
+  `);
+}
+
+async function loginWithAccount({ account, password }) {
   const formData = new FormData();
   formData.set('account', account);
   formData.set('password', password);
 
-  return await fetch(`${baseUrl}/api/auth/directory-login`, {
+  return await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     body: formData,
     redirect: 'manual',
@@ -129,13 +202,20 @@ async function loginWithUrlBridge(account) {
   );
 }
 
+function skipUnlessReady(t) {
+  if (!accountAuthAvailable) {
+    t.skip('需要本地 DATABASE_URL / REDIS_URL 可达且 mvn 可用才能运行此测试。');
+    return true;
+  }
+  return false;
+}
+
 test.before(async () => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
+  const databasePort = Number(parsedDatabaseUrl.port || 5432);
+  const redisPort = Number(new URL(TEST_REDIS_URL).port || 6379);
+  if (!(await tcpReachable(databasePort)) || !(await tcpReachable(redisPort))) {
     return;
   }
-
-  port = await getAvailablePort();
-  baseUrl = `http://127.0.0.1:${port}`;
 
   await execFileAsync('mise', [
     'exec',
@@ -152,16 +232,61 @@ test.before(async () => {
     env: { ...process.env, ...TEST_JAVA_DATABASE_ENV },
   });
 
+  backendProcess = spawn(
+    'mise',
+    [
+      'exec',
+      'java@temurin-21.0.12+8.0.LTS',
+      '--',
+      'mvn',
+      '-f',
+      'backend-java/pom.xml',
+      '-q',
+      'spring-boot:run',
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ...TEST_JAVA_DATABASE_ENV,
+        REDIS_URL: TEST_REDIS_URL,
+        REDIS_KEY_PREFIX: TEST_REDIS_KEY_PREFIX,
+        SESSION_SECRET: TEST_SESSION_SECRET,
+        ENABLE_URL_BRIDGE: 'true',
+        DIP3_PROPERTY_ENABLED: 'false',
+        CUBE_API_URL: 'http://127.0.0.1:9/cubejs-api/v1',
+        CUBE_API_SECRET: 'story-7-5-cube-secret',
+        CUBE_QUERY_TIMEOUT_MS: '1000',
+        NEO4J_URI: 'bolt://127.0.0.1:9',
+        NEO4J_USERNAME: 'neo4j',
+        NEO4J_PASSWORD: 'story-7-5-neo4j',
+        LLM_ANALYSIS_PROVIDER: 'openai',
+        LLM_ANALYSIS_BASE_URL: 'http://127.0.0.1:9',
+        LLM_ANALYSIS_API_KEY: 'story-7-5-llm-key',
+        LLM_ANALYSIS_MODEL: 'test-model',
+        LLM_SUMMARY_PROVIDER: 'openai',
+        LLM_SUMMARY_BASE_URL: 'http://127.0.0.1:9',
+        LLM_SUMMARY_API_KEY: 'story-7-5-llm-key',
+        LLM_SUMMARY_MODEL: 'test-model',
+        LLM_ANALYSIS_TIMEOUT_MS: '1000',
+        LLM_SUMMARY_TIMEOUT_MS: '1000',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+
+  await waitForBackendReady(backendProcess);
+  await provisionTestAccount();
+
+  port = await getAvailablePort();
+  baseUrl = `http://127.0.0.1:${port}`;
+
   await ensureNextBuildReady({
     cwd: process.cwd(),
     env: {
       ...process.env,
       SESSION_SECRET: TEST_SESSION_SECRET,
-      DATABASE_URL: TEST_DATABASE_URL,
-      REDIS_URL: TEST_REDIS_URL,
-      REDIS_KEY_PREFIX: TEST_REDIS_KEY_PREFIX,
-      ERP_API_BASE_URL: TEST_ERP_API_BASE_URL,
-      ENABLE_URL_BRIDGE: '1',
+      JAVA_BACKEND_URL,
     },
   });
 
@@ -173,32 +298,31 @@ test.before(async () => {
       env: {
         ...process.env,
         SESSION_SECRET: TEST_SESSION_SECRET,
-        DATABASE_URL: TEST_DATABASE_URL,
-        REDIS_URL: TEST_REDIS_URL,
-        REDIS_KEY_PREFIX: TEST_REDIS_KEY_PREFIX,
-        ERP_API_BASE_URL: TEST_ERP_API_BASE_URL,
-        ENABLE_URL_BRIDGE: '1',
+        JAVA_BACKEND_URL,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   );
 
   await waitForServerReady(serverProcess);
+  accountAuthAvailable = true;
 });
 
 test.after(async () => {
   if (serverProcess) {
-  await stopProcessTree(serverProcess);
+    await stopProcessTree(serverProcess);
+  }
+  if (backendProcess) {
+    await stopProcessTree(backendProcess);
   }
 });
 
 test('Story 7.5 账号密码登录成功并跳转工作台', async (t) => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
-    t.skip('需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT / TEST_ERP_PASSWORD 环境变量才能运行此测试。');
+  if (skipUnlessReady(t)) {
     return;
   }
 
-  const response = await loginWithDirectory({
+  const response = await loginWithAccount({
     account: TEST_USER_ACCOUNT,
     password: TEST_USER_PASSWORD,
   });
@@ -216,12 +340,11 @@ test('Story 7.5 账号密码登录成功并跳转工作台', async (t) => {
 });
 
 test('Story 7.5 密码错误登录失败并跳回登录页', async (t) => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
-    t.skip('需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT / TEST_ERP_PASSWORD 环境变量。');
+  if (skipUnlessReady(t)) {
     return;
   }
 
-  const response = await loginWithDirectory({
+  const response = await loginWithAccount({
     account: TEST_USER_ACCOUNT,
     password: 'wrong-password-that-will-never-match-#!$',
   });
@@ -236,12 +359,11 @@ test('Story 7.5 密码错误登录失败并跳回登录页', async (t) => {
 });
 
 test('Story 7.5 账号不存在登录失败并跳回登录页', async (t) => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
-    t.skip('需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT / TEST_ERP_PASSWORD 环境变量。');
+  if (skipUnlessReady(t)) {
     return;
   }
 
-  const response = await loginWithDirectory({
+  const response = await loginWithAccount({
     account: 'account-that-does-not-exist-7x5z',
     password: 'anypassword',
   });
@@ -253,8 +375,7 @@ test('Story 7.5 账号不存在登录失败并跳回登录页', async (t) => {
 });
 
 test('Story 7.5 用户停用登录失败', async (t) => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
-    t.skip('需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT / TEST_ERP_PASSWORD 环境变量。');
+  if (skipUnlessReady(t)) {
     return;
   }
 
@@ -263,7 +384,7 @@ test('Story 7.5 用户停用登录失败', async (t) => {
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
     try {
       await pool.query(
-        "UPDATE erp_staging.dw_datacenter_system_user SET is_actived = '0' WHERE user_account = $1",
+        "UPDATE identity.accounts SET status = 'disabled' WHERE account = $1",
         [${JSON.stringify(TEST_USER_ACCOUNT)}]
       );
       console.log(JSON.stringify({ ok: true }));
@@ -271,7 +392,7 @@ test('Story 7.5 用户停用登录失败', async (t) => {
   `);
 
   try {
-    const response = await loginWithDirectory({
+    const response = await loginWithAccount({
       account: TEST_USER_ACCOUNT,
       password: TEST_USER_PASSWORD,
     });
@@ -286,7 +407,7 @@ test('Story 7.5 用户停用登录失败', async (t) => {
       const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
       try {
         await pool.query(
-          "UPDATE erp_staging.dw_datacenter_system_user SET is_actived = '1' WHERE user_account = $1",
+          "UPDATE identity.accounts SET status = 'active' WHERE account = $1",
           [${JSON.stringify(TEST_USER_ACCOUNT)}]
         );
         console.log(JSON.stringify({ ok: true }));
@@ -295,9 +416,8 @@ test('Story 7.5 用户停用登录失败', async (t) => {
   }
 });
 
-test('Story 7.5 URL 桥接可直接按 account 进入工作台', async (t) => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
-    t.skip('需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT / TEST_ERP_PASSWORD 环境变量。');
+test('Story 7.5 URL 桥接可直接按已供给 account 进入工作台', async (t) => {
+  if (skipUnlessReady(t)) {
     return;
   }
 
@@ -315,8 +435,7 @@ test('Story 7.5 URL 桥接可直接按 account 进入工作台', async (t) => {
 });
 
 test('Story 7.5 URL 桥接缺少 account 参数返回登录页错误', async (t) => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
-    t.skip('需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT / TEST_ERP_PASSWORD 环境变量。');
+  if (skipUnlessReady(t)) {
     return;
   }
 
@@ -330,14 +449,13 @@ test('Story 7.5 URL 桥接缺少 account 参数返回登录页错误', async (t)
   assert.ok(location.includes('error='), '应带 error 参数');
 });
 
-test('Story 7.5 直接登录与 URL 桥接得到的 scope 来源一致（不含 areaId）', async (t) => {
-  if (!DIRECTORY_AUTH_AVAILABLE) {
-    t.skip('需要 ERP_API_BASE_URL / TEST_ERP_ACCOUNT / TEST_ERP_PASSWORD 环境变量。');
+test('Story 7.5 直接登录与 URL 桥接得到的 scope 来源一致', async (t) => {
+  if (skipUnlessReady(t)) {
     return;
   }
 
   // 直接登录获取 scope
-  const directResponse = await loginWithDirectory({
+  const directResponse = await loginWithAccount({
     account: TEST_USER_ACCOUNT,
     password: TEST_USER_PASSWORD,
   });
@@ -351,18 +469,23 @@ test('Story 7.5 直接登录与 URL 桥接得到的 scope 来源一致（不含 
   assert.equal(directMeResponse.status, 200, '/api/auth/me 应返回 200');
   const directMe = await directMeResponse.json();
 
+  assert.equal(
+    directMe.scope?.organizationId,
+    TEST_USER_ORG,
+    'scope.organizationId 应来自平台身份表',
+  );
   assert.ok(
     Array.isArray(directMe.scope?.areaIds) && directMe.scope.areaIds.length === 0,
     'scope.areaIds 应为空数组，不再作为权限链路',
   );
   assert.ok(
     Array.isArray(directMe.scope?.projectIds) &&
-      directMe.scope.projectIds.length > 0,
-    '目录登录成功后必须自动解析出非空 projectIds',
+      directMe.scope.projectIds.length === 0,
+    '平台身份模型下 projectIds 由 domain pack 运行时解析，会话内为空',
   );
   assert.ok(
-    typeof directMe.scope?.organizationId === 'string' && directMe.scope.organizationId,
-    'scope.organizationId 应来自目录',
+    directMe.scope?.roles?.includes('EASYV_ANALYST'),
+    'scope.roles 应包含授予的 EASYV_ANALYST',
   );
 
   // URL 桥接获取 scope
@@ -382,15 +505,5 @@ test('Story 7.5 直接登录与 URL 桥接得到的 scope 来源一致（不含 
     directMe.scope,
     bridgeMe.scope,
     '直接登录与 URL 桥接的 scope 应完全一致',
-  );
-
-  assert.ok(
-    Array.isArray(bridgeMe.scope?.areaIds) && bridgeMe.scope.areaIds.length === 0,
-    'URL 桥接 scope.areaIds 应为空数组',
-  );
-  assert.ok(
-    Array.isArray(bridgeMe.scope?.projectIds) &&
-      bridgeMe.scope.projectIds.length > 0,
-    'URL 桥接成功后也必须自动解析出非空 projectIds',
   );
 });

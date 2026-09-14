@@ -6,7 +6,8 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-final class AdminPasswordHash {
+/** 平台账号口令哈希（PBKDF2-HmacSHA256，600k 迭代，随机盐）。 */
+final class PasswordHash {
     private static final int ITERATIONS = 600_000;
     static String hash(String password) {
         byte[] salt = new byte[16]; new SecureRandom().nextBytes(salt);
@@ -14,7 +15,7 @@ final class AdminPasswordHash {
     }
     static boolean matches(String password, String encoded) {
         String[] parts = encoded.split(":", -1);
-        if (parts.length != 2) throw new IllegalStateException("Invalid stored administrator password hash");
+        if (parts.length != 2) throw new IllegalStateException("Invalid stored password hash");
         return MessageDigest.isEqual(derive(password, Base64.getDecoder().decode(parts[0])), Base64.getDecoder().decode(parts[1]));
     }
     private static byte[] derive(String password, byte[] salt) {
