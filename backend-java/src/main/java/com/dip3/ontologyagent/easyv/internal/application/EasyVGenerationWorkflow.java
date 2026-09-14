@@ -519,7 +519,8 @@ public final class EasyVGenerationWorkflow {
         || request.from() == null
         || request.to() == null
         || request.from().isAfter(request.to())
-        || java.time.temporal.ChronoUnit.DAYS.between(request.from(), request.to()) > 366) {
+        || (request.from().isAfter(EasyVDateRange.UNBOUNDED_FROM)
+            && java.time.temporal.ChronoUnit.DAYS.between(request.from(), request.to()) > 366)) {
       throw new BackendException("EASYV_REQUEST_INVALID", "EasyV 生成质量分析请求无效。");
     }
     if (request.ontology() == null || !request.ontologyVersionId().equals(request.ontology().versionId())) {
