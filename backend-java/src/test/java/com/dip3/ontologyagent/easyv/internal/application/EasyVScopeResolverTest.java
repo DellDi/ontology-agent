@@ -20,7 +20,7 @@ class EasyVScopeResolverTest {
     AuthSession principal = principal("123", List.of("EASYV_ANALYST"));
     ResolvedScopeSnapshot snapshot = resolver.resolveScope(principal);
 
-    assertEquals(Map.of("userId", "123", "accessMode", "creator-owned"), snapshot.values());
+    assertEquals(Map.of("userId", "123", "accessMode", "all"), snapshot.values());
     assertThrows(
         BackendException.class,
         () -> resolver.resolveScope(principal("0", List.of("EASYV_ANALYST"))));
@@ -53,7 +53,7 @@ class EasyVScopeResolverTest {
                 BackendException.class,
                 () ->
                     resolver.validateScope(
-                        new ResolvedScopeSnapshot("property", 1, Map.of("userId", "123", "accessMode", "creator-owned")),
+                        new ResolvedScopeSnapshot("property", 1, Map.of("userId", "123", "accessMode", "all")),
                         principal))
             .code());
   }

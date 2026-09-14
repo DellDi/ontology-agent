@@ -3,6 +3,7 @@ package com.dip3.ontologyagent.easyv.internal.adapter.out.llm;
 import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationRequest;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVScopeResolver;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationWorkflow;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVDateRange;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
@@ -179,7 +180,7 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
                     input.from(),
                     input.to(),
                     principal.userId(),
-                    "creator-owned",
+                    EasyVScopeResolver.ACCESS_MODE,
                     turn.effectiveContext(),
                     Instant.now()));
         recorder.succeedWhileLeased(

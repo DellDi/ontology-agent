@@ -11,7 +11,7 @@
 - Property：物业收费率分析，作为既有回归能力；
 - EasyV：AI 大屏生成质量分析，作为第二个只读 Domain Pack。
 
-重点不是展示一个聊天机器人，而是展示可验证的链路：自然语言候选选择、Ontology version pin、creator-owned scope、确定性 facts workflow、evidence/claim contract 和 follow-up binding。
+重点不是展示一个聊天机器人，而是展示可验证的链路：自然语言候选选择、Ontology version pin、accessMode=all scope、确定性 facts workflow、evidence/claim contract 和 follow-up binding。
 
 建议讲解节奏为 20–30 分钟：架构背景 4–5 分钟，Property 对照 3–4 分钟，EasyV 主场景 8–10 分钟，追问与失败边界 5–7 分钟，讨论 2–4 分钟。实际耗时取决于环境和现场问题。
 
@@ -62,7 +62,7 @@ dip3.easyv.source.enabled = ${EASYV_POSTGRES_ENABLED:false}
 1. 已完成 Flyway 初始化，Property 基线可读取。
 2. EasyV 使用 `ontology-java-multidomain-v2`（`2.0.0`），而不是让演示者手工伪造 ontology key。
 3. 演示账号具有 Property 所需权限；EasyV 账号具有 `EASYV_ANALYST`，且 userId 是可信正数。
-4. EasyV V1 scope 仅为 `{userId, accessMode:"creator-owned"}`，不使用 `projectIds/areaIds`，也不把未确认的 `spaceIds/teamIds` 当作当前能力。
+4. EasyV V1 scope 仅为 `{userId, accessMode:"all"}`，不使用 `projectIds/areaIds`，也不把未确认的 `spaceIds/teamIds` 当作当前能力。
 5. 推荐 EasyV cohort 为 `2026-07-24`；现场应明确这是开发库已验证的日期范围，不是生产统计口径。
 6. 如果只演示架构链路而不读取 EasyV 数据，保持 `EASYV_DOMAIN_ENABLED=false`，使用测试 fixture 或已验证的只读测试环境。
 
@@ -94,7 +94,7 @@ dip3.easyv.source.enabled = ${EASYV_POSTGRES_ENABLED:false}
 ### 预期链路
 
 1. **候选选择**：问题包含明确的 EasyV/大屏生成/质量/阶段/失败语义，Registry 返回唯一 `easyv/generation-quality-analysis`；不能依赖注册顺序。
-2. **绑定**：提交时固定 `domainKey`、capability、Ontology v2 和 creator-owned scope。scope snapshot 只保存可信 `userId` 与 `accessMode=creator-owned`。
+2. **绑定**：提交时固定 `domainKey`、capability、Ontology v2 和 全量 scope。scope snapshot 只保存可信 `userId` 与 `accessMode=all`。
 3. **计划**：计划含 `_executionContract`、`_resolvedContext`、`summary`、`mode` 和稳定 steps：范围/时间校验、四源读取、证据校验、确定性渲染。
 4. **四类 evidence**：结果只读取并展示以下聚合 source：
    - `easyv-ai-application`
@@ -146,7 +146,7 @@ dip3.easyv.source.enabled = ${EASYV_POSTGRES_ENABLED:false}
 
 使用另一个 userId，或篡改已保存的 `domainKey`、`schemaVersion`、`userId`、`accessMode`。
 
-预期：scope 校验失败；Worker-like 校验即使没有 roleCodes，也必须严格比较冻结 userId。不能通过写入 project/space/team 字段绕过 creator-owned scope。
+预期：scope 校验失败；Worker-like 校验即使没有 roleCodes，也必须严格比较冻结 userId。不能通过写入 project/space/team 字段绕过 全量 scope。
 
 ### 7.3 断源/事实不完整
 
@@ -164,7 +164,7 @@ dip3.easyv.source.enabled = ${EASYV_POSTGRES_ENABLED:false}
 
 - [ ] 能看到 Property 与 EasyV 的 capability ID 不同。
 - [ ] EasyV 结果使用 Ontology v2，且 binding 中记录 version pin。
-- [ ] EasyV scope 只含 creator-owned user snapshot。
+- [ ] EasyV scope 只含全量 user snapshot。
 - [ ] 计划包含稳定 steps 和 `_resolvedContext`。
 - [ ] evidence 恰好来自四个声明 source。
 - [ ] claims 恰好属于五个允许的 kind。
@@ -190,7 +190,7 @@ dip3.easyv.source.enabled = ${EASYV_POSTGRES_ENABLED:false}
 - `backend-java/src/main/java/com/dip3/ontologyagent/analysis/AnalysisController.java`：创建、提交、SSE stream 和 snapshot 路由。
 - `backend-java/src/main/java/com/dip3/ontologyagent/capability/internal/application/StaticCapabilityRegistry.java`：candidate selection 与 capability binding。
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVCapabilityRegistration.java`：EasyV descriptor、ontology keys、claim/evidence contract。
-- `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVScopeResolver.java`：creator-owned scope resolve/validate。
+- `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVScopeResolver.java`：accessMode=all scope resolve/validate。
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/application/EasyVGenerationWorkflow.java`：四源 facts、确定性 plan、coverage 和五类 claims。
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/adapter/out/postgres/EasyVCanonicalFactAdapter.java`：已发布 canonical facts reader、freshness 和 duration coverage；来源库只由 ingestion connector 读取。
 - `backend-java/src/main/java/com/dip3/ontologyagent/easyv/internal/adapter/out/llm/EasyVSpringAiMainAgent.java`：一次 Tool Call 与调用审计。

@@ -10,7 +10,8 @@ public record EasyVGenerationResult(
     Map<String, Object> plan,
     List<Evidence> evidence,
     List<GroundedConclusion.Claim> claims,
-    List<Map<String, Object>> renderBlocks) {
+    List<Map<String, Object>> renderBlocks,
+    String leadSummary) {
   public EasyVGenerationResult {
     plan = Map.copyOf(plan);
     evidence = List.copyOf(evidence);
@@ -19,7 +20,6 @@ public record EasyVGenerationResult(
   }
 
   public WorkflowResult toWorkflowResult() {
-    String conclusion = claims.stream().map(GroundedConclusion.Claim::text).reduce((left, right) -> left + "\n\n" + right).orElse("");
-    return new WorkflowResult(plan, evidence, conclusion, claims, renderBlocks);
+    return new WorkflowResult(plan, evidence, leadSummary, claims, renderBlocks);
   }
 }

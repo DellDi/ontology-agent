@@ -11,12 +11,24 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
-/** V1 follow-up policy: only a new, validated date range may change. */
+/**
+ * V1 follow-up policy: only a new, validated date range may change.
+ *
+ * <p>追问行的 inheritedContext/mergedContext 采用平台统一的 AnalysisContext 展示形态
+ * （targetMetric/entity/timeRange/comparison 字段 + constraints），与 Property 域一致；
+ * 域键（entity/metric/time/accessMode/userId）以受控约束项随行，可无损还原为
+ * 执行用的 _resolvedContext 域形态。</p>
+ */
 final class EasyVFollowUpPolicy implements FollowUpPolicy {
   private static final Set<String> CONTEXT_KEYS =
       Set.of("entity", "metric", "time", "from", "to", "accessMode", "userId");
+  private static final List<String> DISPLAY_FIELDS =
+      List.of("targetMetric", "entity", "timeRange", "comparison");
+  private static final String METRIC_LABEL = "生成质量分析";
+  private static final String ENTITY_LABEL = "AI 大屏应用";
 
   @Override
   public void validateQuestion(String question) {
@@ -34,20 +46,21 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     if (!(raw instanceof Map<?, ?> context)) {
       throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "EasyV 来源执行缺少冻结上下文。");
     }
-    return validateContext(copyContext(context));
+    return displayContext(validateDomain(copyContext(context)));
   }
 
   @Override
   public Map<String, Object> applyQuestionContext(
       String question, Map<String, Object> inheritedContext, AuthSession principal) {
     validateQuestion(question);
-    Map<String, Object> inherited = validateContext(inheritedContext);
-    validateOwner(inherited, principal);
-    EasyVDateRange range = resolveFollowUpRange(question, inherited);
-    Map<String, Object> next = new LinkedHashMap<>(inherited);
-    next.put("from", range.from().toString());
-    next.put("to", range.to().toString());
-    return validateContext(next);
+    Map<String, Object> domain = domainContext(inheritedContext);
+    validateOwner(domain, principal);
+    EasyVDateRange range = resolveFollowUpRange(question, domain);
+    Map<String, Object> next = mutableContext(displayContext(domain));
+    if (range != null) {
+      next.put("timeRange", field("时间范围", range.from() + "/" + range.to(), "confirmed"));
+    }
+    return immutableContext(next);
   }
 
   @Override
@@ -56,30 +69,37 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
       Map<String, Object> mergedContext,
       Map<String, String> draft,
       boolean confirmConflicts) {
-    Map<String, Object> current = validateContext(inheritedContext);
-    Map<String, Object> next = new LinkedHashMap<>(current);
-    if (mergedContext != null) {
-      for (Map.Entry<String, Object> entry : mergedContext.entrySet()) {
-        if (!"from".equals(entry.getKey()) && !"to".equals(entry.getKey())
-            && !java.util.Objects.equals(current.get(entry.getKey()), entry.getValue())) {
-          throw new BackendException("FOLLOW_UP_REPLAN_UNSUPPORTED", "EasyV 追问只允许修改时间范围。");
-        }
-        if ("from".equals(entry.getKey()) || "to".equals(entry.getKey())) next.put(entry.getKey(), entry.getValue());
-      }
+    String timeRange = draft == null ? "" : normalize(draft.get("timeRange"));
+    if (draft != null && draft.entrySet().stream()
+        .anyMatch(entry -> !"timeRange".equals(entry.getKey())
+            && entry.getValue() != null && !entry.getValue().isBlank())) {
+      throw new BackendException("FOLLOW_UP_REPLAN_UNSUPPORTED", "EasyV 追问只允许修改时间范围。");
     }
-    if (draft != null && draft.values().stream().anyMatch(value -> value != null && !value.isBlank())) {
-      if (draft.entrySet().stream()
-          .anyMatch(entry -> !"from".equals(entry.getKey()) && !"to".equals(entry.getKey())
-              && entry.getValue() != null && !entry.getValue().isBlank())) {
-        throw new BackendException("FOLLOW_UP_REPLAN_UNSUPPORTED", "EasyV 追问只允许修改时间范围。");
-      }
-      String from = draft.get("from");
-      String to = draft.get("to");
-      if (from != null) next.put("from", from);
-      if (to != null) next.put("to", to);
+    if (timeRange.isEmpty()) {
+      throw new BackendException("INVALID_FOLLOW_UP_ADJUSTMENT", "至少需要补充一个范围条件。");
     }
-    validateDate(next);
-    return new FollowUpAdjustment(validateContext(next), Map.of("from", next.get("from"), "to", next.get("to")));
+    String[] boundaries = timeRange.split("/", -1);
+    if (boundaries.length != 2) {
+      throw new BackendException("FOLLOW_UP_TIME_RANGE_INVALID", "时间范围必须使用 yyyy-MM-dd/yyyy-MM-dd。");
+    }
+    try {
+      LocalDate from = LocalDate.parse(boundaries[0].trim());
+      LocalDate to = LocalDate.parse(boundaries[1].trim());
+      if (from.isAfter(to)) throw new IllegalArgumentException("from > to");
+    } catch (RuntimeException error) {
+      throw new BackendException("FOLLOW_UP_TIME_RANGE_INVALID", "时间范围必须使用有效日期。", error);
+    }
+    Map<String, Object> next = mutableContext(mergedContext);
+    String previous = fieldValue(mergedContext, "timeRange");
+    next.put("timeRange", field("时间范围", timeRange, "confirmed"));
+    Map<String, Object> diff = Objects.equals(previous, timeRange)
+        ? Map.of("added", List.of(), "overridden", List.of())
+        : Map.of(
+            "added", List.of(),
+            "overridden", List.of(Map.of(
+                "type", "field", "key", "timeRange", "label", "时间范围",
+                "previousValue", previous, "nextValue", timeRange)));
+    return new FollowUpAdjustment(immutableContext(next), diff);
   }
 
   @Override
@@ -99,22 +119,22 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     }
     String summary = requiredText(previousPlan.get("summary"), "FOLLOW_UP_REPLAN_INVALID", "上一轮计划摘要缺失。");
     String mode = requiredText(previousPlan.get("mode"), "FOLLOW_UP_REPLAN_INVALID", "上一轮计划模式缺失。");
-    Map<String, Object> previousResolved = inheritedContext(previousPlan);
-    Map<String, Object> inherited = validateContext(inheritedContext);
+    Map<String, Object> previousResolved = domainContext(previousPlan.get("_resolvedContext"));
+    Map<String, Object> inherited = domainContext(inheritedContext);
     if (!previousResolved.equals(inherited)) {
       throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "EasyV 追问继承上下文与上一轮冻结上下文不一致。");
     }
     validateOwner(inherited, principal);
+    Map<String, Object> merged = domainContext(mergedContext);
     Map<String, Object> resolved = new LinkedHashMap<>(inherited);
-    if (mergedContext != null) {
-      for (Map.Entry<String, Object> entry : mergedContext.entrySet()) {
-        if ("from".equals(entry.getKey()) || "to".equals(entry.getKey())) resolved.put(entry.getKey(), entry.getValue());
-        else if (!java.util.Objects.equals(resolved.get(entry.getKey()), entry.getValue())) {
-          throw new BackendException("FOLLOW_UP_REPLAN_UNSUPPORTED", "EasyV 追问只允许修改时间范围。");
-        }
+    for (Map.Entry<String, Object> entry : merged.entrySet()) {
+      if ("from".equals(entry.getKey()) || "to".equals(entry.getKey())) {
+        resolved.put(entry.getKey(), entry.getValue());
+      } else if (!Objects.equals(resolved.get(entry.getKey()), entry.getValue())) {
+        throw new BackendException("FOLLOW_UP_REPLAN_UNSUPPORTED", "EasyV 追问只允许修改时间范围。");
       }
     }
-    Map<String, Object> validated = validateContext(resolved);
+    Map<String, Object> validated = validateDomain(resolved);
     Map<String, Object> next = new LinkedHashMap<>(previousPlan);
     next.put("summary", summary);
     next.put("mode", mode);
@@ -137,25 +157,60 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     // Once a plan exists, its resolved context is the immutable execution input;
     // merged UI context is only used before planning and cannot silently override it.
     if (currentPlan != null && currentPlan.get("_resolvedContext") != null) {
-      return inheritedContext(currentPlan);
+      return domainContext(currentPlan.get("_resolvedContext"));
     }
-    return validateContext(mergedContext);
+    return domainContext(mergedContext);
   }
 
-  private static EasyVDateRange resolveFollowUpRange(String question, Map<String, Object> inherited) {
-    try {
-      LocalDate anchor = LocalDate.parse(requiredText(inherited.get("to"), "FOLLOW_UP_CONTEXT_INVALID", "来源时间范围无效。"));
-      Instant anchoredAt = anchor.atStartOfDay(EasyVDateRange.BUSINESS_ZONE).toInstant();
-      return EasyVDateRange.resolve(question, anchoredAt);
-    } catch (BackendException error) {
-      throw error;
-    } catch (RuntimeException error) {
-      throw new BackendException("FOLLOW_UP_TIME_RANGE_INVALID", "EasyV 追问时间范围无效。", error);
-    }
+  // ---------------------------------------------------------------------------
+  // 展示形态 <-> 域形态 转换
+  // ---------------------------------------------------------------------------
+
+  private static Map<String, Object> displayContext(Map<String, Object> domain) {
+    Map<String, Object> context = new LinkedHashMap<>();
+    context.put("targetMetric", field("目标指标", METRIC_LABEL, "confirmed"));
+    context.put("entity", field("实体对象", ENTITY_LABEL, "confirmed"));
+    context.put("timeRange", field("时间范围", domain.get("from") + "/" + domain.get("to"), "confirmed"));
+    context.put("comparison", field("比较方式", "无需比较", "confirmed"));
+    context.put("constraints", List.of(
+        Map.of("label", "实体 business key", "value", String.valueOf(domain.get("entity"))),
+        Map.of("label", "指标 business key", "value", String.valueOf(domain.get("metric"))),
+        Map.of("label", "时间语义 business key", "value", String.valueOf(domain.get("time"))),
+        Map.of("label", "数据范围", "value", "全量数据"),
+        Map.of("label", "访问模式", "value", String.valueOf(domain.get("accessMode"))),
+        Map.of("label", "执行账号 ID", "value", String.valueOf(domain.get("userId")))));
+    return Map.copyOf(context);
   }
 
-  private static Map<String, Object> validateContext(Map<String, ?> context) {
-    if (context == null) throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "EasyV 追问上下文缺失。");
+  /** 展示形态或域形态统一还原为域上下文；缺字段/多字段/取值越界一律拒绝。 */
+  private static Map<String, Object> domainContext(Object context) {
+    if (!(context instanceof Map<?, ?> raw)) {
+      throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "EasyV 追问上下文缺失。");
+    }
+    Map<String, Object> source = copyContext(raw);
+    if (source.containsKey("entity") && source.containsKey("metric") && !source.containsKey("targetMetric")) {
+      return validateDomain(source);
+    }
+    if (!source.keySet().equals(Set.of("targetMetric", "entity", "timeRange", "comparison", "constraints"))) {
+      throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "EasyV 追问上下文不符合展示契约形态。");
+    }
+    for (String key : DISPLAY_FIELDS) fieldValue(source, key);
+    Map<String, Object> domain = new LinkedHashMap<>();
+    domain.put("entity", constraintValue(source, "实体 business key"));
+    domain.put("metric", constraintValue(source, "指标 business key"));
+    domain.put("time", constraintValue(source, "时间语义 business key"));
+    domain.put("accessMode", constraintValue(source, "访问模式"));
+    domain.put("userId", constraintValue(source, "执行账号 ID"));
+    String[] boundaries = fieldValue(source, "timeRange").split("/", -1);
+    if (boundaries.length != 2) {
+      throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "追问时间范围必须使用 yyyy-MM-dd/yyyy-MM-dd。");
+    }
+    domain.put("from", boundaries[0].trim());
+    domain.put("to", boundaries[1].trim());
+    return validateDomain(domain);
+  }
+
+  private static Map<String, Object> validateDomain(Map<String, ?> context) {
     Map<String, Object> copy = copyContext(context);
     if (!copy.keySet().equals(CONTEXT_KEYS)
         || !EasyVGenerationOntology.ENTITY_KEY.equals(copy.get("entity"))
@@ -167,6 +222,20 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     }
     validateDate(copy);
     return Map.copyOf(copy);
+  }
+
+  private static EasyVDateRange resolveFollowUpRange(String question, Map<String, Object> domain) {
+    try {
+      LocalDate anchor = LocalDate.parse(String.valueOf(domain.get("to")));
+      Instant anchoredAt = anchor.atStartOfDay(EasyVDateRange.BUSINESS_ZONE).toInstant();
+      return EasyVDateRange.resolve(question, anchoredAt);
+    } catch (BackendException error) {
+      // 追问不含时间表达时继承上一轮窗口，而不是把整轮打死。
+      if ("EASYV_TIME_RANGE_REQUIRED".equals(error.code())) return null;
+      throw error;
+    } catch (RuntimeException error) {
+      throw new BackendException("FOLLOW_UP_TIME_RANGE_INVALID", "EasyV 追问时间范围无效。", error);
+    }
   }
 
   private static void validateDate(Map<String, Object> context) {
@@ -181,10 +250,50 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     }
   }
 
-  private static void validateOwner(Map<String, Object> context, AuthSession principal) {
-    if (principal == null || !principal.userId().equals(context.get("userId"))) {
-      throw new BackendException("FOLLOW_UP_SCOPE_INVALID", "EasyV 追问不能改变 creator-owned 用户范围。");
+  private static void validateOwner(Map<String, Object> domain, AuthSession principal) {
+    if (principal == null || !principal.userId().equals(domain.get("userId"))) {
+      throw new BackendException("FOLLOW_UP_SCOPE_INVALID", "EasyV 追问不能改变执行者身份。");
     }
+  }
+
+  private static Map<String, Object> field(String label, String value, String state) {
+    return Map.of("label", label, "value", value, "state", state);
+  }
+
+  private static String fieldValue(Map<String, Object> context, String key) {
+    Object raw = context.get(key);
+    if (raw instanceof Map<?, ?> field && field.get("value") instanceof String value && !value.isBlank()) {
+      return value;
+    }
+    throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "追问上下文缺少字段：" + key);
+  }
+
+  private static String constraintValue(Map<String, Object> context, String label) {
+    Object raw = context.get("constraints");
+    if (raw instanceof List<?> list) {
+      for (Object item : list) {
+        if (item instanceof Map<?, ?> entry && label.equals(entry.get("label"))
+            && entry.get("value") instanceof String value && !value.isBlank()) {
+          return value;
+        }
+      }
+    }
+    throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "追问上下文缺少受控约束：" + label);
+  }
+
+  private static Map<String, Object> mutableContext(Map<String, Object> source) {
+    Map<String, Object> copy = new LinkedHashMap<>(source);
+    Object constraints = source.get("constraints");
+    copy.put("constraints", constraints instanceof List<?> list
+        ? list.stream().map(item -> item instanceof Map<?, ?> map
+            ? new LinkedHashMap<>(copyContext(map)) : item).toList()
+        : List.of());
+    return copy;
+  }
+
+  private static Map<String, Object> immutableContext(Map<String, Object> source) {
+    for (String key : DISPLAY_FIELDS) fieldValue(source, key);
+    return Map.copyOf(source);
   }
 
   private static Map<String, Object> copyContext(Map<?, ?> source) {
@@ -193,6 +302,10 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
       if (key instanceof String) copy.put((String) key, value);
     });
     return copy;
+  }
+
+  private static String normalize(String value) {
+    return value == null ? "" : value.trim();
   }
 
   private static String requiredText(Object value, String code, String message) {

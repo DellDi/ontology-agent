@@ -367,7 +367,7 @@ class AnalysisWorkerTest {
         verify(capabilities).execute(org.mockito.ArgumentMatchers.eq(easyv), context.capture());
         assertEquals("ontology-v2", context.getValue().ontology().versionId());
         assertEquals("123", context.getValue().principal().userId());
-        assertEquals(Map.of("userId", "123", "accessMode", "creator-owned"), easyv.resolvedScope().values());
+        assertEquals(Map.of("userId", "123", "accessMode", "all"), easyv.resolvedScope().values());
         assertEquals(EASYV_ID, easyv.id());
         ArgumentCaptor<ExecutionSnapshot> snapshot = ArgumentCaptor.forClass(ExecutionSnapshot.class);
         verify(executions).completeAtomically(anyString(), anyString(), any(), snapshot.capture(), anyMap());

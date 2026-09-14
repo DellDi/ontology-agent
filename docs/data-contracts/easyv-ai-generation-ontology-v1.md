@@ -27,7 +27,7 @@ V1 选择“**AI 大屏从需求输入到生成、预览与另存使用的生产
 
 - 对 EasyV AI 大屏生产过程进行只读问数；
 - 覆盖原生原型生成、Forge 大屏生成、用户反馈和另存行为；
-- 支持 creator-owned 用户范围内的质量概览、失败分布和下钻；space/team scope 尚无已确认的授权来源，保持未实现；
+- 支持 accessMode=all 全量范围内的质量概览、失败分布和下钻；space/team scope 尚无已确认的授权来源，保持未实现；
 - 对回答中的关键结论返回结构化证据引用；
 - 使用确定性 workflow 完成范围解析、指标查询、证据校验和结论渲染；
 - 形成可复用的 EasyV Domain Pack 边界，为后续接入其他领域提供真实依据。
@@ -58,7 +58,7 @@ V1 选择“**AI 大屏从需求输入到生成、预览与另存使用的生产
 
 ### 3.2 当前运行时已注册 Property 与 EasyV 两个 Domain Pack
 
-M3 已将物业运行面归入 `property.internal`；M4/M5 已完成 EasyV 的 creator-owned scope、typed facts、
+M3 已将物业运行面归入 `property.internal`；M4/M5 已完成 EasyV 的 全量 scope、typed facts、
 只读 PostgreSQL adapter、确定性 workflow、evidence/claim contract、follow-up policy 与 Spring AI adapter。
 当前运行时事实为：
 
@@ -69,7 +69,7 @@ M3 已将物业运行面归入 `property.internal`；M4/M5 已完成 EasyV 的 c
 - Property `SpringAiConclusionProvider` 固定识别物业收费率相关 claim；
 - EasyV 仅声明四类聚合 evidence 和只读 Tool Call，不创建业务写 Action；生产版本、权限和数据完整性仍未知。
 
-因此，当前更准确的判断是：**Property 与 EasyV 已是两个真实 Domain Pack；EasyV 当前只冻结 creator-owned、只读、可证据化的能力，不把未确认的 space/team 授权或生产状态写成事实。**
+因此，当前更准确的判断是：**Property 与 EasyV 已是两个真实 Domain Pack；EasyV 当前冻结 accessMode=all、只读、可证据化的能力，不把未确认的 space/team 授权或生产状态写成事实。**
 
 ## 4. EasyV 真实业务链路
 
@@ -345,7 +345,7 @@ V1 不把“另存”加入端到端成功定义，避免被当前血缘缺口�
 EasyV Domain Pack 必须提供独立 `ScopeResolver`：
 
 1. 从可信调用身份获取 userId；
-2. V1 只允许 `EASYV_ANALYST` 可信 principal 的正数 userId，并冻结 `accessMode=creator-owned`；
+2. V1 只允许 `EASYV_ANALYST` 可信 principal 的正数 userId，并冻结 `accessMode=all`；
 3. 将冻结 scope 注入所有事实适配器；
 4. 在证据和审计中保存有效 scope，而不是只保存用户自然语言；
 5. 拒绝跨用户越权查询，拒绝由模型生成未经验证的 scope ID。
@@ -443,7 +443,7 @@ invocation  = easyv-generation-quality-analysis / easyvGenerationQualityAnalysis
 
 ### 13.3 Scope snapshot、selection eligibility 与追问
 
-EasyV 不复用 `AccessScope.projectIds/areaIds` 作为业务范围。M4 已确认 V1 只能冻结 creator-owned
+EasyV 不复用 `AccessScope.projectIds/areaIds` 作为业务范围。M4 已确认 V1 冻结 accessMode=all
 用户范围，当前 snapshot 形状为：
 
 ```json
@@ -452,7 +452,7 @@ EasyV 不复用 `AccessScope.projectIds/areaIds` 作为业务范围。M4 已确�
   "schemaVersion": 1,
   "values": {
     "userId": "<trusted-positive-principal-user>",
-    "accessMode": "creator-owned"
+    "accessMode": "all"
   }
 }
 ```
@@ -496,7 +496,7 @@ snapshot，不能从自然语言再次解析权限。
 |---|---|---|
 | Registry unit | Property 与 EasyV 各有一个匹配候选 | 返回明确 `CapabilityId`，不依赖注册顺序 |
 | Registry unit | 零候选 / 多候选 | 分别返回 unsupported / `CAPABILITY_SELECTION_AMBIGUOUS`，无 binding |
-| Scope contract | EasyV creator-owned user 范围 | snapshot 的 domain/schema/userId/accessMode 严格校验；空用户、越权用户、跨域值失败；space/team 保持未确认 |
+| Scope contract | EasyV all 全量范围 | snapshot 的 domain/schema/userId/accessMode 严格校验；空用户、越权用户、跨域值失败；space/team 保持未确认 |
 | Property regression | 物业项目/区域范围与收费率问题 | 原有 scope、语言校验、descriptor、结果和追问行为保持等价 |
 | Submission contract | EasyV submit 后 catalog 变化 | job 只使用提交时 ontology + capability + scope snapshot；版本漂移明确失败 |
 | Worker contract | EasyV 正常结果 | 只调用 descriptor 声明的 tool 一次；result/evidence binding、scope ref、claim 集合一致 |
@@ -561,7 +561,7 @@ v2 的最小 EasyV 定义包含：`easyv-ai-application`、`prototype-generation
 
 ### 13.8 M5 EasyV Runtime 实施证据（2026-08-31）
 
-- `easyv/internal/application` 已实现 creator-owned scope、typed `EasyVGenerationFacts`、确定性 workflow、五类受限 claim、EvidenceReference 与只允许时间变化的 follow-up policy；`easyv/internal/adapter/out/llm` 仅允许一次 Spring AI Tool Call。
+- `easyv/internal/application` 已实现 全量 scope、typed `EasyVGenerationFacts`、确定性 workflow、五类受限 claim、EvidenceReference 与只允许时间变化的 follow-up policy；`easyv/internal/adapter/out/llm` 仅允许一次 Spring AI Tool Call。
 - `easyv/internal/adapter/out/postgres/EasyVCanonicalFactAdapter` 当前从已发布且 execution-pinned 的 canonical facts 读取四类 source；部分 duration 缺失会显式披露 timed/eligible 覆盖率，只有全量缺失才返回 duration missing。此前已删除的旧 source-reader 仅作为历史实现背景，不代表当前 runtime 仍直连源表。Application 删除口径已冻结：源 `is_delete='1'` 作为 tombstone 写入 `facts.easyv_ai_application.is_deleted`，随 product version 保留；问数只统计 `not is_deleted` 的 active Application。Prototype / Pipeline / Forge / Feedback 无独立删除字段，跟随 active Application 归属。
 - Java 21 定向测试覆盖 scope、日期、follow-up、workflow freshness/空事实/范围一致性与 PostgreSQL Testcontainers；这些是源码和开发环境证据，不代表 M6 展示契约或生产验证完成。
 

@@ -92,30 +92,30 @@ class EasyVCanonicalFactAdapterTest {
     }
 
     @Test
-    void collectsOnlyCreatorFactsFromTheExactFrozenVersionSet() {
+    void collectsAllFactsFromTheExactFrozenVersionSet() {
         assertEquals(PRODUCT_VERSIONS,
                 versionSets.requireFrozen(SET_ID, EasyVCanonicalFactAdapter.REQUIRED_PRODUCTS)
                         .productVersionIds());
 
         EasyVGenerationFacts.Snapshot snapshot = reader.collect(query("1"));
 
-        assertEquals(1, snapshot.application().applicationCount());
-        assertEquals(1, snapshot.application().prototypeCount());
-        assertEquals(1, snapshot.pipeline().taskCount());
-        assertEquals(1, snapshot.pipeline().completedTaskCount());
+        assertEquals(2, snapshot.application().applicationCount());
+        assertEquals(2, snapshot.application().prototypeCount());
+        assertEquals(2, snapshot.pipeline().taskCount());
+        assertEquals(2, snapshot.pipeline().completedTaskCount());
         assertEquals(0, snapshot.pipeline().failedTaskCount());
-        assertEquals(2, snapshot.pipeline().mainNodeCount());
-        assertEquals(2, snapshot.pipeline().timedNodeCount());
-        assertEquals(100, snapshot.pipeline().bottleneckP95Millis());
-        assertEquals(2, snapshot.forge().taskCount());
-        assertEquals(1, snapshot.forge().completedTaskCount());
+        assertEquals(3, snapshot.pipeline().mainNodeCount());
+        assertEquals(3, snapshot.pipeline().timedNodeCount());
+        assertEquals(860, snapshot.pipeline().bottleneckP95Millis());
+        assertEquals(3, snapshot.forge().taskCount());
+        assertEquals(2, snapshot.forge().completedTaskCount());
         assertEquals(1, snapshot.forge().failedTaskCount());
-        assertEquals(2, snapshot.forge().terminalTaskCount());
-        assertEquals(2, snapshot.forge().timedTerminalTaskCount());
+        assertEquals(3, snapshot.forge().terminalTaskCount());
+        assertEquals(3, snapshot.forge().timedTerminalTaskCount());
         assertEquals(60_000, snapshot.forge().p50DurationMillis());
         assertEquals(60_000, snapshot.forge().p95DurationMillis());
-        assertEquals(2, snapshot.feedback().operationCount());
-        assertEquals(1, snapshot.feedback().combinedExecuteSuccessCount());
+        assertEquals(3, snapshot.feedback().operationCount());
+        assertEquals(2, snapshot.feedback().combinedExecuteSuccessCount());
         assertEquals(1, snapshot.feedback().combinedExecuteFailureCount());
         assertEquals(1, snapshot.forge().failureReasonCounts().size());
         assertTrue(snapshot.forge().failureReasonCounts().keySet().stream()
@@ -130,9 +130,9 @@ class EasyVCanonicalFactAdapterTest {
     void partialPipelineDurationIsAllowedAndCoverageIsExposed() {
         EasyVGenerationFacts.Snapshot snapshot = reader.collect(query("1"));
 
-        assertEquals(2, snapshot.pipeline().mainNodeCount());
-        assertEquals(1, snapshot.pipeline().timedNodeCount());
-        assertEquals(100, snapshot.pipeline().bottleneckP95Millis());
+        assertEquals(3, snapshot.pipeline().mainNodeCount());
+        assertEquals(2, snapshot.pipeline().timedNodeCount());
+        assertEquals(860, snapshot.pipeline().bottleneckP95Millis());
     }
 
     @Test
@@ -155,8 +155,8 @@ class EasyVCanonicalFactAdapterTest {
     void partialForgeDurationIsAllowedAndCoverageIsExposed() {
         EasyVGenerationFacts.Snapshot snapshot = reader.collect(query("1"));
 
-        assertEquals(2, snapshot.forge().terminalTaskCount());
-        assertEquals(1, snapshot.forge().timedTerminalTaskCount());
+        assertEquals(3, snapshot.forge().terminalTaskCount());
+        assertEquals(2, snapshot.forge().timedTerminalTaskCount());
         assertEquals(60_000, snapshot.forge().p50DurationMillis());
         assertEquals(60_000, snapshot.forge().p95DurationMillis());
     }
@@ -170,7 +170,7 @@ class EasyVCanonicalFactAdapterTest {
     }
 
     @Test
-    void legalCreatorWithEmptyDateWindowGetsExplicitEmptyCode() {
+    void legalExecutorWithEmptyDateWindowGetsExplicitEmptyCode() {
         BackendException error = assertThrows(BackendException.class,
                 () -> reader.collect(query("1", LocalDate.of(2025, 1, 1),
                         LocalDate.of(2025, 1, 1))));
@@ -179,7 +179,7 @@ class EasyVCanonicalFactAdapterTest {
     }
 
     @Test
-    void orphanFeedbackIsRejectedInsteadOfEscapingCreatorCohort() {
+    void orphanFeedbackIsRejectedInsteadOfEscapingCohort() {
         BackendException error = assertThrows(BackendException.class,
                 () -> reader.collect(query("1")));
 
@@ -192,7 +192,7 @@ class EasyVCanonicalFactAdapterTest {
         // 它们不参与应用域指标聚合，但不得把整份分析拒掉。
         EasyVGenerationFacts.Snapshot snapshot = reader.collect(query("1"));
 
-        assertEquals(2, snapshot.feedback().operationCount());
+        assertEquals(3, snapshot.feedback().operationCount());
     }
 
     @Test
@@ -216,11 +216,11 @@ class EasyVCanonicalFactAdapterTest {
     void deletedApplicationTombstonesAreRetainedButExcludedFromActiveCohort() {
         EasyVGenerationFacts.Snapshot snapshot = reader.collect(query("1"));
 
-        assertEquals(1, snapshot.application().applicationCount());
-        assertEquals(1, snapshot.application().prototypeCount());
-        assertEquals(1, snapshot.pipeline().taskCount());
-        assertEquals(2, snapshot.forge().taskCount());
-        assertEquals(2, snapshot.feedback().operationCount());
+        assertEquals(2, snapshot.application().applicationCount());
+        assertEquals(2, snapshot.application().prototypeCount());
+        assertEquals(2, snapshot.pipeline().taskCount());
+        assertEquals(3, snapshot.forge().taskCount());
+        assertEquals(3, snapshot.feedback().operationCount());
         assertEquals(1L, jdbc.queryForObject("""
                 select count(*) from facts.easyv_ai_application
                 where product_version_id=? and is_deleted
@@ -237,7 +237,7 @@ class EasyVCanonicalFactAdapterTest {
             case "partialForgeDurationIsAllowedAndCoverageIsExposed" -> Fixture.PARTIAL_FORGE;
             case "allForgeDurationMissingFailsLoudlyInsteadOfReturningZero" ->
                     Fixture.ALL_FORGE_DURATION_MISSING;
-            case "orphanFeedbackIsRejectedInsteadOfEscapingCreatorCohort" -> Fixture.ORPHAN_FEEDBACK;
+            case "orphanFeedbackIsRejectedInsteadOfEscapingCohort" -> Fixture.ORPHAN_FEEDBACK;
             case "globalOperationFeedbackWithoutAppIdIsAllowed" -> Fixture.GLOBAL_OPERATION_FEEDBACK;
             case "pipelineSuccessFailureConflictIsExplicitlyRejected" -> Fixture.PIPELINE_CONFLICT;
             case "futureFactInSelectedCohortIsRejectedWithFutureDataCode" -> Fixture.FUTURE_FACT;
@@ -359,7 +359,8 @@ class EasyVCanonicalFactAdapterTest {
         };
         insertPipelineNode(1, "java-task-1", "PipelineCompleted", "SUCCESS", completedDuration);
         insertPipelineNode(2, "java-task-1", "Step1", "SUCCESS", stepDuration);
-        insertPipelineNode(3, "java-task-2", "PipelineCompleted", "SUCCESS", 900L);
+        insertPipelineNode(3, "java-task-2", "PipelineCompleted", "SUCCESS",
+                fixture == Fixture.ALL_PIPELINE_DURATION_MISSING ? null : 900L);
     }
 
     private void insertPipelineNode(long sourceId, String taskId, String stepName,
@@ -392,7 +393,8 @@ class EasyVCanonicalFactAdapterTest {
                 secondStarted, secondFinished);
         insertForgeTask(UUID.fromString("00000000-0000-0000-0000-000000000003"),
                 "forge-task-3", "app-2", "completed", "098f6bcd4621d373cade4e832627b4f6",
-                FORGE_STARTED_AT, FORGE_FINISHED_AT);
+                fixture == Fixture.ALL_FORGE_DURATION_MISSING ? null : FORGE_STARTED_AT,
+                fixture == Fixture.ALL_FORGE_DURATION_MISSING ? null : FORGE_FINISHED_AT);
     }
 
     private void insertForgeTask(UUID sourceId, String taskId, String appId, String status,
@@ -503,7 +505,7 @@ class EasyVCanonicalFactAdapterTest {
     }
 
     private EasyVGenerationFacts.Query query(String userId, LocalDate from, LocalDate to) {
-        return new EasyVGenerationFacts.Query("execution-1", userId, "creator-owned", "ontology-1",
+        return new EasyVGenerationFacts.Query("execution-1", userId, "all", "ontology-1",
                 SET_ID, from, to, OBSERVED_AT);
     }
 

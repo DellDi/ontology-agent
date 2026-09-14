@@ -155,7 +155,7 @@ class LiveEasyVIngestionIT {
         EasyVGenerationFacts.Snapshot runtimeSnapshot = new EasyVCanonicalFactAdapter(
                 targetJdbc, targetTransactions, versionSets).collect(
                 new EasyVGenerationFacts.Query("live-easyv-execution", required("LIVE_EASYV_USER_ID"),
-                        "creator-owned", "live-easyv-ontology", setId,
+                        "all", "live-easyv-ontology", setId,
                         LocalDate.parse(required("LIVE_EASYV_FROM")),
                         LocalDate.parse(required("LIVE_EASYV_TO")), Instant.now()));
         assertEquals(required("LIVE_EASYV_USER_ID"), runtimeSnapshot.application().window().userId());

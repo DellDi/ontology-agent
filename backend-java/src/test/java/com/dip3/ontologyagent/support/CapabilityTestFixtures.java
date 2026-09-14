@@ -73,7 +73,7 @@ public final class CapabilityTestFixtures {
     public static CapabilityBinding easyvBinding(AuthSession owner, String ontologyVersionId) {
         return new CapabilityBinding(EASYV_ID, ontologyVersionId,
                 new ResolvedScopeSnapshot(EASYV_ID.domainKey(), 1, Map.of(
-                        "userId", owner.userId(), "accessMode", "creator-owned")));
+                        "userId", owner.userId(), "accessMode", "all")));
     }
 
     public static CapabilityDescriptor easyvDescriptor() {
