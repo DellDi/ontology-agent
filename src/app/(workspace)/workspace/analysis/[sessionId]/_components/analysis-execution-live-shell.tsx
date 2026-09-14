@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { formatShanghaiTime } from '@/lib/format-datetime';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -150,6 +150,22 @@ export function AnalysisExecutionLiveShell({
   const handleManualRefresh = useCallback(() => {
     router.refresh();
   }, [router]);
+
+  // 执行由流转为终态时刷新服务端聚合：快照结论、追问入口（canFollowUp）等
+  // 仅由 SSR 提供的数据在事件流内不会自行到达，需要一次 router.refresh()。
+  const assistantStatus = conversationViewModel.assistantMessage.status;
+  const prevStatusRef = useRef(assistantStatus);
+  useEffect(() => {
+    const previous = prevStatusRef.current;
+    prevStatusRef.current = assistantStatus;
+    const becameTerminal =
+      previous !== 'completed' &&
+      previous !== 'failed' &&
+      (assistantStatus === 'completed' || assistantStatus === 'failed');
+    if (becameTerminal) {
+      router.refresh();
+    }
+  }, [assistantStatus, router]);
 
   // 4) 抽屉内容拼装
   const { diagnostics } = conversationViewModel.assistantMessage;

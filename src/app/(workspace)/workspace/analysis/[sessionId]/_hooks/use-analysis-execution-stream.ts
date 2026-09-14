@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { mergeAnalysisExecutionStreamEvents } from '@/application/ai-runtime';
-import type { AnalysisExecutionStreamEvent } from '@/domain/analysis-execution/stream-models';
+import {
+  validateAnalysisExecutionStreamEvent,
+  type AnalysisExecutionStreamEvent,
+} from '@/domain/analysis-execution/stream-models';
 import type { AnalysisUiMessageProjectionStreamCursor } from '@/domain/analysis-message-projection/models';
 
 import { buildAnalysisExecutionStreamUrl } from '../analysis-execution-display';
@@ -80,7 +83,9 @@ export function useAnalysisExecutionStream({
 
     eventSource.onmessage = (message) => {
       try {
-        const nextEvent = JSON.parse(message.data) as AnalysisExecutionStreamEvent;
+        const nextEvent = validateAnalysisExecutionStreamEvent(
+          JSON.parse(message.data),
+        );
         setHasReceivedLiveEvents(true);
         setStreamConnectionIssue(null);
         onEvent(nextEvent);

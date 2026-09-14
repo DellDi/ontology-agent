@@ -36,7 +36,8 @@ const easyVCapabilityBindingSchema = z.strictObject({
     schemaVersion: z.literal(1),
     values: z.strictObject({
       userId: z.string().regex(/^[1-9][0-9]*$/),
-      accessMode: z.literal('all'),
+      // 历史执行快照中可能保留 creator-owned 绑定（扩权前的真实审计事实），只读契约如实接受。
+      accessMode: z.enum(['all', 'creator-owned']),
     }),
   }),
 });
@@ -155,6 +156,7 @@ const easyVPlanStepSchema = z.strictObject({
   id: z.string().min(1),
   order: z.number().int().positive(),
   kind: z.string().min(1),
+  title: z.string().min(1),
 });
 
 const planStepSchema = z.union([propertyPlanStepSchema, easyVPlanStepSchema]);
@@ -220,7 +222,8 @@ const easyVResolvedContextSchema = z.strictObject({
   time: z.string().min(1),
   from: z.iso.date(),
   to: z.iso.date(),
-  accessMode: z.literal('all'),
+  // 同上：历史 plan 快照可能含扩权前的 creator-owned 值。
+  accessMode: z.enum(['all', 'creator-owned']),
   userId: z.string().regex(/^[1-9][0-9]*$/),
 }).refine(({ from, to }) => from <= to, {
   message: '_resolvedContext.from 不能晚于 to。',
@@ -382,6 +385,7 @@ export const javaAnalysisFollowUpSchema = z.strictObject({
   referencedConclusionTitle: z.string().min(1).nullable(),
   referencedConclusionSummary: z.string().min(1).nullable(),
   resultExecutionId: z.string().min(1).nullable(),
+  datasetVersionSetId: z.string().min(1).nullable(),
   ontologyVersionId: z.string().min(1),
   ontologyVersionBinding: ontologyVersionBindingSchema,
   capabilityBinding: capabilityBindingSchema,
