@@ -66,40 +66,75 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
       throw new BackendException("JOB_LEASE_REQUIRED", "EasyV Main Agent 必须绑定当前执行租约。");
     }
     EasyVDateRange allowedRange = allowedRange(turn);
-    BoundTool tool = new BoundTool(principal, turn, executionId, ontology, datasetVersionSetId,
-        traceId, leaseOwner, allowedRange);
-    Map<String, Object> promptInput =
-        Map.of(
-            "question", turn.questionText(),
-            "ontologyVersionId", ontology.versionId(),
-            "ontologyKeys",
-                Map.of(
-                    "entity", EasyVGenerationOntology.ENTITY_KEY,
-                    "metric", EasyVGenerationOntology.METRIC_KEY,
-                    "time", EasyVGenerationOntology.TIME_KEY),
-            "allowedDateRange", Map.of("from", allowedRange.from().toString(), "to", allowedRange.to().toString()),
-            "allowedTool", EasyVInvocationContract.TOOL_NAME);
-    try {
-      chat.prompt()
-          .options(OpenAiChatOptions.builder()
-              .customHeaders(OpenCodeSessionHeader.forConversation(turn.sessionId())))
-          .system(SYSTEM_PROMPT)
-          .user(json.write(promptInput))
-          .tools(tool)
-          .call()
-          .content();
-    } catch (BackendException error) {
-      throw error;
-    } catch (RuntimeException error) {
-      BackendException cause = backendCause(error);
-      if (cause != null) throw cause;
-      throw new BackendException("AGENT_PROVIDER_FAILURE", "EasyV Main Agent 模型调用失败。", error);
+    BackendException lastRecoverable = null;
+    for (int attempt = 1; attempt <= 2; attempt += 1) {
+      BoundTool tool = new BoundTool(principal, turn, executionId, ontology, datasetVersionSetId,
+          traceId, leaseOwner, allowedRange);
+      Map<String, Object> promptInput = new LinkedHashMap<>();
+      promptInput.put("question", turn.questionText());
+      promptInput.put("ontologyVersionId", ontology.versionId());
+      promptInput.put(
+          "ontologyKeys",
+          Map.of(
+              "entity", EasyVGenerationOntology.ENTITY_KEY,
+              "metric", EasyVGenerationOntology.METRIC_KEY,
+              "time", EasyVGenerationOntology.TIME_KEY));
+      promptInput.put(
+          "allowedDateRange",
+          Map.of("from", allowedRange.from().toString(), "to", allowedRange.to().toString()));
+      promptInput.put("allowedTool", EasyVInvocationContract.TOOL_NAME);
+      if (lastRecoverable != null) {
+        promptInput.put(
+            "previousAttemptError",
+            "上一次调用被拒：" + lastRecoverable.getMessage() + " 必须逐字使用 ontologyKeys 与 allowedDateRange。");
+      }
+      try {
+        chat.prompt()
+            .options(OpenAiChatOptions.builder()
+                .customHeaders(OpenCodeSessionHeader.forConversation(turn.sessionId())))
+            .system(SYSTEM_PROMPT)
+            .user(json.write(promptInput))
+            .tools(tool)
+            .call()
+            .content();
+      } catch (BackendException error) {
+        if (isRecoverableToolError(error) && attempt < 2) {
+          lastRecoverable = error;
+          continue;
+        }
+        throw error;
+      } catch (RuntimeException error) {
+        BackendException cause = backendCause(error);
+        if (cause != null) {
+          if (isRecoverableToolError(cause) && attempt < 2) {
+            lastRecoverable = cause;
+            continue;
+          }
+          throw cause;
+        }
+        throw new BackendException("AGENT_PROVIDER_FAILURE", "EasyV Main Agent 模型调用失败。", error);
+      }
+      WorkflowResult result = tool.result.get();
+      if (result == null) {
+        if (attempt < 2) {
+          lastRecoverable =
+              new BackendException(
+                  "AGENT_TOOL_NOT_CALLED",
+                  "Main Agent 未调用 " + EasyVInvocationContract.TOOL_NAME + "。");
+          continue;
+        }
+        throw new BackendException("AGENT_TOOL_NOT_CALLED", "Main Agent 未调用 " + EasyVInvocationContract.TOOL_NAME + "。");
+      }
+      return result;
     }
-    WorkflowResult result = tool.result.get();
-    if (result == null) {
-      throw new BackendException("AGENT_TOOL_NOT_CALLED", "Main Agent 未调用 " + EasyVInvocationContract.TOOL_NAME + "。");
-    }
-    return result;
+    throw lastRecoverable == null
+        ? new BackendException("AGENT_TOOL_NOT_CALLED", "Main Agent 未调用 " + EasyVInvocationContract.TOOL_NAME + "。")
+        : lastRecoverable;
+  }
+
+  private static boolean isRecoverableToolError(BackendException error) {
+    return "AGENT_TOOL_INPUT_INVALID".equals(error.code())
+        || "AGENT_TOOL_NOT_CALLED".equals(error.code());
   }
 
   public final class BoundTool {
@@ -182,7 +217,9 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
                     principal.userId(),
                     EasyVScopeResolver.ACCESS_MODE,
                     turn.effectiveContext(),
-                    Instant.now()));
+                    Instant.now(),
+                    turn.followUpId(),
+                    turn.referencedExecutionId()));
         recorder.succeedWhileLeased(
             invocationId,
             Map.of("evidenceCount", value.evidence().size(), "claimCount", value.claims().size()),

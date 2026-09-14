@@ -170,21 +170,32 @@ public final class EasyVGenerationWorkflow {
             "userId", request.userId());
     List<Map<String, Object>> steps =
         List.of(
-            Map.of("id", "validate-scope-and-time", "order", 1, "kind", "deterministic-validation"),
-            Map.of("id", "read-easyv-ai-application", "order", 2, "kind", "aggregate-facts"),
-            Map.of("id", "read-easyv-pipeline-node", "order", 3, "kind", "aggregate-facts"),
-            Map.of("id", "read-easyv-forge-task", "order", 4, "kind", "aggregate-facts"),
-            Map.of("id", "read-easyv-generation-feedback", "order", 5, "kind", "aggregate-facts"),
-            Map.of("id", "validate-evidence", "order", 6, "kind", "deterministic-validation"),
-            Map.of("id", "render-grounded-claims", "order", 7, "kind", "deterministic-render"));
-    Map<String, Object> plan =
-        Map.of(
-            "_executionContract", request.executionContract(),
-            "_resolvedContext", resolvedContext,
-            "_evidenceTypes", evidence.stream().map(Evidence::source).toList(),
-            "summary", "EasyV 生成质量分析",
-            "mode", "deterministic-read-only",
-            "steps", steps);
+            Map.of("id", "validate-scope-and-time", "order", 1, "kind", "deterministic-validation",
+                "title", "校验范围与时间"),
+            Map.of("id", "read-easyv-ai-application", "order", 2, "kind", "aggregate-facts",
+                "title", "读取 AI 应用事实"),
+            Map.of("id", "read-easyv-pipeline-node", "order", 3, "kind", "aggregate-facts",
+                "title", "读取流水线节点事实"),
+            Map.of("id", "read-easyv-forge-task", "order", 4, "kind", "aggregate-facts",
+                "title", "读取 Forge 任务事实"),
+            Map.of("id", "read-easyv-generation-feedback", "order", 5, "kind", "aggregate-facts",
+                "title", "读取生成反馈事实"),
+            Map.of("id", "validate-evidence", "order", 6, "kind", "deterministic-validation",
+                "title", "校验证据完整性"),
+            Map.of("id", "render-grounded-claims", "order", 7, "kind", "deterministic-render",
+                "title", "渲染证据结论"));
+    Map<String, Object> plan = new LinkedHashMap<>();
+    plan.put("_executionContract", request.executionContract());
+    plan.put("_resolvedContext", resolvedContext);
+    plan.put("_evidenceTypes", evidence.stream().map(Evidence::source).toList());
+    plan.put("summary", "EasyV 生成质量分析");
+    plan.put("mode", "deterministic-read-only");
+    plan.put("steps", steps);
+    if (request.followUpId() != null) plan.put("_followUpId", request.followUpId());
+    if (request.referencedExecutionId() != null) {
+      plan.put("_referencedExecutionId", request.referencedExecutionId());
+    }
+    plan = Map.copyOf(plan);
     String lead = leadSummary(request, snapshot);
     List<Map<String, Object>> blocks = renderBlocks(request, snapshot, claims, lead);
     return new EasyVGenerationResult(plan, evidence, claims, blocks, lead);
