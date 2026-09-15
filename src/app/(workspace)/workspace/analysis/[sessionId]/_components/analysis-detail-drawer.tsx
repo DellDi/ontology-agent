@@ -11,6 +11,8 @@ export type DetailDrawerType =
   | 'history'
   | 'candidates'
   | 'diagnostics'
+  | 'attribution'
+  | 'actions'
   | null;
 
 const DRAWER_LABELS: Record<string, string> = {
@@ -20,6 +22,8 @@ const DRAWER_LABELS: Record<string, string> = {
   history: '历史问答',
   candidates: '可能原因',
   diagnostics: '诊断信息',
+  attribution: '归因分析',
+  actions: '动作建议',
 };
 
 export function AnalysisDetailDrawer({

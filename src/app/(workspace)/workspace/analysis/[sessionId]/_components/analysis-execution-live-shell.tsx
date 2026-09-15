@@ -167,6 +167,28 @@ export function AnalysisExecutionLiveShell({
     }
   }, [assistantStatus, router]);
 
+  // 终态对账：live 已到终态但 SSR 侧状态仍非终态时，说明上一轮 refresh 未落地
+  // （RSC 请求被中止或返回旧快照）——周期性补刷直到服务端聚合追平。
+  const liveIsTerminal =
+    assistantStatus === 'completed' || assistantStatus === 'failed';
+  const serverStatus = initialReadModel.currentStatus;
+  const serverIsTerminal =
+    serverStatus === 'completed' || serverStatus === 'failed';
+  useEffect(() => {
+    if (!liveIsTerminal || serverIsTerminal) {
+      return;
+    }
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      router.refresh();
+      if (attempts >= 15) {
+        window.clearInterval(timer);
+      }
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [liveIsTerminal, serverIsTerminal, router]);
+
   // 4) 抽屉内容拼装
   const { diagnostics } = conversationViewModel.assistantMessage;
   const mergedDrawerContents: Record<string, ReactNode> = {
