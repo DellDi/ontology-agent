@@ -105,6 +105,8 @@ export type WorkspaceHomeModel = {
   canCreateAnalysis: boolean;
   /** 数据降级状态：当 Redis/stream fallback 失败时由调用方注入。 */
   degradedState: WorkspaceHomeDegradedState | null;
+  /** 会话列表分页元数据（后端返回）。 */
+  sessionPage: { total: number; limit: number; offset: number; hasMore: boolean };
 };
 
 /** 首页只筛选已加载且后端授权可见的会话，不请求或推断其他范围。 */
@@ -201,6 +203,33 @@ export function deriveSessionStatus(
   }
 }
 
+/** 单条会话 → 历史条目。SSR 首屏与客户端"加载更多"共用。 */
+export function sessionToHistoryItem(
+  analysisSession: WorkspaceHomeSessionSummary,
+  snapshot: WorkspaceHomeSnapshotSummary | null,
+): WorkspaceHomeModel['historyItems'][number] {
+  const derived = deriveSessionStatus(
+    snapshot,
+    analysisSession.savedContext._executionContract ?? null,
+  );
+  return {
+    id: analysisSession.id,
+    title: createAnalysisSessionTitle(analysisSession.questionText),
+    domainLabel: snapshot?.capabilityBinding && 'domainKey' in snapshot.capabilityBinding
+      ? ({ property: '物业分析', easyv: 'EasyV 生成质量' }[snapshot.capabilityBinding.domainKey]
+        ?? snapshot.capabilityBinding.domainKey)
+      : '领域待确认',
+    statusLabel: derived.statusLabel,
+    statusTone: derived.statusTone,
+    derivedStatus: derived.derivedStatus,
+    latestExecutionId: derived.latestExecutionId,
+    summaryMetric: derived.summaryMetric,
+    failureMessage: derived.failureMessage,
+    updatedAtLabel: formatHistoryTimestamp(analysisSession.updatedAt),
+    href: `/workspace/analysis/${analysisSession.id}`,
+  };
+}
+
 export function createWorkspaceHomeModel(
   session: AuthIdentity,
   historySessions: WorkspaceHomeSessionSummary[],
@@ -208,6 +237,7 @@ export function createWorkspaceHomeModel(
   latestSnapshots: Map<string, WorkspaceHomeSnapshotSummary | null> = new Map(),
   degradedState: WorkspaceHomeDegradedState | null = null,
   capabilities: WorkspaceHomeCapability[] = [],
+  sessionPage: WorkspaceHomeModel['sessionPage'] = { total: historySessions.length, limit: historySessions.length || 20, offset: 0, hasMore: false },
 ): WorkspaceHomeModel {
   const scopeSummary = formatScopeSummary(session);
   const hasTargets = capabilities.some(capability => capability.available);
@@ -228,30 +258,8 @@ export function createWorkspaceHomeModel(
       ? `已覆盖 ${projectDisplayNames.length} 个项目`
       : '未分配';
 
-  const historyItems = historySessions.map((analysisSession) => {
-    const snapshot = latestSnapshots.get(analysisSession.id) ?? null;
-    const derived = deriveSessionStatus(
-      snapshot,
-      analysisSession.savedContext._executionContract ?? null,
-    );
-
-    return {
-      id: analysisSession.id,
-      title: createAnalysisSessionTitle(analysisSession.questionText),
-      domainLabel: snapshot?.capabilityBinding && 'domainKey' in snapshot.capabilityBinding
-        ? ({ property: '物业分析', easyv: 'EasyV 生成质量' }[snapshot.capabilityBinding.domainKey]
-          ?? snapshot.capabilityBinding.domainKey)
-        : '领域待确认',
-      statusLabel: derived.statusLabel,
-      statusTone: derived.statusTone,
-      derivedStatus: derived.derivedStatus,
-      latestExecutionId: derived.latestExecutionId,
-      summaryMetric: derived.summaryMetric,
-      failureMessage: derived.failureMessage,
-      updatedAtLabel: formatHistoryTimestamp(analysisSession.updatedAt),
-      href: `/workspace/analysis/${analysisSession.id}`,
-    };
-  });
+  const historyItems = historySessions.map((analysisSession) =>
+    sessionToHistoryItem(analysisSession, latestSnapshots.get(analysisSession.id) ?? null));
 
   const failedItems = historyItems.filter(
     (item) => item.derivedStatus === 'failed',
@@ -344,6 +352,7 @@ export function createWorkspaceHomeModel(
         },
     canCreateAnalysis: hasTargets,
     degradedState,
+    sessionPage,
   };
 }
 
@@ -358,6 +367,7 @@ const workspaceHomeModule = {
   createWorkspaceHomeModel,
   deriveSessionStatus,
   filterWorkspaceHistory,
+  sessionToHistoryItem,
 };
 
 export default workspaceHomeModule;

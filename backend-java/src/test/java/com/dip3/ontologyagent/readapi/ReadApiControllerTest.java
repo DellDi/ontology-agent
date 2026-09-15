@@ -101,11 +101,12 @@ class ReadApiControllerTest {
                         new WorkspaceHomeResponse.LatestExecutionSummary("execution-1", "queued", "queued",
                                 null, null, Map.of("source", "legacy/unknown"), null, null, null,
                                 "trace-1", now, now))),
+                new WorkspaceHomeResponse.SessionPage(1, 20, 0, false),
                 List.of(new WorkspaceHomeResponse.ProjectSummary("project-1", "P-1", "项目一", "org-1",
                         "area-1", "区域一")), List.of(new com.dip3.ontologyagent.capability.api.CapabilityAvailability(
                     "property", "collection-rate-analysis", "物业项目收缴率分析", false,
                     "当前账号未分配项目范围", "分析本月授权项目的收缴率", null)));
-        when(homes.load(viewer)).thenReturn(response);
+        when(homes.load(viewer, 0, 20)).thenReturn(response);
 
         mvc.perform(get("/api/workspace/home"))
                 .andExpect(status().isOk())
@@ -117,8 +118,10 @@ class ReadApiControllerTest {
                         .value("legacy/unknown"))
                 .andExpect(jsonPath("$.projects[0].id").value("project-1"))
                 .andExpect(jsonPath("$.capabilities[0].available").value(false))
-                .andExpect(jsonPath("$.capabilities[0].unavailableReason").value("当前账号未分配项目范围"));
-        verify(homes).load(viewer);
+                .andExpect(jsonPath("$.capabilities[0].unavailableReason").value("当前账号未分配项目范围"))
+                .andExpect(jsonPath("$.sessionPage.total").value(1))
+                .andExpect(jsonPath("$.sessionPage.hasMore").value(false));
+        verify(homes).load(viewer, 0, 20);
     }
 
     @Test

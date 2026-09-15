@@ -3,11 +3,22 @@
   "$id": "workspace-home.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["viewer", "sessions", "projects", "capabilities"],
+  "required": ["viewer", "sessions", "sessionPage", "projects", "capabilities"],
   "properties": {
     "viewer": { "$ref": "viewer.schema.json" },
     "capabilities": { "type": "array", "items": { "$ref": "#/$defs/capabilityAvailability" } },
     "sessions": { "type": "array", "items": { "$ref": "#/$defs/session" } },
+    "sessionPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "limit", "offset", "hasMore"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer", "minimum": 0 },
+        "hasMore": { "type": "boolean" }
+      }
+    },
     "projects": { "type": "array", "items": { "$ref": "#/$defs/project" } }
   },
   "$defs": {

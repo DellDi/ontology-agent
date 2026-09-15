@@ -533,6 +533,12 @@ const workspaceCapabilitySchema = z.strictObject({
 export const javaWorkspaceHomeSchema = z.strictObject({
   capabilities: z.array(workspaceCapabilitySchema),
   viewer: javaViewerSchema,
+  sessionPage: z.strictObject({
+    total: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+    offset: z.number().int().nonnegative(),
+    hasMore: z.boolean(),
+  }),
   sessions: z.array(z.strictObject({
     id: z.string().min(1),
     questionText: z.string().min(1),

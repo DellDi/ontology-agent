@@ -23,6 +23,7 @@ public interface WorkspaceHomeMapper {
               and project_ids <@ #{projectIds,typeHandler=com.dip3.ontologyagent.support.PostgresTextArrayTypeHandler}
               and area_ids <@ #{areaIds,typeHandler=com.dip3.ontologyagent.support.PostgresTextArrayTypeHandler}
             order by updated_at desc,id
+            limit #{limit} offset #{offset}
             """)
     @Results({
             @Result(property = "ownerUserId", column = "owner_user_id"),
@@ -37,7 +38,21 @@ public interface WorkspaceHomeMapper {
     List<SessionRow> listSessions(@Param("ownerUserId") String ownerUserId,
                                   @Param("organizationId") String organizationId,
                                   @Param("projectIds") String[] projectIds,
-                                  @Param("areaIds") String[] areaIds);
+                                  @Param("areaIds") String[] areaIds,
+                                  @Param("limit") int limit,
+                                  @Param("offset") int offset);
+
+    @Select("""
+            select count(*)
+            from platform.analysis_sessions
+            where owner_user_id=#{ownerUserId} and organization_id=#{organizationId}
+              and project_ids <@ #{projectIds,typeHandler=com.dip3.ontologyagent.support.PostgresTextArrayTypeHandler}
+              and area_ids <@ #{areaIds,typeHandler=com.dip3.ontologyagent.support.PostgresTextArrayTypeHandler}
+            """)
+    long countSessions(@Param("ownerUserId") String ownerUserId,
+                       @Param("organizationId") String organizationId,
+                       @Param("projectIds") String[] projectIds,
+                       @Param("areaIds") String[] areaIds);
 
     @Select("""
             <script>

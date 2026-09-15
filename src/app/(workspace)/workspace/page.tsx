@@ -62,6 +62,7 @@ export default async function WorkspacePage({
     latestSnapshots,
     null,
     home.capabilities,
+    home.sessionPage,
   );
   const params = (await searchParams) ?? {};
   const errorDetails = readSearchParam(params.error);
