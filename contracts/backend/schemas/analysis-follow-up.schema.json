@@ -214,6 +214,28 @@
                     "minLength": 1
                   },
                   "maxItems": 3
+                },
+                "_suggestedActions": {
+                  "type": "array",
+                  "maxItems": 3,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "label",
+                      "rationale"
+                    ],
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "rationale": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -598,6 +620,28 @@
             "minLength": 1
           },
           "maxItems": 3
+        },
+        "_suggestedActions": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "rationale"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         }
       }
     },
@@ -811,6 +855,28 @@
                   "minLength": 1
                 },
                 "maxItems": 3
+              },
+              "_suggestedActions": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "label",
+                    "rationale"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
               }
             }
           },
@@ -836,6 +902,28 @@
                   "minLength": 1
                 },
                 "maxItems": 3
+              },
+              "_suggestedActions": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "label",
+                    "rationale"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
               }
             }
           }
@@ -933,6 +1021,28 @@
                   "minLength": 1
                 },
                 "maxItems": 3
+              },
+              "_suggestedActions": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "label",
+                    "rationale"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
               }
             }
           },
@@ -958,6 +1068,28 @@
                   "minLength": 1
                 },
                 "maxItems": 3
+              },
+              "_suggestedActions": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "label",
+                    "rationale"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
               }
             }
           }

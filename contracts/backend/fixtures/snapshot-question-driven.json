@@ -75,7 +75,13 @@
       "userId": "2",
       "accessMode": "all"
     },
-    "_executionContract": "java-initial-v1"
+    "_executionContract": "java-initial-v1",
+    "_suggestedActions": [
+      {
+        "label": "导出失败任务明细",
+        "rationale": "本周 3 个失败任务分属三类原因，需明细核对定位"
+      }
+    ]
   },
   "stepResults": [
     {
@@ -612,6 +618,12 @@
       "上周生成失败最多的原因是什么？",
       "各用户首次创建应用的时间分布如何？",
       "本月原型流水线的完成率是多少？"
+    ],
+    "suggestedActions": [
+      {
+        "label": "导出失败任务明细",
+        "rationale": "本周 3 个失败任务分属三类原因，需明细核对定位"
+      }
     ]
   },
   "resultBlocks": [
