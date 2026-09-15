@@ -28,5 +28,9 @@ public class ExecutionEventEntity {
     public Map<String, Object> metadata;
     public String errorCode;
     public String traceId;
+    @TableField(typeHandler = JsonbTypeHandler.class)
+    public Map<String, Object> step;
+    @TableField(typeHandler = JsonbTypeHandler.class)
+    public Map<String, Object> tool;
     public Instant createdAt;
 }

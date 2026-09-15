@@ -175,7 +175,7 @@ public interface AnalysisSessionReadMapper {
 
     @Select("""
             select id,session_id,execution_id,sequence,kind,event_timestamp,status,message,
-                   render_blocks,metadata,error_code,trace_id
+                   render_blocks,metadata,error_code,trace_id,step,tool
             from platform.analysis_execution_events
             where session_id=#{sessionId} and execution_id=#{executionId} and owner_user_id=#{ownerUserId}
             order by sequence
@@ -187,7 +187,9 @@ public interface AnalysisSessionReadMapper {
             @Result(property = "renderBlocks", column = "render_blocks", typeHandler = JsonbTypeHandler.class),
             @Result(property = "metadata", column = "metadata", typeHandler = JsonbTypeHandler.class),
             @Result(property = "errorCode", column = "error_code"),
-            @Result(property = "traceId", column = "trace_id")
+            @Result(property = "traceId", column = "trace_id"),
+            @Result(property = "step", column = "step", typeHandler = JsonbTypeHandler.class),
+            @Result(property = "tool", column = "tool", typeHandler = JsonbTypeHandler.class)
     })
     List<EventRow> listEvents(@Param("sessionId") String sessionId,
                               @Param("executionId") String executionId,
@@ -249,6 +251,8 @@ public interface AnalysisSessionReadMapper {
         public Map<String, Object> metadata;
         public String errorCode;
         public String traceId;
+        public Map<String, Object> step;
+        public Map<String, Object> tool;
     }
 
     final class HistoryRow {

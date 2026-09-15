@@ -6,7 +6,14 @@ import com.dip3.ontologyagent.ontology.OntologyCatalog;
 
 public record CapabilityExecutionContext(AuthSession principal, AgentTurn turn, String executionId,
                                          OntologyCatalog ontology, String datasetVersionSetId,
-                                         String traceId, String leaseOwner) {
+                                         String traceId, String leaseOwner, ExecutionProgress progress) {
+    public CapabilityExecutionContext(AuthSession principal, AgentTurn turn, String executionId,
+                                      OntologyCatalog ontology, String datasetVersionSetId,
+                                      String traceId, String leaseOwner) {
+        this(principal, turn, executionId, ontology, datasetVersionSetId, traceId, leaseOwner,
+                ExecutionProgress.NOOP);
+    }
+
     public CapabilityExecutionContext(AuthSession principal, AgentTurn turn, String executionId,
                                       OntologyCatalog ontology, String traceId, String leaseOwner) {
         this(principal, turn, executionId, ontology, null, traceId, leaseOwner);
@@ -22,6 +29,7 @@ public record CapabilityExecutionContext(AuthSession principal, AgentTurn turn, 
         }
         traceId = requireText(traceId, "traceId");
         leaseOwner = requireText(leaseOwner, "leaseOwner");
+        if (progress == null) progress = ExecutionProgress.NOOP;
     }
 
     private static String requireText(String value, String field) {

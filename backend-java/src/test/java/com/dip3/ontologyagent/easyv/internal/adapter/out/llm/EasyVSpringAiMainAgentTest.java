@@ -3,6 +3,7 @@ package com.dip3.ontologyagent.easyv.internal.adapter.out.llm;
 import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationWorkflow;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVDateRange;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
@@ -83,7 +84,7 @@ class EasyVSpringAiMainAgentTest {
     @Test
     void executesWorkflowThroughTheSingleAllowedToolCall() {
         WorkflowResult expected = new WorkflowResult(Map.of(), List.of(), "结论", List.of(), List.of());
-        when(workflow.execute(any())).thenReturn(expected);
+        when(workflow.execute(any(), any())).thenReturn(expected);
         when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
             EasyVSpringAiMainAgent.BoundTool tool =
                     (EasyVSpringAiMainAgent.BoundTool) invocation.getArguments()[0];
@@ -92,16 +93,16 @@ class EasyVSpringAiMainAgentTest {
         });
 
         WorkflowResult actual = agent.execute(owner, turn, "execution-1", ontology(),
-                "easyv-set-1", "trace-1", "lease-1");
+                "easyv-set-1", "trace-1", "lease-1", ExecutionProgress.NOOP);
 
         assertSame(expected, actual);
-        verify(workflow, times(1)).execute(any());
+        verify(workflow, times(1)).execute(any(), any());
     }
 
     @Test
     void retriesOnceWhenTheModelSubmitsInvalidToolInput() {
         WorkflowResult expected = new WorkflowResult(Map.of(), List.of(), "结论", List.of(), List.of());
-        when(workflow.execute(any())).thenReturn(expected);
+        when(workflow.execute(any(), any())).thenReturn(expected);
         AtomicInteger toolsInvocations = new AtomicInteger();
         when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
             EasyVSpringAiMainAgent.BoundTool tool =
@@ -118,10 +119,10 @@ class EasyVSpringAiMainAgentTest {
         });
 
         WorkflowResult actual = agent.execute(owner, turn, "execution-1", ontology(),
-                "easyv-set-1", "trace-1", "lease-1");
+                "easyv-set-1", "trace-1", "lease-1", ExecutionProgress.NOOP);
 
         assertSame(expected, actual);
-        verify(workflow, times(1)).execute(any());
+        verify(workflow, times(1)).execute(any(), any());
         assertEquals(2, toolsInvocations.get());
     }
 
@@ -138,7 +139,7 @@ class EasyVSpringAiMainAgentTest {
 
         BackendException error = assertThrows(BackendException.class,
                 () -> agent.execute(owner, turn, "execution-1", ontology(),
-                        "easyv-set-1", "trace-1", "lease-1"));
+                        "easyv-set-1", "trace-1", "lease-1", ExecutionProgress.NOOP));
 
         assertEquals("AGENT_TOOL_INPUT_INVALID", error.code());
         assertEquals(2, toolsInvocations.get());
@@ -150,7 +151,7 @@ class EasyVSpringAiMainAgentTest {
 
         BackendException error = assertThrows(BackendException.class,
                 () -> agent.execute(owner, turn, "execution-1", ontology(),
-                        "easyv-set-1", "trace-1", "lease-1"));
+                        "easyv-set-1", "trace-1", "lease-1", ExecutionProgress.NOOP));
 
         assertEquals("AGENT_TOOL_NOT_CALLED", error.code());
         verify(prompt, times(2)).tools(any(Object[].class));
@@ -162,7 +163,7 @@ class EasyVSpringAiMainAgentTest {
                 "java-initial-v1", "session-1", "现在有多少用户了",
                 null, null, Map.of(), Map.of(), anchoredAt);
         EasyVToolInput[] captured = new EasyVToolInput[1];
-        when(workflow.execute(any())).thenReturn(
+        when(workflow.execute(any(), any())).thenReturn(
                 new WorkflowResult(Map.of(), List.of(), "结论", List.of(), List.of()));
         when(prompt.tools(any(Object[].class))).thenAnswer(invocation -> {
             EasyVSpringAiMainAgent.BoundTool tool =
@@ -179,7 +180,7 @@ class EasyVSpringAiMainAgentTest {
         });
 
         WorkflowResult actual = agent.execute(owner, freeForm, "execution-1", ontology(),
-                "easyv-set-1", "trace-1", "lease-1");
+                "easyv-set-1", "trace-1", "lease-1", ExecutionProgress.NOOP);
 
         assertEquals("结论", actual.conclusion());
         assertEquals(EasyVDateRange.UNBOUNDED_FROM, captured[0].from());

@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.application;
 
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVDateRange;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVFailureReason;
@@ -69,10 +70,19 @@ public final class EasyVGenerationWorkflow {
   }
 
   public WorkflowResult execute(EasyVGenerationRequest request) {
+    return execute(request, ExecutionProgress.NOOP);
+  }
+
+  public WorkflowResult execute(EasyVGenerationRequest request, ExecutionProgress progress) {
     validateRequest(request);
-    EasyVGenerationFacts.Snapshot snapshot =
-        requireFacts(
-            facts.collect(
+    Map<String, Object> snapshotStep = step("load-snapshot", 1, "读取分析数据快照", "running");
+    progress.emit("step-started", snapshotStep, null);
+    long snapshotStart = System.nanoTime();
+    EasyVGenerationFacts.Snapshot snapshot;
+    try {
+      snapshot =
+          requireFacts(
+              facts.collect(
                 new EasyVGenerationFacts.Query(
                     request.executionId(),
                     request.userId(),
@@ -83,7 +93,12 @@ public final class EasyVGenerationWorkflow {
                     request.to(),
                     request.requestedAt())),
             request);
-    EasyVGenerationResult result = buildResult(request, snapshot);
+    } catch (RuntimeException error) {
+      progress.emit("step-completed", stepDone(snapshotStep, elapsed(snapshotStart), "failed"), null);
+      throw error;
+    }
+    progress.emit("step-completed", stepDone(snapshotStep, elapsed(snapshotStart), null), null);
+    EasyVGenerationResult result = buildResult(request, snapshot, progress);
     return result.toWorkflowResult();
   }
 
@@ -186,13 +201,45 @@ public final class EasyVGenerationWorkflow {
   }
 
   private EasyVGenerationResult buildResult(
-      EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot) {
+      EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot,
+      ExecutionProgress progress) {
     String rangeDescription =
         new EasyVDateRange(request.from(), request.to()).describe() + "，上海时区";
-    List<String> keys = planKeys(request.questionText());
-    List<EasyVQuestionAnalyst.QueryResult> results = executeQueries(request, keys);
-    EasyVQuestionAnalyst.ComposedAnswer answer =
-        analyst.composeAnswer(request.questionText(), rangeDescription, results);
+    Map<String, Object> planStep = step("plan-queries", 2, "分析问题并规划查询", "running");
+    progress.emit("step-started", planStep, null);
+    long planStart = System.nanoTime();
+    List<String> keys;
+    try {
+      keys = planKeys(request.questionText());
+    } catch (RuntimeException error) {
+      progress.emit("step-completed", stepDone(planStep, elapsed(planStart), "failed"), null);
+      throw error;
+    }
+    progress.emit("step-completed",
+        stepDone(planStep, elapsed(planStart), null, keys.size()), null);
+    Map<String, Object> queryStep = step("run-queries", 3, "执行数据查询", "running");
+    progress.emit("step-started", queryStep, null);
+    long queryStart = System.nanoTime();
+    List<EasyVQuestionAnalyst.QueryResult> results;
+    try {
+      results = executeQueries(request, keys, progress);
+    } catch (RuntimeException error) {
+      progress.emit("step-completed", stepDone(queryStep, elapsed(queryStart), "failed"), null);
+      throw error;
+    }
+    progress.emit("step-completed",
+        stepDone(queryStep, elapsed(queryStart), null, results.size()), null);
+    Map<String, Object> composeStep = step("compose-answer", 4, "基于事实生成回答", "running");
+    progress.emit("step-started", composeStep, null);
+    long composeStart = System.nanoTime();
+    EasyVQuestionAnalyst.ComposedAnswer answer;
+    try {
+      answer = analyst.composeAnswer(request.questionText(), rangeDescription, results);
+    } catch (RuntimeException error) {
+      progress.emit("step-completed", stepDone(composeStep, elapsed(composeStart), "failed"), null);
+      throw error;
+    }
+    progress.emit("step-completed", stepDone(composeStep, elapsed(composeStart), null), null);
     List<Evidence> evidence = evidence(request, snapshot, results);
     List<GroundedConclusion.EvidenceReference> refs =
         evidence.stream()
@@ -236,6 +283,9 @@ public final class EasyVGenerationWorkflow {
     plan.put("summary", "EasyV 数据问答");
     plan.put("mode", "question-driven-read-only");
     plan.put("steps", steps);
+    if (!answer.suggestions().isEmpty()) {
+      plan.put("_suggestedQuestions", answer.suggestions());
+    }
     if (request.followUpId() != null) plan.put("_followUpId", request.followUpId());
     if (request.referencedExecutionId() != null) {
       plan.put("_referencedExecutionId", request.referencedExecutionId());
@@ -256,7 +306,7 @@ public final class EasyVGenerationWorkflow {
   }
 
   private List<EasyVQuestionAnalyst.QueryResult> executeQueries(
-      EasyVGenerationRequest request, List<String> keys) {
+      EasyVGenerationRequest request, List<String> keys, ExecutionProgress progress) {
     if (keys.isEmpty()) {
       keys = EasyVQueryCatalog.DEFAULT_KEYS;
     }
@@ -268,10 +318,53 @@ public final class EasyVGenerationWorkflow {
     List<EasyVQuestionAnalyst.QueryResult> results = new ArrayList<>();
     for (String key : keys) {
       EasyVQueryCatalog.Spec spec = EasyVQueryCatalog.require(key);
-      List<Map<String, Object>> rows = normalizeRows(spec.key(), facts.aggregate(scope, key));
-      results.add(new EasyVQuestionAnalyst.QueryResult(spec, rows));
+      progress.emit("tool-started", null,
+          Map.of("name", spec.key(), "label", spec.label()));
+      long toolStart = System.nanoTime();
+      try {
+        List<Map<String, Object>> rows = normalizeRows(spec.key(), facts.aggregate(scope, key));
+        progress.emit("tool-completed", null,
+            Map.of("name", spec.key(), "label", spec.label(),
+                "durationMs", elapsed(toolStart),
+                "output", Map.of("rows", rows.size())));
+        results.add(new EasyVQuestionAnalyst.QueryResult(spec, rows));
+      } catch (RuntimeException error) {
+        progress.emit("tool-failed", null,
+            Map.of("name", spec.key(), "label", spec.label(),
+                "durationMs", elapsed(toolStart),
+                "error", error.getMessage() == null ? error.getClass().getSimpleName()
+                    : error.getMessage()));
+        throw error;
+      }
     }
     return List.copyOf(results);
+  }
+
+  private static Map<String, Object> step(String id, int order, String title, String status) {
+    Map<String, Object> step = new LinkedHashMap<>();
+    step.put("id", id);
+    step.put("order", order);
+    step.put("title", title);
+    step.put("status", status);
+    return step;
+  }
+
+  private static Map<String, Object> stepDone(Map<String, Object> step, long durationMs,
+                                              String status) {
+    return stepDone(step, durationMs, status, null);
+  }
+
+  private static Map<String, Object> stepDone(Map<String, Object> step, long durationMs,
+                                              String status, Integer toolCount) {
+    Map<String, Object> done = new LinkedHashMap<>(step);
+    done.put("status", status == null ? "completed" : status);
+    done.put("durationMs", durationMs);
+    if (toolCount != null) done.put("toolCount", toolCount);
+    return done;
+  }
+
+  private static long elapsed(long nanoStart) {
+    return Duration.ofNanos(System.nanoTime() - nanoStart).toMillis();
   }
 
   /** 行值归一化：时间戳转上海时区文本；失败原因 label 归一化为中文标签并保留原文。 */
