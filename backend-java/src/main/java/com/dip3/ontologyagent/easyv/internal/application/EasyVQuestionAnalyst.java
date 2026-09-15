@@ -36,18 +36,32 @@ public interface EasyVQuestionAnalyst {
    * @param markdown 直接回答用户问题的中文 markdown（只引用提供的数据）
    * @param highlights 需要在对话流中直接展示的图表（queryKey + viz）
    * @param suggestions 面向业务的中文追问建议（须能由目录内查询回答）
+   * @param actions 基于结论的建议业务动作（只读建议，执行须人工确认与派发通道）
    */
-  record ComposedAnswer(String markdown, List<Highlight> highlights, List<String> suggestions) {
+  record ComposedAnswer(
+      String markdown,
+      List<Highlight> highlights,
+      List<String> suggestions,
+      List<SuggestedAction> actions) {
     public ComposedAnswer {
       highlights = highlights == null ? List.of() : List.copyOf(highlights);
       suggestions = suggestions == null ? List.of() : List.copyOf(suggestions);
+      actions = actions == null ? List.of() : List.copyOf(actions);
     }
 
     public ComposedAnswer(String markdown, List<Highlight> highlights) {
-      this(markdown, highlights, List.of());
+      this(markdown, highlights, List.of(), List.of());
+    }
+
+    public ComposedAnswer(
+        String markdown, List<Highlight> highlights, List<String> suggestions) {
+      this(markdown, highlights, suggestions, List.of());
     }
   }
 
   /** viz ∈ bar | pie | line | table | none */
   record Highlight(String queryKey, String viz) {}
+
+  /** 建议业务动作：label 为动作名，rationale 为基于已见事实的理由。 */
+  record SuggestedAction(String label, String rationale) {}
 }

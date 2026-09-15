@@ -241,6 +241,11 @@ public final class AnalysisWorker {
         if (!suggestions.isEmpty()) {
             conclusionState.put("suggestedQuestions", suggestions);
         }
+        List<Map<String, Object>> suggestedActions =
+                suggestedActions(result.plan().get("_suggestedActions"));
+        if (!suggestedActions.isEmpty()) {
+            conclusionState.put("suggestedActions", suggestedActions);
+        }
         ExecutionSnapshot snapshot = new ExecutionSnapshot(job.executionId(), job.sessionId(), job.ownerUserId(),
                 job.followUpId(), ontologyVersionId, ontologyBinding(ontologyVersionId,
                 job.followUpId() == null ? "grounded-context" : "inherited"), job.capabilityBinding().snapshot(),
@@ -356,6 +361,19 @@ public final class AnalysisWorker {
             }
         }
         return questions;
+    }
+
+    private static List<Map<String, Object>> suggestedActions(Object raw) {
+        if (!(raw instanceof List<?> list)) return List.of();
+        List<Map<String, Object>> actions = new java.util.ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map
+                    && map.get("label") instanceof String label && !label.isBlank()
+                    && map.get("rationale") instanceof String rationale && !rationale.isBlank()) {
+                actions.add(Map.of("label", label.trim(), "rationale", rationale.trim()));
+            }
+        }
+        return actions;
     }
 
     private static String summarize(Evidence evidence) {

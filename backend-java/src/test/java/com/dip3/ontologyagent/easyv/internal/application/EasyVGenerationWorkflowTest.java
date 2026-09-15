@@ -286,15 +286,15 @@ class EasyVGenerationWorkflowTest {
     }
 
     @Override
-    public List<Map<String, Object>> aggregate(Query query, String queryKey) {
+    public Aggregation aggregate(Query query, String queryKey) {
       queriedKeys.add(queryKey);
       EasyVQueryCatalog.Spec spec = EasyVQueryCatalog.require(queryKey);
-      if (spec.shape() == EasyVQueryCatalog.Shape.RECORD) {
-        return List.of(Map.of("user_count", 3L, "application_count", 10L));
-      }
-      return List.of(
-          Map.of("label", "101", "value", 2L),
-          Map.of("label", "102", "value", 1L));
+      List<Map<String, Object>> rows = spec.shape() == EasyVQueryCatalog.Shape.RECORD
+          ? List.of(Map.of("user_count", 3L, "application_count", 10L))
+          : List.of(
+              Map.of("label", "101", "value", 2L),
+              Map.of("label", "102", "value", 1L));
+      return new Aggregation(rows, "select 1");
     }
   }
 

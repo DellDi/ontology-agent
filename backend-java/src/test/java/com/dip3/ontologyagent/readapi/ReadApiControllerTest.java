@@ -166,7 +166,7 @@ class ReadApiControllerTest {
                 Map.of("workflowInvocations", 1), null, 1, 2, "published", "trace-1", now, now, now, now, null);
         AnalysisSessionAggregate.EventView event = new AnalysisSessionAggregate.EventView("event-1", "session-1",
                 "execution-1", 1, "execution-status", now, "completed", "分析执行已完成", List.of(), Map.of(),
-                null, "trace-1");
+                null, "trace-1", null, null);
         AnalysisSessionAggregate.SnapshotView snapshot = new AnalysisSessionAggregate.SnapshotView("execution-1",
                 "session-1", null, "ontology-1", "grounded-context", "completed", propertyBinding(), Map.of(), List.of(),
                 Map.of("causes", List.of()), List.of(), Map.of(), null, null, "trace-1", now, now);

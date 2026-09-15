@@ -100,7 +100,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
     }
 
     @Override
-    public List<Map<String, Object>> aggregate(Query query, String queryKey) {
+    public Aggregation aggregate(Query query, String queryKey) {
         validateQuery(query);
         EasyVQueryCatalog.Spec spec;
         try {
@@ -112,13 +112,14 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
         try {
             DatasetVersionSet set = versionSets.requireFrozen(
                     query.datasetVersionSetId(), REQUIRED_PRODUCTS);
+            Bound bound = boundRows(spec, Versions.from(set), Bounds.of(query));
             List<Map<String, Object>> rows = readOnlyTransaction.execute(status ->
-                    aggregateRows(spec, Versions.from(set), Bounds.of(query)));
+                    jdbc.queryForList(bound.sql(), bound.args()));
             if (rows == null) {
                 throw new BackendException("EASYV_FACTS_READ_FAILED",
                         "EasyV canonical facts 聚合读取未返回结果。");
             }
-            return rows;
+            return new Aggregation(rows, bound.sql());
         } catch (BackendException error) {
             throw error;
         } catch (RuntimeException error) {
@@ -131,18 +132,19 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
      * 受控问答聚合：每个目录 key 对应一条固定 SQL，scope 语义与
      * {@link #collect} 一致（application=cohort created_at；forge/pipeline/feedback
      * =cohort 归属 + 各自事件时间在窗口内）。LLM 只选择 key，不接触 SQL。
+     * SQL 模板随行返回，用于归因审计的论证表述。
      */
-    private List<Map<String, Object>> aggregateRows(
+    private Bound boundRows(
             EasyVQueryCatalog.Spec spec, Versions versions, Bounds bounds) {
         return switch (spec.key()) {
-            case "ai-application-count" -> jdbc.queryForList("""
+            case "ai-application-count" -> bound("""
                     select count(distinct a.app_id) as application_count,
                            count(distinct a.user_id) as user_count
                     from facts.easyv_ai_application a
                     where a.product_version_id=? and not a.is_deleted
                       and a.created_at>=? and a.created_at<?
                     """, versions.application(), bounds.from(), bounds.to());
-            case "prototype-count" -> jdbc.queryForList("""
+            case "prototype-count" -> bound("""
                     select count(distinct p.app_id) as prototype_count
                     from facts.easyv_prototype_task p
                     join facts.easyv_ai_application a
@@ -150,7 +152,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                      and not a.is_deleted and a.created_at>=? and a.created_at<?
                     where p.product_version_id=?
                     """, versions.application(), bounds.from(), bounds.to(), versions.prototype());
-            case "user-count" -> jdbc.queryForList("""
+            case "user-count" -> bound("""
                     select count(distinct a.user_id) as user_count,
                            min(a.created_at) as first_created_at,
                            max(a.created_at) as last_created_at
@@ -158,7 +160,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     where a.product_version_id=? and not a.is_deleted
                       and a.created_at>=? and a.created_at<?
                     """, versions.application(), bounds.from(), bounds.to());
-            case "user-first-active" -> jdbc.queryForList("""
+            case "user-first-active" -> bound("""
                     select a.user_id::text as label,
                            min(a.created_at) as value,
                            count(distinct a.app_id) as app_count
@@ -167,7 +169,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                       and a.created_at>=? and a.created_at<?
                     group by a.user_id order by value asc, label asc limit 50
                     """, versions.application(), bounds.from(), bounds.to());
-            case "application-by-day" -> jdbc.queryForList("""
+            case "application-by-day" -> bound("""
                     select to_char(a.created_at at time zone 'Asia/Shanghai','YYYY-MM-DD') as label,
                            count(distinct a.app_id) as value
                     from facts.easyv_ai_application a
@@ -175,21 +177,21 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                       and a.created_at>=? and a.created_at<?
                     group by 1 order by 1
                     """, versions.application(), bounds.from(), bounds.to());
-            case "application-by-user" -> jdbc.queryForList("""
+            case "application-by-user" -> bound("""
                     select a.user_id::text as label, count(distinct a.app_id) as value
                     from facts.easyv_ai_application a
                     where a.product_version_id=? and not a.is_deleted
                       and a.created_at>=? and a.created_at<?
                     group by a.user_id order by value desc, label asc limit 50
                     """, versions.application(), bounds.from(), bounds.to());
-            case "application-by-scope" -> jdbc.queryForList("""
+            case "application-by-scope" -> bound("""
                     select a.scope_type as label, count(distinct a.app_id) as value
                     from facts.easyv_ai_application a
                     where a.product_version_id=? and not a.is_deleted
                       and a.created_at>=? and a.created_at<?
                     group by a.scope_type order by value desc, label asc
                     """, versions.application(), bounds.from(), bounds.to());
-            case "forge-task-by-status" -> jdbc.queryForList("""
+            case "forge-task-by-status" -> bound("""
                     with scoped as (
                       select distinct a.app_id from facts.easyv_ai_application a
                       where a.product_version_id=? and not a.is_deleted
@@ -201,7 +203,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by g.status order by value desc, label asc
                     """, versions.application(), bounds.from(), bounds.to(),
                     versions.forge(), bounds.from(), bounds.to());
-            case "forge-failure-reasons" -> jdbc.queryForList("""
+            case "forge-failure-reasons" -> bound("""
                     with scoped as (
                       select distinct a.app_id from facts.easyv_ai_application a
                       where a.product_version_id=? and not a.is_deleted
@@ -215,7 +217,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by 1 order by value desc, label asc
                     """, versions.application(), bounds.from(), bounds.to(),
                     versions.forge(), bounds.from(), bounds.to());
-            case "forge-duration-summary" -> jdbc.queryForList("""
+            case "forge-duration-summary" -> bound("""
                     with scoped as (
                       select distinct a.app_id from facts.easyv_ai_application a
                       where a.product_version_id=? and not a.is_deleted
@@ -239,7 +241,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     where g.product_version_id=? and g.created_at>=? and g.created_at<?
                     """, versions.application(), bounds.from(), bounds.to(),
                     versions.forge(), bounds.from(), bounds.to());
-            case "forge-task-by-day" -> jdbc.queryForList("""
+            case "forge-task-by-day" -> bound("""
                     with scoped as (
                       select distinct a.app_id from facts.easyv_ai_application a
                       where a.product_version_id=? and not a.is_deleted
@@ -252,7 +254,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by 1 order by 1
                     """, versions.application(), bounds.from(), bounds.to(),
                     versions.forge(), bounds.from(), bounds.to());
-            case "pipeline-step-p95" -> jdbc.queryForList("""
+            case "pipeline-step-p95" -> bound("""
                     select n.step_name as label,
                       ceil(percentile_cont(0.95) within group (order by n.duration_ms))::bigint as value,
                       count(*) as node_count
@@ -265,7 +267,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by n.step_name order by value desc, label asc
                     """, versions.pipeline(), versions.application(),
                     bounds.from(), bounds.to(), bounds.from(), bounds.to());
-            case "pipeline-node-by-status" -> jdbc.queryForList("""
+            case "pipeline-node-by-status" -> bound("""
                     select n.status as label, count(*) as value
                     from facts.easyv_ai_application a join facts.easyv_pipeline_node n
                       on n.product_version_id=? and n.task_id=a.generation_task_id
@@ -276,7 +278,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by n.status order by value desc, label asc
                     """, versions.pipeline(), versions.application(),
                     bounds.from(), bounds.to(), bounds.from(), bounds.to());
-            case "pipeline-task-outcome" -> jdbc.queryForList("""
+            case "pipeline-task-outcome" -> bound("""
                     with task_ids as (
                       select distinct a.generation_task_id as task_id
                       from facts.easyv_ai_application a
@@ -300,7 +302,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     from summary
                     """, versions.application(), bounds.from(), bounds.to(),
                     versions.pipeline(), bounds.from(), bounds.to());
-            case "feedback-operation-count" -> jdbc.queryForList("""
+            case "feedback-operation-count" -> bound("""
                     select count(*) as operation_count,
                       count(distinct l.user_id) as user_count,
                       count(*) filter (where l.rating between 1 and 5) as rated_count,
@@ -315,7 +317,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                       and l.operated_at>=? and l.operated_at<?
                     """, versions.application(), versions.feedback(),
                     bounds.from(), bounds.to(), bounds.from(), bounds.to());
-            case "feedback-by-action-type" -> jdbc.queryForList("""
+            case "feedback-by-action-type" -> bound("""
                     select l.ai_action_type as label, count(*) as value
                     from facts.easyv_generation_feedback l join facts.easyv_ai_application a
                       on a.product_version_id=? and a.app_id=l.app_id
@@ -325,7 +327,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by l.ai_action_type order by value desc, label asc
                     """, versions.application(), versions.feedback(),
                     bounds.from(), bounds.to(), bounds.from(), bounds.to());
-            case "feedback-by-execute-result" -> jdbc.queryForList("""
+            case "feedback-by-execute-result" -> bound("""
                     select case l.execute_result when 1 then '组合成功' when 0 then '组合失败'
                              else '其他' end as label,
                            count(*) as value
@@ -337,7 +339,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by l.execute_result order by value desc, label asc
                     """, versions.application(), versions.feedback(),
                     bounds.from(), bounds.to(), bounds.from(), bounds.to());
-            case "feedback-by-rating" -> jdbc.queryForList("""
+            case "feedback-by-rating" -> bound("""
                     select l.rating::text as label, count(*) as value
                     from facts.easyv_generation_feedback l join facts.easyv_ai_application a
                       on a.product_version_id=? and a.app_id=l.app_id
@@ -348,7 +350,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by l.rating order by l.rating
                     """, versions.application(), versions.feedback(),
                     bounds.from(), bounds.to(), bounds.from(), bounds.to());
-            case "feedback-by-day" -> jdbc.queryForList("""
+            case "feedback-by-day" -> bound("""
                     select to_char(l.operated_at at time zone 'Asia/Shanghai','YYYY-MM-DD') as label,
                            count(*) as value
                     from facts.easyv_generation_feedback l join facts.easyv_ai_application a
@@ -359,7 +361,7 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     group by 1 order by 1
                     """, versions.application(), versions.feedback(),
                     bounds.from(), bounds.to(), bounds.from(), bounds.to());
-            case "feedback-by-user" -> jdbc.queryForList("""
+            case "feedback-by-user" -> bound("""
                     select l.user_id::text as label, count(*) as value
                     from facts.easyv_generation_feedback l join facts.easyv_ai_application a
                       on a.product_version_id=? and a.app_id=l.app_id
@@ -372,6 +374,13 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
             default -> throw new BackendException("EASYV_QUERY_NOT_PUBLISHED",
                     "EasyV 查询目录 key 无对应 SQL 模板: " + spec.key());
         };
+    }
+
+    /** 目录查询的绑定形态：固定 SQL 模板 + 位置参数。 */
+    private record Bound(String sql, Object[] args) {}
+
+    private Bound bound(String sql, Object... args) {
+        return new Bound(sql, args);
     }
 
     private ApplicationFacts applicationFacts(

@@ -43,10 +43,11 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
       规则：
       - 只能使用提供的数据，数字必须与数据一致，禁止编造
       - 数据没有覆盖的信息要如实说明（例如：采集数据没有用户注册时间字段，可改为给出各用户首次创建应用时间）
-      - 输出 JSON：{"answer": "markdown 回答", "highlights": [{"key": "查询key", "viz": "bar|pie|line|table|none"}], "suggestions": ["追问建议1", "追问建议2"]}
+      - 输出 JSON：{"answer": "markdown 回答", "highlights": [{"key": "查询key", "viz": "bar|pie|line|table|none"}], "suggestions": ["追问建议1", "追问建议2"], "suggestedActions": [{"label": "动作名", "rationale": "基于已见事实的理由"}]}
       - answer 为 markdown，可使用列表与表格；先直接给结论，再给必要明细
       - highlights 只从已执行的查询 key 中选择真正支撑回答的 0-3 个；series 形状数据才可配图表，record 形状数据用 table 或 none
       - suggestions 为 2-3 个自然的中文追问建议：结合本次问题与已看到的数据，提出用户下一步最可能想问的问题；每个建议必须能由本次已执行或目录内的查询回答，且默认沿用输入 range 的同一时间范围——不要使用"上周/本周/昨天/最近"等相对时间词（追问会按相对时间重锚时间窗口，可能落到无数据区间）；不得建议采集数据中没有的字段（如用户注册时间），不得出现查询 key、SQL 或技术术语
+      - suggestedActions 为 0-2 个决策性业务动作建议（如：导出失败任务明细、对失败任务创建排查工单、标记异常应用、通知负责人复查）：仅当结论确实指向可操作的处置时才给出，无事可办时输出空数组；label 为动词开头的短动作名，rationale 必须引用本次查询中的具体数字或事实；不得建议修改业务数据本身
       """;
 
   /** 追问建议不得携带相对时间词——追问链路会按相对时间重锚窗口，可能落到无数据区间。 */
@@ -97,7 +98,7 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
       }
       String content = call(COMPOSER_PROMPT, input);
       try {
-        return parseAnswer(content, results);
+        return parseAnswer(content, results, rangeDescription);
       } catch (BackendException error) {
         last = error;
       }
@@ -150,7 +151,7 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
     return valid.stream().limit(MAX_PLAN_QUERIES).toList();
   }
 
-  private ComposedAnswer parseAnswer(String content, List<QueryResult> results) {
+  private ComposedAnswer parseAnswer(String content, List<QueryResult> results, String rangeDescription) {
     Map<String, Object> parsed = parseJson(content, "EASYV_ANSWER_INVALID");
     Object answer = parsed.get("answer");
     if (!(answer instanceof String markdown) || markdown.isBlank()) {
@@ -190,14 +191,31 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
     Object rawSuggestions = parsed.get("suggestions");
     if (rawSuggestions instanceof List<?> list) {
       for (Object item : list) {
-        if (item instanceof String text && !text.isBlank()
-            && !RELATIVE_TIME_WORD.matcher(text).find()) {
-          suggestions.add(text.trim());
+        if (item instanceof String text && !text.isBlank()) {
+          // 相对时间词会被追问链路重锚到错误窗口——改写为本轮绝对时间范围而非丢弃
+          String normalized = RELATIVE_TIME_WORD.matcher(text)
+              .replaceAll(java.util.regex.Matcher.quoteReplacement(rangeDescription))
+              .trim();
+          if (!normalized.isBlank()) {
+            suggestions.add(normalized);
+          }
+        }
+      }
+    }
+    List<SuggestedAction> actions = new ArrayList<>();
+    Object rawActions = parsed.get("suggestedActions");
+    if (rawActions instanceof List<?> list) {
+      for (Object item : list) {
+        if (item instanceof Map<?, ?> map
+            && map.get("label") instanceof String label && !label.isBlank()
+            && map.get("rationale") instanceof String rationale && !rationale.isBlank()) {
+          actions.add(new SuggestedAction(label.trim(), rationale.trim()));
         }
       }
     }
     return new ComposedAnswer(markdown, highlights,
-        suggestions.stream().limit(3).toList());
+        suggestions.stream().limit(3).toList(),
+        actions.stream().limit(3).toList());
   }
 
   private Map<String, Object> resultProjection(QueryResult result) {

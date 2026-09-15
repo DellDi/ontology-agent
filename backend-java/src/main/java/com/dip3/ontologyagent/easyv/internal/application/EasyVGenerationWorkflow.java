@@ -286,6 +286,12 @@ public final class EasyVGenerationWorkflow {
     if (!answer.suggestions().isEmpty()) {
       plan.put("_suggestedQuestions", answer.suggestions());
     }
+    if (!answer.actions().isEmpty()) {
+      plan.put("_suggestedActions", answer.actions().stream()
+          .map(action -> Map.<String, Object>of(
+              "label", action.label(), "rationale", action.rationale()))
+          .toList());
+    }
     if (request.followUpId() != null) plan.put("_followUpId", request.followUpId());
     if (request.referencedExecutionId() != null) {
       plan.put("_referencedExecutionId", request.referencedExecutionId());
@@ -318,22 +324,27 @@ public final class EasyVGenerationWorkflow {
     List<EasyVQuestionAnalyst.QueryResult> results = new ArrayList<>();
     for (String key : keys) {
       EasyVQueryCatalog.Spec spec = EasyVQueryCatalog.require(key);
-      progress.emit("tool-started", null,
-          Map.of("name", spec.key(), "label", spec.label()));
+      Map<String, Object> tool = new LinkedHashMap<>();
+      tool.put("name", spec.key());
+      tool.put("label", spec.label());
+      tool.put("fact", spec.fact());
+      progress.emit("tool-started", null, tool);
       long toolStart = System.nanoTime();
       try {
-        List<Map<String, Object>> rows = normalizeRows(spec.key(), facts.aggregate(scope, key));
-        progress.emit("tool-completed", null,
-            Map.of("name", spec.key(), "label", spec.label(),
-                "durationMs", elapsed(toolStart),
-                "output", Map.of("rows", rows.size())));
+        EasyVGenerationFacts.Aggregation aggregation = facts.aggregate(scope, key);
+        List<Map<String, Object>> rows = normalizeRows(spec.key(), aggregation.rows());
+        Map<String, Object> done = new LinkedHashMap<>(tool);
+        done.put("sql", aggregation.sql());
+        done.put("durationMs", elapsed(toolStart));
+        done.put("output", Map.of("rows", rows.size()));
+        progress.emit("tool-completed", null, done);
         results.add(new EasyVQuestionAnalyst.QueryResult(spec, rows));
       } catch (RuntimeException error) {
-        progress.emit("tool-failed", null,
-            Map.of("name", spec.key(), "label", spec.label(),
-                "durationMs", elapsed(toolStart),
-                "error", error.getMessage() == null ? error.getClass().getSimpleName()
-                    : error.getMessage()));
+        Map<String, Object> failed = new LinkedHashMap<>(tool);
+        failed.put("durationMs", elapsed(toolStart));
+        failed.put("error", error.getMessage() == null ? error.getClass().getSimpleName()
+            : error.getMessage());
+        progress.emit("tool-failed", null, failed);
         throw error;
       }
     }
