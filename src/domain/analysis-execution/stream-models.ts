@@ -234,7 +234,8 @@ function isStringMatrix(value: unknown): value is string[][] {
 }
 
 function assertOptionalString(value: unknown, fieldName: string) {
-  if (value === undefined || value === null) {
+  // 可选展示串：空串语义等价于缺省，归一化为 undefined（存量数据可能携带 ""）。
+  if (value === undefined || value === null || value === '') {
     return undefined;
   }
 
