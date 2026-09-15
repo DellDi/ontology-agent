@@ -168,21 +168,23 @@ function payloadFromRenderBlock(block: ExecutionRenderBlock) {
         tone: block.tone,
       };
     case 'kv-list':
-      return { items: block.items };
+      return stripUndefinedPayload({ items: block.items, role: block.role });
     case 'tool-list':
       return { items: block.items };
     case 'markdown':
-      return { content: block.content };
+      return stripUndefinedPayload({ content: block.content, role: block.role });
     case 'table':
-      return {
+      return stripUndefinedPayload({
         columns: block.columns,
         rows: block.rows,
-      };
+        role: block.role,
+      });
     case 'chart':
       return stripUndefinedPayload({
         chartType: block.chartType,
         series: block.series,
         unit: block.unit,
+        role: block.role,
       });
     case 'graph':
       return {

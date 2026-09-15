@@ -1308,9 +1308,11 @@ export function buildConversationViewModel(
     const conclusionHeadline =
       conclusionReadModel?.causes?.[0]?.title ?? '分析结论';
     const conclusionSummary =
-      conclusionReadModel?.causes
-        ?.map((cause) => `${cause.title}：${cause.summary}`)
-        .join('\n') ?? '';
+      conclusionReadModel?.causes?.length === 1
+        ? (conclusionReadModel.causes[0].summary ?? '')
+        : (conclusionReadModel?.causes
+            ?.map((cause) => `${cause.title}：${cause.summary}`)
+            .join('\n') ?? '');
 
     // 如果有 conclusion，把 conclusion 信息作为结果主块
     const conclusionRenderedBlock: AnalysisRenderedBlock = {
@@ -1326,6 +1328,8 @@ export function buildConversationViewModel(
         headline: conclusionHeadline,
         summary: conclusionSummary,
         causes: conclusionReadModel?.causes ?? [],
+        // 结论卡与主答案（primaryAnswer）同源，收进支撑明细抽屉避免对话流重复。
+        role: 'supporting',
       },
       diagnostics: {
         originalType: 'conclusion-card',

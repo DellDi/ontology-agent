@@ -30,17 +30,22 @@ export const EXECUTION_RENDER_BLOCK_TYPES = [
 export type ExecutionRenderBlockType =
   (typeof EXECUTION_RENDER_BLOCK_TYPES)[number];
 
+/** primary=对话流首屏直接展示；supporting=收进折叠的明细区。缺省按 primary 处理。 */
+export type ExecutionRenderBlockRole = 'primary' | 'supporting';
+
 export type ExecutionStatusRenderBlock = {
   type: 'status';
   title: string;
   value: string;
   tone: 'neutral' | 'info' | 'success' | 'error';
+  role?: ExecutionRenderBlockRole;
 };
 
 export type ExecutionKeyValueBlock = {
   type: 'kv-list';
   title: string;
   items: { label: string; value: string }[];
+  role?: ExecutionRenderBlockRole;
 };
 
 export type ExecutionToolListBlock = {
@@ -57,6 +62,7 @@ export type ExecutionMarkdownBlock = {
   type: 'markdown';
   title: string;
   content: string;
+  role?: ExecutionRenderBlockRole;
 };
 
 export type ExecutionTableBlock = {
@@ -64,6 +70,7 @@ export type ExecutionTableBlock = {
   title: string;
   columns: string[];
   rows: string[][];
+  role?: ExecutionRenderBlockRole;
 };
 
 export type ExecutionChartBlock = {
@@ -75,6 +82,7 @@ export type ExecutionChartBlock = {
     points: { label: string; value: number }[];
   }[];
   unit?: string;
+  role?: ExecutionRenderBlockRole;
 };
 
 export type ExecutionGraphBlock = {
