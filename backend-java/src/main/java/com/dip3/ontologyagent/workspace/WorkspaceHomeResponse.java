@@ -8,8 +8,10 @@ import java.util.List;
 import java.util.Map;
 
 public record WorkspaceHomeResponse(ViewerResponse viewer, List<SessionSummary> sessions,
+                                    SessionPage sessionPage,
                                     List<ProjectSummary> projects,
                                     List<CapabilityAvailability> capabilities) {
+    public record SessionPage(long total, int limit, int offset, boolean hasMore) {}
     public record SessionSummary(String id, String questionText, String status, SessionScope scope,
                                  Map<String, Object> savedContext, Instant createdAt, Instant updatedAt,
                                  LatestExecutionSummary latestExecution) {}

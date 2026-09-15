@@ -52,7 +52,7 @@ export function WorkspaceHomeShell({ model, creationError, draftQuestion }: Work
         ) : <StatusBanner tone="info" title="暂时无法发起分析">{model.emptyState?.description ?? '请联系管理员分配分析范围。'}</StatusBanner>}
       </section>
 
-      <WorkspaceSessionList items={model.historyItems} canCreateAnalysis={model.canCreateAnalysis} />
+      <WorkspaceSessionList items={model.historyItems} sessionPage={model.sessionPage} canCreateAnalysis={model.canCreateAnalysis} />
     </section>
   );
 }

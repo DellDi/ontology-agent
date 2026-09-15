@@ -24,12 +24,24 @@ public class WorkspaceHomeService {
         this.capabilities = capabilities;
     }
 
+    public static final int DEFAULT_SESSION_LIMIT = 20;
+    public static final int MAX_SESSION_LIMIT = 100;
+
     @Transactional(readOnly = true)
     public WorkspaceHomeResponse load(AuthSession viewer) {
+        return load(viewer, 0, DEFAULT_SESSION_LIMIT);
+    }
+
+    @Transactional(readOnly = true)
+    public WorkspaceHomeResponse load(AuthSession viewer, int offset, int limit) {
+        int safeOffset = Math.max(0, offset);
+        int safeLimit = Math.min(Math.max(1, limit), MAX_SESSION_LIMIT);
         String[] projectIds = viewer.scope().projectIds().toArray(String[]::new);
         String[] areaIds = viewer.scope().areaIds().toArray(String[]::new);
+        long total = mapper.countSessions(viewer.userId(), viewer.scope().organizationId(),
+                projectIds, areaIds);
         List<WorkspaceHomeMapper.SessionRow> rows = mapper.listSessions(viewer.userId(),
-                viewer.scope().organizationId(), projectIds, areaIds);
+                viewer.scope().organizationId(), projectIds, areaIds, safeLimit, safeOffset);
         Map<String, WorkspaceHomeMapper.ExecutionRow> executions = rows.isEmpty() ? Map.of()
                 : mapper.listLatestExecutions(viewer.userId(), viewer.scope().organizationId(),
                         rows.stream().map(row -> row.id).toList()).stream()
@@ -48,7 +60,10 @@ public class WorkspaceHomeService {
         List<WorkspaceHomeResponse.ProjectSummary> projects = projectRows.values().stream()
                 .map(row -> new WorkspaceHomeResponse.ProjectSummary(row.id, row.code, row.name,
                         row.organizationId, row.areaId, row.areaName)).toList();
-        return new WorkspaceHomeResponse(ViewerResponse.from(viewer), sessions, projects, capabilities.availableFor(viewer));
+        var page = new WorkspaceHomeResponse.SessionPage(total, safeLimit, safeOffset,
+                safeOffset + rows.size() < total);
+        return new WorkspaceHomeResponse(ViewerResponse.from(viewer), sessions, page, projects,
+                capabilities.availableFor(viewer));
     }
 
     private static WorkspaceHomeResponse.SessionSummary session(WorkspaceHomeMapper.SessionRow row,

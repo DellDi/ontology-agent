@@ -5,6 +5,7 @@ import com.dip3.ontologyagent.auth.CookieSessionAuthenticator;
 import com.dip3.ontologyagent.support.BackendException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,9 +19,11 @@ public final class WorkspaceHomeController {
     }
 
     @GetMapping("/api/workspace/home")
-    public WorkspaceHomeResponse home(HttpServletRequest request) {
+    public WorkspaceHomeResponse home(HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int sessionOffset,
+            @RequestParam(defaultValue = "20") int sessionLimit) {
         AuthSession viewer = auth.authenticate(request)
                 .orElseThrow(() -> new BackendException("AUTH_REQUIRED", "未登录。"));
-        return homes.load(viewer);
+        return homes.load(viewer, sessionOffset, sessionLimit);
     }
 }
