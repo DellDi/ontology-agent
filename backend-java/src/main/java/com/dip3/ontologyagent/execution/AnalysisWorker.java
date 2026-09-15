@@ -267,7 +267,7 @@ public final class AnalysisWorker {
                 .collect(java.util.stream.Collectors.toSet());
         if (!expectedBinding.equals(envelope.binding())
                 || !expectedBinding.scopeSnapshotRef(executionId).equals(envelope.scopeSnapshotRef())
-                || !evidenceTypes.equals(descriptor.requiredEvidenceTypes())
+                || !evidenceTypes.containsAll(descriptor.requiredEvidenceTypes())
                 || result.evidence().stream().anyMatch(item -> item.rows().isEmpty()
                         || !expectedBinding.ontologyVersionId().equals(item.provenance().ontologyVersionId())
                         || datasetVersionSetId == null
@@ -275,8 +275,9 @@ public final class AnalysisWorker {
                         || item.provenance().productVersionIds().isEmpty()
                         || !descriptor.requiredDataProductKeys().containsAll(
                                 item.provenance().productVersionIds().keySet()))
-                || !claimKinds.equals(descriptor.allowedClaimKinds())
-                || result.claims() == null || result.claims().size() != claimKinds.size()) {
+                || !descriptor.allowedClaimKinds().containsAll(claimKinds)
+                || result.claims() == null || result.claims().isEmpty()
+                || result.claims().size() != claimKinds.size()) {
             throw new BackendException("WORKFLOW_RESULT_INVALID", "Workflow 完成态不符合能力的证据或结论类型契约。");
         }
     }

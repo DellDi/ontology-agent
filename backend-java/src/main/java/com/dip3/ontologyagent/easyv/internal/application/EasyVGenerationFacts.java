@@ -9,6 +9,12 @@ import java.util.Map;
 public interface EasyVGenerationFacts {
   Snapshot collect(Query query);
 
+  /**
+   * 按 {@code EasyVQueryCatalog} 发布的 key 执行固定 SQL 聚合查询，
+   * 返回行集（shape=series 时为 label/value 行；shape=record 时为单行多列）。
+   */
+  List<Map<String, Object>> aggregate(Query query, String queryKey);
+
   record Query(
       String executionId,
       String userId,

@@ -39,6 +39,7 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
               "easyv-forge-task",
               "easyv-generation-feedback"),
           Set.of(
+              "direct-answer",
               "generation-quality",
               "stage-bottleneck",
               "failure-concentration",

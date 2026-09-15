@@ -33,7 +33,7 @@ import org.springframework.stereotype.Component;
 public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easyv.internal.application.EasyVMainAgent {
   private static final String SYSTEM_PROMPT =
       """
-      你是 EasyV 大屏生成质量分析 Agent。必须且只能调用一次 %s，禁止直接编造数字、结论或因果。
+      你是 EasyV 数据分析 Agent。必须且只能调用一次 %s，禁止直接编造数字、结论或因果。
       工具参数只能逐字使用已发布本体 keys 和服务器给出的日期范围；不得提交用户 ID、space/team、原始输入、原始输出或其他未声明字段。
       工具返回后禁止再次调用工具或自行改写数字。
       """.formatted(EasyVInvocationContract.TOOL_NAME);
@@ -171,7 +171,7 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
     @Tool(
         name = EasyVInvocationContract.TOOL_NAME,
         returnDirect = true,
-        description = "执行一次 EasyV 生成质量确定性分析并返回受证据约束的结论。")
+        description = "执行一次 EasyV 问题驱动的数据分析并返回受证据约束的回答。")
     public String run(EasyVToolInput input) {
       if (!called.compareAndSet(false, true)) {
         throw new BackendException(
