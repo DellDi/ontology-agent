@@ -53,7 +53,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(17, applied, "新库应执行到 V17 EasyV 失败原因原文列");
+        assertEquals(18, applied, "新库应执行到 V18 执行事件 step/tool 列");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -423,6 +423,11 @@ class DatabaseMigrationServiceTest {
                 select transform_ref from ingestion.data_product_definitions
                 where product_key='easyv-forge-task'
                 """, String.class), "V17 应将 Forge transform 升级到 v2");
+        assertEquals(2, jdbc.queryForObject("""
+                select count(*) from information_schema.columns
+                where table_schema='platform' and table_name='analysis_execution_events'
+                  and column_name in ('step','tool') and data_type='jsonb'
+                """, Integer.class), "V18 应为执行事件补充 step/tool jsonb 列");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject(
                 "select to_regclass('public.spring_ai_chat_memory') is not null", Boolean.class)));
         assertEquals(0, service().pendingMigrations().length);
@@ -435,7 +440,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(17, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(18, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -467,7 +472,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(17, applied, "旧库补全应记录 V1-V17（baseline 0 标记不计入）");
+        assertEquals(18, applied, "旧库补全应记录 V1-V18（baseline 0 标记不计入）");
     }
 
     @Test
