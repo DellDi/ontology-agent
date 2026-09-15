@@ -118,6 +118,7 @@ const conclusionStateSchema = z.strictObject({
   renderBlocks: z.array(jsonObjectSchema),
   evidence: z.array(evidenceProjectionSchema).optional(),
   claims: z.array(groundedClaimSchema).optional(),
+  suggestedQuestions: z.array(z.string().min(1)).optional(),
 });
 
 const ontologyVersionBindingSchema = z.strictObject({
@@ -172,6 +173,7 @@ const planRuntimeFields = {
   _followUpId: z.string().min(1).optional(),
   _referencedExecutionId: z.string().min(1).optional(),
   _evidenceTypes: z.array(z.string()).optional(),
+  _suggestedQuestions: z.array(z.string()).optional(),
   _resolvedContext: resolvedContextSchema,
 };
 
@@ -200,6 +202,7 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
   _followUpId: z.string().min(1).optional(),
   _referencedExecutionId: z.string().min(1).optional(),
   _evidenceTypes: z.array(z.string()).optional(),
+  _suggestedQuestions: z.array(z.string()).optional(),
   _resolvedContext: jsonObjectSchema,
 });
 
@@ -596,6 +599,24 @@ export const javaWorkspaceHomeSchema = z.strictObject({
   })),
 });
 
+const eventStepSchema = z.strictObject({
+  id: z.string().min(1),
+  order: z.number(),
+  title: z.string().min(1),
+  status: z.enum(['running', 'completed', 'failed']),
+  durationMs: z.number().optional(),
+  toolCount: z.number().optional(),
+}).nullable().optional();
+
+const eventToolSchema = z.strictObject({
+  name: z.string().min(1),
+  label: z.string().min(1),
+  input: jsonObjectSchema.optional(),
+  output: jsonObjectSchema.optional(),
+  error: z.string().optional(),
+  durationMs: z.number().optional(),
+}).nullable().optional();
+
 const eventSchema = z.strictObject({
   id: z.string().min(1),
   sessionId: z.string().min(1),
@@ -618,6 +639,8 @@ const eventSchema = z.strictObject({
   metadata: jsonObjectSchema,
   errorCode: z.string().nullable(),
   traceId: z.string().nullable(),
+  step: eventStepSchema,
+  tool: eventToolSchema,
 });
 
 const jobSchema = z.strictObject({
