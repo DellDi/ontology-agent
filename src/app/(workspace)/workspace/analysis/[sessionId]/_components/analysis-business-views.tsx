@@ -6,6 +6,7 @@ import type {
 } from '@/application/analysis-message-projection/conversation-view-model';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
+import { MarkdownContent } from '@/app/_components/markdown-content';
 
 function MetricTrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
   switch (trend) {
@@ -99,7 +100,9 @@ export function PrimaryAnswerBlock({ answer }: { answer: string }) {
 
   return (
     <div className="mt-3 rounded-lg bg-card px-4 py-3 shadow-sm ring-1 ring-border">
-      <p className="text-base leading-7 text-foreground">{answer}</p>
+      <MarkdownContent className="text-base leading-7 text-foreground">
+        {answer}
+      </MarkdownContent>
     </div>
   );
 }

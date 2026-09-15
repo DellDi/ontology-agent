@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import type {
   AnalysisConversationViewModel,
   ConversationAssistantStatus,
@@ -15,6 +17,7 @@ import { AnalysisResultBlockRenderer } from './analysis-result-block-renderer';
 import { CollapsibleSection } from './collapsible-section';
 import { getStatusIcon } from './analysis-status-icon';
 import { MetricCardsGrid, VisualizationBlock, PrimaryAnswerBlock } from './analysis-business-views';
+import { WorkbenchSheet } from '@/app/_components/workbench/workbench-sheet';
 import type { DetailDrawerType } from './analysis-detail-drawer';
 
 function isBlockAlreadyVisualized(
@@ -79,7 +82,24 @@ export function AnalysisAssistantMessage({
     diagnostics.renderErrors.length > 0 ||
     diagnostics.otherBlocks.length > 0;
 
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
+
+  const visibleBlocks = (result?.blocks ?? []).filter(
+    (block) => !isBlockAlreadyVisualized(block, metricCards, visualizations),
+  );
+  const primaryBlocks = visibleBlocks.filter(
+    (block) => block.payload?.role !== 'supporting',
+  );
+  const supportingBlocks = visibleBlocks.filter(
+    (block) => block.payload?.role === 'supporting',
+  );
+  const detailItemCount =
+    supportingBlocks.length +
+    (result?.evidenceBlocks.length ?? 0) +
+    (result?.reasoningBlocks.length ?? 0) +
+    (result?.assumptionBlocks.length ?? 0);
 
   return (
     <div className="flex justify-start">
@@ -127,49 +147,70 @@ export function AnalysisAssistantMessage({
         {/* 结果区域（结论详情 / 证据 / 推理 / 假设） */}
         {result ? (
           <div className="mt-5">
-            {/* 主结果块（跳过已在指标卡 / 可视化中呈现的块） */}
-            {result.blocks
-              .filter((block) => !isBlockAlreadyVisualized(block, metricCards, visualizations))
-              .map((block, index) => (
+            {/* 主结果块：只展示 primary（回答与相关图表）；supporting 明细收进侧滑抽屉 */}
+            {primaryBlocks.map((block, index) => (
+              <AnalysisResultBlockRenderer
+                key={`result-${block.kind}-${index}`}
+                block={block}
+              />
+            ))}
+
+            {detailItemCount > 0 ? (
+              <button
+                className="mt-3 inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setDetailsOpen(true)}
+                type="button"
+              >
+                查看数据明细与依据（{detailItemCount} 项）
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* 侧滑抽屉：数据明细 + 证据 + 依据 + 口径 */}
+        {detailsOpen ? (
+          <WorkbenchSheet
+            open
+            onClose={() => setDetailsOpen(false)}
+            title="数据明细与依据"
+            testId="analysis-supporting-drawer"
+          >
+            <div className="space-y-4">
+              {supportingBlocks.map((block, index) => (
                 <AnalysisResultBlockRenderer
-                  key={`result-${block.kind}-${index}`}
+                  key={`supporting-${block.kind}-${index}`}
                   block={block}
                 />
               ))}
-
-            {/* 证据摘要 */}
-            {result.evidenceBlocks.length > 0 ? (
-              <CollapsibleSection title="证据摘要">
-                {result.evidenceBlocks.map((block, index) => (
-                  <div key={`evidence-${index}`}>
-                    {registry.render({ renderedBlock: block })}
-                  </div>
-                ))}
-              </CollapsibleSection>
-            ) : null}
-
-            {/* 分析依据 */}
-            {result.reasoningBlocks.length > 0 ? (
-              <CollapsibleSection title="分析依据">
-                {result.reasoningBlocks.map((block, index) => (
-                  <div key={`reasoning-${index}`}>
-                    {registry.render({ renderedBlock: block })}
-                  </div>
-                ))}
-              </CollapsibleSection>
-            ) : null}
-
-            {/* 假设与口径 */}
-            {result.assumptionBlocks.length > 0 ? (
-              <CollapsibleSection title="假设与口径">
-                {result.assumptionBlocks.map((block, index) => (
-                  <div key={`assumption-${index}`}>
-                    {registry.render({ renderedBlock: block })}
-                  </div>
-                ))}
-              </CollapsibleSection>
-            ) : null}
-          </div>
+              {result?.evidenceBlocks.length ? (
+                <CollapsibleSection title="证据摘要">
+                  {result.evidenceBlocks.map((block, index) => (
+                    <div key={`evidence-${index}`}>
+                      {registry.render({ renderedBlock: block })}
+                    </div>
+                  ))}
+                </CollapsibleSection>
+              ) : null}
+              {result?.reasoningBlocks.length ? (
+                <CollapsibleSection title="分析依据">
+                  {result.reasoningBlocks.map((block, index) => (
+                    <div key={`reasoning-${index}`}>
+                      {registry.render({ renderedBlock: block })}
+                    </div>
+                  ))}
+                </CollapsibleSection>
+              ) : null}
+              {result?.assumptionBlocks.length ? (
+                <CollapsibleSection title="假设与口径">
+                  {result.assumptionBlocks.map((block, index) => (
+                    <div key={`assumption-${index}`}>
+                      {registry.render({ renderedBlock: block })}
+                    </div>
+                  ))}
+                </CollapsibleSection>
+              ) : null}
+            </div>
+          </WorkbenchSheet>
         ) : null}
 
         {/* 失败状态 */}

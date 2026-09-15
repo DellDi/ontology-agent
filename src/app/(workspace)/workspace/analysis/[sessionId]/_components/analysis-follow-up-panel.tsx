@@ -104,6 +104,19 @@ function renderOntologyVersionBadge(followUp: AnalysisSessionFollowUp) {
   );
 }
 
+function summarizeConclusion(summary: string | null | undefined) {
+  if (!summary) {
+    return '系统将默认承接上一轮的主结论继续追问。';
+  }
+  // 承接区只给引用提示：剥离 markdown 结构取首个有效行，超出截断。
+  const firstLine = summary
+    .split('\n')
+    .map((line) => line.replace(/^[#>\s*-]+/, '').replace(/\*\*/g, '').trim())
+    .find((line) => line && !line.startsWith('|')) ?? '';
+  const text = firstLine || summary.replace(/\s+/g, ' ').trim();
+  return text.length > 140 ? `${text.slice(0, 140)}…` : text;
+}
+
 function renderContextSummary(context: AnalysisContext) {
   return [
     `指标：${context.targetMetric.value}`,
@@ -182,7 +195,7 @@ export function AnalysisFollowUpPanel({
           {latestConclusionTitle ?? '未命名结论'}
         </p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          {latestConclusionSummary ?? '系统将默认承接上一轮的主结论继续追问。'}
+          {summarizeConclusion(latestConclusionSummary)}
         </p>
       </div>
 
