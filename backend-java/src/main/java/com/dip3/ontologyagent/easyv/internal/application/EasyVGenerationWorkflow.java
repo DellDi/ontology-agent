@@ -349,7 +349,6 @@ public final class EasyVGenerationWorkflow {
                   "label", String.valueOf(row.getOrDefault("label", "")),
                   "value", row.get("value")))
               .toList())));
-      block.put("unit", "");
     } else if (spec.shape() == EasyVQueryCatalog.Shape.RECORD) {
       block.put("type", "kv-list");
       Map<String, Object> first = rows.isEmpty() ? Map.of() : rows.getFirst();
