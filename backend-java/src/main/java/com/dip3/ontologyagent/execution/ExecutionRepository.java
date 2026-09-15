@@ -221,12 +221,14 @@ public class ExecutionRepository {
         row.metadata = event.metadata();
         row.errorCode = event.errorCode();
         row.traceId = event.traceId();
+        row.step = event.step();
+        row.tool = event.tool();
         row.createdAt = Instant.now();
         Long sequence = events.append(row);
         if (sequence == null) throw new BackendException("EVENT_APPEND_FAILED", "执行事件写入失败。");
         return new ExecutionEvent(event.id(), event.sessionId(), event.executionId(), sequence, event.kind(),
                 event.timestamp(), event.status(), event.message(), event.renderBlocks(), event.metadata(),
-                event.errorCode(), event.traceId());
+                event.errorCode(), event.traceId(), event.step(), event.tool());
     }
 
     @Transactional
@@ -344,14 +346,16 @@ public class ExecutionRepository {
 
     private static ExecutionEvent event(ExecutionEventEntity row) {
         return new ExecutionEvent(row.id, row.sessionId, row.executionId, row.sequence, row.kind,
-                row.eventTimestamp, row.status, row.message, row.renderBlocks, row.metadata, row.errorCode, row.traceId);
+                row.eventTimestamp, row.status, row.message, row.renderBlocks, row.metadata, row.errorCode,
+                row.traceId, row.step, row.tool);
     }
 
     private static ExecutionEvent event(Map<String, Object> row) {
         return new ExecutionEvent(text(row, "id"), text(row, "sessionId"), text(row, "executionId"),
                 ((Number) row.get("sequence")).longValue(), text(row, "kind"), Instant.parse(text(row, "timestamp")),
                 nullableText(row.get("status")), nullableText(row.get("message")), castMapList(row.get("renderBlocks")),
-                castMap(row.get("metadata")), nullableText(row.get("errorCode")), nullableText(row.get("traceId")));
+                castMap(row.get("metadata")), nullableText(row.get("errorCode")), nullableText(row.get("traceId")),
+                castMap(row.get("step")), castMap(row.get("tool")));
     }
 
     private static Map<String, Object> eventMap(ExecutionEvent event) {
@@ -368,6 +372,8 @@ public class ExecutionRepository {
         row.put("metadata", event.metadata());
         row.put("errorCode", event.errorCode());
         row.put("traceId", event.traceId());
+        row.put("step", event.step());
+        row.put("tool", event.tool());
         return row;
     }
 

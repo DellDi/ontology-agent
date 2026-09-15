@@ -11,6 +11,7 @@ import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
+import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.capability.api.InitialCapabilityCandidate;
 import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
@@ -104,7 +105,7 @@ class EasyVCapabilityRegistrationTest {
         new AgentTurn(
             "java-initial-v1", "session-1", "分析 EasyV 大屏生成质量", null, null, Map.of(), Map.of(), Instant.now());
     WorkflowResult expected = new WorkflowResult(Map.of(), List.of(), "result", List.of(), List.of());
-    when(mainAgent.execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1"))
+    when(mainAgent.execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1", ExecutionProgress.NOOP))
         .thenReturn(expected);
 
     WorkflowResult actual =
@@ -112,7 +113,7 @@ class EasyVCapabilityRegistrationTest {
             "easyv-set-1", "trace-1", "worker-1"));
 
     assertSame(expected, actual);
-    verify(mainAgent).execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1");
+    verify(mainAgent).execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1", ExecutionProgress.NOOP);
   }
 
   private static OntologyCatalog ontology() {

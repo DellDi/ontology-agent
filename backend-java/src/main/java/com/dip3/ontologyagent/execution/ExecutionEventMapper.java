@@ -21,19 +21,22 @@ public interface ExecutionEventMapper extends BaseMapper<ExecutionEventEntity> {
             )
             insert into platform.analysis_execution_events
             (id,session_id,execution_id,owner_user_id,sequence,kind,event_timestamp,status,message,
-             render_blocks,metadata,error_code,trace_id,created_at)
+             render_blocks,metadata,error_code,trace_id,step,tool,created_at)
             select #{row.id},#{row.sessionId},#{row.executionId},#{row.ownerUserId},sequence,#{row.kind},
                    #{row.eventTimestamp},#{row.status},#{row.message},
                    #{row.renderBlocks,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},
                    #{row.metadata,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},
-                   #{row.errorCode},#{row.traceId},#{row.createdAt}
+                   #{row.errorCode},#{row.traceId},
+                   #{row.step,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},
+                   #{row.tool,typeHandler=com.dip3.ontologyagent.support.JsonbTypeHandler},
+                   #{row.createdAt}
             from next_sequence returning sequence
             """)
     Long append(@Param("row") ExecutionEventEntity row);
 
     @Select("""
             select id,session_id,execution_id,owner_user_id,sequence,kind,event_timestamp,status,message,
-                   render_blocks,metadata,error_code,trace_id,created_at
+                   render_blocks,metadata,error_code,trace_id,step,tool,created_at
             from platform.analysis_execution_events
             where session_id=#{sessionId} and execution_id=#{executionId}
               and owner_user_id=#{ownerUserId} and sequence>#{afterSequence}
@@ -48,6 +51,8 @@ public interface ExecutionEventMapper extends BaseMapper<ExecutionEventEntity> {
             @Result(property = "metadata", column = "metadata", typeHandler = JsonbTypeHandler.class),
             @Result(property = "errorCode", column = "error_code"),
             @Result(property = "traceId", column = "trace_id"),
+            @Result(property = "step", column = "step", typeHandler = JsonbTypeHandler.class),
+            @Result(property = "tool", column = "tool", typeHandler = JsonbTypeHandler.class),
             @Result(property = "createdAt", column = "created_at")
     })
     List<ExecutionEventEntity> listAfter(@Param("sessionId") String sessionId,

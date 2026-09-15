@@ -12,6 +12,7 @@ import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
 import com.dip3.ontologyagent.capability.api.CapabilityInvocationContract;
 import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.capability.api.CapabilityResult;
+import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.support.BackendException;
@@ -108,9 +109,10 @@ public final class AnalysisWorker {
                     job.traceId(), job.workerId());
             AgentTurn turn = new AgentTurn(job.contract(), job.sessionId(), job.questionText(), job.followUpId(),
                     job.referencedExecutionId(), job.referencedConclusion(), job.effectiveContext(), session.createdAt());
+            ExecutionProgress progress = (kind, step, tool) -> emitProgress(job, kind, step, tool);
             CapabilityResult<WorkflowResult, Evidence> capabilityResult = capabilities.execute(
                     job.capabilityBinding(), new CapabilityExecutionContext(owner, turn, job.executionId(), ontology,
-                            job.datasetVersionSetId(), job.traceId(), job.workerId()));
+                            job.datasetVersionSetId(), job.traceId(), job.workerId(), progress));
             long invocationCount = invocations.count(job.executionId(), invocation.invocationType(), invocation.toolName());
             if (invocationCount != invocation.exactCount()) {
                 throw new BackendException("AGENT_TOOL_CONTRACT_VIOLATION",
@@ -235,6 +237,10 @@ public final class AnalysisWorker {
         conclusionState.put("renderBlocks", result.renderBlocks());
         conclusionState.put("evidence", Evidence.projection(result.evidence()));
         conclusionState.put("claims", result.claims());
+        List<String> suggestions = suggestedQuestions(result.plan().get("_suggestedQuestions"));
+        if (!suggestions.isEmpty()) {
+            conclusionState.put("suggestedQuestions", suggestions);
+        }
         ExecutionSnapshot snapshot = new ExecutionSnapshot(job.executionId(), job.sessionId(), job.ownerUserId(),
                 job.followUpId(), ontologyVersionId, ontologyBinding(ontologyVersionId,
                 job.followUpId() == null ? "grounded-context" : "inherited"), job.capabilityBinding().snapshot(),
@@ -325,6 +331,31 @@ public final class AnalysisWorker {
         return new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(), job.executionId(), 0,
                 "execution-status", Instant.now(), status, message,
                 blocks, metadata, code, job.traceId());
+    }
+
+    /** 能力上报的阶段/工具进度转为持久化执行事件（SSE 与快照复用同一事件流）。 */
+    private void emitProgress(ExecutionJob job, String kind, Map<String, Object> step,
+                            Map<String, Object> tool) {
+        Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("traceId", job.traceId());
+        metadata.put("executionContract", job.contract());
+        String message = step != null ? String.valueOf(step.getOrDefault("title", ""))
+                : tool != null ? String.valueOf(tool.getOrDefault("label", "")) : null;
+        executions.appendWhileLeased(job.ownerUserId(), job.workerId(),
+                new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(), job.executionId(), 0,
+                        kind, Instant.now(), null, message, List.of(), metadata, null, job.traceId(),
+                        step, tool));
+    }
+
+    private static List<String> suggestedQuestions(Object raw) {
+        if (!(raw instanceof List<?> list)) return List.of();
+        List<String> questions = new java.util.ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof String text && !text.isBlank()) {
+                questions.add(text.trim());
+            }
+        }
+        return questions;
     }
 
     private static String summarize(Evidence evidence) {

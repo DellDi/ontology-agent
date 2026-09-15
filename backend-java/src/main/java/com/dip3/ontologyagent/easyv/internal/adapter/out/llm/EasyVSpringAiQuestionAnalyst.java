@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -42,10 +43,15 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
       规则：
       - 只能使用提供的数据，数字必须与数据一致，禁止编造
       - 数据没有覆盖的信息要如实说明（例如：采集数据没有用户注册时间字段，可改为给出各用户首次创建应用时间）
-      - 输出 JSON：{"answer": "markdown 回答", "highlights": [{"key": "查询key", "viz": "bar|pie|line|table|none"}]}
+      - 输出 JSON：{"answer": "markdown 回答", "highlights": [{"key": "查询key", "viz": "bar|pie|line|table|none"}], "suggestions": ["追问建议1", "追问建议2"]}
       - answer 为 markdown，可使用列表与表格；先直接给结论，再给必要明细
       - highlights 只从已执行的查询 key 中选择真正支撑回答的 0-3 个；series 形状数据才可配图表，record 形状数据用 table 或 none
+      - suggestions 为 2-3 个自然的中文追问建议：结合本次问题与已看到的数据，提出用户下一步最可能想问的问题；每个建议必须能由本次已执行或目录内的查询回答，且默认沿用输入 range 的同一时间范围——不要使用"上周/本周/昨天/最近"等相对时间词（追问会按相对时间重锚时间窗口，可能落到无数据区间）；不得建议采集数据中没有的字段（如用户注册时间），不得出现查询 key、SQL 或技术术语
       """;
+
+  /** 追问建议不得携带相对时间词——追问链路会按相对时间重锚窗口，可能落到无数据区间。 */
+  private static final Pattern RELATIVE_TIME_WORD =
+      Pattern.compile("上周|本周|这周|昨天|今天|最近|上月|本月|近\\s*\\d+\\s*天");
 
   private final ChatClient chat;
   private final JsonCodec json;
@@ -180,7 +186,18 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
         highlights.add(new Highlight(queryKey, vizValue));
       }
     }
-    return new ComposedAnswer(markdown, highlights);
+    List<String> suggestions = new ArrayList<>();
+    Object rawSuggestions = parsed.get("suggestions");
+    if (rawSuggestions instanceof List<?> list) {
+      for (Object item : list) {
+        if (item instanceof String text && !text.isBlank()
+            && !RELATIVE_TIME_WORD.matcher(text).find()) {
+          suggestions.add(text.trim());
+        }
+      }
+    }
+    return new ComposedAnswer(markdown, highlights,
+        suggestions.stream().limit(3).toList());
   }
 
   private Map<String, Object> resultProjection(QueryResult result) {

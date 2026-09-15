@@ -113,6 +113,7 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
         context.ontology(),
         context.datasetVersionSetId(),
         context.traceId(),
-        context.leaseOwner());
+        context.leaseOwner(),
+        context.progress());
   }
 }

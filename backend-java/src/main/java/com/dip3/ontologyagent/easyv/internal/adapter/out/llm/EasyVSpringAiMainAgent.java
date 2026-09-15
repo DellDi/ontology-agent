@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.easyv.internal.adapter.out.llm;
 
 import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationRequest;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVScopeResolver;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationWorkflow;
@@ -15,6 +16,7 @@ import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
 import com.dip3.ontologyagent.support.OpenCodeSessionHeader;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -61,15 +63,40 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
       OntologyCatalog ontology,
       String datasetVersionSetId,
       String traceId,
-      String leaseOwner) {
+      String leaseOwner,
+      ExecutionProgress progress) {
     if (blank(leaseOwner)) {
       throw new BackendException("JOB_LEASE_REQUIRED", "EasyV Main Agent 必须绑定当前执行租约。");
     }
+    Map<String, Object> orchestrateStep = step("orchestrate", 0, "理解问题并编排分析", "running");
+    progress.emit("step-started", orchestrateStep, null);
+    long orchestrateStart = System.nanoTime();
+    try {
+      return executeWithOrchestration(principal, turn, executionId, ontology, datasetVersionSetId,
+          traceId, leaseOwner, progress, orchestrateStep, orchestrateStart);
+    } catch (RuntimeException error) {
+      progress.emit("step-completed",
+          stepDone(orchestrateStep, elapsed(orchestrateStart), "failed"), null);
+      throw error;
+    }
+  }
+
+  private WorkflowResult executeWithOrchestration(
+      AuthSession principal,
+      AgentTurn turn,
+      String executionId,
+      OntologyCatalog ontology,
+      String datasetVersionSetId,
+      String traceId,
+      String leaseOwner,
+      ExecutionProgress progress,
+      Map<String, Object> orchestrateStep,
+      long orchestrateStart) {
     EasyVDateRange allowedRange = allowedRange(turn);
     BackendException lastRecoverable = null;
     for (int attempt = 1; attempt <= 2; attempt += 1) {
       BoundTool tool = new BoundTool(principal, turn, executionId, ontology, datasetVersionSetId,
-          traceId, leaseOwner, allowedRange);
+          traceId, leaseOwner, allowedRange, progress, orchestrateStep);
       Map<String, Object> promptInput = new LinkedHashMap<>();
       promptInput.put("question", turn.questionText());
       promptInput.put("ontologyVersionId", ontology.versionId());
@@ -125,6 +152,8 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
         }
         throw new BackendException("AGENT_TOOL_NOT_CALLED", "Main Agent 未调用 " + EasyVInvocationContract.TOOL_NAME + "。");
       }
+      progress.emit("step-completed",
+          stepDone(orchestrateStep, elapsed(orchestrateStart), null), null);
       return result;
     }
     throw lastRecoverable == null
@@ -137,6 +166,27 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
         || "AGENT_TOOL_NOT_CALLED".equals(error.code());
   }
 
+  private static Map<String, Object> step(String id, int order, String title, String status) {
+    Map<String, Object> step = new LinkedHashMap<>();
+    step.put("id", id);
+    step.put("order", order);
+    step.put("title", title);
+    step.put("status", status);
+    return step;
+  }
+
+  private static Map<String, Object> stepDone(Map<String, Object> step, long durationMs,
+                                              String status) {
+    Map<String, Object> done = new LinkedHashMap<>(step);
+    done.put("status", status == null ? "completed" : status);
+    done.put("durationMs", durationMs);
+    return done;
+  }
+
+  private static long elapsed(long nanoStart) {
+    return Duration.ofNanos(System.nanoTime() - nanoStart).toMillis();
+  }
+
   public final class BoundTool {
     private final AuthSession principal;
     private final AgentTurn turn;
@@ -146,6 +196,8 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
     private final String traceId;
     private final String leaseOwner;
     private final EasyVDateRange allowedRange;
+    private final ExecutionProgress progress;
+    private final Map<String, Object> step;
     private final AtomicBoolean called = new AtomicBoolean();
     private final AtomicReference<WorkflowResult> result = new AtomicReference<>();
 
@@ -157,7 +209,9 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
         String datasetVersionSetId,
         String traceId,
         String leaseOwner,
-        EasyVDateRange allowedRange) {
+        EasyVDateRange allowedRange,
+        ExecutionProgress progress,
+        Map<String, Object> step) {
       this.principal = principal;
       this.turn = turn;
       this.executionId = executionId;
@@ -166,6 +220,8 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
       this.traceId = traceId;
       this.leaseOwner = leaseOwner;
       this.allowedRange = allowedRange;
+      this.progress = progress;
+      this.step = step;
     }
 
     @Tool(
@@ -197,6 +253,11 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
               auditInput,
               traceId,
               leaseOwner);
+      long toolStart = System.nanoTime();
+      progress.emit("tool-started", step,
+          Map.of("name", EasyVInvocationContract.TOOL_NAME,
+              "label", "执行 EasyV 数据分析",
+              "input", auditInput));
       try {
         validate(input);
         WorkflowResult value =
@@ -219,7 +280,14 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
                     turn.effectiveContext(),
                     Instant.now(),
                     turn.followUpId(),
-                    turn.referencedExecutionId()));
+                    turn.referencedExecutionId()),
+                progress);
+        progress.emit("tool-completed", step,
+            Map.of("name", EasyVInvocationContract.TOOL_NAME,
+                "label", "执行 EasyV 数据分析",
+                "durationMs", elapsed(toolStart),
+                "output", Map.of("claimCount", value.claims().size(),
+                    "evidenceCount", value.evidence().size())));
         recorder.succeedWhileLeased(
             invocationId,
             Map.of("evidenceCount", value.evidence().size(), "claimCount", value.claims().size()),
@@ -229,6 +297,12 @@ public final class EasyVSpringAiMainAgent implements com.dip3.ontologyagent.easy
         return json.write(Map.of("status", "completed", "executionId", executionId, "claimCount", value.claims().size()));
       } catch (RuntimeException error) {
         String code = error instanceof BackendException known ? known.code() : "WORKFLOW_FAILED";
+        progress.emit("tool-failed", step,
+            Map.of("name", EasyVInvocationContract.TOOL_NAME,
+                "label", "执行 EasyV 数据分析",
+                "durationMs", elapsed(toolStart),
+                "error", error.getMessage() == null ? error.getClass().getSimpleName()
+                    : error.getMessage()));
         try {
           recorder.failWhileLeased(
               invocationId,
