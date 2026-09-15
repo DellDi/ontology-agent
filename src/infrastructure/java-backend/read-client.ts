@@ -113,12 +113,18 @@ const groundedClaimSchema = z.strictObject({
   })).min(1),
 });
 
+const suggestedActionSchema = z.strictObject({
+  label: z.string().min(1),
+  rationale: z.string().min(1),
+});
+
 const conclusionStateSchema = z.strictObject({
   causes: z.array(conclusionCauseSchema),
   renderBlocks: z.array(jsonObjectSchema),
   evidence: z.array(evidenceProjectionSchema).optional(),
   claims: z.array(groundedClaimSchema).optional(),
   suggestedQuestions: z.array(z.string().min(1)).optional(),
+  suggestedActions: z.array(suggestedActionSchema).optional(),
 });
 
 const ontologyVersionBindingSchema = z.strictObject({
@@ -174,6 +180,7 @@ const planRuntimeFields = {
   _referencedExecutionId: z.string().min(1).optional(),
   _evidenceTypes: z.array(z.string()).optional(),
   _suggestedQuestions: z.array(z.string()).optional(),
+  _suggestedActions: z.array(suggestedActionSchema).optional(),
   _resolvedContext: resolvedContextSchema,
 };
 
@@ -203,6 +210,7 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
   _referencedExecutionId: z.string().min(1).optional(),
   _evidenceTypes: z.array(z.string()).optional(),
   _suggestedQuestions: z.array(z.string()).optional(),
+  _suggestedActions: z.array(suggestedActionSchema).optional(),
   _resolvedContext: jsonObjectSchema,
 });
 
@@ -611,6 +619,8 @@ const eventStepSchema = z.strictObject({
 const eventToolSchema = z.strictObject({
   name: z.string().min(1),
   label: z.string().min(1),
+  fact: z.string().min(1).optional(),
+  sql: z.string().min(1).optional(),
   input: jsonObjectSchema.optional(),
   output: jsonObjectSchema.optional(),
   error: z.string().optional(),

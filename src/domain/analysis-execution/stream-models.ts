@@ -161,6 +161,8 @@ export type ExecutionStageSnapshot = {
 export type ExecutionToolSnapshot = {
   name: string;
   label: string;
+  fact?: string;
+  sql?: string;
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;
   error?: string;
@@ -749,6 +751,14 @@ export function validateAnalysisExecutionStreamEvent(
       ? {
           name: assertNonEmptyString(toolCandidate.name, 'tool.name'),
           label: assertNonEmptyString(toolCandidate.label, 'tool.label'),
+          fact:
+            typeof toolCandidate.fact === 'string'
+              ? toolCandidate.fact
+              : undefined,
+          sql:
+            typeof toolCandidate.sql === 'string'
+              ? toolCandidate.sql
+              : undefined,
           input:
             toolCandidate.input &&
             typeof toolCandidate.input === 'object' &&

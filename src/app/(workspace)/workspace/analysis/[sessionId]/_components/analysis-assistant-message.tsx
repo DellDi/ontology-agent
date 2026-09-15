@@ -275,7 +275,7 @@ export function AnalysisAssistantMessage({
             <button key={detail}
               className="rounded-md px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onOpenDetail(detail)} type="button">
-              {{ plan: '分析计划', context: '背景信息', history: '历史问答', candidates: '可能原因', 'execution-log': '执行记录', diagnostics: '诊断信息' }[detail]}
+              {{ plan: '分析计划', context: '背景信息', history: '历史问答', candidates: '可能原因', 'execution-log': '执行记录', diagnostics: '诊断信息', attribution: '归因分析', actions: '动作建议' }[detail]}
             </button>
           ))}
         </div>

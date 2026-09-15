@@ -21,6 +21,8 @@ import { AnalysisFollowUpInput } from './_components/analysis-follow-up-input';
 import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
 import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
 import { AnalysisPendingRefreshGate } from './_components/analysis-pending-refresh-gate';
+import { AnalysisAttributionPanel } from './_components/analysis-attribution-panel';
+import { AnalysisActionsPanel } from './_components/analysis-actions-panel';
 import { AnalysisRuntimeContractPanel } from './_components/analysis-runtime-contract-panel';
 import {
   buildJavaFollowUpFeedback,
@@ -225,6 +227,38 @@ export default async function AnalysisSessionPage({
     && activeFollowUpDiff
     && (activeFollowUpDiff.added.length || activeFollowUpDiff.overridden.length));
   const events = eventsFromJava(aggregate.events);
+  const conclusionState = aggregate.snapshot?.conclusionState ?? null;
+  const resolvedContext = aggregate.snapshot?.planSnapshot._resolvedContext;
+  const rangeLabel =
+    resolvedContext &&
+    typeof resolvedContext['from'] === 'string' &&
+    typeof resolvedContext['to'] === 'string'
+      ? `${resolvedContext['from']} ~ ${resolvedContext['to']}`
+      : undefined;
+  const attributionTools = Array.from(
+    aggregate.events
+      .map((event) => event.tool)
+      // 仅目录查询工具（fact 仅查询工具携带，编排工具不入归因板）
+      .filter(
+        (tool): tool is NonNullable<typeof tool> =>
+          tool != null && typeof tool.fact === 'string',
+      )
+      // 同名工具取最后一条事件载荷（completed 态携带 sql/durationMs）
+      .reduce((map, tool) => map.set(tool.name, tool), new Map<string, NonNullable<(typeof aggregate.events)[number]['tool']>>())
+      .values(),
+  );
+  const attributionDrawer =
+    conclusionState && (conclusionState.claims?.length || conclusionState.evidence?.length) ? (
+      <AnalysisAttributionPanel
+        claims={conclusionState.claims ?? []}
+        evidence={conclusionState.evidence ?? []}
+        tools={attributionTools}
+        rangeLabel={rangeLabel}
+      />
+    ) : null;
+  const actionsDrawer = conclusionState?.suggestedActions?.length ? (
+    <AnalysisActionsPanel actions={conclusionState.suggestedActions} />
+  ) : null;
   const readModel: AnalysisExecutionStreamReadModel | null = resolvedExecutionId
     ? {
         sessionId,
@@ -274,6 +308,8 @@ export default async function AnalysisSessionPage({
           questionText={displayedQuestion}
           followUpLabel={displayedFollowUp ? '追问模式' : undefined}
           drawerContents={{
+            attribution: attributionDrawer,
+            actions: actionsDrawer,
             history: historyReadModel.rounds.length >= 2 ? (
               <AnalysisHistoryPanel
                 sessionId={sessionId}
