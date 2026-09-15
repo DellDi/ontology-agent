@@ -116,6 +116,33 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
   assert.equal(snapshot.conclusionState.renderBlocks.filter((block) => block.type === 'table').length, 3);
   assert.equal(snapshot.mobileProjection.status, 'completed');
 
+  // 问题驱动完成态：direct-answer claim + 快照证据 + easyv-query: 动态证据。
+  const questionDriven = await jsonFixture('snapshot-question-driven.json');
+  assertJsonSchema(ajv, 'execution-snapshot.schema.json', questionDriven, 'snapshot-question-driven.json');
+  // 聚合内的 SnapshotView 投影（无 ownerUserId/datasetVersionSetId，扁平 bindingSource）走 Zod 契约。
+  const questionDrivenView = { ...questionDriven };
+  questionDrivenView.ontologyVersionBindingSource = questionDriven.ontologyVersionBinding.source;
+  delete questionDrivenView.ownerUserId;
+  delete questionDrivenView.ontologyVersionBinding;
+  delete questionDrivenView.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema, questionDrivenView, 'snapshot-question-driven(view).json');
+  assert.equal(questionDriven.planSnapshot.mode, 'question-driven-read-only');
+  assert.deepEqual(
+    questionDriven.conclusionState.claims.map((claim) => claim.kind),
+    ['direct-answer'],
+  );
+  assert.ok(
+    questionDriven.conclusionState.evidence.some((item) => item.source.startsWith('easyv-query:')),
+    '问题驱动完成态必须携带查询证据投影',
+  );
+  const questionDrivenWithoutAnswer = structuredClone(questionDriven);
+  questionDrivenWithoutAnswer.conclusionState.claims[0].kind = 'unregistered-kind';
+  assert.equal(
+    ajv.getSchema('execution-snapshot.schema.json')(questionDrivenWithoutAnswer),
+    false,
+    '问题驱动完成态不得接受未注册的结论类型',
+  );
+
   const followUp = await jsonFixture('analysis-follow-up.json');
   assertJsonSchema(ajv, 'analysis-follow-up.schema.json', followUp, 'analysis-follow-up.json');
   assertZod(javaAnalysisFollowUpSchema, followUp, 'analysis-follow-up.json');

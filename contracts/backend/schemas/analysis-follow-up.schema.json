@@ -422,7 +422,10 @@
           "format": "date"
         },
         "accessMode": {
-          "const": "creator-owned"
+          "enum": [
+            "all",
+            "creator-owned"
+          ]
         },
         "userId": {
           "type": "string",
@@ -519,7 +522,8 @@
           "enum": [
             "minimal",
             "multi-step",
-            "deterministic-read-only"
+            "deterministic-read-only",
+            "question-driven-read-only"
           ]
         },
         "summary": {
@@ -571,6 +575,13 @@
         },
         "_resolvedContext": {
           "$ref": "#/$defs/resolvedContext"
+        },
+        "_evidenceTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -857,7 +868,10 @@
                         "pattern": "^[1-9][0-9]*$"
                       },
                       "accessMode": {
-                        "const": "creator-owned"
+                        "enum": [
+                          "all",
+                          "creator-owned"
+                        ]
                       }
                     }
                   }
