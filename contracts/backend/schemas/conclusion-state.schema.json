@@ -3,37 +3,85 @@
   "$id": "conclusion-state.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["causes", "renderBlocks"],
+  "required": [
+    "causes",
+    "renderBlocks"
+  ],
   "properties": {
-    "causes": { "type": "array", "items": { "$ref": "#/$defs/cause" } },
-    "renderBlocks": { "type": "array", "items": { "$ref": "#/$defs/renderBlock" } },
-    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidenceProjection" } },
+    "causes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cause"
+      }
+    },
+    "renderBlocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/renderBlock"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidenceProjection"
+      }
+    },
     "claims": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-                "required": ["text", "evidenceRefs"],
-                "properties": {
-                  "kind": { "type": "string", "minLength": 1 },
-                  "text": { "type": "string", "minLength": 1 },
+        "required": [
+          "text",
+          "evidenceRefs"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
           "evidenceRefs": {
             "type": "array",
             "minItems": 1,
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["source", "row", "field", "value"],
+              "required": [
+                "source",
+                "row",
+                "field",
+                "value"
+              ],
               "properties": {
-                "source": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$" },
-                "row": { "type": "integer", "minimum": 0 },
-                "field": { "type": "string", "minLength": 1 },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$"
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "value": {
                   "oneOf": [
-                    { "type": "string" },
-                    { "type": "number" },
-                    { "type": "boolean" }
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
                   ]
                 }
               }
@@ -41,29 +89,72 @@
           }
         }
       }
+    },
+    "suggestedQuestions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 3
     }
   },
   "$defs": {
     "cause": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "rank", "title", "summary", "confidence", "evidence"],
+      "required": [
+        "id",
+        "rank",
+        "title",
+        "summary",
+        "confidence",
+        "evidence"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "rank": { "type": "integer", "minimum": 1 },
-        "title": { "type": "string", "minLength": 1 },
-        "summary": { "type": "string", "minLength": 1 },
-        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
         "evidence": {
           "type": "array",
           "minItems": 1,
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["label", "summary"],
+            "required": [
+              "label",
+              "summary"
+            ],
             "properties": {
-              "label": { "type": "string", "minLength": 1 },
-              "summary": { "type": "string", "minLength": 1 }
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         }
@@ -72,23 +163,57 @@
     "evidenceProjection": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "title", "rowCount", "rows", "ontologyVersionId", "datasetVersionSetId", "freshnessAt", "productVersionIds"],
+      "required": [
+        "source",
+        "title",
+        "rowCount",
+        "rows",
+        "ontologyVersionId",
+        "datasetVersionSetId",
+        "freshnessAt",
+        "productVersionIds"
+      ],
       "properties": {
-                "source": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$" },
-        "title": { "type": "string", "minLength": 1 },
-        "rowCount": { "type": "integer", "minimum": 1 },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 1
+        },
         "rows": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "object", "minProperties": 1 }
+          "items": {
+            "type": "object",
+            "minProperties": 1
+          }
         },
-        "ontologyVersionId": { "type": "string", "minLength": 1 },
-        "datasetVersionSetId": { "type": "string", "minLength": 1 },
-        "freshnessAt": { "type": "string", "format": "date-time" },
+        "ontologyVersionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "datasetVersionSetId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "freshnessAt": {
+          "type": "string",
+          "format": "date-time"
+        },
         "productVersionIds": {
           "type": "object",
           "minProperties": 1,
-          "additionalProperties": { "type": "string", "minLength": 1 }
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -97,43 +222,102 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "title", "value", "tone"],
+          "required": [
+            "type",
+            "title",
+            "value",
+            "tone"
+          ],
           "properties": {
-            "type": { "const": "status" },
-            "title": { "type": "string", "minLength": 1 },
-            "value": { "type": "string", "minLength": 1 },
-            "tone": { "enum": ["neutral", "info", "success", "error"] }
+            "type": {
+              "const": "status"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tone": {
+              "enum": [
+                "neutral",
+                "info",
+                "success",
+                "error"
+              ]
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "title", "content"],
+          "required": [
+            "type",
+            "title",
+            "content"
+          ],
           "properties": {
-            "type": { "const": "markdown" },
-            "title": { "type": "string", "minLength": 1 },
-            "content": { "type": "string", "minLength": 1 },
-            "role": { "enum": ["primary", "supporting"] }
+            "type": {
+              "const": "markdown"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1
+            },
+            "role": {
+              "enum": [
+                "primary",
+                "supporting"
+              ]
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "title", "summary", "evidence"],
+          "required": [
+            "type",
+            "title",
+            "summary",
+            "evidence"
+          ],
           "properties": {
-            "type": { "const": "evidence-card" },
-            "title": { "type": "string", "minLength": 1 },
-            "summary": { "type": "string", "minLength": 1 },
+            "type": {
+              "const": "evidence-card"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
             "evidence": {
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["label", "summary"],
+                "required": [
+                  "label",
+                  "summary"
+                ],
                 "properties": {
-                  "label": { "type": "string", "minLength": 1 },
-                  "summary": { "type": "string", "minLength": 1 }
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -142,84 +326,164 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "title", "columns", "rows"],
+          "required": [
+            "type",
+            "title",
+            "columns",
+            "rows"
+          ],
           "properties": {
-            "type": { "const": "table" },
-            "title": { "type": "string", "minLength": 1 },
+            "type": {
+              "const": "table"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
             "columns": {
               "type": "array",
               "minItems": 1,
-              "items": { "type": "string", "minLength": 1 }
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             },
             "rows": {
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "array",
-                "items": { "type": "string" }
+                "items": {
+                  "type": "string"
+                }
               }
             },
-            "role": { "enum": ["primary", "supporting"] }
+            "role": {
+              "enum": [
+                "primary",
+                "supporting"
+              ]
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "title", "items"],
+          "required": [
+            "type",
+            "title",
+            "items"
+          ],
           "properties": {
-            "type": { "const": "kv-list" },
-            "title": { "type": "string", "minLength": 1 },
+            "type": {
+              "const": "kv-list"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
             "items": {
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["label", "value"],
+                "required": [
+                  "label",
+                  "value"
+                ],
                 "properties": {
-                  "label": { "type": "string", "minLength": 1 },
-                  "value": { "type": "string", "minLength": 1 }
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             },
-            "role": { "enum": ["primary", "supporting"] }
+            "role": {
+              "enum": [
+                "primary",
+                "supporting"
+              ]
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["type", "title", "chartType", "series"],
+          "required": [
+            "type",
+            "title",
+            "chartType",
+            "series"
+          ],
           "properties": {
-            "type": { "const": "chart" },
-            "title": { "type": "string", "minLength": 1 },
-            "chartType": { "enum": ["bar", "line", "pie", "metric"] },
+            "type": {
+              "const": "chart"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "chartType": {
+              "enum": [
+                "bar",
+                "line",
+                "pie",
+                "metric"
+              ]
+            },
             "series": {
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["name", "points"],
+                "required": [
+                  "name",
+                  "points"
+                ],
                 "properties": {
-                  "name": { "type": "string", "minLength": 1 },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
                   "points": {
                     "type": "array",
                     "minItems": 1,
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["label", "value"],
+                      "required": [
+                        "label",
+                        "value"
+                      ],
                       "properties": {
-                        "label": { "type": "string" },
-                        "value": { "type": "number" }
+                        "label": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
                       }
                     }
                   }
                 }
               }
             },
-            "unit": { "type": "string" },
-            "role": { "enum": ["primary", "supporting"] }
+            "unit": {
+              "type": "string"
+            },
+            "role": {
+              "enum": [
+                "primary",
+                "supporting"
+              ]
+            }
           }
         }
       ]

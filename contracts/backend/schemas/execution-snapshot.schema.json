@@ -286,6 +286,14 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "_suggestedQuestions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 3
         }
       }
     },
@@ -374,6 +382,14 @@
               "properties": {
                 "_executionContract": {
                   "const": "java-initial-v1"
+                },
+                "_suggestedQuestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "maxItems": 3
                 }
               },
               "not": {
@@ -423,6 +439,14 @@
                 "_referencedExecutionId": {
                   "type": "string",
                   "minLength": 1
+                },
+                "_suggestedQuestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "maxItems": 3
                 }
               }
             }
@@ -485,6 +509,14 @@
               },
               "_resolvedContext": {
                 "type": "object"
+              },
+              "_suggestedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 3
               }
             }
           },
@@ -713,6 +745,14 @@
                     "format": "date"
                   }
                 }
+              },
+              "_suggestedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 3
               }
             }
           },
@@ -1016,6 +1056,14 @@
                     "pattern": "^[1-9][0-9]*$"
                   }
                 }
+              },
+              "_suggestedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 3
               }
             }
           }

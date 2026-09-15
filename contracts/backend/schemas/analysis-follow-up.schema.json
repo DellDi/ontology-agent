@@ -206,6 +206,14 @@
                 "_referencedExecutionId": {
                   "type": "string",
                   "minLength": 1
+                },
+                "_suggestedQuestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "maxItems": 3
                 }
               }
             }
@@ -582,6 +590,14 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "_suggestedQuestions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 3
         }
       }
     },
@@ -787,6 +803,14 @@
               },
               "_resolvedContext": {
                 "$ref": "#/$defs/propertyResolvedContext"
+              },
+              "_suggestedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 3
               }
             }
           },
@@ -804,6 +828,14 @@
               },
               "_resolvedContext": {
                 "$ref": "#/$defs/propertyResolvedContext"
+              },
+              "_suggestedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 3
               }
             }
           }
@@ -893,6 +925,14 @@
               },
               "_resolvedContext": {
                 "$ref": "#/$defs/easyVResolvedContext"
+              },
+              "_suggestedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 3
               }
             }
           },
@@ -910,6 +950,14 @@
               },
               "_resolvedContext": {
                 "$ref": "#/$defs/easyVResolvedContext"
+              },
+              "_suggestedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 3
               }
             }
           }
