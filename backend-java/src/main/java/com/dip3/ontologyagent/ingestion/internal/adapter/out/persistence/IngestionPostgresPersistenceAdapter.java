@@ -22,6 +22,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -599,26 +600,30 @@ public class IngestionPostgresPersistenceAdapter implements IngestionPersistence
     @Override
     public DatasetVersionSet freezeVersionSet(VersionSetPublication publication) {
         validateVersionSetPublication(publication);
+        // timestamptz 只保留微秒精度；先按存储精度归一，保证同一 publication 重放可幂等命中
+        VersionSetPublication request = new VersionSetPublication(publication.setId(),
+                publication.productVersionIds(),
+                publication.capturedAt().truncatedTo(ChronoUnit.MICROS), publication.createdBy());
         return execute(transactions, () -> {
-            lock("version-set", publication.setId(), "INGESTION_VERSION_SET_CONFLICT");
-            DatasetVersionSet existing = versionSet(publication.setId());
+            lock("version-set", request.setId(), "INGESTION_VERSION_SET_CONFLICT");
+            DatasetVersionSet existing = versionSet(request.setId());
             if (existing != null) {
                 if (existing.status() == DatasetVersionSet.Status.FROZEN
-                        && existing.productVersionIds().equals(publication.productVersionIds())
-                        && existing.capturedAt().equals(publication.capturedAt())
-                        && existing.createdBy().equals(publication.createdBy())) return existing;
+                        && existing.productVersionIds().equals(request.productVersionIds())
+                        && existing.capturedAt().equals(request.capturedAt())
+                        && existing.createdBy().equals(request.createdBy())) return existing;
                 throw conflict("INGESTION_VERSION_SET_ID_CONFLICT",
                         "version set id 已被不同 publication 使用");
             }
             Instant now = Instant.now();
-            if (publication.capturedAt().isAfter(now)) {
+            if (request.capturedAt().isAfter(now)) {
                 throw new IllegalArgumentException("capturedAt must not be in the future");
             }
-            for (String productKey : publication.productVersionIds().keySet().stream().sorted().toList()) {
+            for (String productKey : request.productVersionIds().keySet().stream().sorted().toList()) {
                 lock("product", productKey, "INGESTION_PRODUCT_CONFLICT");
                 ProductVersionRow version = requirePublishedProductVersion(
-                        productKey, publication.productVersionIds().get(productKey));
-                if (version.publishedAt().isAfter(publication.capturedAt())) {
+                        productKey, request.productVersionIds().get(productKey));
+                if (version.publishedAt().isAfter(request.capturedAt())) {
                     throw conflict("INGESTION_VERSION_SET_TIME_INVALID",
                             "version set capturedAt 早于 product version 发布时间");
                 }
@@ -627,17 +632,17 @@ public class IngestionPostgresPersistenceAdapter implements IngestionPersistence
                     insert into ingestion.dataset_version_sets
                       (set_id,status,captured_at,frozen_at,created_by,created_at)
                     values (?,'frozen',?,?,?,?)
-                    """, publication.setId(), at(publication.capturedAt()), at(now),
-                    publication.createdBy(), at(publication.capturedAt())),
+                    """, request.setId(), at(request.capturedAt()), at(now),
+                    request.createdBy(), at(request.capturedAt())),
                     "INGESTION_VERSION_SET_WRITE_FAILED", "version set 写入失败");
-            for (Map.Entry<String, String> item : publication.productVersionIds().entrySet()) {
+            for (Map.Entry<String, String> item : request.productVersionIds().entrySet()) {
                 requireChanged(jdbc.update("""
                         insert into ingestion.dataset_version_set_items
                           (set_id,product_key,product_version_id) values (?,?,?)
-                        """, publication.setId(), item.getKey(), item.getValue()),
+                        """, request.setId(), item.getKey(), item.getValue()),
                         "INGESTION_VERSION_SET_WRITE_FAILED", "version set item 写入失败");
             }
-            return requireVersionSet(publication.setId());
+            return requireVersionSet(request.setId());
         });
     }
 
