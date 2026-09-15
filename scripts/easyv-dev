@@ -90,6 +90,68 @@ run_ingestion() {
   INGEST_MODE="$mode" compose --profile ops run --rm ingest
 }
 
+pg_credentials() {
+  require_env_file
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+  : "${PLATFORM_POSTGRES_HOST:?missing PLATFORM_POSTGRES_HOST}"
+  : "${PLATFORM_POSTGRES_PORT:?missing PLATFORM_POSTGRES_PORT}"
+  : "${PLATFORM_POSTGRES_DB:?missing PLATFORM_POSTGRES_DB}"
+  : "${JAVA_DATABASE_USERNAME:?missing JAVA_DATABASE_USERNAME}"
+  : "${JAVA_DATABASE_PASSWORD:?missing JAVA_DATABASE_PASSWORD}"
+}
+
+run_backup() {
+  pg_credentials
+  local out_dir=${1:-"$ROOT_DIR/backups"}
+  mkdir -p "$out_dir"
+  local stamp file
+  stamp=$(date +%Y%m%d%H%M%S)
+  file="$out_dir/ontology-agent-${PLATFORM_POSTGRES_DB}-${stamp}.dump"
+  # 平台库全量：platform/facts/ingestion/identity + public(flyway history)。
+  # EasyV 源库为只读外部依赖，不在备份范围。
+  PGPASSWORD="$JAVA_DATABASE_PASSWORD" docker run --rm \
+    -e PGPASSWORD \
+    -v "$out_dir:/backups" \
+    postgres:15.4-bookworm \
+    pg_dump -Fc -h "$PLATFORM_POSTGRES_HOST" -p "$PLATFORM_POSTGRES_PORT" \
+      -U "$JAVA_DATABASE_USERNAME" -d "$PLATFORM_POSTGRES_DB" \
+      -n platform -n facts -n ingestion -n identity -n public \
+      -f "/backups/$(basename "$file")"
+  ls -lh "$file"
+  echo "backup written: $file"
+}
+
+run_restore() {
+  pg_credentials
+  local file=${1:-}
+  if [[ -z "$file" || ! -r "$file" ]]; then
+    echo "usage: scripts/easyv-dev restore <backup.dump>" >&2
+    exit 2
+  fi
+  echo "RESTORE into ${PLATFORM_POSTGRES_HOST}:${PLATFORM_POSTGRES_PORT}/${PLATFORM_POSTGRES_DB}"
+  echo "this overwrites platform/facts/ingestion/identity/public objects in the dump."
+  read -r -p "type the database name to confirm: " confirm
+  if [[ "$confirm" != "$PLATFORM_POSTGRES_DB" ]]; then
+    echo "aborted." >&2
+    exit 1
+  fi
+  compose stop backend web migrate ingest release-worker 2>/dev/null || true
+  PGPASSWORD="$JAVA_DATABASE_PASSWORD" docker run --rm \
+    -e PGPASSWORD \
+    -v "$(cd "$(dirname "$file")" && pwd):/backups" \
+    postgres:15.4-bookworm \
+    pg_restore --clean --if-exists --no-owner --no-privileges \
+      -h "$PLATFORM_POSTGRES_HOST" -p "$PLATFORM_POSTGRES_PORT" \
+      -U "$JAVA_DATABASE_USERNAME" -d "$PLATFORM_POSTGRES_DB" \
+      "/backups/$(basename "$file")"
+  compose up -d
+  wait_for_health
+  echo "restore completed: $file"
+}
+
 run_property_ingestion() {
   local mode=${1:-INCREMENTAL}
   mode=${mode^^}
@@ -187,6 +249,12 @@ case "$command" in
     require_env_file
     run_property_ingestion "${2:-INCREMENTAL}"
     ;;
+  backup)
+    run_backup "${2:-}"
+    ;;
+  restore)
+    run_restore "${2:-}"
+    ;;
   graph-bootstrap)
     require_env_file
     run_graph_bootstrap "${2:-}"
@@ -215,7 +283,7 @@ case "$command" in
     wait_for_health
     ;;
   *)
-    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
     exit 2
     ;;
 esac
