@@ -180,6 +180,8 @@ export type ConversationAssistantMessage = {
   errorSummary?: string;
   /** 进度标签，例如 "3/5 步已完成" */
   progressLabel?: string;
+  /** running 态起始事件时间（ISO），用于前端耗时计数 */
+  runningSinceIso?: string;
   /** 工具调用紧凑状态条 */
   toolActivities: ToolActivitySummary[];
   /** 最终结果（执行完成后可用） */
@@ -518,6 +520,19 @@ function resolveProgressLabel(
 
     if (processed !== null && total !== null && total > 0) {
       return `${processed}/${total} 步已完成`;
+    }
+  }
+
+  // 无计数元数据时回退到最近的 step 事件，展示当前阶段（step-completed 之后返回 undefined）
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (
+      (event.kind === 'step-started' || event.kind === 'step-completed') &&
+      event.step
+    ) {
+      return event.step.status === 'running'
+        ? `正在${event.step.title}`
+        : undefined;
     }
   }
 
@@ -1377,6 +1392,8 @@ export function buildConversationViewModel(
     status === 'failed' ? resolveFailureSummary(events) : undefined;
 
   const progressLabel = resolveProgressLabel(events);
+  const runningSinceIso =
+    status === 'running' ? events[0]?.timestamp : undefined;
 
   const diagnostics: ConversationDiagnostics = {
     executionId: projection.executionId,
@@ -1433,6 +1450,7 @@ export function buildConversationViewModel(
       headline,
       errorSummary,
       progressLabel,
+      runningSinceIso,
       toolActivities,
       result: resultSection,
       diagnostics,

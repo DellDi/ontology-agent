@@ -182,6 +182,10 @@ export default async function AnalysisSessionPage({
     ?? aggregate.snapshot?.capabilityBinding;
   const domainKey = domainBinding && 'domainKey' in domainBinding ? domainBinding.domainKey : undefined;
   const inheritedContext = activeFollowUp?.mergedContext ?? rootContextFromJava(aggregate);
+  const suggestedQuestions =
+    aggregate.history.find((round) => round.status === 'completed')
+      ?.conclusionState?.suggestedQuestions
+    ?? aggregate.snapshot?.conclusionState.suggestedQuestions;
   const canFollowUp = Boolean(completedConclusion && inheritedContext
     && (!activeFollowUp || activeHistoryRound?.status === 'completed'));
   const followUpDetails = activeFollowUp && inheritedContext ? (
@@ -206,6 +210,7 @@ export default async function AnalysisSessionPage({
       sessionId={sessionId}
       activeFollowUpId={activeFollowUp?.id}
       drawerContent={followUpDetails}
+      suggestions={suggestedQuestions}
     />
   ) : null;
   const isJavaInitialSession =

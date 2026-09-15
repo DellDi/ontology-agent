@@ -196,3 +196,19 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* 分析结果入场：增量内容到达时的淡入上移动画 */
+@keyframes analysis-block-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.analysis-block-enter {
+  animation: analysis-block-enter 0.45s ease-out both;
+}

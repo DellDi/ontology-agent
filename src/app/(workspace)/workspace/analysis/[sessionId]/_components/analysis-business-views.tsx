@@ -27,7 +27,8 @@ export function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
       {cards.map((card, index) => (
         <div
           key={`${card.label}-${index}`}
-          className="rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
+          className="analysis-block-enter rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
+          style={{ animationDelay: `${Math.min(index, 5) * 60}ms` }}
         >
           <p className="text-xs text-muted-foreground">{card.label}</p>
           <p className="mt-1 flex items-baseline gap-1.5 text-2xl font-semibold text-foreground">
@@ -79,7 +80,7 @@ export function VisualizationBlock({
   };
 
   return (
-    <div className="mt-4">
+    <div className="analysis-block-enter mt-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h4 className="text-sm font-medium text-foreground">
           {visualization.title}
@@ -99,7 +100,7 @@ export function PrimaryAnswerBlock({ answer }: { answer: string }) {
   if (!answer) return null;
 
   return (
-    <div className="mt-3 rounded-lg bg-card px-4 py-3 shadow-sm ring-1 ring-border">
+    <div className="analysis-block-enter mt-3 rounded-lg bg-card px-4 py-3 shadow-sm ring-1 ring-border">
       <MarkdownContent className="text-base leading-7 text-foreground">
         {answer}
       </MarkdownContent>

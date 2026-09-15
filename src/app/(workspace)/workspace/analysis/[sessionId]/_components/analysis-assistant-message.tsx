@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type {
   AnalysisConversationViewModel,
@@ -47,11 +47,32 @@ function isBlockAlreadyVisualized(
   return false;
 }
 
+function ElapsedTicker({ sinceIso }: { sinceIso: string }) {
+  const startedAt = Date.parse(sinceIso);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!Number.isFinite(startedAt)) return null;
+  const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const text =
+    seconds >= 60
+      ? `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+      : `${seconds} 秒`;
+  return (
+    <span className="text-xs tabular-nums text-muted-foreground/70">
+      已用 {text}
+    </span>
+  );
+}
+
 export function AnalysisAssistantMessage({
   status,
   headline,
   errorSummary,
   progressLabel,
+  runningSinceIso,
   toolActivities,
   result,
   diagnostics,
@@ -66,6 +87,7 @@ export function AnalysisAssistantMessage({
   headline: string;
   errorSummary?: string;
   progressLabel?: string;
+  runningSinceIso?: string;
   toolActivities: ToolActivitySummary[];
   result: AnalysisConversationViewModel['assistantMessage']['result'];
   diagnostics: AnalysisConversationViewModel['assistantMessage']['diagnostics'];
@@ -115,6 +137,9 @@ export function AnalysisAssistantMessage({
               {progressLabel}
             </span>
           ) : null}
+          {status === 'running' && runningSinceIso ? (
+            <ElapsedTicker sinceIso={runningSinceIso} />
+          ) : null}
         </div>
 
         {/* 一句话业务答案 */}
@@ -149,10 +174,13 @@ export function AnalysisAssistantMessage({
           <div className="mt-5">
             {/* 主结果块：只展示 primary（回答与相关图表）；supporting 明细收进侧滑抽屉 */}
             {primaryBlocks.map((block, index) => (
-              <AnalysisResultBlockRenderer
+              <div
+                className="analysis-block-enter"
                 key={`result-${block.kind}-${index}`}
-                block={block}
-              />
+                style={{ animationDelay: `${Math.min(index, 5) * 80}ms` }}
+              >
+                <AnalysisResultBlockRenderer block={block} />
+              </div>
             ))}
 
             {detailItemCount > 0 ? (
