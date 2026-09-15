@@ -11,9 +11,17 @@ public interface EasyVGenerationFacts {
 
   /**
    * 按 {@code EasyVQueryCatalog} 发布的 key 执行固定 SQL 聚合查询，
-   * 返回行集（shape=series 时为 label/value 行；shape=record 时为单行多列）。
+   * 返回行集与实际执行的 SQL 模板（shape=series 时为 label/value 行；
+   * shape=record 时为单行多列）。SQL 随行返回用于归因审计表述。
    */
-  List<Map<String, Object>> aggregate(Query query, String queryKey);
+  Aggregation aggregate(Query query, String queryKey);
+
+  /** 一次目录查询的执行事实：结果行 + 实际运行的 SQL 模板。 */
+  record Aggregation(List<Map<String, Object>> rows, String sql) {
+    public Aggregation {
+      rows = rows == null ? List.of() : List.copyOf(rows);
+    }
+  }
 
   record Query(
       String executionId,

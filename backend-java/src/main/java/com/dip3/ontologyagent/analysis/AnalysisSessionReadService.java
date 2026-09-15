@@ -120,7 +120,7 @@ public class AnalysisSessionReadService {
     private static AnalysisSessionAggregate.EventView event(AnalysisSessionReadMapper.EventRow row) {
         return new AnalysisSessionAggregate.EventView(row.id, row.sessionId, row.executionId, row.sequence,
                 row.kind, row.timestamp, row.status, row.message, row.renderBlocks, row.metadata,
-                row.errorCode, row.traceId);
+                row.errorCode, row.traceId, row.step, row.tool);
     }
 
     private static boolean terminal(AnalysisSessionAggregate.EventView event) {

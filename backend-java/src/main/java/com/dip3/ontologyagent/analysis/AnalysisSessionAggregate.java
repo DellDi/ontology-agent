@@ -32,7 +32,8 @@ public record AnalysisSessionAggregate(SessionView session, List<AnalysisFollowU
     public record EventView(String id, String sessionId, String executionId, long sequence, String kind,
                             Instant timestamp, String status, String message,
                             List<Map<String, Object>> renderBlocks, Map<String, Object> metadata,
-                            String errorCode, String traceId) {}
+                            String errorCode, String traceId,
+                            Map<String, Object> step, Map<String, Object> tool) {}
 
     public record SnapshotView(String executionId, String sessionId, String followUpId,
                                String ontologyVersionId, String ontologyVersionBindingSource, String status,

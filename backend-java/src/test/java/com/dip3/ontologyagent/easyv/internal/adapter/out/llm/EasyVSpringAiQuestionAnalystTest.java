@@ -82,6 +82,21 @@ class EasyVSpringAiQuestionAnalystTest {
   }
 
   @Test
+  void composerRewritesRelativeTimeSuggestionsToAbsoluteRange() {
+    when(response.content()).thenReturn(
+        "{\"answer\":\"有 3 个用户\","
+            + "\"suggestions\":[\"上周的成功任务有多少？\",\"这批任务的负责人是谁？\"]}");
+    List<EasyVQuestionAnalyst.QueryResult> results = List.of(
+        new EasyVQuestionAnalyst.QueryResult(
+            EasyVQueryCatalog.require("user-count"), List.of(Map.of("user_count", 3))));
+    EasyVQuestionAnalyst.ComposedAnswer answer =
+        analyst.composeAnswer("多少用户", "2026-09-07 至 2026-09-13", results);
+    assertEquals(List.of(
+        "2026-09-07 至 2026-09-13的成功任务有多少？",
+        "这批任务的负责人是谁？"), answer.suggestions());
+  }
+
+  @Test
   void composerFailsLoudlyWhenAnswerMissing() {
     when(response.content()).thenReturn("{\"answer\":\"\"}").thenReturn("{}");
     assertThrows(BackendException.class,
