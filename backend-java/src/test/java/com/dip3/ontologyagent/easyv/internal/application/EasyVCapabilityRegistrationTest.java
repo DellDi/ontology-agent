@@ -48,6 +48,7 @@ class EasyVCapabilityRegistrationTest {
     assertEquals(
         List.of(
             "business-success-settlement-distinct",
+            "direct-answer",
             "failure-concentration",
             "feedback-association",
             "generation-quality",

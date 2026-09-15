@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.easyv.internal.adapter.out.postgres;
 
 import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationFacts;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVQueryCatalog;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.support.BackendException;
@@ -96,6 +97,281 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     "EasyV 授权范围内缺少可分析的四类 canonical facts。");
         }
         return new Snapshot(application, pipeline, forge, feedback, set.productVersionIds());
+    }
+
+    @Override
+    public List<Map<String, Object>> aggregate(Query query, String queryKey) {
+        validateQuery(query);
+        EasyVQueryCatalog.Spec spec;
+        try {
+            spec = EasyVQueryCatalog.require(queryKey);
+        } catch (IllegalArgumentException error) {
+            throw new BackendException("EASYV_QUERY_NOT_PUBLISHED",
+                    "EasyV 查询目录未发布该查询。", error);
+        }
+        try {
+            DatasetVersionSet set = versionSets.requireFrozen(
+                    query.datasetVersionSetId(), REQUIRED_PRODUCTS);
+            List<Map<String, Object>> rows = readOnlyTransaction.execute(status ->
+                    aggregateRows(spec, Versions.from(set), Bounds.of(query)));
+            if (rows == null) {
+                throw new BackendException("EASYV_FACTS_READ_FAILED",
+                        "EasyV canonical facts 聚合读取未返回结果。");
+            }
+            return rows;
+        } catch (BackendException error) {
+            throw error;
+        } catch (RuntimeException error) {
+            throw new BackendException("EASYV_FACTS_READ_FAILED",
+                    "EasyV canonical facts 聚合读取失败（" + error.getClass().getSimpleName() + "）。", error);
+        }
+    }
+
+    /**
+     * 受控问答聚合：每个目录 key 对应一条固定 SQL，scope 语义与
+     * {@link #collect} 一致（application=cohort created_at；forge/pipeline/feedback
+     * =cohort 归属 + 各自事件时间在窗口内）。LLM 只选择 key，不接触 SQL。
+     */
+    private List<Map<String, Object>> aggregateRows(
+            EasyVQueryCatalog.Spec spec, Versions versions, Bounds bounds) {
+        return switch (spec.key()) {
+            case "ai-application-count" -> jdbc.queryForList("""
+                    select count(distinct a.app_id) as application_count,
+                           count(distinct a.user_id) as user_count
+                    from facts.easyv_ai_application a
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                    """, versions.application(), bounds.from(), bounds.to());
+            case "prototype-count" -> jdbc.queryForList("""
+                    select count(distinct p.app_id) as prototype_count
+                    from facts.easyv_prototype_task p
+                    join facts.easyv_ai_application a
+                      on a.product_version_id=? and a.app_id=p.app_id
+                     and not a.is_deleted and a.created_at>=? and a.created_at<?
+                    where p.product_version_id=?
+                    """, versions.application(), bounds.from(), bounds.to(), versions.prototype());
+            case "user-count" -> jdbc.queryForList("""
+                    select count(distinct a.user_id) as user_count,
+                           min(a.created_at) as first_created_at,
+                           max(a.created_at) as last_created_at
+                    from facts.easyv_ai_application a
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                    """, versions.application(), bounds.from(), bounds.to());
+            case "user-first-active" -> jdbc.queryForList("""
+                    select a.user_id::text as label,
+                           min(a.created_at) as value,
+                           count(distinct a.app_id) as app_count
+                    from facts.easyv_ai_application a
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                    group by a.user_id order by value asc, label asc limit 50
+                    """, versions.application(), bounds.from(), bounds.to());
+            case "application-by-day" -> jdbc.queryForList("""
+                    select to_char(a.created_at at time zone 'Asia/Shanghai','YYYY-MM-DD') as label,
+                           count(distinct a.app_id) as value
+                    from facts.easyv_ai_application a
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                    group by 1 order by 1
+                    """, versions.application(), bounds.from(), bounds.to());
+            case "application-by-user" -> jdbc.queryForList("""
+                    select a.user_id::text as label, count(distinct a.app_id) as value
+                    from facts.easyv_ai_application a
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                    group by a.user_id order by value desc, label asc limit 50
+                    """, versions.application(), bounds.from(), bounds.to());
+            case "application-by-scope" -> jdbc.queryForList("""
+                    select a.scope_type as label, count(distinct a.app_id) as value
+                    from facts.easyv_ai_application a
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                    group by a.scope_type order by value desc, label asc
+                    """, versions.application(), bounds.from(), bounds.to());
+            case "forge-task-by-status" -> jdbc.queryForList("""
+                    with scoped as (
+                      select distinct a.app_id from facts.easyv_ai_application a
+                      where a.product_version_id=? and not a.is_deleted
+                        and a.created_at>=? and a.created_at<?
+                    )
+                    select g.status as label, count(distinct g.task_id) as value
+                    from facts.easyv_forge_generation_task g join scoped s on s.app_id=g.app_id
+                    where g.product_version_id=? and g.created_at>=? and g.created_at<?
+                    group by g.status order by value desc, label asc
+                    """, versions.application(), bounds.from(), bounds.to(),
+                    versions.forge(), bounds.from(), bounds.to());
+            case "forge-failure-reasons" -> jdbc.queryForList("""
+                    with scoped as (
+                      select distinct a.app_id from facts.easyv_ai_application a
+                      where a.product_version_id=? and not a.is_deleted
+                        and a.created_at>=? and a.created_at<?
+                    )
+                    select coalesce(nullif(g.failure_reason,''),'（无失败原因记录）') as label,
+                           count(*) as value
+                    from facts.easyv_forge_generation_task g join scoped s on s.app_id=g.app_id
+                    where g.product_version_id=? and g.created_at>=? and g.created_at<?
+                      and lower(g.status)='failed'
+                    group by 1 order by value desc, label asc
+                    """, versions.application(), bounds.from(), bounds.to(),
+                    versions.forge(), bounds.from(), bounds.to());
+            case "forge-duration-summary" -> jdbc.queryForList("""
+                    with scoped as (
+                      select distinct a.app_id from facts.easyv_ai_application a
+                      where a.product_version_id=? and not a.is_deleted
+                        and a.created_at>=? and a.created_at<?
+                    )
+                    select count(distinct g.task_id) filter (
+                        where lower(g.status) in ('completed','failed','cancelled')) as terminal_task_count,
+                      count(distinct g.task_id) filter (
+                        where lower(g.status) in ('completed','failed','cancelled')
+                          and g.started_at is not null and g.finished_at is not null)
+                        as timed_terminal_task_count,
+                      ceil(percentile_cont(0.50) within group (
+                        order by extract(epoch from (g.finished_at-g.started_at))*1000)
+                        filter (where lower(g.status) in ('completed','failed','cancelled')
+                          and g.started_at is not null and g.finished_at is not null))::bigint as p50_ms,
+                      ceil(percentile_cont(0.95) within group (
+                        order by extract(epoch from (g.finished_at-g.started_at))*1000)
+                        filter (where lower(g.status) in ('completed','failed','cancelled')
+                          and g.started_at is not null and g.finished_at is not null))::bigint as p95_ms
+                    from facts.easyv_forge_generation_task g join scoped s on s.app_id=g.app_id
+                    where g.product_version_id=? and g.created_at>=? and g.created_at<?
+                    """, versions.application(), bounds.from(), bounds.to(),
+                    versions.forge(), bounds.from(), bounds.to());
+            case "forge-task-by-day" -> jdbc.queryForList("""
+                    with scoped as (
+                      select distinct a.app_id from facts.easyv_ai_application a
+                      where a.product_version_id=? and not a.is_deleted
+                        and a.created_at>=? and a.created_at<?
+                    )
+                    select to_char(g.created_at at time zone 'Asia/Shanghai','YYYY-MM-DD') as label,
+                           count(distinct g.task_id) as value
+                    from facts.easyv_forge_generation_task g join scoped s on s.app_id=g.app_id
+                    where g.product_version_id=? and g.created_at>=? and g.created_at<?
+                    group by 1 order by 1
+                    """, versions.application(), bounds.from(), bounds.to(),
+                    versions.forge(), bounds.from(), bounds.to());
+            case "pipeline-step-p95" -> jdbc.queryForList("""
+                    select n.step_name as label,
+                      ceil(percentile_cont(0.95) within group (order by n.duration_ms))::bigint as value,
+                      count(*) as node_count
+                    from facts.easyv_ai_application a join facts.easyv_pipeline_node n
+                      on n.product_version_id=? and n.task_id=a.generation_task_id
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and n.created_at>=? and n.created_at<?
+                      and upper(n.branch)='MAIN' and n.duration_ms is not null
+                    group by n.step_name order by value desc, label asc
+                    """, versions.pipeline(), versions.application(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            case "pipeline-node-by-status" -> jdbc.queryForList("""
+                    select n.status as label, count(*) as value
+                    from facts.easyv_ai_application a join facts.easyv_pipeline_node n
+                      on n.product_version_id=? and n.task_id=a.generation_task_id
+                    where a.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and n.created_at>=? and n.created_at<?
+                      and upper(n.branch)='MAIN'
+                    group by n.status order by value desc, label asc
+                    """, versions.pipeline(), versions.application(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            case "pipeline-task-outcome" -> jdbc.queryForList("""
+                    with task_ids as (
+                      select distinct a.generation_task_id as task_id
+                      from facts.easyv_ai_application a
+                      where a.product_version_id=? and not a.is_deleted
+                        and a.created_at>=? and a.created_at<?
+                        and a.generation_task_id is not null
+                    ), summary as (
+                      select t.task_id,
+                        bool_or(upper(n.branch)='MAIN' and upper(n.step_name)='PIPELINECOMPLETED'
+                          and upper(n.status)='SUCCESS') as completed,
+                        bool_or(upper(n.branch)='MAIN' and upper(n.status)='FAILED') as failed
+                      from task_ids t left join facts.easyv_pipeline_node n
+                        on n.product_version_id=? and n.task_id=t.task_id
+                       and n.created_at>=? and n.created_at<?
+                      group by t.task_id
+                    )
+                    select count(*) as task_count,
+                      count(*) filter (where completed and not failed) as completed_count,
+                      count(*) filter (where failed and not completed) as failed_count,
+                      count(*) filter (where not completed and not failed) as incomplete_count
+                    from summary
+                    """, versions.application(), bounds.from(), bounds.to(),
+                    versions.pipeline(), bounds.from(), bounds.to());
+            case "feedback-operation-count" -> jdbc.queryForList("""
+                    select count(*) as operation_count,
+                      count(distinct l.user_id) as user_count,
+                      count(*) filter (where l.rating between 1 and 5) as rated_count,
+                      avg(l.rating) filter (where l.rating between 1 and 5) as average_rating,
+                      count(*) filter (where l.is_save_as_edit is true) as save_as_edit_count,
+                      count(*) filter (where l.execute_result=1) as combined_success_count,
+                      count(*) filter (where l.execute_result=0) as combined_failure_count
+                    from facts.easyv_generation_feedback l join facts.easyv_ai_application a
+                      on a.product_version_id=? and a.app_id=l.app_id
+                    where l.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and l.operated_at>=? and l.operated_at<?
+                    """, versions.application(), versions.feedback(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            case "feedback-by-action-type" -> jdbc.queryForList("""
+                    select l.ai_action_type as label, count(*) as value
+                    from facts.easyv_generation_feedback l join facts.easyv_ai_application a
+                      on a.product_version_id=? and a.app_id=l.app_id
+                    where l.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and l.operated_at>=? and l.operated_at<?
+                    group by l.ai_action_type order by value desc, label asc
+                    """, versions.application(), versions.feedback(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            case "feedback-by-execute-result" -> jdbc.queryForList("""
+                    select case l.execute_result when 1 then '组合成功' when 0 then '组合失败'
+                             else '其他' end as label,
+                           count(*) as value
+                    from facts.easyv_generation_feedback l join facts.easyv_ai_application a
+                      on a.product_version_id=? and a.app_id=l.app_id
+                    where l.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and l.operated_at>=? and l.operated_at<?
+                    group by l.execute_result order by value desc, label asc
+                    """, versions.application(), versions.feedback(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            case "feedback-by-rating" -> jdbc.queryForList("""
+                    select l.rating::text as label, count(*) as value
+                    from facts.easyv_generation_feedback l join facts.easyv_ai_application a
+                      on a.product_version_id=? and a.app_id=l.app_id
+                    where l.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and l.operated_at>=? and l.operated_at<?
+                      and l.rating is not null
+                    group by l.rating order by l.rating
+                    """, versions.application(), versions.feedback(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            case "feedback-by-day" -> jdbc.queryForList("""
+                    select to_char(l.operated_at at time zone 'Asia/Shanghai','YYYY-MM-DD') as label,
+                           count(*) as value
+                    from facts.easyv_generation_feedback l join facts.easyv_ai_application a
+                      on a.product_version_id=? and a.app_id=l.app_id
+                    where l.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and l.operated_at>=? and l.operated_at<?
+                    group by 1 order by 1
+                    """, versions.application(), versions.feedback(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            case "feedback-by-user" -> jdbc.queryForList("""
+                    select l.user_id::text as label, count(*) as value
+                    from facts.easyv_generation_feedback l join facts.easyv_ai_application a
+                      on a.product_version_id=? and a.app_id=l.app_id
+                    where l.product_version_id=? and not a.is_deleted
+                      and a.created_at>=? and a.created_at<?
+                      and l.operated_at>=? and l.operated_at<?
+                    group by l.user_id order by value desc, label asc limit 50
+                    """, versions.application(), versions.feedback(),
+                    bounds.from(), bounds.to(), bounds.from(), bounds.to());
+            default -> throw new BackendException("EASYV_QUERY_NOT_PUBLISHED",
+                    "EasyV 查询目录 key 无对应 SQL 模板: " + spec.key());
+        };
     }
 
     private ApplicationFacts applicationFacts(

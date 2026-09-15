@@ -5,6 +5,7 @@ import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVDateRange;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVFailureReason;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVQueryCatalog;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.GroundedConclusion;
@@ -12,31 +13,59 @@ import com.dip3.ontologyagent.tooling.WorkflowResult;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-/** Deterministic EasyV quality analysis over a typed, read-only fact port. */
+/**
+ * 问题驱动的 EasyV 受控问答：LLM 规划目录内查询 key，服务端执行固定 SQL，
+ * LLM 再基于真实结果生成回答；facts 聚合仍走确定性只读端口。
+ */
 @Service
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public final class EasyVGenerationWorkflow {
   private static final Duration MAX_FRESHNESS_AGE = Duration.ofHours(24);
   private static final Duration MAX_FUTURE_SKEW = Duration.ofMinutes(5);
-  private static final List<String> CLAIM_KINDS =
-      List.of(
-          "generation-quality",
-          "stage-bottleneck",
-          "failure-concentration",
-          "feedback-association",
-          "business-success-settlement-distinct");
+  private static final int EVIDENCE_ROW_CAP = 50;
+  private static final DateTimeFormatter BUSINESS_TIME =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(EasyVDateRange.BUSINESS_ZONE);
+  private static final Map<String, String> COLUMN_LABELS = Map.ofEntries(
+      Map.entry("application_count", "AI 应用数"),
+      Map.entry("prototype_count", "原型数"),
+      Map.entry("user_count", "用户数"),
+      Map.entry("first_created_at", "最早创建时间"),
+      Map.entry("last_created_at", "最近创建时间"),
+      Map.entry("app_count", "应用数"),
+      Map.entry("node_count", "节点数"),
+      Map.entry("task_count", "任务数"),
+      Map.entry("completed_count", "完成数"),
+      Map.entry("failed_count", "失败数"),
+      Map.entry("incomplete_count", "未完成数"),
+      Map.entry("terminal_task_count", "终态任务数"),
+      Map.entry("timed_terminal_task_count", "可计时终态任务数"),
+      Map.entry("p50_ms", "耗时 P50（毫秒）"),
+      Map.entry("p95_ms", "耗时 P95（毫秒）"),
+      Map.entry("operation_count", "操作记录数"),
+      Map.entry("rated_count", "有效评分数"),
+      Map.entry("average_rating", "平均评分"),
+      Map.entry("save_as_edit_count", "另存编辑数"),
+      Map.entry("combined_success_count", "组合成功数"),
+      Map.entry("combined_failure_count", "组合失败数"),
+      Map.entry("label", "项目"),
+      Map.entry("value", "数值"));
   private final EasyVGenerationFacts facts;
+  private final EasyVQuestionAnalyst analyst;
 
-  public EasyVGenerationWorkflow(EasyVGenerationFacts facts) {
+  public EasyVGenerationWorkflow(EasyVGenerationFacts facts, EasyVQuestionAnalyst analyst) {
     this.facts = facts;
+    this.analyst = analyst;
   }
 
   public WorkflowResult execute(EasyVGenerationRequest request) {
@@ -158,8 +187,27 @@ public final class EasyVGenerationWorkflow {
 
   private EasyVGenerationResult buildResult(
       EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot) {
-    List<Evidence> evidence = evidence(request, snapshot);
-    List<GroundedConclusion.Claim> claims = claims(snapshot, evidence);
+    String rangeDescription =
+        new EasyVDateRange(request.from(), request.to()).describe() + "，上海时区";
+    List<String> keys = planKeys(request.questionText());
+    List<EasyVQuestionAnalyst.QueryResult> results = executeQueries(request, keys);
+    EasyVQuestionAnalyst.ComposedAnswer answer =
+        analyst.composeAnswer(request.questionText(), rangeDescription, results);
+    List<Evidence> evidence = evidence(request, snapshot, results);
+    List<GroundedConclusion.EvidenceReference> refs =
+        evidence.stream()
+            .filter(item -> item.source().startsWith("easyv-query:"))
+            .map(item -> ref(item, "rows", item.rows().size()))
+            .toList();
+    // 全部查询为空时，回答仍须落地到快照证据（如"该维度无数据"由快照计数行支撑）。
+    if (refs.isEmpty()) {
+      Evidence application = evidence.get(0);
+      refs = List.of(ref(application, "applicationCount",
+          application.rows().get(0).get("applicationCount")));
+    }
+    List<GroundedConclusion.Claim> claims =
+        List.of(claim("direct-answer", answer.markdown(),
+            refs.toArray(GroundedConclusion.EvidenceReference[]::new)));
     Map<String, Object> resolvedContext =
         Map.of(
             "entity", request.entityKey(),
@@ -169,165 +217,194 @@ public final class EasyVGenerationWorkflow {
             "to", request.to().toString(),
             "accessMode", request.accessMode(),
             "userId", request.userId());
-    List<Map<String, Object>> steps =
-        List.of(
-            Map.of("id", "validate-scope-and-time", "order", 1, "kind", "deterministic-validation",
-                "title", "校验范围与时间"),
-            Map.of("id", "read-easyv-ai-application", "order", 2, "kind", "aggregate-facts",
-                "title", "读取 AI 应用事实"),
-            Map.of("id", "read-easyv-pipeline-node", "order", 3, "kind", "aggregate-facts",
-                "title", "读取流水线节点事实"),
-            Map.of("id", "read-easyv-forge-task", "order", 4, "kind", "aggregate-facts",
-                "title", "读取 Forge 任务事实"),
-            Map.of("id", "read-easyv-generation-feedback", "order", 5, "kind", "aggregate-facts",
-                "title", "读取生成反馈事实"),
-            Map.of("id", "validate-evidence", "order", 6, "kind", "deterministic-validation",
-                "title", "校验证据完整性"),
-            Map.of("id", "render-grounded-claims", "order", 7, "kind", "deterministic-render",
-                "title", "渲染证据结论"));
+    List<Map<String, Object>> steps = new ArrayList<>();
+    steps.add(Map.of("id", "validate-scope-and-time", "order", 1,
+        "kind", "deterministic-validation", "title", "校验范围与时间"));
+    steps.add(Map.of("id", "plan-queries", "order", 2,
+        "kind", "llm-plan", "title", "分析问题并规划查询"));
+    for (int index = 0; index < results.size(); index += 1) {
+      EasyVQuestionAnalyst.QueryResult result = results.get(index);
+      steps.add(Map.of("id", "query-" + result.spec().key(), "order", 3 + index,
+          "kind", "aggregate-facts", "title", result.spec().label()));
+    }
+    steps.add(Map.of("id", "compose-answer", "order", 3 + results.size(),
+        "kind", "llm-compose", "title", "基于事实生成回答"));
     Map<String, Object> plan = new LinkedHashMap<>();
     plan.put("_executionContract", request.executionContract());
     plan.put("_resolvedContext", resolvedContext);
     plan.put("_evidenceTypes", evidence.stream().map(Evidence::source).toList());
-    plan.put("summary", "EasyV 生成质量分析");
-    plan.put("mode", "deterministic-read-only");
+    plan.put("summary", "EasyV 数据问答");
+    plan.put("mode", "question-driven-read-only");
     plan.put("steps", steps);
     if (request.followUpId() != null) plan.put("_followUpId", request.followUpId());
     if (request.referencedExecutionId() != null) {
       plan.put("_referencedExecutionId", request.referencedExecutionId());
     }
     plan = Map.copyOf(plan);
-    String lead = leadSummary(request, snapshot);
-    List<Map<String, Object>> blocks = renderBlocks(request, snapshot, claims, lead);
+    String lead = answer.markdown();
+    List<Map<String, Object>> blocks = renderBlocks(results, answer, lead);
     return new EasyVGenerationResult(plan, evidence, claims, blocks, lead);
   }
 
+  private List<String> planKeys(String question) {
+    try {
+      List<String> keys = analyst.planQueries(question, EasyVQueryCatalog.all());
+      return keys.stream().filter(EasyVQueryCatalog::contains).distinct().toList();
+    } catch (BackendException error) {
+      return EasyVQueryCatalog.DEFAULT_KEYS;
+    }
+  }
+
+  private List<EasyVQuestionAnalyst.QueryResult> executeQueries(
+      EasyVGenerationRequest request, List<String> keys) {
+    if (keys.isEmpty()) {
+      keys = EasyVQueryCatalog.DEFAULT_KEYS;
+    }
+    EasyVGenerationFacts.Query scope =
+        new EasyVGenerationFacts.Query(
+            request.executionId(), request.userId(), request.accessMode(),
+            request.ontologyVersionId(), request.datasetVersionSetId(),
+            request.from(), request.to(), request.requestedAt());
+    List<EasyVQuestionAnalyst.QueryResult> results = new ArrayList<>();
+    for (String key : keys) {
+      EasyVQueryCatalog.Spec spec = EasyVQueryCatalog.require(key);
+      List<Map<String, Object>> rows = normalizeRows(spec.key(), facts.aggregate(scope, key));
+      results.add(new EasyVQuestionAnalyst.QueryResult(spec, rows));
+    }
+    return List.copyOf(results);
+  }
+
+  /** 行值归一化：时间戳转上海时区文本；失败原因 label 归一化为中文标签并保留原文。 */
+  private static List<Map<String, Object>> normalizeRows(String key, List<Map<String, Object>> rows) {
+    List<Map<String, Object>> normalized = new ArrayList<>(rows.size());
+    for (Map<String, Object> row : rows) {
+      Map<String, Object> out = new LinkedHashMap<>();
+      row.forEach((column, value) -> out.put(column, normalizeValue(value)));
+      if ("forge-failure-reasons".equals(key) && out.get("label") instanceof String raw) {
+        out.put("raw_label", raw);
+        out.put("label", EasyVFailureReason.label(raw));
+      }
+      normalized.add(Map.copyOf(out));
+    }
+    return List.copyOf(normalized);
+  }
+
+  private static Object normalizeValue(Object value) {
+    if (value instanceof java.sql.Timestamp timestamp) {
+      return BUSINESS_TIME.format(timestamp.toInstant());
+    }
+    if (value instanceof java.time.temporal.TemporalAccessor temporal) {
+      return BUSINESS_TIME.format(java.time.Instant.from(temporal));
+    }
+    if (value instanceof Number number) {
+      double asDouble = number.doubleValue();
+      if (!Double.isFinite(asDouble)) {
+        return 0L;
+      }
+      if (number instanceof Double || number instanceof Float || number instanceof java.math.BigDecimal) {
+        return asDouble == Math.rint(asDouble) ? number.longValue() : asDouble;
+      }
+      return number.longValue();
+    }
+    return value == null ? "" : value;
+  }
+
   private static List<Map<String, Object>> renderBlocks(
-      EasyVGenerationRequest request,
-      EasyVGenerationFacts.Snapshot snapshot,
-      List<GroundedConclusion.Claim> claims,
+      List<EasyVQuestionAnalyst.QueryResult> results,
+      EasyVQuestionAnalyst.ComposedAnswer answer,
       String lead) {
-    EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
-    EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
-    EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
-    EasyVGenerationFacts.FeedbackFacts feedback = snapshot.feedback();
+    Map<String, String> highlightViz = new LinkedHashMap<>();
+    answer.highlights().forEach(highlight -> highlightViz.put(highlight.queryKey(), highlight.viz()));
     List<Map<String, Object>> blocks = new ArrayList<>();
-    blocks.add(Map.<String, Object>of(
-        "type", "markdown",
-        "title", "综合结论",
-        "content", lead));
-    blocks.add(Map.<String, Object>of(
-        "type", "kv-list",
-        "title", "关键指标",
-        "items", List.of(
-            kv("AI 应用", application.applicationCount()),
-            kv("原型", application.prototypeCount()),
-            kv("Forge 完成率",
-                ratio(forge.completedTaskCount(),
-                    forge.completedTaskCount() + forge.failedTaskCount())),
-            kv("流水线任务", pipeline.taskCount() + "（完成 " + pipeline.completedTaskCount()
-                + " / 失败 " + pipeline.failedTaskCount() + "）"),
-            kv("瓶颈阶段 P95", safe(pipeline.bottleneckStep()) + " · "
-                + pipeline.bottleneckP95Millis() + " ms"),
-            kv("有效评分覆盖", feedback.ratedCount() + "/" + feedback.operationCount()))));
-    blocks.add(Map.<String, Object>of(
-        "type", "chart",
-        "title", "各阶段 P95 耗时",
-        "chartType", "bar",
-        "series", List.of(Map.of(
-            "name", "P95 耗时",
-            "points", pipeline.stageDurations().stream()
-                .limit(10)
-                .map(stage -> Map.<String, Object>of(
-                    "label", stage.stepName(), "value", stage.p95Millis()))
-                .toList())),
-        "unit", "ms"));
-    blocks.add(Map.<String, Object>of(
-        "type", "chart",
-        "title", "原型流水线任务状态",
-        "chartType", "bar",
-        "series", List.of(Map.of(
-            "name", "任务数",
-            "points", List.of(
-                Map.of("label", "完成", "value", pipeline.completedTaskCount()),
-                Map.of("label", "失败", "value", pipeline.failedTaskCount()),
-                Map.of("label", "未完成", "value", pipeline.incompleteTaskCount())))),
-        "unit", "个"));
-    blocks.add(Map.<String, Object>of(
-        "type", "chart",
-        "title", "Forge 任务状态分布",
-        "chartType", "pie",
-        "series", List.of(Map.of(
-            "name", "任务数",
-            "points", List.of(
-                Map.of("label", "完成", "value", forge.completedTaskCount()),
-                Map.of("label", "失败", "value", forge.failedTaskCount()),
-                Map.of("label", "取消", "value", forge.cancelledTaskCount())))),
-        "unit", "个"));
-    blocks.add(Map.<String, Object>of(
-        "type", "chart",
-        "title", "execute_result 组合结果分布",
-        "chartType", "pie",
-        "series", List.of(Map.of(
-            "name", "记录数",
-            "points", List.of(
-                Map.of("label", "组合成功", "value", feedback.combinedExecuteSuccessCount()),
-                Map.of("label", "组合失败", "value", feedback.combinedExecuteFailureCount())))),
-        "unit", "条"));
-    blocks.add(failureReasonTable(forge));
-    claims.stream()
-        .map(claim -> Map.<String, Object>of(
-            "type", "markdown", "title", claimTitle(claim.kind()), "content", claim.text()))
-        .forEach(blocks::add);
+    // 回答文本经 conclusion/primaryAnswer 通道单独展示，不再重复发 markdown 块。
+    for (EasyVQuestionAnalyst.QueryResult result : results) {
+      String viz = highlightViz.getOrDefault(result.spec().key(), "none");
+      String role = "none".equals(viz) ? "supporting" : "primary";
+      if ("none".equals(viz) && result.spec().shape() == EasyVQueryCatalog.Shape.SERIES
+          && result.rows().size() > 1) {
+        viz = "table";
+      }
+      blocks.add(resultBlock(result, viz, role));
+    }
     return List.copyOf(blocks);
   }
 
-  private static Map<String, Long> failureReasonLabels(EasyVGenerationFacts.ForgeFacts forge) {
-    Map<String, Long> labels = new LinkedHashMap<>();
-    forge.failureReasonCounts().forEach((raw, count) ->
-        labels.merge(EasyVFailureReason.label(raw), count, Long::sum));
-    return labels;
+  private static Map<String, Object> resultBlock(
+      EasyVQuestionAnalyst.QueryResult result, String viz, String role) {
+    EasyVQueryCatalog.Spec spec = result.spec();
+    List<Map<String, Object>> rows = result.rows();
+    Map<String, Object> block = new LinkedHashMap<>();
+    block.put("title", spec.label());
+    block.put("role", role);
+    boolean chartable = !rows.isEmpty() && rows.stream()
+        .allMatch(row -> row.get("value") instanceof Number n && Double.isFinite(n.doubleValue()));
+    if (spec.shape() == EasyVQueryCatalog.Shape.SERIES && ("bar".equals(viz) || "pie".equals(viz)
+        || "line".equals(viz)) && chartable) {
+      block.put("type", "chart");
+      block.put("chartType", viz);
+      block.put("series", List.of(Map.of(
+          "name", spec.label(),
+          "points", rows.stream()
+              .map(row -> Map.<String, Object>of(
+                  "label", String.valueOf(row.getOrDefault("label", "")),
+                  "value", row.get("value")))
+              .toList())));
+      block.put("unit", "");
+    } else if (spec.shape() == EasyVQueryCatalog.Shape.RECORD) {
+      block.put("type", "kv-list");
+      Map<String, Object> first = rows.isEmpty() ? Map.of() : rows.getFirst();
+      List<Map<String, Object>> items = new ArrayList<>();
+      first.forEach((column, value) ->
+          items.add(Map.of("label", columnLabel(column), "value", String.valueOf(value))));
+      block.put("items", items);
+    } else {
+      block.put("type", "table");
+      Set<String> columns = new LinkedHashSet<>();
+      rows.forEach(row -> columns.addAll(row.keySet()));
+      List<String> ordered = new ArrayList<>(columns);
+      ordered.sort(Comparator.comparing(column -> column.equals("label") ? ""
+          : column.equals("value") ? " " : column));
+      block.put("columns", ordered.stream().map(EasyVGenerationWorkflow::columnLabel).toList());
+      block.put("rows", rows.stream()
+          .map(row -> ordered.stream()
+              .map(column -> String.valueOf(row.getOrDefault(column, "")))
+              .toList())
+          .toList());
+    }
+    return Map.copyOf(block);
   }
 
-  private static Map<String, Object> failureReasonTable(EasyVGenerationFacts.ForgeFacts forge) {
-    List<Map.Entry<String, Long>> sorted = failureReasonLabels(forge).entrySet().stream()
-        .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-        .toList();
-    List<List<String>> rows = sorted.isEmpty()
-        ? List.of(List.of("无已归类失败原因", "0"))
-        : sorted.stream()
-            .map(entry -> List.of(entry.getKey(), String.valueOf(entry.getValue())))
-            .toList();
-    return Map.of(
-        "type", "table",
-        "title", "失败原因分布",
-        "columns", List.of("失败原因", "任务数"),
-        "rows", rows);
-  }
-
-  private static Map<String, Object> kv(String label, Object value) {
-    return Map.of("label", label, "value", String.valueOf(value));
-  }
-
-  private static String leadSummary(
-      EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot) {
-    EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
-    EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
-    EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
-    EasyVGenerationFacts.FeedbackFacts feedback = snapshot.feedback();
-    return "本期（" + new EasyVDateRange(request.from(), request.to()).describe()
-        + "，上海时区）共覆盖 "
-        + application.applicationCount() + " 个 AI 应用、" + application.prototypeCount() + " 个原型；"
-        + "Forge 生成完成率 " + ratio(forge.completedTaskCount(),
-            forge.completedTaskCount() + forge.failedTaskCount())
-        + "，原型流水线完成 " + pipeline.completedTaskCount() + "/" + pipeline.taskCount()
-        + "，瓶颈阶段 " + safe(pipeline.bottleneckStep()) + "（P95 " + pipeline.bottleneckP95Millis()
-        + " ms）；有效评分覆盖 " + feedback.ratedCount() + "/" + feedback.operationCount()
-        + "，组合成功 " + feedback.combinedExecuteSuccessCount() + "、组合失败 "
-        + feedback.combinedExecuteFailureCount() + "。";
+  private static String columnLabel(String column) {
+    return COLUMN_LABELS.getOrDefault(column, column);
   }
 
   private static List<Evidence> evidence(
+      EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot,
+      List<EasyVQuestionAnalyst.QueryResult> results) {
+    List<Evidence> evidence = new ArrayList<>(snapshotEvidence(request, snapshot));
+    for (EasyVQuestionAnalyst.QueryResult result : results) {
+      // 空结果不能构成证据行；由回答文本如实表述"该维度无数据"。
+      if (result.rows().isEmpty()) continue;
+      evidence.add(new Evidence(
+          "easyv-query:" + result.spec().key(),
+          result.spec().label(),
+          result.rows().stream().limit(EVIDENCE_ROW_CAP).toList(),
+          provenance(request, snapshot, snapshot.application().window().freshnessAt(),
+              productFor(result.spec().fact()))));
+    }
+    return List.copyOf(evidence);
+  }
+
+  private static String productFor(String fact) {
+    return switch (fact) {
+      case "pipeline" -> "easyv-pipeline-node";
+      case "forge" -> "easyv-forge-task";
+      case "feedback" -> "easyv-generation-feedback";
+      default -> "easyv-ai-application";
+    };
+  }
+
+  private static List<Evidence> snapshotEvidence(
       EasyVGenerationRequest request, EasyVGenerationFacts.Snapshot snapshot) {
     EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
     EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
@@ -413,65 +490,6 @@ public final class EasyVGenerationWorkflow {
         request.ontologyVersionId(), request.datasetVersionSetId(), freshnessAt, versions);
   }
 
-  private static List<GroundedConclusion.Claim> claims(
-      EasyVGenerationFacts.Snapshot snapshot, List<Evidence> evidence) {
-    EasyVGenerationFacts.ApplicationFacts application = snapshot.application();
-    EasyVGenerationFacts.ForgeFacts forge = snapshot.forge();
-    EasyVGenerationFacts.PipelineFacts pipeline = snapshot.pipeline();
-    EasyVGenerationFacts.FeedbackFacts feedback = snapshot.feedback();
-    String topFailure = topFailureReason(forge);
-    return List.of(
-        claim(
-            "generation-quality",
-            "覆盖 " + application.applicationCount() + " 个 AI 应用、" + application.prototypeCount()
-                + " 个原型；Forge 生成完成率为 "
-                + ratio(forge.completedTaskCount(), forge.completedTaskCount() + forge.failedTaskCount())
-                + "；耗时覆盖 " + forge.timedTerminalTaskCount() + "/" + forge.terminalTaskCount()
-                + " 个终态任务，取消任务单列。",
-            ref(evidence.get(0), "applicationCount", application.applicationCount()),
-            ref(evidence.get(0), "prototypeCount", application.prototypeCount()),
-            ref(evidence.get(2), "completedTaskCount", forge.completedTaskCount()),
-            ref(evidence.get(2), "failedTaskCount", forge.failedTaskCount())),
-        claim(
-            "stage-bottleneck",
-            "原型阶段耗时瓶颈为 " + safe(pipeline.bottleneckStep()) + "，P95 为 " + pipeline.bottleneckP95Millis()
-                + " 毫秒；耗时覆盖 " + pipeline.timedNodeCount() + "/" + pipeline.mainNodeCount() + " 个 MAIN 节点。",
-            ref(evidence.get(1), "bottleneckStep", pipeline.bottleneckStep()),
-            ref(evidence.get(1), "bottleneckP95Millis", pipeline.bottleneckP95Millis())),
-        claim(
-            "failure-concentration",
-            "Forge 失败原因最多的是 " + topFailure + "；该结论描述失败集中分布，不表述为模型因果。",
-            ref(evidence.get(2), "topFailureReason", topFailureReason(forge)),
-            ref(evidence.get(2), "failedTaskCount", forge.failedTaskCount())),
-        feedbackClaim(feedback, evidence.get(3)),
-        claim(
-            "business-success-settlement-distinct",
-            "execute_result 组合成功记录 " + feedback.combinedExecuteSuccessCount() + "、组合失败记录 "
-                + feedback.combinedExecuteFailureCount()
-                + "；当前事实不能拆分模型/业务成功与积分结算失败，也不能据此推断二者任一原因。",
-            ref(evidence.get(3), "combinedExecuteSuccessCount", feedback.combinedExecuteSuccessCount()),
-            ref(evidence.get(3), "combinedExecuteFailureCount", feedback.combinedExecuteFailureCount())));
-  }
-
-  private static GroundedConclusion.Claim feedbackClaim(
-      EasyVGenerationFacts.FeedbackFacts feedback, Evidence evidence) {
-    if (feedback.ratedCount() > 0) {
-      return claim(
-          "feedback-association",
-          "有效评分覆盖 " + feedback.ratedCount() + "/" + feedback.operationCount() + "，平均评分 "
-              + feedback.averageRating() + "；另存行为仅作观察性相关。",
-          ref(evidence, "ratedCount", feedback.ratedCount()),
-          ref(evidence, "averageRating", feedback.averageRating()),
-          ref(evidence, "saveAsEditCount", feedback.saveAsEditCount()));
-    }
-    return claim(
-        "feedback-association",
-        "有效评分覆盖 0/" + feedback.operationCount()
-            + "：本期没有用户评分记录，不能给出平均评分；另存行为仅作观察性相关。",
-        ref(evidence, "ratedCount", feedback.ratedCount()),
-        ref(evidence, "saveAsEditCount", feedback.saveAsEditCount()));
-  }
-
   private static GroundedConclusion.Claim claim(
       String kind, String text, GroundedConclusion.EvidenceReference... refs) {
     return new GroundedConclusion.Claim(kind, text, List.of(refs));
@@ -481,15 +499,11 @@ public final class EasyVGenerationWorkflow {
     return new GroundedConclusion.EvidenceReference(evidence.source(), 0, field, value);
   }
 
-  private static String claimTitle(String kind) {
-    return switch (kind) {
-      case "generation-quality" -> "生成质量";
-      case "stage-bottleneck" -> "阶段瓶颈";
-      case "failure-concentration" -> "失败集中";
-      case "feedback-association" -> "反馈关联";
-      case "business-success-settlement-distinct" -> "业务成功与结算区分";
-      default -> "结论";
-    };
+  private static Map<String, Long> failureReasonLabels(EasyVGenerationFacts.ForgeFacts forge) {
+    Map<String, Long> labels = new LinkedHashMap<>();
+    forge.failureReasonCounts().forEach((raw, count) ->
+        labels.merge(EasyVFailureReason.label(raw), count, Long::sum));
+    return labels;
   }
 
   private static String topFailureReason(EasyVGenerationFacts.ForgeFacts forge) {
@@ -497,14 +511,6 @@ public final class EasyVGenerationWorkflow {
         .max(Map.Entry.comparingByValue())
         .map(entry -> entry.getKey() + " (" + entry.getValue() + ")")
         .orElse("无已归类失败原因");
-  }
-
-  private static String ratio(long numerator, long denominator) {
-    return denominator == 0 ? "不可计算（分母为 0）" : String.format(java.util.Locale.ROOT, "%.2f%%", numerator * 100.0 / denominator);
-  }
-
-  private static String safe(String value) {
-    return value == null || value.isBlank() ? "未提供" : value;
   }
 
   private static void validateRequest(EasyVGenerationRequest request) {
