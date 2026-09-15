@@ -1,0 +1,725 @@
+{
+  "executionId": "050fa6a6-0225-3bfa-bf58-2ccc9bfe8a24",
+  "sessionId": "123b224a-bfa3-4d9b-9f57-3efed889b868",
+  "ownerUserId": "2",
+  "followUpId": null,
+  "ontologyVersionId": "ontology-java-multidomain-v2",
+  "ontologyVersionBinding": {
+    "ontologyVersionId": "ontology-java-multidomain-v2",
+    "source": "grounded-context"
+  },
+  "capabilityBinding": {
+    "domainKey": "easyv",
+    "capabilityKey": "generation-quality-analysis",
+    "resolvedScope": {
+      "values": {
+        "userId": "2",
+        "accessMode": "all"
+      },
+      "domainKey": "easyv",
+      "schemaVersion": 1
+    },
+    "ontologyVersionId": "ontology-java-multidomain-v2"
+  },
+  "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e",
+  "status": "completed",
+  "planSnapshot": {
+    "mode": "question-driven-read-only",
+    "steps": [
+      {
+        "id": "validate-scope-and-time",
+        "kind": "deterministic-validation",
+        "order": 1,
+        "title": "校验范围与时间"
+      },
+      {
+        "id": "plan-queries",
+        "kind": "llm-plan",
+        "order": 2,
+        "title": "分析问题并规划查询"
+      },
+      {
+        "id": "query-user-first-active",
+        "kind": "aggregate-facts",
+        "order": 3,
+        "title": "各用户首次创建应用时间"
+      },
+      {
+        "id": "query-user-count",
+        "kind": "aggregate-facts",
+        "order": 4,
+        "title": "操作用户数"
+      },
+      {
+        "id": "compose-answer",
+        "kind": "llm-compose",
+        "order": 5,
+        "title": "基于事实生成回答"
+      }
+    ],
+    "summary": "EasyV 数据问答",
+    "_evidenceTypes": [
+      "easyv-ai-application",
+      "easyv-pipeline-node",
+      "easyv-forge-task",
+      "easyv-generation-feedback",
+      "easyv-query:user-first-active",
+      "easyv-query:user-count"
+    ],
+    "_resolvedContext": {
+      "to": "2026-09-15",
+      "from": "2000-01-01",
+      "time": "easyv-generation-time",
+      "entity": "easyv-ai-application",
+      "metric": "easyv-generation-quality",
+      "userId": "2",
+      "accessMode": "all"
+    },
+    "_executionContract": "java-initial-v1"
+  },
+  "stepResults": [
+    {
+      "id": "9e03b53b-683a-4935-aced-d07da39022ad",
+      "kind": "execution-status",
+      "status": "processing",
+      "message": "分析执行已开始",
+      "traceId": "68656ce5-4fba-4ca3-9206-ca453e921853",
+      "metadata": {
+        "traceId": "68656ce5-4fba-4ca3-9206-ca453e921853",
+        "capabilityBinding": {
+          "domainKey": "easyv",
+          "capabilityKey": "generation-quality-analysis",
+          "resolvedScope": {
+            "values": {
+              "userId": "2",
+              "accessMode": "all"
+            },
+            "domainKey": "easyv",
+            "schemaVersion": 1
+          },
+          "ontologyVersionId": "ontology-java-multidomain-v2"
+        },
+        "executionContract": "java-initial-v1",
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      "sequence": 1,
+      "errorCode": null,
+      "sessionId": "123b224a-bfa3-4d9b-9f57-3efed889b868",
+      "timestamp": "2026-09-15T02:53:29.370159Z",
+      "executionId": "050fa6a6-0225-3bfa-bf58-2ccc9bfe8a24",
+      "renderBlocks": [
+        {
+          "tone": "info",
+          "type": "status",
+          "title": "执行状态",
+          "value": "处理中"
+        }
+      ]
+    },
+    {
+      "id": "4bb95b0b-9bde-4251-8fa8-a432c313d2df",
+      "kind": "execution-status",
+      "status": "completed",
+      "message": "分析执行已完成",
+      "traceId": "68656ce5-4fba-4ca3-9206-ca453e921853",
+      "metadata": {
+        "followUpId": null,
+        "capabilityBinding": {
+          "domainKey": "easyv",
+          "capabilityKey": "generation-quality-analysis",
+          "resolvedScope": {
+            "values": {
+              "userId": "2",
+              "accessMode": "all"
+            },
+            "domainKey": "easyv",
+            "schemaVersion": 1
+          },
+          "ontologyVersionId": "ontology-java-multidomain-v2"
+        },
+        "executionContract": "java-initial-v1",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      "sequence": 2,
+      "errorCode": null,
+      "sessionId": "123b224a-bfa3-4d9b-9f57-3efed889b868",
+      "timestamp": "2026-09-15T02:53:39.278779Z",
+      "executionId": "050fa6a6-0225-3bfa-bf58-2ccc9bfe8a24",
+      "renderBlocks": [
+        {
+          "role": "primary",
+          "rows": [
+            [
+              "2",
+              "2026-09-07 13:53:06",
+              "29"
+            ],
+            [
+              "8",
+              "2026-09-07 14:16:06",
+              "31"
+            ],
+            [
+              "6",
+              "2026-09-07 14:23:31",
+              "3"
+            ],
+            [
+              "16",
+              "2026-09-07 15:31:55",
+              "5"
+            ],
+            [
+              "9",
+              "2026-09-07 15:46:08",
+              "6"
+            ],
+            [
+              "20",
+              "2026-09-08 10:55:13",
+              "1"
+            ],
+            [
+              "19",
+              "2026-09-08 10:56:38",
+              "2"
+            ],
+            [
+              "13",
+              "2026-09-08 15:22:58",
+              "6"
+            ],
+            [
+              "23",
+              "2026-09-08 15:43:19",
+              "1"
+            ],
+            [
+              "3",
+              "2026-09-08 15:51:01",
+              "2"
+            ],
+            [
+              "25",
+              "2026-09-09 09:48:21",
+              "8"
+            ],
+            [
+              "18",
+              "2026-09-09 14:31:39",
+              "1"
+            ],
+            [
+              "7",
+              "2026-09-09 16:18:24",
+              "2"
+            ],
+            [
+              "4",
+              "2026-09-11 16:24:54",
+              "1"
+            ]
+          ],
+          "type": "table",
+          "title": "各用户首次创建应用时间",
+          "columns": [
+            "项目",
+            "数值",
+            "应用数"
+          ]
+        },
+        {
+          "role": "supporting",
+          "type": "kv-list",
+          "items": [
+            {
+              "label": "最近创建时间",
+              "value": "2026-09-11 16:24:54"
+            },
+            {
+              "label": "用户数",
+              "value": "14"
+            },
+            {
+              "label": "最早创建时间",
+              "value": "2026-09-07 13:53:06"
+            }
+          ],
+          "title": "操作用户数"
+        }
+      ]
+    }
+  ],
+  "conclusionState": {
+    "causes": [
+      {
+        "id": "cause-1",
+        "rank": 1,
+        "title": "综合证据结论",
+        "summary": "**先说明口径**：采集数据中**没有用户注册时间字段**，无法直接回答“注册时间”。下面给出的是最接近的事实——**各用户首次创建 AI 应用的时间**，可视为其在本平台的首个可观测活动时间（不等于注册时间）。\n\n**结论**：截至 2026-09-15，共 14 个去重用户有创建应用行为，首次创建时间分布在 **2026-09-07 至 2026-09-11** 之间，其中 2026-09-07、09-08 两天最集中（各 5 人），2026-09-10 无新增。\n\n### 各用户首次创建应用时间\n\n| 用户ID | 首次创建应用时间 | 该用户创建应用数 |\n|---|---|---|\n| 2 | 2026-09-07 13:53:06 | 29 |\n| 8 | 2026-09-07 14:16:06 | 31 |\n| 6 | 2026-09-07 14:23:31 | 3 |\n| 16 | 2026-09-07 15:31:55 | 5 |\n| 9 | 2026-09-07 15:46:08 | 6 |\n| 20 | 2026-09-08 10:55:13 | 1 |\n| 19 | 2026-09-08 10:56:38 | 2 |\n| 13 | 2026-09-08 15:22:58 | 6 |\n| 23 | 2026-09-08 15:43:19 | 1 |\n| 3 | 2026-09-08 15:51:01 | 2 |\n| 25 | 2026-09-09 09:48:21 | 8 |\n| 18 | 2026-09-09 14:31:39 | 1 |\n| 7 | 2026-09-09 16:18:24 | 2 |\n| 4 | 2026-09-11 16:24:54 | 1 |\n\n### 按首次创建日期汇总\n\n| 日期 | 人数 |\n|---|---|\n| 2026-09-07 | 5 |\n| 2026-09-08 | 5 |\n| 2026-09-09 | 3 |\n| 2026-09-10 | 0 |\n| 2026-09-11 | 1 |\n\n**口径补充**：整体首条记录时间为 2026-09-07 13:53:06，最后一条为 2026-09-11 16:24:54，去重用户数 14。若需要真实注册时间，需要补充用户注册表（含注册时间字段）后才能回答。",
+        "evidence": [
+          {
+            "label": "EasyV AI 应用聚合",
+            "summary": "返回 1 条受范围约束的证据"
+          },
+          {
+            "label": "EasyV 原型阶段聚合",
+            "summary": "返回 1 条受范围约束的证据"
+          },
+          {
+            "label": "EasyV Forge 任务聚合",
+            "summary": "返回 1 条受范围约束的证据"
+          },
+          {
+            "label": "EasyV 生成反馈聚合",
+            "summary": "返回 1 条受范围约束的证据"
+          },
+          {
+            "label": "各用户首次创建应用时间",
+            "summary": "返回 14 条受范围约束的证据"
+          },
+          {
+            "label": "操作用户数",
+            "summary": "返回 1 条受范围约束的证据"
+          }
+        ],
+        "confidence": null
+      }
+    ],
+    "claims": [
+      {
+        "kind": "direct-answer",
+        "text": "**先说明口径**：采集数据中**没有用户注册时间字段**，无法直接回答“注册时间”。下面给出的是最接近的事实——**各用户首次创建 AI 应用的时间**，可视为其在本平台的首个可观测活动时间（不等于注册时间）。\n\n**结论**：截至 2026-09-15，共 14 个去重用户有创建应用行为，首次创建时间分布在 **2026-09-07 至 2026-09-11** 之间，其中 2026-09-07、09-08 两天最集中（各 5 人），2026-09-10 无新增。\n\n### 各用户首次创建应用时间\n\n| 用户ID | 首次创建应用时间 | 该用户创建应用数 |\n|---|---|---|\n| 2 | 2026-09-07 13:53:06 | 29 |\n| 8 | 2026-09-07 14:16:06 | 31 |\n| 6 | 2026-09-07 14:23:31 | 3 |\n| 16 | 2026-09-07 15:31:55 | 5 |\n| 9 | 2026-09-07 15:46:08 | 6 |\n| 20 | 2026-09-08 10:55:13 | 1 |\n| 19 | 2026-09-08 10:56:38 | 2 |\n| 13 | 2026-09-08 15:22:58 | 6 |\n| 23 | 2026-09-08 15:43:19 | 1 |\n| 3 | 2026-09-08 15:51:01 | 2 |\n| 25 | 2026-09-09 09:48:21 | 8 |\n| 18 | 2026-09-09 14:31:39 | 1 |\n| 7 | 2026-09-09 16:18:24 | 2 |\n| 4 | 2026-09-11 16:24:54 | 1 |\n\n### 按首次创建日期汇总\n\n| 日期 | 人数 |\n|---|---|\n| 2026-09-07 | 5 |\n| 2026-09-08 | 5 |\n| 2026-09-09 | 3 |\n| 2026-09-10 | 0 |\n| 2026-09-11 | 1 |\n\n**口径补充**：整体首条记录时间为 2026-09-07 13:53:06，最后一条为 2026-09-11 16:24:54，去重用户数 14。若需要真实注册时间，需要补充用户注册表（含注册时间字段）后才能回答。",
+        "evidenceRefs": [
+          {
+            "row": 0,
+            "field": "rows",
+            "value": 14,
+            "source": "easyv-query:user-first-active"
+          },
+          {
+            "row": 0,
+            "field": "rows",
+            "value": 1,
+            "source": "easyv-query:user-count"
+          }
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "rows": [
+          {
+            "freshnessAt": "2026-09-14T12:32:46.745529Z",
+            "prototypeCount": 90,
+            "applicationCount": 98
+          }
+        ],
+        "title": "EasyV AI 应用聚合",
+        "source": "easyv-ai-application",
+        "rowCount": 1,
+        "freshnessAt": "2026-09-14T12:32:46.745529Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-ai-application": "9e059184-7e3a-3380-ad4d-5e0c90432751",
+          "easyv-prototype-task": "32bae8ea-456e-3825-b589-adf3c4fca11c"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      {
+        "rows": [
+          {
+            "taskCount": 90,
+            "freshnessAt": "2026-09-14T12:32:46.745529Z",
+            "mainNodeCount": 1195,
+            "bottleneckStep": "Step2-Main",
+            "timedNodeCount": 1023,
+            "failedTaskCount": 0,
+            "completedTaskCount": 90,
+            "bottleneckP95Millis": 74439,
+            "incompleteTaskCount": 0
+          }
+        ],
+        "title": "EasyV 原型阶段聚合",
+        "source": "easyv-pipeline-node",
+        "rowCount": 1,
+        "freshnessAt": "2026-09-14T12:32:46.745529Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-pipeline-node": "124d7eae-3b84-3e43-aca9-5b0f13482bfb"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      {
+        "rows": [
+          {
+            "taskCount": 103,
+            "freshnessAt": "2026-09-14T12:32:46.745529Z",
+            "failedTaskCount": 3,
+            "topFailureReason": "Agent 递归深度超限（未收敛） (1)",
+            "p50DurationMillis": 24527,
+            "p95DurationMillis": 64684,
+            "terminalTaskCount": 103,
+            "cancelledTaskCount": 0,
+            "completedTaskCount": 100,
+            "failureReasonCounts": {
+              "模型请求超时": 1,
+              "模型调用限流（429）": 1,
+              "Agent 递归深度超限（未收敛）": 1
+            },
+            "timedTerminalTaskCount": 103
+          }
+        ],
+        "title": "EasyV Forge 任务聚合",
+        "source": "easyv-forge-task",
+        "rowCount": 1,
+        "freshnessAt": "2026-09-14T12:32:46.745529Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-forge-task": "cd236b71-e9c3-3812-8763-b4109454e6eb"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      {
+        "rows": [
+          {
+            "ratedCount": 6,
+            "freshnessAt": "2026-09-14T12:32:46.745529Z",
+            "averageRating": 3.0,
+            "operationCount": 656,
+            "saveAsEditCount": 20,
+            "combinedExecuteFailureCount": 46,
+            "combinedExecuteSuccessCount": 610
+          }
+        ],
+        "title": "EasyV 生成反馈聚合",
+        "source": "easyv-generation-feedback",
+        "rowCount": 1,
+        "freshnessAt": "2026-09-14T12:32:46.745529Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-generation-feedback": "754a4299-d09e-34e7-8d58-74f88f192229"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      {
+        "rows": [
+          {
+            "label": "2",
+            "value": "2026-09-07 13:53:06",
+            "app_count": 29
+          },
+          {
+            "label": "8",
+            "value": "2026-09-07 14:16:06",
+            "app_count": 31
+          },
+          {
+            "label": "6",
+            "value": "2026-09-07 14:23:31",
+            "app_count": 3
+          },
+          {
+            "label": "16",
+            "value": "2026-09-07 15:31:55",
+            "app_count": 5
+          },
+          {
+            "label": "9",
+            "value": "2026-09-07 15:46:08",
+            "app_count": 6
+          },
+          {
+            "label": "20",
+            "value": "2026-09-08 10:55:13",
+            "app_count": 1
+          },
+          {
+            "label": "19",
+            "value": "2026-09-08 10:56:38",
+            "app_count": 2
+          },
+          {
+            "label": "13",
+            "value": "2026-09-08 15:22:58",
+            "app_count": 6
+          },
+          {
+            "label": "23",
+            "value": "2026-09-08 15:43:19",
+            "app_count": 1
+          },
+          {
+            "label": "3",
+            "value": "2026-09-08 15:51:01",
+            "app_count": 2
+          },
+          {
+            "label": "25",
+            "value": "2026-09-09 09:48:21",
+            "app_count": 8
+          },
+          {
+            "label": "18",
+            "value": "2026-09-09 14:31:39",
+            "app_count": 1
+          },
+          {
+            "label": "7",
+            "value": "2026-09-09 16:18:24",
+            "app_count": 2
+          },
+          {
+            "label": "4",
+            "value": "2026-09-11 16:24:54",
+            "app_count": 1
+          }
+        ],
+        "title": "各用户首次创建应用时间",
+        "source": "easyv-query:user-first-active",
+        "rowCount": 14,
+        "freshnessAt": "2026-09-14T12:32:46.745529Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-ai-application": "9e059184-7e3a-3380-ad4d-5e0c90432751"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      {
+        "rows": [
+          {
+            "user_count": 14,
+            "last_created_at": "2026-09-11 16:24:54",
+            "first_created_at": "2026-09-07 13:53:06"
+          }
+        ],
+        "title": "操作用户数",
+        "source": "easyv-query:user-count",
+        "rowCount": 1,
+        "freshnessAt": "2026-09-14T12:32:46.745529Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-ai-application": "9e059184-7e3a-3380-ad4d-5e0c90432751"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      }
+    ],
+    "renderBlocks": [
+      {
+        "role": "primary",
+        "rows": [
+          [
+            "2",
+            "2026-09-07 13:53:06",
+            "29"
+          ],
+          [
+            "8",
+            "2026-09-07 14:16:06",
+            "31"
+          ],
+          [
+            "6",
+            "2026-09-07 14:23:31",
+            "3"
+          ],
+          [
+            "16",
+            "2026-09-07 15:31:55",
+            "5"
+          ],
+          [
+            "9",
+            "2026-09-07 15:46:08",
+            "6"
+          ],
+          [
+            "20",
+            "2026-09-08 10:55:13",
+            "1"
+          ],
+          [
+            "19",
+            "2026-09-08 10:56:38",
+            "2"
+          ],
+          [
+            "13",
+            "2026-09-08 15:22:58",
+            "6"
+          ],
+          [
+            "23",
+            "2026-09-08 15:43:19",
+            "1"
+          ],
+          [
+            "3",
+            "2026-09-08 15:51:01",
+            "2"
+          ],
+          [
+            "25",
+            "2026-09-09 09:48:21",
+            "8"
+          ],
+          [
+            "18",
+            "2026-09-09 14:31:39",
+            "1"
+          ],
+          [
+            "7",
+            "2026-09-09 16:18:24",
+            "2"
+          ],
+          [
+            "4",
+            "2026-09-11 16:24:54",
+            "1"
+          ]
+        ],
+        "type": "table",
+        "title": "各用户首次创建应用时间",
+        "columns": [
+          "项目",
+          "数值",
+          "应用数"
+        ]
+      },
+      {
+        "role": "supporting",
+        "type": "kv-list",
+        "items": [
+          {
+            "label": "最近创建时间",
+            "value": "2026-09-11 16:24:54"
+          },
+          {
+            "label": "用户数",
+            "value": "14"
+          },
+          {
+            "label": "最早创建时间",
+            "value": "2026-09-07 13:53:06"
+          }
+        ],
+        "title": "操作用户数"
+      }
+    ]
+  },
+  "resultBlocks": [
+    {
+      "role": "primary",
+      "rows": [
+        [
+          "2",
+          "2026-09-07 13:53:06",
+          "29"
+        ],
+        [
+          "8",
+          "2026-09-07 14:16:06",
+          "31"
+        ],
+        [
+          "6",
+          "2026-09-07 14:23:31",
+          "3"
+        ],
+        [
+          "16",
+          "2026-09-07 15:31:55",
+          "5"
+        ],
+        [
+          "9",
+          "2026-09-07 15:46:08",
+          "6"
+        ],
+        [
+          "20",
+          "2026-09-08 10:55:13",
+          "1"
+        ],
+        [
+          "19",
+          "2026-09-08 10:56:38",
+          "2"
+        ],
+        [
+          "13",
+          "2026-09-08 15:22:58",
+          "6"
+        ],
+        [
+          "23",
+          "2026-09-08 15:43:19",
+          "1"
+        ],
+        [
+          "3",
+          "2026-09-08 15:51:01",
+          "2"
+        ],
+        [
+          "25",
+          "2026-09-09 09:48:21",
+          "8"
+        ],
+        [
+          "18",
+          "2026-09-09 14:31:39",
+          "1"
+        ],
+        [
+          "7",
+          "2026-09-09 16:18:24",
+          "2"
+        ],
+        [
+          "4",
+          "2026-09-11 16:24:54",
+          "1"
+        ]
+      ],
+      "type": "table",
+      "title": "各用户首次创建应用时间",
+      "columns": [
+        "项目",
+        "数值",
+        "应用数"
+      ]
+    },
+    {
+      "role": "supporting",
+      "type": "kv-list",
+      "items": [
+        {
+          "label": "最近创建时间",
+          "value": "2026-09-11 16:24:54"
+        },
+        {
+          "label": "用户数",
+          "value": "14"
+        },
+        {
+          "label": "最早创建时间",
+          "value": "2026-09-07 13:53:06"
+        }
+      ],
+      "title": "操作用户数"
+    }
+  ],
+  "mobileProjection": {
+    "status": "completed",
+    "summary": "**先说明口径**：采集数据中**没有用户注册时间字段**，无法直接回答“注册时间”。下面给出的是最接近的事实——**各用户首次创建 AI 应用的时间**，可视为其在本平台的首个可观测活动时间（不等于注册时间）。\n\n**结论**：截至 2026-09-15，共 14 个去重用户有创建应用行为，首次创建时间分布在 **2026-09-07 至 2026-09-11** 之间，其中 2026-09-07、09-08 两天最集中（各 5 人），2026-09-10 无新增。\n\n### 各用户首次创建应用时间\n\n| 用户ID | 首次创建应用时间 | 该用户创建应用数 |\n|---|---|---|\n| 2 | 2026-09-07 13:53:06 | 29 |\n| 8 | 2026-09-07 14:16:06 | 31 |\n| 6 | 2026-09-07 14:23:31 | 3 |\n| 16 | 2026-09-07 15:31:55 | 5 |\n| 9 | 2026-09-07 15:46:08 | 6 |\n| 20 | 2026-09-08 10:55:13 | 1 |\n| 19 | 2026-09-08 10:56:38 | 2 |\n| 13 | 2026-09-08 15:22:58 | 6 |\n| 23 | 2026-09-08 15:43:19 | 1 |\n| 3 | 2026-09-08 15:51:01 | 2 |\n| 25 | 2026-09-09 09:48:21 | 8 |\n| 18 | 2026-09-09 14:31:39 | 1 |\n| 7 | 2026-09-09 16:18:24 | 2 |\n| 4 | 2026-09-11 16:24:54 | 1 |\n\n### 按首次创建日期汇总\n\n| 日期 | 人数 |\n|---|---|\n| 2026-09-07 | 5 |\n| 2026-09-08 | 5 |\n| 2026-09-09 | 3 |\n| 2026-09-10 | 0 |\n| 2026-09-11 | 1 |\n\n**口径补充**：整体首条记录时间为 2026-09-07 13:53:06，最后一条为 2026-09-11 16:24:54，去重用户数 14。若需要真实注册时间，需要补充用户注册表（含注册时间字段）后才能回答。",
+    "updatedAt": "2026-09-15T02:53:39.278778572Z"
+  },
+  "failurePoint": null,
+  "errorCode": null,
+  "traceId": "68656ce5-4fba-4ca3-9206-ca453e921853",
+  "createdAt": "2026-09-15T10:53:39.278779+08:00",
+  "updatedAt": "2026-09-15T10:53:39.278779+08:00"
+}

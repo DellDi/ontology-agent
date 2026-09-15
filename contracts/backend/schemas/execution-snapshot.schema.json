@@ -162,7 +162,8 @@
           "enum": [
             "minimal",
             "multi-step",
-            "deterministic-read-only"
+            "deterministic-read-only",
+            "question-driven-read-only"
           ]
         },
         "summary": {
@@ -278,6 +279,13 @@
         },
         "_resolvedContext": {
           "type": "object"
+        },
+        "_evidenceTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -506,7 +514,7 @@
           },
           "resultBlocks": {
             "type": "array",
-            "minItems": 5
+            "minItems": 1
           }
         }
       }
@@ -918,7 +926,10 @@
                         "pattern": "^[1-9][0-9]*$"
                       },
                       "accessMode": {
-                        "const": "creator-owned"
+                        "enum": [
+                          "all",
+                          "creator-owned"
+                        ]
                       }
                     }
                   }
@@ -995,7 +1006,10 @@
                     "format": "date"
                   },
                   "accessMode": {
-                    "const": "creator-owned"
+                    "enum": [
+                      "all",
+                      "creator-owned"
+                    ]
                   },
                   "userId": {
                     "type": "string",
@@ -1004,161 +1018,299 @@
                 }
               }
             }
-          },
-          "conclusionState": {
-            "type": "object",
-            "properties": {
-              "evidence": {
-                "type": "array",
-                "minItems": 4,
-                "maxItems": 4,
-                "allOf": [
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "source": {
-                          "const": "easyv-ai-application"
-                        }
-                      },
-                      "required": [
-                        "source"
-                      ]
-                    }
-                  },
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "source": {
-                          "const": "easyv-pipeline-node"
-                        }
-                      },
-                      "required": [
-                        "source"
-                      ]
-                    }
-                  },
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "source": {
-                          "const": "easyv-forge-task"
-                        }
-                      },
-                      "required": [
-                        "source"
-                      ]
-                    }
-                  },
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "source": {
-                          "const": "easyv-generation-feedback"
-                        }
-                      },
-                      "required": [
-                        "source"
-                      ]
-                    }
-                  }
-                ]
-              },
-              "claims": {
-                "type": "array",
-                "minItems": 5,
-                "maxItems": 5,
-                "allOf": [
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "const": "generation-quality"
-                        }
-                      },
-                      "required": [
-                        "kind"
-                      ]
-                    }
-                  },
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "const": "stage-bottleneck"
-                        }
-                      },
-                      "required": [
-                        "kind"
-                      ]
-                    }
-                  },
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "const": "failure-concentration"
-                        }
-                      },
-                      "required": [
-                        "kind"
-                      ]
-                    }
-                  },
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "const": "feedback-association"
-                        }
-                      },
-                      "required": [
-                        "kind"
-                      ]
-                    }
-                  },
-                  {
-                    "contains": {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "const": "business-success-settlement-distinct"
-                        }
-                      },
-                      "required": [
-                        "kind"
-                      ]
-                    }
-                  }
-                ],
-                "items": {
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "planSnapshot": {
                   "type": "object",
-                  "required": [
-                    "kind"
-                  ],
                   "properties": {
-                    "kind": {
-                      "enum": [
-                        "generation-quality",
-                        "stage-bottleneck",
-                        "failure-concentration",
-                        "feedback-association",
-                        "business-success-settlement-distinct"
+                    "mode": {
+                      "const": "question-driven-read-only"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              },
+              "required": [
+                "planSnapshot"
+              ]
+            },
+            "then": {
+              "properties": {
+                "conclusionState": {
+                  "type": "object",
+                  "properties": {
+                    "evidence": {
+                      "type": "array",
+                      "minItems": 4,
+                      "allOf": [
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-ai-application"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-pipeline-node"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-forge-task"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-generation-feedback"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        }
+                      ],
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "pattern": "^(easyv-ai-application|easyv-pipeline-node|easyv-forge-task|easyv-generation-feedback|easyv-query:[a-z0-9][a-z0-9-]*)$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "source"
+                        ]
+                      }
+                    },
+                    "claims": {
+                      "type": "array",
+                      "minItems": 1,
+                      "contains": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "direct-answer"
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      },
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "direct-answer",
+                              "generation-quality",
+                              "stage-bottleneck",
+                              "failure-concentration",
+                              "feedback-association",
+                              "business-success-settlement-distinct"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "conclusionState": {
+                  "type": "object",
+                  "properties": {
+                    "evidence": {
+                      "type": "array",
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "allOf": [
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-ai-application"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-pipeline-node"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-forge-task"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "const": "easyv-generation-feedback"
+                              }
+                            },
+                            "required": [
+                              "source"
+                            ]
+                          }
+                        }
                       ]
+                    },
+                    "claims": {
+                      "type": "array",
+                      "minItems": 5,
+                      "maxItems": 5,
+                      "allOf": [
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "const": "generation-quality"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "const": "stage-bottleneck"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "const": "failure-concentration"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "const": "feedback-association"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        },
+                        {
+                          "contains": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "const": "business-success-settlement-distinct"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        }
+                      ],
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "generation-quality",
+                              "stage-bottleneck",
+                              "failure-concentration",
+                              "feedback-association",
+                              "business-success-settlement-distinct"
+                            ]
+                          }
+                        }
+                      }
                     }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   ]

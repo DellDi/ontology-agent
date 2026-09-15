@@ -176,7 +176,7 @@ const planRuntimeFields = {
 };
 
 const javaPlanSnapshotSchema = z.strictObject({
-  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only']),
+  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only', 'question-driven-read-only']),
   summary: z.string().min(1),
   steps: z.array(planStepSchema).min(1),
   ...planRuntimeFields,
@@ -189,7 +189,7 @@ const javaPlanSnapshotSchema = z.strictObject({
 });
 
 const javaExecutionPlanEnvelopeSchema = z.strictObject({
-  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only']),
+  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only', 'question-driven-read-only']),
   summary: z.string().min(1),
   steps: z.array(planStepSchema),
   _executionContract: z.enum(['java-initial-v1', 'java-follow-up-v1']),
@@ -244,6 +244,7 @@ const easyVClaimKinds = [
   'feedback-association',
   'business-success-settlement-distinct',
 ] as const;
+const easyVQuestionDrivenClaimKinds = ['direct-answer', ...easyVClaimKinds] as const;
 const propertyClaimKinds = [
   'collection-rate',
   'erp-balance',
@@ -297,6 +298,38 @@ function addClaimKindIssues(
   }
 }
 
+// 问题驱动模式：claim kind 只需落在允许集合内；证据必须覆盖 4 类快照源，查询证据以 easyv-query: 前缀放行。
+// requireDirectAnswer=false 用于历史列表（latestExecution 无 planSnapshot，新旧两代完成态并存）。
+function addQuestionDrivenEasyVIssues(
+  state: z.infer<typeof conclusionStateSchema> | null,
+  context: z.RefinementCtx,
+  requireDirectAnswer = true,
+) {
+  const claims = state?.claims ?? [];
+  const actualKinds = claims.map((claim) => claim.kind).filter(Boolean) as string[];
+  if (!claims.length
+    || (requireDirectAnswer && !actualKinds.includes('direct-answer'))
+    || actualKinds.length !== claims.length
+    || new Set(actualKinds).size !== claims.length
+    || actualKinds.some((kind) => !easyVQuestionDrivenClaimKinds.includes(kind as never))) {
+    context.addIssue({
+      code: 'custom',
+      path: ['conclusionState', 'claims'],
+      message: '完成态必须保留受控结论且结论类型在允许集合内。',
+    });
+  }
+  const sources = state?.evidence?.map((item) => item.source) ?? [];
+  if (easyVEvidenceSources.some((source) => !sources.includes(source))
+    || sources.some((source) => !(easyVEvidenceSources as readonly string[]).includes(source)
+        && !source.startsWith('easyv-query:'))) {
+    context.addIssue({
+      code: 'custom',
+      path: ['conclusionState', 'evidence'],
+      message: `完成态必须包含 ${easyVEvidenceSources.join('、')} 证据投影，查询证据来源须受控。`,
+    });
+  }
+}
+
 function validateCapabilityPayload(
   value: {
     ontologyVersionId: string | null;
@@ -346,8 +379,12 @@ function validateCapabilityPayload(
     if (value.planSnapshot.steps.some((step) => !easyVPlanStepSchema.safeParse(step).success)) {
       context.addIssue({ code: 'custom', path: ['planSnapshot', 'steps'], message: 'EasyV 计划步骤必须包含稳定 ID、顺序和步骤类型。' });
     }
-    addClaimKindIssues(value.conclusionState, easyVClaimKinds, context);
-    addSourceCoverageIssues(value.conclusionState, easyVEvidenceSources, context, 4);
+    if (value.planSnapshot.mode === 'question-driven-read-only') {
+      addQuestionDrivenEasyVIssues(value.conclusionState, context);
+    } else {
+      addClaimKindIssues(value.conclusionState, easyVClaimKinds, context);
+      addSourceCoverageIssues(value.conclusionState, easyVEvidenceSources, context, 4);
+    }
     return;
   }
   context.addIssue({ code: 'custom', path: ['capabilityBinding', 'domainKey'], message: '未注册的分析领域。' });
@@ -501,8 +538,8 @@ const latestExecutionSchema = z.strictObject({
       addClaimKindIssues(value.conclusionState, propertyClaimKinds, context);
       addSourceCoverageIssues(value.conclusionState, propertyEvidenceSources, context, 3);
     } else if (value.capabilityBinding.domainKey === 'easyv') {
-      addClaimKindIssues(value.conclusionState, easyVClaimKinds, context);
-      addSourceCoverageIssues(value.conclusionState, easyVEvidenceSources, context, 4);
+      // 历史列表无法区分计划模式：新旧两代完成态并存，结论类型受控即可。
+      addQuestionDrivenEasyVIssues(value.conclusionState, context, false);
     } else {
       context.addIssue({ code: 'custom', path: ['capabilityBinding', 'domainKey'], message: '未注册的分析领域。' });
     }
