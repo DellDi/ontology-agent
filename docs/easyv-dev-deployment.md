@@ -162,3 +162,33 @@ profile 轮询队列，持有 EasyV 只读源凭据，同时可以执行平台 s
 任务与完整冻结版本；混合包含未授权源的版本整体不可见。记录窗口是平台最近 50 条任务、
 20 个版本中的可见记录。授权不改变业务分析范围，也不代表源数据按组织物理隔离。
 发布、重跑及授权变更始终要求 PLATFORM_ADMIN，授权修改记入平台审计。
+
+## 备份与恢复
+
+平台库是唯一的权威状态（会话、冻结版本、事实、身份、审计）；EasyV 源库为只读外部依赖，不纳入备份。
+
+```bash
+# 备份：pg_dump 自定义格式，覆盖 platform/facts/ingestion/identity/public
+scripts/easyv-dev backup [输出目录]        # 默认 ./backups，文件 ontology-agent-<db>-<时间戳>.dump
+
+# 恢复：需先确认，自动停 backend/web，pg_restore --clean 回写后重启并等健康
+scripts/easyv-dev restore backups/ontology-agent-<db>-<时间戳>.dump
+```
+
+注意：`JAVA_DATABASE_USERNAME` 应用账号通常无 `CREATEDB`——恢复到**全新库**需 DBA 先建库；
+同库回写可直接执行（`--clean --if-exists`）。恢复属破坏性操作，脚本要求输入库名二次确认。
+建议每日备份并保留 7 份归档；升级发布前强制备份一次。
+
+## 凭据交接清单
+
+| 凭据 | 存放位置 | 使用方 | 轮换方式 |
+|---|---|---|---|
+| 平台库账号 `JAVA_DATABASE_*` | `.env.easyv-dev`（部署机） | backend/migrate/backup | 改库密码后同步 env 并重启 |
+| EasyV 源只读账号 `EASYV_POSTGRES_*` | `source-reader.env`（私有，不进仓库） | ingest / release-worker | 源侧改密后更新私有 env |
+| `SESSION_SECRET` | `.env.easyv-dev` | backend 签名会话 Cookie | 更换后全量会话失效需重登 |
+| `GRAPH_SYNC_OPS_SECRET` | `.env.easyv-dev` | graph-sync 运维端点 | 更换后同步调用方 |
+| 平台管理员初始密码 | `ADMIN_SEED_PASSWORD` 一次性注入 | admin-seed | 种子只在账号不存在时写入，登录后应立即改密 |
+| LLM API Key（`LLM_*`） | `.env.easyv-dev` | backend | 供应商控制台轮换后更新 env |
+
+原则：源凭据只存在于采集进程环境（宿主机私有文件），不进入 `.env.easyv-dev`、不进仓库、不进镜像；
+`.env.easyv-dev` 文件权限 `600`，仅部署账号可读；任何凭据不得以明文进入提交物或文档。
