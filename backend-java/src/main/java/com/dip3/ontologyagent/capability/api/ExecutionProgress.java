@@ -11,4 +11,7 @@ public interface ExecutionProgress {
     ExecutionProgress NOOP = (kind, step, tool) -> {};
 
     void emit(String kind, Map<String, Object> step, Map<String, Object> tool);
+
+    /** 回答生成过程的增量文本（累计值）：实现方转成 answer-delta 事件供前端流式渲染。 */
+    default void emitAnswerDelta(String answerText) {}
 }

@@ -81,6 +81,10 @@ public class AnalysisFollowUpService {
           "FOLLOW_UP_CAPABILITY_BINDING_INVALID", "来源执行的能力绑定与本体版本不一致，无法发起追问。");
     }
     analyses.validateDatasetVersionSet(owner, sourceBinding, source.datasetVersionSetId);
+    // 新消息按提交时刻绑定最新完整冻结集：与根执行同一条规则，
+    // 继承来源执行的旧集合会让会话在新鲜度窗口外永久无法续聊。
+    String datasetVersionSetId =
+        analyses.resolveExecutionDatasetVersionSet(owner, sourceBinding);
     FollowUpPolicy policy = analyses.followUpPolicy(owner, sourceBinding);
     policy.validateQuestion(question);
     Map<String, Object> context = policy.inheritedContext(source.planSnapshot);
@@ -101,7 +105,7 @@ public class AnalysisFollowUpService {
             ontologyVersionId,
             binding(ontologyVersionId, "inherited"),
             sourceBinding.snapshot(),
-            source.datasetVersionSetId,
+            datasetVersionSetId,
             context,
             mergedContext,
             null,
@@ -289,16 +293,13 @@ public class AnalysisFollowUpService {
     if (!followUp.ontologyVersionId().equals(persistedBinding.ontologyVersionId()))
       throw new BackendException("FOLLOW_UP_CAPABILITY_BINDING_INVALID", "追问的能力绑定与追问本体版本不一致。");
     analyses.validateCapabilityBinding(owner, persistedBinding);
-    ExecutionSnapshotEntity source =
-        followUps
-            .completedSourceSnapshot(followUp)
-            .orElseThrow(
-                () -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND",
-                    "来源执行已失效或不再是已完成状态。"));
-    if (!Objects.equals(followUp.datasetVersionSetId(), source.datasetVersionSetId)) {
-      throw new BackendException("FOLLOW_UP_DATASET_VERSION_SET_MISMATCH",
-          "追问绑定的数据版本集合与来源执行不一致。");
-    }
+    // 来源执行须仍为已完成态（引用完整性）；绑定集合在创建时即解析为最新冻结集，
+    // 不要求与来源集合相同——下方的 validateDatasetVersionSet 校验其仍为完整冻结集。
+    followUps
+        .completedSourceSnapshot(followUp)
+        .orElseThrow(
+            () -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND",
+                "来源执行已失效或不再是已完成状态。"));
     analyses.validateDatasetVersionSet(owner, persistedBinding, followUp.datasetVersionSetId());
     Map<String, Object> effectiveContext =
         analyses

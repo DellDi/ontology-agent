@@ -232,9 +232,11 @@ public final class EasyVGenerationWorkflow {
     Map<String, Object> composeStep = step("compose-answer", 4, "基于事实生成回答", "running");
     progress.emit("step-started", composeStep, null);
     long composeStart = System.nanoTime();
+    // 流式回答：累计文本经节流后转为 answer-delta 事件（每 chunk 落库成本过高，按增量/间隔节流）
+    java.util.function.Consumer<String> answerSink = answerDeltaSink(progress);
     EasyVQuestionAnalyst.ComposedAnswer answer;
     try {
-      answer = analyst.composeAnswer(request.questionText(), rangeDescription, results);
+      answer = analyst.composeAnswer(request.questionText(), rangeDescription, results, answerSink);
     } catch (RuntimeException error) {
       progress.emit("step-completed", stepDone(composeStep, elapsed(composeStart), "failed"), null);
       throw error;
@@ -300,6 +302,25 @@ public final class EasyVGenerationWorkflow {
     String lead = answer.markdown();
     List<Map<String, Object>> blocks = renderBlocks(results, answer, lead);
     return new EasyVGenerationResult(plan, evidence, claims, blocks, lead);
+  }
+
+  /** answer-delta 节流：文本累计增长 ≥24 字符或距上次 ≥150ms 才发事件，避免每 token 落库。 */
+  private static java.util.function.Consumer<String> answerDeltaSink(ExecutionProgress progress) {
+    return new java.util.function.Consumer<>() {
+      private int lastLength;
+      private long lastAt;
+
+      @Override
+      public void accept(String accumulated) {
+        long now = System.currentTimeMillis();
+        int length = accumulated == null ? 0 : accumulated.length();
+        if (length - lastLength >= 24 || now - lastAt >= 150) {
+          lastLength = length;
+          lastAt = now;
+          progress.emitAnswerDelta(accumulated);
+        }
+      }
+    };
   }
 
   private List<String> planKeys(String question) {

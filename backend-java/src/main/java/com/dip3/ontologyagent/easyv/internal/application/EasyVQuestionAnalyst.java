@@ -26,6 +26,16 @@ public interface EasyVQuestionAnalyst {
   ComposedAnswer composeAnswer(
       String question, String rangeDescription, List<QueryResult> results);
 
+  /**
+   * 流式变体：partialAnswer 接收"截至当前的累计回答文本"（非增量片段），
+   * 供执行通道转为 answer-delta 事件；实现不支持流式时按最终文本回调一次即可。
+   */
+  default ComposedAnswer composeAnswer(
+      String question, String rangeDescription, List<QueryResult> results,
+      java.util.function.Consumer<String> partialAnswer) {
+    return composeAnswer(question, rangeDescription, results);
+  }
+
   record QueryResult(EasyVQueryCatalog.Spec spec, List<Map<String, Object>> rows) {
     public QueryResult {
       rows = rows == null ? List.of() : List.copyOf(rows);
