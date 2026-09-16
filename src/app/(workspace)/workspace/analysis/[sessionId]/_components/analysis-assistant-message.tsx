@@ -20,6 +20,12 @@ import { MetricCardsGrid, VisualizationBlock, PrimaryAnswerBlock } from './analy
 import { WorkbenchSheet } from '@/app/_components/workbench/workbench-sheet';
 import type { DetailDrawerType } from './analysis-detail-drawer';
 
+const ASSISTANT_DRAWER_LABELS: Record<string, string> = {
+  attribution: '归因分析',
+  actions: '动作建议',
+  diagnostics: '诊断信息',
+};
+
 function isBlockAlreadyVisualized(
   block: AnalysisRenderedBlock,
   metricCards: MetricCard[],
@@ -67,6 +73,17 @@ function ElapsedTicker({ sinceIso }: { sinceIso: string }) {
   );
 }
 
+export function AssistantAvatar() {
+  return (
+    <div
+      aria-hidden
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
+    >
+      智
+    </div>
+  );
+}
+
 export function AnalysisAssistantMessage({
   status,
   headline,
@@ -82,6 +99,8 @@ export function AnalysisAssistantMessage({
   toolTimeline,
   onOpenDetail,
   availableDetails = [],
+  suggestions,
+  onSuggestionClick,
 }: {
   status: ConversationAssistantStatus;
   headline: string;
@@ -97,6 +116,8 @@ export function AnalysisAssistantMessage({
   toolTimeline: AnalysisConversationViewModel['assistantMessage']['toolTimeline'];
   onOpenDetail: (drawer: DetailDrawerType) => void;
   availableDetails?: Exclude<DetailDrawerType, null>[];
+  suggestions?: string[];
+  onSuggestionClick?: (question: string) => void;
 }) {
   const hasDiagnostics =
     diagnostics.timelineBlocks.length > 0 ||
@@ -123,13 +144,19 @@ export function AnalysisAssistantMessage({
     (result?.reasoningBlocks.length ?? 0) +
     (result?.assumptionBlocks.length ?? 0);
 
+  const businessDetails = availableDetails.filter(
+    (detail) => detail === 'attribution' || detail === 'actions'
+      || (detail === 'diagnostics' && hasDiagnostics && status === 'failed'),
+  );
+
   return (
-    <div className="flex justify-start">
-      <div className="min-w-0 w-full">
-        {/* 状态行 */}
+    <div className="flex justify-start gap-2.5">
+      <AssistantAvatar />
+      <div className="min-w-0 w-full max-w-[86%]">
         <div className="flex items-center gap-2.5">
+          <p className="text-xs font-semibold text-foreground">智能员工</p>
           {getStatusIcon(status)}
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-xs text-muted-foreground">
             {headline}
           </p>
           {progressLabel ? (
@@ -142,56 +169,110 @@ export function AnalysisAssistantMessage({
           ) : null}
         </div>
 
-        {/* 一句话业务答案 */}
-        {status === 'completed' || primaryAnswer ? (
-          <PrimaryAnswerBlock answer={primaryAnswer} />
-        ) : null}
+        <div className="mt-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 shadow-sm">
+          {/* 一句话业务答案 */}
+          {status === 'completed' || primaryAnswer ? (
+            <PrimaryAnswerBlock answer={primaryAnswer} />
+          ) : null}
 
-        {/* 指标卡网格 */}
-        <MetricCardsGrid cards={metricCards} />
+          {/* 指标卡网格 */}
+          <MetricCardsGrid cards={metricCards} />
 
-        {/* 可视化（图表 / 关系图 / 表格） */}
-        {visualizations.map((viz, index) => (
-          <VisualizationBlock
-            key={`${viz.type}-${viz.title}-${index}`}
-            visualization={viz}
-            registry={registry}
-          />
-        ))}
+          {/* 可视化（图表 / 关系图 / 表格） */}
+          {visualizations.map((viz, index) => (
+            <VisualizationBlock
+              key={`${viz.type}-${viz.title}-${index}`}
+              visualization={viz}
+              registry={registry}
+            />
+          ))}
 
-        {/* 可折叠步骤时间线（替代线性工具活动条） */}
-        {status === 'running' || toolTimeline.length > 0 ? (
-          <AnalysisStepTimeline entries={toolTimeline} />
-        ) : null}
+          {/* 可折叠步骤时间线（替代线性工具活动条） */}
+          {status === 'running' || toolTimeline.length > 0 ? (
+            <AnalysisStepTimeline entries={toolTimeline} />
+          ) : null}
 
-        {/* 工具活动状态条（保留为降级展示） */}
-        {status === 'running' && toolTimeline.length === 0 ? (
-          <AnalysisToolActivityStrip activities={toolActivities} />
-        ) : null}
+          {/* 工具活动状态条（保留为降级展示） */}
+          {status === 'running' && toolTimeline.length === 0 ? (
+            <AnalysisToolActivityStrip activities={toolActivities} />
+          ) : null}
 
-        {/* 结果区域（结论详情 / 证据 / 推理 / 假设） */}
-        {result ? (
-          <div className="mt-5">
-            {/* 主结果块：只展示 primary（回答与相关图表）；supporting 明细收进侧滑抽屉 */}
-            {primaryBlocks.map((block, index) => (
-              <div
-                className="analysis-block-enter"
-                key={`result-${block.kind}-${index}`}
-                style={{ animationDelay: `${Math.min(index, 5) * 80}ms` }}
-              >
-                <AnalysisResultBlockRenderer block={block} />
-              </div>
-            ))}
+          {/* 结果区域（结论详情 / 证据 / 推理 / 假设） */}
+          {result ? (
+            <div className="mt-3">
+              {/* 主结果块：只展示 primary（回答与相关图表）；supporting 明细收进侧滑抽屉 */}
+              {primaryBlocks.map((block, index) => (
+                <div
+                  className="analysis-block-enter"
+                  key={`result-${block.kind}-${index}`}
+                  style={{ animationDelay: `${Math.min(index, 5) * 80}ms` }}
+                >
+                  <AnalysisResultBlockRenderer block={block} />
+                </div>
+              ))}
+            </div>
+          ) : null}
 
-            {detailItemCount > 0 ? (
+          {/* 失败状态 */}
+          {status === 'failed' ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
+              <p className="text-sm font-medium text-rose-900">
+                分析过程中遇到问题
+              </p>
+              <p className="mt-1 text-sm leading-6 text-rose-800">
+                {errorSummary ?? '系统暂时没有返回可展示的失败原因。'}
+              </p>
+            </div>
+          ) : null}
+
+          {/* 断流状态 */}
+          {status === 'disconnected' ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm text-amber-900">
+                {headline}
+              </p>
+            </div>
+          ) : null}
+
+          {/* 底部业务入口 */}
+          {detailItemCount > 0 || businessDetails.length > 0 || (suggestions?.length && status === 'completed') ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+              {detailItemCount > 0 ? (
+                <button
+                  className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => setDetailsOpen(true)}
+                  type="button"
+                >
+                  数据明细与依据（{detailItemCount}）
+                </button>
+              ) : null}
+              {businessDetails.map((detail) => (
+                <button
+                  key={detail}
+                  className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => onOpenDetail(detail)}
+                  type="button"
+                >
+                  {ASSISTANT_DRAWER_LABELS[detail]}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {/* 上下文相关追问建议：作为对话内容的一部分，点击即发送 */}
+        {status === 'completed' && suggestions && suggestions.length > 0 && onSuggestionClick ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {suggestions.map((question) => (
               <button
-                className="mt-3 inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setDetailsOpen(true)}
+                key={question}
+                className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => onSuggestionClick(question)}
                 type="button"
               >
-                查看数据明细与依据（{detailItemCount} 项）
+                {question}
               </button>
-            ) : null}
+            ))}
           </div>
         ) : null}
 
@@ -240,45 +321,6 @@ export function AnalysisAssistantMessage({
             </div>
           </WorkbenchSheet>
         ) : null}
-
-        {/* 失败状态 */}
-        {status === 'failed' ? (
-          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
-            <p className="text-sm font-medium text-rose-900">
-              分析过程中遇到问题
-            </p>
-            <p className="mt-1 text-sm leading-6 text-rose-800">
-              {errorSummary ?? '系统暂时没有返回可展示的失败原因，请打开诊断信息查看事件明细。'}
-            </p>
-            <button
-              className="mt-2 text-xs font-medium text-rose-700 underline underline-offset-2 hover:text-rose-900"
-              onClick={() => onOpenDetail(hasDiagnostics ? 'diagnostics' : 'execution-log')}
-              type="button"
-            >
-              查看诊断信息
-            </button>
-          </div>
-        ) : null}
-
-        {/* 断流状态 */}
-        {status === 'disconnected' ? (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-            <p className="text-sm text-amber-900">
-              {headline}
-            </p>
-          </div>
-        ) : null}
-
-        {/* 底部信息入口（业务语言，不暴露工程术语） */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {availableDetails.filter(detail => detail !== 'diagnostics' || hasDiagnostics).map(detail => (
-            <button key={detail}
-              className="rounded-md px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => onOpenDetail(detail)} type="button">
-              {{ plan: '分析计划', context: '背景信息', history: '历史问答', candidates: '可能原因', 'execution-log': '执行记录', diagnostics: '诊断信息', attribution: '归因分析', actions: '动作建议' }[detail]}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );

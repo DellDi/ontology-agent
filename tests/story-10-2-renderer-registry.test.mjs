@@ -332,7 +332,7 @@ test('工作台流式面板与结论面板不得继续复制页面级 block.type
   const conclusionPanel = await readFile(
     resolve(
       projectRoot,
-      'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conclusion-panel.tsx',
+      'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-static-assistant-message.tsx',
     ),
     'utf8',
   );
@@ -340,7 +340,7 @@ test('工作台流式面板与结论面板不得继续复制页面级 block.type
   assert.doesNotMatch(streamPanel, /block\.type\s*===/);
   assert.doesNotMatch(conclusionPanel, /block\.type\s*===/);
   assert.match(streamPanel, /AnalysisInteractionRenderedBlock/);
-  assert.match(conclusionPanel, /AnalysisInteractionRenderedBlock/);
+  assert.match(conclusionPanel, /AnalysisResultBlockRenderer/);
   assert.match(streamPanel, /normalizeExecutionRenderBlock/);
   assert.match(conclusionPanel, /normalizeExecutionRenderBlock/);
 });
