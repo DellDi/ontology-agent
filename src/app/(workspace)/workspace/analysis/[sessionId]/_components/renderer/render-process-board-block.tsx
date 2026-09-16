@@ -7,6 +7,7 @@ import { getItems, getString, renderTitle } from './rendering-utils';
 export function renderProcessBoardBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   const progress =
     renderedBlock.payload.progress &&
@@ -28,7 +29,7 @@ export function renderProcessBoardBlock({
 
   return (
     <section
-      className={`${className} rounded-lg border border-border bg-card p-5`}
+      className={`${className} ${embedded ? 'p-0' : 'rounded-lg border border-border bg-card p-5'}`}
       data-testid="analysis-process-board"
     >
       {renderTitle(renderedBlock, '执行流程看板')}

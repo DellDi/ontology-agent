@@ -102,7 +102,7 @@ export function AnalysisStaticAssistantMessage({
                   key={`static-${block.kind}-${index}`}
                   style={{ animationDelay: `${Math.min(index, 5) * 60}ms` }}
                 >
-                  <AnalysisResultBlockRenderer block={block} />
+                  <AnalysisResultBlockRenderer block={block} embedded />
                 </div>
               ))}
             </>

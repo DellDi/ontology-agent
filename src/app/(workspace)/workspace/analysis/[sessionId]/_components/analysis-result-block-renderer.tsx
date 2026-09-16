@@ -69,8 +69,11 @@ function ConclusionSummaryBlock({
 
 export function AnalysisResultBlockRenderer({
   block,
+  embedded = false,
 }: {
   block: AnalysisRenderedBlock;
+  /** 嵌套在对话气泡内：子块去卡片边框与阴影，避免大框套小框。 */
+  embedded?: boolean;
 }) {
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
 
@@ -80,7 +83,7 @@ export function AnalysisResultBlockRenderer({
 
   return (
     <div className="mt-4">
-      {registry.render({ renderedBlock: block })}
+      {registry.render({ renderedBlock: block, embedded })}
     </div>
   );
 }

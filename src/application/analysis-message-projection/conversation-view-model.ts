@@ -193,6 +193,8 @@ export type ConversationAssistantMessage = {
 
   /** 一句话业务答案（来自结论或推理摘要） */
   primaryAnswer: string;
+  /** 生成中的流式回答累计文本（answer-delta 事件，运行中展示） */
+  streamingAnswer: string;
   /** 关键指标卡 */
   metricCards: MetricCard[];
   /** 图表 / 图形 / 表格 */
@@ -1079,6 +1081,21 @@ function resolvePrimaryAnswer(input: {
   return '';
 }
 
+/** 取最新一条 answer-delta 事件的累计回答文本（事件按序到达，取最后一条即可）。 */
+function resolveStreamingAnswer(
+  events: readonly AnalysisExecutionStreamEvent[],
+): string {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.kind !== 'answer-delta') continue;
+    const text = event.metadata?.answerText;
+    if (typeof text === 'string' && text.trim()) {
+      return text;
+    }
+  }
+  return '';
+}
+
 function resolveResultSummaryFromBlocks(
   blocks: readonly AnalysisRenderedBlock[],
 ): string | undefined {
@@ -1197,6 +1214,7 @@ export function buildConversationViewModel(
         result: null,
         diagnostics: fallbackDiagnostics,
         primaryAnswer: '',
+        streamingAnswer: resolveStreamingAnswer(events),
         metricCards: [],
         visualizations: [],
         toolTimeline: buildToolTimeline({ stepTimelinePart: null, events }),
@@ -1417,6 +1435,9 @@ export function buildConversationViewModel(
     conclusionSummary: resultSection?.summary,
   });
 
+  // 流式回答：取最新一条 answer-delta 事件的累计文本
+  const streamingAnswer = resolveStreamingAnswer(events);
+
   // 从结果块中收集可用于指标卡与可视化的原始块
   const allResultBlocks: AnalysisRenderedBlock[] = [
     ...(resultSection?.blocks ?? []),
@@ -1455,6 +1476,7 @@ export function buildConversationViewModel(
       result: resultSection,
       diagnostics,
       primaryAnswer,
+      streamingAnswer,
       metricCards,
       visualizations,
       toolTimeline,

@@ -51,3 +51,10 @@ export function renderTitle(block: AnalysisRenderedBlock, fallback?: string) {
     </p>
   );
 }
+
+/** 结果块外壳：embedded(气泡内嵌) 时去卡片壳，与 flat 图表/表格块一致。 */
+export function panelChrome(embedded?: boolean) {
+  return embedded
+    ? 'p-0'
+    : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]';
+}

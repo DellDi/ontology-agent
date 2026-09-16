@@ -11,6 +11,7 @@ import {
   getItems,
   getToolStatusLabel,
   renderTitle,
+  panelChrome,
 } from './rendering-utils';
 
 export function renderStatusBlock({
@@ -32,12 +33,13 @@ export function renderStatusBlock({
 export function renderKvListBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   const items = getItems(renderedBlock.payload.items);
   if (items.length === 0) {
     return (
       <div
-        className={`${className} rounded-md border border-border bg-card p-4 text-sm text-muted-foreground`}
+        className={`${className} ${panelChrome(embedded)} text-sm text-muted-foreground`}
       >
         {renderTitle(renderedBlock)}
         <p className="mt-2">本步骤未输出键值数据。</p>
@@ -46,7 +48,7 @@ export function renderKvListBlock({
   }
   return (
     <div
-      className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
+      className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle(renderedBlock)}
       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -71,11 +73,12 @@ export function renderKvListBlock({
 export function renderToolListBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   const items = getItems(renderedBlock.payload.items);
   return (
     <div
-      className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
+      className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle(renderedBlock, '工具调用')}
       {items.length === 0 ? (
@@ -114,10 +117,11 @@ export function renderToolListBlock({
 export function renderMarkdownBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   return (
     <div
-      className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
+      className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle(renderedBlock)}
       <div className="mt-2 text-sm">
@@ -132,10 +136,11 @@ export function renderMarkdownBlock({
 export function renderReasoningSummaryBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   return (
     <div
-      className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
+      className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle({ ...renderedBlock, title: '推理摘要' })}
       <p className="mt-2 text-sm leading-7 break-words whitespace-pre-wrap text-muted-foreground">

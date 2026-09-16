@@ -9,6 +9,7 @@ export const EXECUTION_EVENT_KINDS = [
   'tool-completed',
   'tool-failed',
   'step-completed',
+  'answer-delta',
 ] as const;
 
 export type ExecutionEventKind = (typeof EXECUTION_EVENT_KINDS)[number];

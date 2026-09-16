@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useEffect,
@@ -70,6 +71,7 @@ export function AnalysisConversationShell({
   suggestions,
   preparingInitial = false,
 }: AnalysisConversationShellProps) {
+  const router = useRouter();
   const [activeDrawer, setActiveDrawer] = useState<{
     turnKey: string;
     type: Exclude<DetailDrawerType, null>;
@@ -77,6 +79,23 @@ export function AnalysisConversationShell({
   const [sendState, setSendState] = useState<SendState>({ phase: 'idle' });
   const sendingRef = useRef(false);
   const lastTurnRef = useRef<HTMLDivElement | null>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // 运行中自动延展：新事件/新内容到达时，若用户仍停留在接近底部则跟随滚动
+  const liveStatus = viewModel?.assistantMessage.status;
+  const timelineLength = viewModel?.assistantMessage.toolTimeline.length ?? 0;
+  const answerLength = viewModel?.assistantMessage.primaryAnswer.length ?? 0;
+  const streamLength = viewModel?.assistantMessage.streamingAnswer.length ?? 0;
+  useEffect(() => {
+    if (liveStatus !== 'running' && liveStatus !== 'queued' && !sendingRef.current) {
+      return;
+    }
+    const distanceToBottom =
+      document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+    if (distanceToBottom < 320) {
+      bottomSentinelRef.current?.scrollIntoView({ block: 'end' });
+    }
+  }, [timelineLength, answerLength, streamLength, liveStatus]);
 
   const sendMessage = useCallback(
     async (question: string) => {
@@ -90,7 +109,8 @@ export function AnalysisConversationShell({
       });
       try {
         const url = await createFollowUpAndExecute(sessionId, text);
-        window.location.assign(url);
+        // 客户端导航：RSC 增量刷新，避免整页重载闪烁与滚动归零
+        router.push(url, { scroll: false });
       } catch (error) {
         sendingRef.current = false;
         setSendState({
@@ -102,7 +122,7 @@ export function AnalysisConversationShell({
         });
       }
     },
-    [sessionId],
+    [sessionId, router],
   );
 
   const openDetail = useCallback(
@@ -114,7 +134,6 @@ export function AnalysisConversationShell({
   );
 
   const sending = sendState.phase === 'sending';
-  const liveStatus = viewModel?.assistantMessage.status;
   const liveBusy =
     liveStatus === 'running' ||
     liveStatus === 'queued' ||
@@ -167,6 +186,7 @@ export function AnalysisConversationShell({
                       viewModel.assistantMessage.runningSinceIso
                     }
                     status={viewModel.assistantMessage.status}
+                    streamingAnswer={viewModel.assistantMessage.streamingAnswer}
                     suggestions={isLast ? suggestions : undefined}
                     toolActivities={viewModel.assistantMessage.toolActivities}
                     toolTimeline={viewModel.assistantMessage.toolTimeline}
@@ -211,6 +231,8 @@ export function AnalysisConversationShell({
               </div>
             </div>
           ) : null}
+
+          <div ref={bottomSentinelRef} />
         </div>
 
         {/* 发送失败提示 */}
@@ -249,6 +271,7 @@ function PendingFollowUpAutoRun({
   sessionId: string;
   followUpId: string;
 }) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   // 进入页面即自动完成 重生成(如需) → 执行 → 跳转；sessionStorage 去重防重复提交
@@ -263,7 +286,7 @@ function PendingFollowUpAutoRun({
     let cancelled = false;
     executePendingFollowUp(sessionId, followUpId)
       .then((url) => {
-        if (!cancelled) window.location.assign(url);
+        if (!cancelled) router.push(url, { scroll: false });
       })
       .catch((runError: unknown) => {
         if (cancelled) return;
@@ -281,7 +304,7 @@ function PendingFollowUpAutoRun({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, followUpId]);
+  }, [sessionId, followUpId, router]);
 
   if (!error) return null;
   return (

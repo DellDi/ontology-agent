@@ -71,7 +71,13 @@ function extractMultiSeries(block: AnalysisRenderedBlock): {
   return { data, seriesNames: seriesViews.map((series) => series.name) };
 }
 
-export function LineChartBlock({ block }: { block: AnalysisRenderedBlock }) {
+export function LineChartBlock({
+  block,
+  flat = false,
+}: {
+  block: AnalysisRenderedBlock;
+  flat?: boolean;
+}) {
   const { data, seriesNames } = extractMultiSeries(block);
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
@@ -79,7 +85,7 @@ export function LineChartBlock({ block }: { block: AnalysisRenderedBlock }) {
       : '趋势';
 
   return (
-    <ChartShell title={title} isEmpty={data.length === 0}>
+    <ChartShell flat={flat} title={title} isEmpty={data.length === 0}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={data}

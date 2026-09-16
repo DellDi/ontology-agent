@@ -16,6 +16,7 @@ import { AnalysisToolActivityStrip } from './analysis-tool-activity-strip';
 import { AnalysisResultBlockRenderer } from './analysis-result-block-renderer';
 import { CollapsibleSection } from './collapsible-section';
 import { getStatusIcon } from './analysis-status-icon';
+import { MarkdownContent } from '@/app/_components/markdown-content';
 import { MetricCardsGrid, VisualizationBlock, PrimaryAnswerBlock } from './analysis-business-views';
 import { WorkbenchSheet } from '@/app/_components/workbench/workbench-sheet';
 import type { DetailDrawerType } from './analysis-detail-drawer';
@@ -94,6 +95,7 @@ export function AnalysisAssistantMessage({
   result,
   diagnostics,
   primaryAnswer,
+  streamingAnswer,
   metricCards,
   visualizations,
   toolTimeline,
@@ -111,6 +113,7 @@ export function AnalysisAssistantMessage({
   result: AnalysisConversationViewModel['assistantMessage']['result'];
   diagnostics: AnalysisConversationViewModel['assistantMessage']['diagnostics'];
   primaryAnswer: string;
+  streamingAnswer?: string;
   metricCards: MetricCard[];
   visualizations: Visualization[];
   toolTimeline: AnalysisConversationViewModel['assistantMessage']['toolTimeline'];
@@ -170,6 +173,19 @@ export function AnalysisAssistantMessage({
         </div>
 
         <div className="mt-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 shadow-sm">
+          {/* 流式回答：生成中随 LLM 输出逐段渲染，完成后由正式结论替换 */}
+          {status === 'running' && streamingAnswer ? (
+            <div className="streaming-answer">
+              <MarkdownContent className="text-base leading-7 text-foreground">
+                {streamingAnswer}
+              </MarkdownContent>
+              <span
+                aria-hidden
+                className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-primary align-text-bottom"
+              />
+            </div>
+          ) : null}
+
           {/* 一句话业务答案 */}
           {status === 'completed' || primaryAnswer ? (
             <PrimaryAnswerBlock answer={primaryAnswer} />
@@ -207,7 +223,7 @@ export function AnalysisAssistantMessage({
                   key={`result-${block.kind}-${index}`}
                   style={{ animationDelay: `${Math.min(index, 5) * 80}ms` }}
                 >
-                  <AnalysisResultBlockRenderer block={block} />
+                  <AnalysisResultBlockRenderer block={block} embedded />
                 </div>
               ))}
             </div>

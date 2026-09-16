@@ -15,6 +15,8 @@ export { getToolStatusLabel } from './renderer/rendering-utils';
 export type AnalysisInteractionUiRenderInput = {
   renderedBlock: AnalysisRenderedBlock;
   className?: string;
+  /** 嵌套在对话气泡内渲染时置 true：块级卡片去边框/阴影/底色，避免大框套小框。 */
+  embedded?: boolean;
 };
 
 export type AnalysisInteractionUiRendererDescriptor = {

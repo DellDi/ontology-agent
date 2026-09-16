@@ -4,6 +4,23 @@
  * 返回最终应跳转的会话页 URL。
  */
 
+/** 单步请求超时：后端/代理重启时 fetch 可能悬挂，超时转明确错误避免发送态卡死。 */
+const STEP_TIMEOUT_MS = 60_000;
+
+async function fetchStep(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: AbortSignal.timeout(STEP_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error('请求超时，请稍后重试。');
+    }
+    throw error;
+  }
+}
+
 function redirectParam(url: string, key: string): string | null {
   try {
     return new URL(url, window.location.origin).searchParams.get(key);
@@ -25,7 +42,7 @@ export async function executePendingFollowUp(
   sessionId: string,
   followUpId: string,
 ): Promise<string> {
-  const detailResp = await fetch(
+  const detailResp = await fetchStep(
     `/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}`,
   );
   if (detailResp.ok) {
@@ -37,7 +54,7 @@ export async function executePendingFollowUp(
       return `/workspace/analysis/${sessionId}?executionId=${followUp.resultExecutionId}&followUpId=${followUpId}`;
     }
     if (!followUp.currentPlanSnapshot) {
-      const replanResp = await fetch(
+      const replanResp = await fetchStep(
         `/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}/replan`,
         { method: 'POST' },
       );
@@ -48,7 +65,7 @@ export async function executePendingFollowUp(
     }
   }
 
-  const executeResp = await fetch(
+  const executeResp = await fetchStep(
     `/api/analysis/sessions/${sessionId}/execute`,
     {
       method: 'POST',
@@ -72,7 +89,7 @@ export async function createFollowUpAndExecute(
   sessionId: string,
   question: string,
 ): Promise<string> {
-  const createResp = await fetch(
+  const createResp = await fetchStep(
     `/api/analysis/sessions/${sessionId}/follow-ups`,
     {
       method: 'POST',
