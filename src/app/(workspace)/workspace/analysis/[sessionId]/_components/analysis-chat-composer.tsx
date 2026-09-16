@@ -18,6 +18,7 @@ export function AnalysisChatComposer({
   const trySend = () => {
     const text = draft.trim();
     if (!text || busy) return;
+    setDraft('');
     onSend(text);
   };
 

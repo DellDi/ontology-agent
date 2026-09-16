@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useEffect,
+  useOptimistic,
   useRef,
   useState,
+  useTransition,
   type ReactNode,
 } from 'react';
 
@@ -58,11 +60,6 @@ export type AnalysisConversationShellProps = {
   preparingInitial?: boolean;
 };
 
-type SendState =
-  | { phase: 'idle' }
-  | { phase: 'sending'; question: string }
-  | { phase: 'error'; message: string };
-
 export function AnalysisConversationShell({
   sessionId,
   viewModel,
@@ -76,7 +73,12 @@ export function AnalysisConversationShell({
     turnKey: string;
     type: Exclude<DetailDrawerType, null>;
   } | null>(null);
-  const [sendState, setSendState] = useState<SendState>({ phase: 'idle' });
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [isSending, startSendTransition] = useTransition();
+  // 乐观轮次随 transition 生命周期存在：真实轮次经 RSC 提交后自动回收，
+  // 不会残留重影；失败时 transition 结束同样回退。
+  const [optimisticQuestion, addOptimisticQuestion] =
+    useOptimistic<string | null>(null);
   const sendingRef = useRef(false);
   const lastTurnRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -87,7 +89,7 @@ export function AnalysisConversationShell({
   const answerLength = viewModel?.assistantMessage.primaryAnswer.length ?? 0;
   const streamLength = viewModel?.assistantMessage.streamingAnswer.length ?? 0;
   useEffect(() => {
-    if (liveStatus !== 'running' && liveStatus !== 'queued' && !sendingRef.current) {
+    if (liveStatus !== 'running' && liveStatus !== 'queued' && !isSending) {
       return;
     }
     const distanceToBottom =
@@ -95,34 +97,37 @@ export function AnalysisConversationShell({
     if (distanceToBottom < 320) {
       bottomSentinelRef.current?.scrollIntoView({ block: 'end' });
     }
-  }, [timelineLength, answerLength, streamLength, liveStatus]);
+  }, [timelineLength, answerLength, streamLength, liveStatus, isSending]);
 
   const sendMessage = useCallback(
-    async (question: string) => {
+    (question: string) => {
       const text = question.trim();
-      if (!text || sendingRef.current) return;
+      if (!text || sendingRef.current || isSending) return;
       sendingRef.current = true;
-      setSendState({ phase: 'sending', question: text });
+      setSendError(null);
       lastTurnRef.current?.scrollIntoView({
         behavior: 'smooth',
         block: 'end',
       });
-      try {
-        const url = await createFollowUpAndExecute(sessionId, text);
-        // 客户端导航：RSC 增量刷新，避免整页重载闪烁与滚动归零
-        router.push(url, { scroll: false });
-      } catch (error) {
-        sendingRef.current = false;
-        setSendState({
-          phase: 'error',
-          message:
+      startSendTransition(async () => {
+        addOptimisticQuestion(text);
+        try {
+          const url = await createFollowUpAndExecute(sessionId, text);
+          // 客户端导航：RSC 增量刷新，避免整页重载闪烁与滚动归零；
+          // 导航提交随本 transition 结束，乐观轮次届时自动回收
+          router.push(url, { scroll: false });
+        } catch (error) {
+          setSendError(
             error instanceof Error && error.message
               ? error.message
               : '发送失败，请稍后重试。',
-        });
-      }
+          );
+        } finally {
+          sendingRef.current = false;
+        }
+      });
     },
-    [sessionId, router],
+    [sessionId, router, isSending, addOptimisticQuestion],
   );
 
   const openDetail = useCallback(
@@ -133,7 +138,7 @@ export function AnalysisConversationShell({
     [],
   );
 
-  const sending = sendState.phase === 'sending';
+  const sending = isSending || optimisticQuestion !== null;
   const liveBusy =
     liveStatus === 'running' ||
     liveStatus === 'queued' ||
@@ -212,9 +217,9 @@ export function AnalysisConversationShell({
           })}
 
           {/* 发送中乐观轮次 */}
-          {sending ? (
+          {optimisticQuestion !== null ? (
             <div className="space-y-4" data-testid="chat-sending-turn">
-              <AnalysisUserMessage pending questionText={sendState.question} />
+              <AnalysisUserMessage pending questionText={optimisticQuestion} />
               <div className="flex justify-start gap-2.5">
                 <AssistantAvatar />
                 <div className="min-w-0">
@@ -236,9 +241,9 @@ export function AnalysisConversationShell({
         </div>
 
         {/* 发送失败提示 */}
-        {sendState.phase === 'error' ? (
+        {sendError ? (
           <p className="pb-2 text-sm text-destructive" role="alert">
-            {sendState.message}
+            {sendError}
           </p>
         ) : null}
 
