@@ -43,7 +43,8 @@
         "tool-started",
         "tool-completed",
         "tool-failed",
-        "step-completed"
+        "step-completed",
+        "answer-delta"
       ]
     },
     "timestamp": {
