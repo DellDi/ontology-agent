@@ -6,7 +6,7 @@ import { Badge } from '@/app/_components/workbench/badge';
 
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
 
-import { getString, getItems, renderTitle } from './rendering-utils';
+import { getString, getItems, renderTitle, panelChrome } from './rendering-utils';
 
 function normalizeTimelineStatus(status: unknown): TimelineStatus {
   const text = getString(status).toLowerCase();
@@ -20,6 +20,7 @@ function normalizeTimelineStatus(status: unknown): TimelineStatus {
 export function renderEvidenceCardBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   const rawEvidence = getItems(renderedBlock.payload.evidence);
   const items: EvidenceItem[] = rawEvidence.map((item) => ({
@@ -31,6 +32,7 @@ export function renderEvidenceCardBlock({
   return (
     <EvidenceCard
       className={className}
+      flat={embedded}
       title={titleNode}
       summary={getString(renderedBlock.payload.summary)}
       items={items}
@@ -41,12 +43,13 @@ export function renderEvidenceCardBlock({
 export function renderTimelineBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   const rawItems = getItems(renderedBlock.payload.items);
   if (rawItems.length === 0) {
     return (
       <div
-        className={`${className} rounded-md border border-border bg-card p-4 text-sm text-muted-foreground`}
+        className={`${className} ${panelChrome(embedded)} text-sm text-muted-foreground`}
       >
         {renderTitle(renderedBlock)}
         <p className="mt-2">本步骤未输出可视化的时间线节点。</p>
@@ -55,7 +58,7 @@ export function renderTimelineBlock({
   }
   return (
     <div
-      className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
+      className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle(renderedBlock)}
       <Timeline
@@ -74,10 +77,11 @@ export function renderTimelineBlock({
 export function renderApprovalStateBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   return (
     <div
-      className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
+      className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle(renderedBlock)}
       <p className="mt-2 text-sm font-medium text-foreground">
@@ -98,11 +102,12 @@ export function renderApprovalStateBlock({
 export function renderSkillsStateBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   const items = getItems(renderedBlock.payload.items);
   return (
     <div
-      className={`${className} rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]`}
+      className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle(renderedBlock)}
       {items.length === 0 ? (

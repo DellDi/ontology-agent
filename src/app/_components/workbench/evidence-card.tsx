@@ -13,6 +13,8 @@ type EvidenceCardProps = Omit<HTMLAttributes<HTMLDivElement>, 'title'> & {
   summary?: ReactNode;
   items: EvidenceItem[];
   status?: ReactNode;
+  /** 对话气泡内嵌时置 true：去卡片壳（边框/底/阴影），与其它 flat 块一致。 */
+  flat?: boolean;
 };
 
 export function EvidenceCard({
@@ -21,12 +23,15 @@ export function EvidenceCard({
   items,
   status,
   className,
+  flat = false,
   ...props
 }: EvidenceCardProps) {
   return (
     <section
       className={cn(
-        'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
+        flat
+          ? 'p-0'
+          : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
         className,
       )}
       {...props}

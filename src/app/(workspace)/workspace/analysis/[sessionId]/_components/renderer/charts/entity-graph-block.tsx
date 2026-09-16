@@ -9,6 +9,7 @@ import { asItemArray } from './recharts-shared';
 
 type EntityGraphBlockProps = {
   block: AnalysisRenderedBlock;
+  flat?: boolean;
 };
 
 /**
@@ -17,17 +18,20 @@ type EntityGraphBlockProps = {
  *     这里仍以"节点 + 关系列表"展示，但显著强化视觉层级与异常态。
  *   - 后续若必须二维布局，可在保持本组件接口不变的前提下替换为 cytoscape。
  */
-export function EntityGraphBlock({ block }: EntityGraphBlockProps) {
+export function EntityGraphBlock({ block, flat = false }: EntityGraphBlockProps) {
   const nodes = asItemArray(block.payload.nodes);
   const edges = asItemArray(block.payload.edges);
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
       ? block.title
       : '关系图';
+  const shellClass = flat
+    ? 'p-0'
+    : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]';
 
   if (nodes.length === 0 && edges.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
+      <div className={shellClass}>
         <p className="mb-3 text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
           {title}
         </p>
@@ -40,7 +44,7 @@ export function EntityGraphBlock({ block }: EntityGraphBlockProps) {
   }
 
   return (
-    <section className="rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
+    <section className={shellClass}>
       <header className="space-y-1">
         <p className="text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
           {title}

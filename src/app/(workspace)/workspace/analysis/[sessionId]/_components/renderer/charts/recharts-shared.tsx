@@ -39,6 +39,8 @@ type ChartShellProps = {
   emptyTitle?: ReactNode;
   emptyDescription?: ReactNode;
   className?: string;
+  /** 嵌套在对话气泡内时置 true：去外层卡片边框与阴影，仅保留内容。 */
+  flat?: boolean;
   children: ReactNode;
 };
 
@@ -49,12 +51,15 @@ export function ChartShell({
   emptyTitle = '暂无可视化数据',
   emptyDescription = '当前模型尚未输出有效数据点。',
   className,
+  flat = false,
   children,
 }: ChartShellProps) {
   return (
     <div
       className={cn(
-        'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
+        flat
+          ? 'p-0'
+          : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
         className,
       )}
     >

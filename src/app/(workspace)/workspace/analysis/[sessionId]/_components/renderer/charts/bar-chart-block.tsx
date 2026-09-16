@@ -40,7 +40,13 @@ function extractBarData(block: AnalysisRenderedBlock) {
   });
 }
 
-export function BarChartBlock({ block }: { block: AnalysisRenderedBlock }) {
+export function BarChartBlock({
+  block,
+  flat = false,
+}: {
+  block: AnalysisRenderedBlock;
+  flat?: boolean;
+}) {
   const data = extractBarData(block);
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
@@ -48,7 +54,7 @@ export function BarChartBlock({ block }: { block: AnalysisRenderedBlock }) {
       : '指标对比';
 
   return (
-    <ChartShell title={title} isEmpty={data.length === 0}>
+    <ChartShell flat={flat} title={title} isEmpty={data.length === 0}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}

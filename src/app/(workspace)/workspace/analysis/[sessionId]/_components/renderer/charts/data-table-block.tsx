@@ -9,6 +9,8 @@ import { cn } from '@/app/_lib/cn';
 type DataTableBlockProps = {
   block: AnalysisRenderedBlock;
   className?: string;
+  /** 嵌套在对话气泡内时置 true：去外层卡片边框与阴影，仅保留表格内容。 */
+  flat?: boolean;
 };
 
 function extractTableData(block: AnalysisRenderedBlock) {
@@ -64,18 +66,29 @@ function formatCellValue(text: string): string {
   return formatShanghaiDateTime(date);
 }
 
-export function DataTableBlock({ block, className }: DataTableBlockProps) {
+export function DataTableBlock({ block, className, flat = false }: DataTableBlockProps) {
   const { columns, rows } = extractTableData(block);
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
       ? block.title
       : null;
+  // 列对齐统一标准：文本列左对齐、数值列右对齐，表头跟随本列对齐
+  const numericColumns = columns.map((_, columnIndex) => {
+    const cells = rows
+      .map((row) => row[columnIndex])
+      .filter((cell): cell is string => typeof cell === 'string' && cell.trim() !== '');
+    if (cells.length === 0) return false;
+    const numericCount = cells.filter((cell) => isLikelyNumber(cell)).length;
+    return numericCount * 2 >= cells.length;
+  });
 
   if (columns.length === 0 && rows.length === 0) {
     return (
       <div
         className={cn(
-          'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
+          flat
+            ? 'p-0'
+            : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
           className,
         )}
       >
@@ -95,12 +108,19 @@ export function DataTableBlock({ block, className }: DataTableBlockProps) {
   return (
     <div
       className={cn(
-        'rounded-md border border-border bg-card shadow-[var(--shadow-panel)]',
+        flat
+          ? ''
+          : 'rounded-md border border-border bg-card shadow-[var(--shadow-panel)]',
         className,
       )}
     >
       {title ? (
-        <p className="px-4 pt-3 text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
+        <p
+          className={cn(
+            'text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground',
+            flat ? 'mb-2' : 'px-4 pt-3',
+          )}
+        >
           {title}
         </p>
       ) : null}
@@ -111,7 +131,10 @@ export function DataTableBlock({ block, className }: DataTableBlockProps) {
               {columns.map((column, index) => (
                 <th
                   key={`${column}-${index}`}
-                  className="px-4 py-2.5 text-xs font-semibold tracking-[0.05em] uppercase text-muted-foreground"
+                  className={cn(
+                    'px-4 py-2.5 text-xs font-semibold tracking-[0.05em] uppercase text-muted-foreground',
+                    numericColumns[index] ? 'text-right' : 'text-left',
+                  )}
                 >
                   {column}
                 </th>

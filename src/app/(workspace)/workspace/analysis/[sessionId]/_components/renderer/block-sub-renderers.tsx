@@ -22,13 +22,21 @@ import { asItemArray } from './charts/recharts-shared';
 export function renderTableBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
-  return <DataTableBlock block={renderedBlock} className={className} />;
+  return (
+    <DataTableBlock
+      block={renderedBlock}
+      className={className}
+      flat={embedded}
+    />
+  );
 }
 
 export function renderChartBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   const hint =
     typeof renderedBlock.payload.chartKind === 'string'
@@ -40,9 +48,9 @@ export function renderChartBlock({
   return (
     <div className={className}>
       {useLine ? (
-        <LineChartBlock block={renderedBlock} />
+        <LineChartBlock block={renderedBlock} flat={embedded} />
       ) : (
-        <BarChartBlock block={renderedBlock} />
+        <BarChartBlock block={renderedBlock} flat={embedded} />
       )}
     </div>
   );
@@ -51,10 +59,11 @@ export function renderChartBlock({
 export function renderGraphBlock({
   renderedBlock,
   className = '',
+  embedded = false,
 }: AnalysisInteractionUiRenderInput) {
   return (
     <div className={className}>
-      <EntityGraphBlock block={renderedBlock} />
+      <EntityGraphBlock block={renderedBlock} flat={embedded} />
     </div>
   );
 }

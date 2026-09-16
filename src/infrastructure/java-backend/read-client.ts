@@ -641,6 +641,7 @@ const eventSchema = z.strictObject({
     'tool-completed',
     'tool-failed',
     'step-completed',
+    'answer-delta',
   ]),
   timestamp: z.string().min(1),
   status: jobStatusSchema.nullable(),
