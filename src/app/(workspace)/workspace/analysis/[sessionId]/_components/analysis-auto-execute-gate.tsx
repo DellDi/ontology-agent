@@ -132,47 +132,23 @@ export function AnalysisAutoExecuteGate({
     submitAnalysisAutoExecuteForm(formElement);
   }, [autoAttemptStorageKey, enabled, executionScopeKey]);
 
-  // 显示逻辑：
-  // - enabled=true → 显示"正在准备分析…"（preparing 由 enabled 派生）
-  // - submissionStatus='submitted' → 显示"已开始分析"（3 秒后自动隐藏）
-  // - enabled=false 且未处于 submitted 过渡期 → 不渲染
+  // 首轮自动执行：进入页面即提交，不向用户暴露手动执行入口。
   if (!enabled && submissionStatus === null) {
     return null;
   }
 
-  const isPreparing = enabled && submissionStatus !== 'submitted';
-  const statusText = isPreparing ? '正在准备分析…' : '已开始分析';
-
   return (
-    <>
-      <form
-        action={`/api/analysis/sessions/${sessionId}/execute`}
-        method="post"
-        ref={submitFormRef}
-        onSubmit={markSubmitted}
-        style={{ display: 'none' }}
-      >
-        {followUpId ? (
-          <input name="followUpId" type="hidden" value={followUpId} />
-        ) : null}
-      </form>
-
-      <div
-        className="flex items-center gap-2 text-xs text-muted-foreground"
-        data-testid="analysis-auto-execution-gate"
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-        <span>{statusText}</span>
-        {isPreparing ? (
-          <button
-            className="text-primary underline"
-            onClick={() => submitFormRef.current?.requestSubmit()}
-            type="button"
-          >
-            手动执行
-          </button>
-        ) : null}
-      </div>
-    </>
+    <form
+      action={`/api/analysis/sessions/${sessionId}/execute`}
+      data-testid="analysis-auto-execution-gate"
+      method="post"
+      onSubmit={markSubmitted}
+      ref={submitFormRef}
+      style={{ display: 'none' }}
+    >
+      {followUpId ? (
+        <input name="followUpId" type="hidden" value={followUpId} />
+      ) : null}
+    </form>
   );
 }

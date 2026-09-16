@@ -6,7 +6,6 @@ import {
   type AnalysisExecutionStreamEvent,
 } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
-import { buildFollowUpContextDiff } from '@/domain/analysis-session/follow-up-models';
 import {
   getAnalysisSession,
   getCurrentViewer,
@@ -14,23 +13,14 @@ import {
   type JavaAnalysisSession,
 } from '@/infrastructure/java-backend';
 
-import { AnalysisUserMessage } from './_components/analysis-user-message';
 import { AnalysisAutoExecuteGate } from './_components/analysis-auto-execute-gate';
 import { AnalysisExecutionLiveShell } from './_components/analysis-execution-live-shell';
-import { AnalysisFollowUpInput } from './_components/analysis-follow-up-input';
-import { AnalysisFollowUpPanel } from './_components/analysis-follow-up-panel';
-import { AnalysisHistoryPanel } from './_components/analysis-history-panel';
+import { AnalysisConversationShell } from './_components/analysis-conversation-shell';
+import { buildChatTurns } from './_components/analysis-chat-turns';
 import { AnalysisPendingRefreshGate } from './_components/analysis-pending-refresh-gate';
 import { AnalysisAttributionPanel } from './_components/analysis-attribution-panel';
 import { AnalysisActionsPanel } from './_components/analysis-actions-panel';
-import { AnalysisRuntimeContractPanel } from './_components/analysis-runtime-contract-panel';
-import {
-  buildJavaFollowUpFeedback,
-  buildJavaHistoryReadModel,
-  followUpsFromJava,
-  resolveJavaActiveFollowUp,
-  rootContextFromJava,
-} from './java-follow-up-view-model';
+import type { DetailDrawerType } from './_components/analysis-detail-drawer';
 
 type AnalysisSessionPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -114,19 +104,7 @@ export default async function AnalysisSessionPage({
     ? aggregate.followUps.find((followUp) => followUp.id === requestedFollowUpId)
     : undefined;
   if (requestedFollowUpId && !requestedFollowUp) notFound();
-  const requestedHistoryRoundId = readSearchParam(resolvedSearchParams.historyRoundId);
-  const requestedHistoryRound = requestedHistoryRoundId
-    ? aggregate.history.find((round) => round.id === requestedHistoryRoundId)
-    : undefined;
-  if (requestedHistoryRoundId && !requestedHistoryRound) notFound();
-  if (requestedFollowUp && requestedHistoryRound
-    && requestedHistoryRound.followUpId !== requestedFollowUp.id) notFound();
-  if (executionId && requestedHistoryRound
-    && requestedHistoryRound.executionId !== executionId) notFound();
-  if (executionId && requestedFollowUp
-    && requestedFollowUp.resultExecutionId !== executionId) notFound();
   const selectedExecutionId = executionId
-    ?? requestedHistoryRound?.executionId
     ?? requestedFollowUp?.resultExecutionId
     ?? null;
   if (selectedExecutionId
@@ -140,125 +118,71 @@ export default async function AnalysisSessionPage({
   }
 
   const resolvedExecutionId = aggregate.runtime.resolvedExecutionId;
-  const followUps = followUpsFromJava(aggregate);
-  const executionFollowUp = aggregate.runtime.resolvedExecutionId
-    ? followUps.find((followUp) => followUp.resultExecutionId === aggregate.runtime.resolvedExecutionId) ?? null
-    : null;
-  const activeFollowUp = requestedHistoryRoundId
-    ? requestedHistoryRound?.followUpId
-      ? followUps.find((followUp) => followUp.id === requestedHistoryRound.followUpId) ?? null
-      : null
-    : requestedFollowUpId
-      ? resolveJavaActiveFollowUp(followUps, requestedFollowUpId)
-      : executionId
-        ? executionFollowUp
-        : resolveJavaActiveFollowUp(followUps);
-  const historyReadModel = buildJavaHistoryReadModel(
-    aggregate,
-    readSearchParam(resolvedSearchParams.historyRoundId),
-  );
-  const followUpFeedback = buildJavaFollowUpFeedback(resolvedSearchParams);
-  const activeHistoryRound = activeFollowUp
-    ? aggregate.history.find((round) => round.followUpId === activeFollowUp.id) ?? null
-    : null;
-  const displayedFollowUp = requestedHistoryRoundId
-    ? requestedHistoryRound?.followUpId
-      ? followUps.find((followUp) => followUp.id === requestedHistoryRound.followUpId) ?? null
-      : null
-    : activeFollowUp;
-  const displayedQuestion = displayedFollowUp?.questionText
-    ?? requestedHistoryRound?.questionText
-    ?? aggregate.session.questionText;
-  const completedConclusion = activeHistoryRound?.status === 'completed'
-    ? activeHistoryRound.conclusionState?.causes[0] ?? null
-    : activeFollowUp
-      ? null
-      : aggregate.history[0]?.conclusionState?.causes[0]
-        ?? aggregate.snapshot?.conclusionState.causes[0]
-        ?? null;
-  const displayedSourceConclusion = completedConclusion ?? (activeFollowUp ? {
-    title: activeFollowUp.referencedConclusionTitle,
-    summary: activeFollowUp.referencedConclusionSummary,
-  } : null);
-  const domainBinding = aggregate.followUps.at(-1)?.capabilityBinding
-    ?? aggregate.snapshot?.capabilityBinding;
-  const domainKey = domainBinding && 'domainKey' in domainBinding ? domainBinding.domainKey : undefined;
-  const inheritedContext = activeFollowUp?.mergedContext ?? rootContextFromJava(aggregate);
-  const suggestedQuestions =
-    aggregate.history.find((round) => round.status === 'completed')
-      ?.conclusionState?.suggestedQuestions
-    ?? aggregate.snapshot?.conclusionState.suggestedQuestions;
-  const canFollowUp = Boolean(completedConclusion && inheritedContext
-    && (!activeFollowUp || activeHistoryRound?.status === 'completed'));
-  const followUpDetails = activeFollowUp && inheritedContext ? (
-    <AnalysisFollowUpPanel
-      sessionId={sessionId}
-      activeFollowUpId={activeFollowUp?.id}
-      latestConclusionTitle={displayedSourceConclusion?.title ?? null}
-      latestConclusionSummary={displayedSourceConclusion?.summary ?? null}
-      inheritedContext={inheritedContext}
-      followUps={followUps}
-      domainKey={domainKey}
-      adjustmentDraft={followUpFeedback.adjustmentDraft}
-      conflictItems={followUpFeedback.conflictItems}
-      feedback={followUpFeedback.feedback}
-      replanFeedback={followUpFeedback.replanFeedback}
-      showComposer={false}
-      showCards={false}
-    />
-  ) : null;
-  const followUpInput = canFollowUp ? (
-    <AnalysisFollowUpInput
-      sessionId={sessionId}
-      activeFollowUpId={activeFollowUp?.id}
-      drawerContent={followUpDetails}
-      suggestions={suggestedQuestions}
-    />
-  ) : null;
-  const isJavaInitialSession =
-    aggregate.session.savedContext._executionContract === 'java-initial-v1';
-  const activeFollowUpPending = Boolean(displayedFollowUp && !displayedFollowUp.resultExecutionId);
-  const activeFollowUpDiff = activeFollowUp ? buildFollowUpContextDiff({
-    inheritedContext: activeFollowUp.inheritedContext,
-    mergedContext: activeFollowUp.mergedContext,
-  }) : null;
-  const activeFollowUpNeedsReplan = Boolean(activeFollowUp
-    && !activeFollowUp.currentPlanSnapshot
-    && activeFollowUpDiff
-    && (activeFollowUpDiff.added.length || activeFollowUpDiff.overridden.length));
   const events = eventsFromJava(aggregate.events);
-  const conclusionState = aggregate.snapshot?.conclusionState ?? null;
+
+  // 归因 SQL：仅当前执行轮有逐工具事件载荷
+  const activeAttributionTools = Array.from(
+    aggregate.events
+      .map((event) => event.tool)
+      .filter(
+        (tool): tool is NonNullable<typeof tool> =>
+          tool != null && typeof tool.fact === 'string',
+      )
+      .reduce(
+        (map, tool) => map.set(tool.name, tool),
+        new Map<string, NonNullable<(typeof aggregate.events)[number]['tool']>>(),
+      )
+      .values(),
+  );
   const resolvedContext = aggregate.snapshot?.planSnapshot._resolvedContext;
-  const rangeLabel =
+  const activeRangeLabel =
     resolvedContext &&
     typeof resolvedContext['from'] === 'string' &&
     typeof resolvedContext['to'] === 'string'
       ? `${resolvedContext['from']} ~ ${resolvedContext['to']}`
       : undefined;
-  const attributionTools = Array.from(
-    aggregate.events
-      .map((event) => event.tool)
-      // 仅目录查询工具（fact 仅查询工具携带，编排工具不入归因板）
-      .filter(
-        (tool): tool is NonNullable<typeof tool> =>
-          tool != null && typeof tool.fact === 'string',
-      )
-      // 同名工具取最后一条事件载荷（completed 态携带 sql/durationMs）
-      .reduce((map, tool) => map.set(tool.name, tool), new Map<string, NonNullable<(typeof aggregate.events)[number]['tool']>>())
-      .values(),
+
+  // 全轮次对话线程：历史轮用各自 conclusionState 静态渲染，当前执行轮走 live viewModel
+  const turns = buildChatTurns(aggregate, resolvedExecutionId);
+
+  // 每轮独立的业务抽屉（归因 / 动作建议）
+  const turnDrawerContents: Record<
+    string,
+    Partial<Record<Exclude<DetailDrawerType, null>, React.ReactNode>>
+  > = {};
+  for (const turn of turns) {
+    const state = turn.conclusionState;
+    if (!state) continue;
+    const contents: Partial<Record<Exclude<DetailDrawerType, null>, React.ReactNode>> = {};
+    const isActive = turn.live;
+    if (state.claims?.length || state.evidence?.length) {
+      contents.attribution = (
+        <AnalysisAttributionPanel
+          claims={state.claims ?? []}
+          evidence={state.evidence ?? []}
+          rangeLabel={isActive ? activeRangeLabel : undefined}
+          tools={isActive ? activeAttributionTools : []}
+        />
+      );
+    }
+    if (state.suggestedActions?.length) {
+      contents.actions = (
+        <AnalysisActionsPanel actions={state.suggestedActions} />
+      );
+    }
+    if (Object.keys(contents).length > 0) {
+      turnDrawerContents[turn.key] = contents;
+    }
+  }
+
+  // 上下文建议：取最近一轮完成态的建议问题，作为对话内容展示
+  const latestCompletedTurn = [...turns].reverse().find(
+    (turn) => turn.status === 'completed',
   );
-  const attributionDrawer =
-    conclusionState && (conclusionState.claims?.length || conclusionState.evidence?.length) ? (
-      <AnalysisAttributionPanel
-        claims={conclusionState.claims ?? []}
-        evidence={conclusionState.evidence ?? []}
-        tools={attributionTools}
-        rangeLabel={rangeLabel}
-      />
-    ) : null;
-  const actionsDrawer = conclusionState?.suggestedActions?.length ? (
-    <AnalysisActionsPanel actions={conclusionState.suggestedActions} />
-  ) : null;
+  const suggestions =
+    latestCompletedTurn?.conclusionState?.suggestedQuestions
+    ?? aggregate.snapshot?.conclusionState.suggestedQuestions;
+
   const readModel: AnalysisExecutionStreamReadModel | null = resolvedExecutionId
     ? {
         sessionId,
@@ -269,128 +193,49 @@ export default async function AnalysisSessionPage({
       }
     : null;
 
+  const activeTurn = turns.find((turn) => turn.live) ?? null;
+  const initialPending = !resolvedExecutionId
+    && aggregate.runtime.autoExecute;
+
   return (
-    <section className="mx-auto w-full max-w-[920px] space-y-6 px-2">
+    <section className="w-full">
       <AnalysisAutoExecuteGate
+        enabled={initialPending}
         sessionId={sessionId}
-        enabled={aggregate.runtime.autoExecute && !activeFollowUp}
       />
       <AnalysisPendingRefreshGate
         enabled={Boolean(resolvedExecutionId && !aggregate.runtime.terminal && !aggregate.runtime.streamEnabled)}
       />
 
-      {followUpFeedback.feedback || followUpFeedback.replanFeedback ? (
-        <div className="mx-auto max-w-[860px] space-y-2 px-4" data-testid="java-follow-up-feedback">
-          {[followUpFeedback.feedback, followUpFeedback.replanFeedback].filter(Boolean).map((feedback) => (
-            <p
-              className={feedback?.tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-primary'}
-              key={feedback?.message}
-            >
-              {feedback?.message}
-            </p>
-          ))}
-        </div>
-      ) : null}
-
-      {resolvedExecutionId && readModel && !activeFollowUpPending ? (
+      {resolvedExecutionId && readModel ? (
         <AnalysisExecutionLiveShell
-          sessionId={sessionId}
+          activeTurnKey={activeTurn?.key ?? turns.at(-1)?.key ?? ''}
+          enableLiveStream={aggregate.runtime.streamEnabled}
           executionId={resolvedExecutionId}
-          ownerUserId={viewer.userId}
-          initialReadModel={readModel}
           initialConclusionReadModel={conclusionFromJava(aggregate)}
+          initialReadModel={readModel}
+          ownerUserId={viewer.userId}
+          planAssumptions={planAssumptions(aggregate)}
+          questionText={activeTurn?.questionText ?? aggregate.session.questionText}
           resumeCursor={{
             lastSequence: aggregate.runtime.resumeAfterSequence,
             lastEventId: events.at(-1)?.id ?? null,
           }}
-          enableLiveStream={aggregate.runtime.streamEnabled}
-          planAssumptions={planAssumptions(aggregate)}
-          questionText={displayedQuestion}
-          followUpLabel={displayedFollowUp ? '追问模式' : undefined}
-          drawerContents={{
-            attribution: attributionDrawer,
-            actions: actionsDrawer,
-            history: historyReadModel.rounds.length >= 2 ? (
-              <AnalysisHistoryPanel
-                sessionId={sessionId}
-                readModel={historyReadModel}
-              />
-            ) : null,
-          }}
-        >
-          {followUpInput}
-        </AnalysisExecutionLiveShell>
-      ) : (
-        <div
-          className="mx-auto w-full max-w-[860px] space-y-6 px-4"
-          data-testid="analysis-pending-conversation"
-        >
-          <AnalysisUserMessage questionText={displayedQuestion} badges={[]} />
-          <div className="flex justify-start">
-            <div className="w-full">
-              <p className="text-sm font-medium text-foreground">
-                {activeFollowUp
-                  ? '正在准备追问分析'
-                  : isJavaInitialSession ? '正在准备首次分析' : '旧执行尚未迁移'}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {activeFollowUp
-                  ? '可先纠正本轮上下文并重生成计划；确认无误后手动执行。本轮不会自动提交。'
-                  : isJavaInitialSession
-                  ? '系统会提交当前问题；如未自动开始，可手动执行。'
-                  : '该会话属于旧后端事实，本切片不会自动或手动重跑。请等待后续历史迁移切片。'}
-              </p>
-              {isJavaInitialSession && !activeFollowUpNeedsReplan ? (
-                <form
-                  action={`/api/analysis/sessions/${sessionId}/execute`}
-                  className="mt-4"
-                  method="post"
-                >
-                  {activeFollowUp ? (
-                    <input name="followUpId" type="hidden" value={activeFollowUp.id} />
-                  ) : null}
-                  <button
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    type="submit"
-                  >
-                    手动执行
-                  </button>
-                </form>
-              ) : activeFollowUpNeedsReplan ? (
-                <p className="mt-4 text-sm font-medium text-destructive">
-                  当前上下文已变更，请先重生成后续计划，再手动执行。
-                </p>
-              ) : null}
-            </div>
-          </div>
-          {followUpInput}
-        </div>
-      )}
-
-      {activeFollowUp && inheritedContext ? (
-        <AnalysisFollowUpPanel
           sessionId={sessionId}
-          activeFollowUpId={activeFollowUp?.id}
-          latestConclusionTitle={displayedSourceConclusion?.title ?? null}
-          latestConclusionSummary={displayedSourceConclusion?.summary ?? null}
-          inheritedContext={inheritedContext}
-          followUps={followUps}
-          domainKey={domainKey}
-          adjustmentDraft={followUpFeedback.adjustmentDraft}
-          conflictItems={followUpFeedback.conflictItems}
-          feedback={null}
-          replanFeedback={null}
-          showComposer={false}
+          suggestions={suggestions}
+          turnDrawerContents={turnDrawerContents}
+          turns={turns}
         />
-      ) : null}
-
-      <AnalysisRuntimeContractPanel snapshot={aggregate.snapshot} />
-      {(!resolvedExecutionId || !readModel || activeFollowUpPending) && historyReadModel.rounds.length >= 2 ? (
-        <details className="border-t border-border pt-4">
-          <summary className="cursor-pointer text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring">历史问答</summary>
-          <AnalysisHistoryPanel sessionId={sessionId} readModel={historyReadModel} />
-        </details>
-      ) : null}
+      ) : (
+        <AnalysisConversationShell
+          preparingInitial={initialPending}
+          sessionId={sessionId}
+          suggestions={suggestions}
+          turnDrawerContents={turnDrawerContents}
+          turns={turns}
+          viewModel={null}
+        />
+      )}
     </section>
   );
 }

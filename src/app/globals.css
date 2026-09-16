@@ -212,3 +212,36 @@ a {
 .analysis-block-enter {
   animation: analysis-block-enter 0.45s ease-out both;
 }
+
+/* 会话定位条：悬停时标记以"琴弦拨动"波形横向摆动，逐枚错峰 */
+@keyframes chat-locator-wave {
+  0% {
+    transform: translateX(0) scaleY(1);
+  }
+  30% {
+    transform: translateX(-6px) scaleY(1.4);
+  }
+  60% {
+    transform: translateX(3px) scaleY(0.9);
+  }
+  100% {
+    transform: translateX(0) scaleY(1);
+  }
+}
+
+.chat-locator-line {
+  height: 2px;
+}
+
+.chat-locator:hover .chat-locator-mark .chat-locator-line,
+.chat-locator:focus-within .chat-locator-mark .chat-locator-line {
+  animation: chat-locator-wave 0.7s ease-in-out both;
+  animation-delay: calc(var(--wave-i, 0) * 45ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-locator:hover .chat-locator-mark .chat-locator-line,
+  .chat-locator:focus-within .chat-locator-mark .chat-locator-line {
+    animation: none;
+  }
+}

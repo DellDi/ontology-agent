@@ -7,7 +7,6 @@ import type { ReactNode } from 'react';
 
 import type { AiRuntimeProjection } from '@/application/ai-runtime';
 import { buildConversationViewModel } from '@/application/analysis-message-projection/conversation-view-model';
-import type { ConversationThreadViewModel } from '@/application/analysis-message-projection/conversation-thread-view-model';
 import type { AnalysisExecutionStreamReadModel } from '@/application/analysis-execution/stream-use-cases';
 import type { AnalysisUiMessageProjectionStreamCursor } from '@/domain/analysis-message-projection/models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
@@ -22,7 +21,11 @@ import {
 } from '../_hooks/use-analysis-execution-stream';
 import { useAnalysisProjectionState } from '../_hooks/use-analysis-projection-state';
 
-import { AnalysisConversationShell } from './analysis-conversation-shell';
+import {
+  AnalysisConversationShell,
+  type ChatTurn,
+} from './analysis-conversation-shell';
+import type { DetailDrawerType } from './analysis-detail-drawer';
 import { AnalysisDiagnosticsPanel } from './analysis-diagnostics-panel';
 import { AnalysisExecutionStreamPanel } from './analysis-execution-stream-panel';
 
@@ -57,9 +60,13 @@ type AnalysisExecutionLiveShellProps = {
   ontologyVersionBadge?: string;
   followUpLabel?: string;
   candidateFactors?: readonly { key: string; label: string }[];
-  thread?: ConversationThreadViewModel;
-  drawerContents?: Record<string, ReactNode>;
-  children?: ReactNode;
+  turns: ChatTurn[];
+  activeTurnKey: string;
+  turnDrawerContents?: Record<
+    string,
+    Partial<Record<Exclude<DetailDrawerType, null>, ReactNode>>
+  >;
+  suggestions?: string[];
 };
 
 export function AnalysisExecutionLiveShell({
@@ -76,9 +83,10 @@ export function AnalysisExecutionLiveShell({
   ontologyVersionBadge,
   followUpLabel,
   candidateFactors,
-  thread,
-  drawerContents = {},
-  children,
+  turns,
+  activeTurnKey,
+  turnDrawerContents = {},
+  suggestions,
 }: AnalysisExecutionLiveShellProps) {
   const router = useRouter();
 
@@ -189,25 +197,31 @@ export function AnalysisExecutionLiveShell({
     return () => window.clearInterval(timer);
   }, [liveIsTerminal, serverIsTerminal, router]);
 
-  // 4) 抽屉内容拼装
+  // 4) 抽屉内容拼装：当前执行轮合并诊断信息（失败态入口用）
   const { diagnostics } = conversationViewModel.assistantMessage;
-  const mergedDrawerContents: Record<string, ReactNode> = {
-    ...drawerContents,
-    'execution-log': (
-      <AnalysisExecutionStreamPanel events={events} variant="side-sheet" />
-    ),
-    diagnostics: (
-      <AnalysisDiagnosticsPanel
-        timelineBlocks={diagnostics.timelineBlocks}
-        processBoardBlocks={diagnostics.processBoardBlocks}
-        renderErrors={diagnostics.renderErrors}
-        otherBlocks={diagnostics.otherBlocks}
-        eventCount={diagnostics.eventCount}
-        lastSequence={diagnostics.lastSequence}
-        executionId={diagnostics.executionId}
-        candidateValidation={diagnostics.candidateValidation}
-      />
-    ),
+  const mergedTurnDrawerContents: Record<
+    string,
+    Partial<Record<Exclude<DetailDrawerType, null>, ReactNode>>
+  > = {
+    ...turnDrawerContents,
+    [activeTurnKey]: {
+      ...(turnDrawerContents[activeTurnKey] ?? {}),
+      'execution-log': (
+        <AnalysisExecutionStreamPanel events={events} variant="side-sheet" />
+      ),
+      diagnostics: (
+        <AnalysisDiagnosticsPanel
+          timelineBlocks={diagnostics.timelineBlocks}
+          processBoardBlocks={diagnostics.processBoardBlocks}
+          renderErrors={diagnostics.renderErrors}
+          otherBlocks={diagnostics.otherBlocks}
+          eventCount={diagnostics.eventCount}
+          lastSequence={diagnostics.lastSequence}
+          executionId={diagnostics.executionId}
+          candidateValidation={diagnostics.candidateValidation}
+        />
+      ),
+    },
   };
 
   return (
@@ -251,12 +265,12 @@ export function AnalysisExecutionLiveShell({
         </div>
       ) : null}
       <AnalysisConversationShell
+        sessionId={sessionId}
+        suggestions={suggestions}
+        turnDrawerContents={mergedTurnDrawerContents}
+        turns={turns}
         viewModel={conversationViewModel}
-        thread={thread}
-        drawerContents={mergedDrawerContents}
-      >
-        {children}
-      </AnalysisConversationShell>
+      />
     </>
   );
 }
