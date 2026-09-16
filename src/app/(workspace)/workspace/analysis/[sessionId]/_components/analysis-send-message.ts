@@ -37,6 +37,24 @@ function redirectError(url: string, keys: string[]): string | null {
   return null;
 }
 
+/** 与后端 submit 同规则：上下文被修改且缺计划快照时才要求先重规划。 */
+function contextChanged(followUp: {
+  inheritedContext?: unknown;
+  mergedContext?: unknown;
+}): boolean {
+  const canonical = (value: unknown): string =>
+    JSON.stringify(value, (_key, val: unknown) =>
+      val !== null && typeof val === 'object' && !Array.isArray(val)
+        ? Object.fromEntries(
+            Object.entries(val as Record<string, unknown>).sort(([a], [b]) =>
+              a.localeCompare(b),
+            ),
+          )
+        : val,
+    );
+  return canonical(followUp.mergedContext) !== canonical(followUp.inheritedContext);
+}
+
 /** 消息轮已创建但尚未执行时，按需重生成计划并提交执行。 */
 export async function executePendingFollowUp(
   sessionId: string,
@@ -48,20 +66,25 @@ export async function executePendingFollowUp(
   if (detailResp.ok) {
     const followUp = (await detailResp.json()) as {
       currentPlanSnapshot?: unknown;
+      inheritedContext?: unknown;
+      mergedContext?: unknown;
       resultExecutionId?: string | null;
     };
     if (followUp.resultExecutionId) {
       return `/workspace/analysis/${sessionId}?executionId=${followUp.resultExecutionId}&followUpId=${followUpId}`;
     }
-    if (!followUp.currentPlanSnapshot) {
+    if (!followUp.currentPlanSnapshot && contextChanged(followUp)) {
       const replanResp = await fetchStep(
         `/api/analysis/sessions/${sessionId}/follow-ups/${followUpId}/replan`,
-        { method: 'POST' },
+        { method: 'POST', body: new URLSearchParams() },
       );
       const replanError = redirectError(replanResp.url, [
         'followUpReplanError',
       ]);
       if (replanError) throw new Error(replanError);
+      if (!replanResp.ok) {
+        throw new Error('重生成分析计划失败，请稍后重试。');
+      }
     }
   }
 
