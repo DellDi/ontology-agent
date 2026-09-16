@@ -87,6 +87,13 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
   @Override
   public ComposedAnswer composeAnswer(
       String question, String rangeDescription, List<QueryResult> results) {
+    return composeAnswer(question, rangeDescription, results, null);
+  }
+
+  @Override
+  public ComposedAnswer composeAnswer(
+      String question, String rangeDescription, List<QueryResult> results,
+      java.util.function.Consumer<String> partialAnswer) {
     Map<String, Object> input = new LinkedHashMap<>();
     input.put("question", question);
     input.put("range", rangeDescription);
@@ -96,7 +103,9 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
       if (last != null) {
         input.put("previousAttemptError", last.getMessage());
       }
-      String content = call(COMPOSER_PROMPT, input);
+      String content = partialAnswer == null
+          ? call(COMPOSER_PROMPT, input)
+          : callStreaming(COMPOSER_PROMPT, input, partialAnswer);
       try {
         return parseAnswer(content, results, rangeDescription);
       } catch (BackendException error) {
@@ -112,12 +121,39 @@ public final class EasyVSpringAiQuestionAnalyst implements EasyVQuestionAnalyst 
     try {
       return chat.prompt().system(systemPrompt).user(json.write(input)).call().content();
     } catch (RuntimeException error) {
-      BackendException cause = backendCause(error);
-      if (cause != null) {
-        throw cause;
-      }
-      throw new BackendException("AGENT_PROVIDER_FAILURE", "EasyV 问题分析模型调用失败。", error);
+      throw providerFailure(error);
     }
+  }
+
+  /**
+   * 流式调用：响应是结构化 JSON，answer 为首个字符串字段——按 chunk 累计缓冲，
+   * 每次增量提取 answer 字段的已完成前缀回调（累计值，供前端直接替换渲染）。
+   */
+  private String callStreaming(String systemPrompt, Map<String, Object> input,
+                               java.util.function.Consumer<String> partialAnswer) {
+    StringBuilder buffer = new StringBuilder();
+    try {
+      chat.prompt().system(systemPrompt).user(json.write(input)).stream().content()
+          .doOnNext(chunk -> {
+            buffer.append(chunk);
+            String partial = PartialJsonString.valueAt(buffer, "answer");
+            if (partial != null && !partial.isBlank()) {
+              partialAnswer.accept(partial);
+            }
+          })
+          .blockLast();
+    } catch (RuntimeException error) {
+      throw providerFailure(error);
+    }
+    return buffer.toString();
+  }
+
+  private BackendException providerFailure(RuntimeException error) {
+    BackendException cause = backendCause(error);
+    if (cause != null) {
+      return cause;
+    }
+    return new BackendException("AGENT_PROVIDER_FAILURE", "EasyV 问题分析模型调用失败。", error);
   }
 
   private List<String> parseQueries(String content) {

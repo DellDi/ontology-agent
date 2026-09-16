@@ -109,7 +109,17 @@ public final class AnalysisWorker {
                     job.traceId(), job.workerId());
             AgentTurn turn = new AgentTurn(job.contract(), job.sessionId(), job.questionText(), job.followUpId(),
                     job.referencedExecutionId(), job.referencedConclusion(), job.effectiveContext(), session.createdAt());
-            ExecutionProgress progress = (kind, step, tool) -> emitProgress(job, kind, step, tool);
+            ExecutionProgress progress = new ExecutionProgress() {
+                @Override
+                public void emit(String kind, Map<String, Object> step, Map<String, Object> tool) {
+                    emitProgress(job, kind, step, tool);
+                }
+
+                @Override
+                public void emitAnswerDelta(String answerText) {
+                    emitAnswerDeltaEvent(job, answerText);
+                }
+            };
             CapabilityResult<WorkflowResult, Evidence> capabilityResult = capabilities.execute(
                     job.capabilityBinding(), new CapabilityExecutionContext(owner, turn, job.executionId(), ontology,
                             job.datasetVersionSetId(), job.traceId(), job.workerId(), progress));
@@ -336,6 +346,18 @@ public final class AnalysisWorker {
         return new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(), job.executionId(), 0,
                 "execution-status", Instant.now(), status, message,
                 blocks, metadata, code, job.traceId());
+    }
+
+    /** 回答增量文本事件：metadata.answerText 携带截至当前的完整回答前缀，前端按最新事件替换渲染。 */
+    private void emitAnswerDeltaEvent(ExecutionJob job, String answerText) {
+        Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("traceId", job.traceId());
+        metadata.put("executionContract", job.contract());
+        metadata.put("answerText", answerText);
+        executions.appendWhileLeased(job.ownerUserId(), job.workerId(),
+                new ExecutionEvent(UUID.randomUUID().toString(), job.sessionId(), job.executionId(), 0,
+                        "answer-delta", Instant.now(), null, "生成回答中", List.of(), metadata,
+                        null, job.traceId(), null, null));
     }
 
     /** 能力上报的阶段/工具进度转为持久化执行事件（SSE 与快照复用同一事件流）。 */

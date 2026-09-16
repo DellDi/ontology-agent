@@ -170,6 +170,8 @@ class AnalysisFollowUpServiceTest {
     when(repository.latestCompletedRootSnapshot("easyv-session", "123"))
         .thenReturn(Optional.of(source));
     when(analyses.followUpPolicy(easyvOwner, easyv)).thenReturn(easyvPolicy);
+    when(analyses.resolveExecutionDatasetVersionSet(easyvOwner, easyv))
+        .thenReturn("easyv-set-2");
     when(easyvPolicy.inheritedContext(source.planSnapshot)).thenReturn(easyvContext);
     when(easyvPolicy.applyQuestionContext("继续看下一周", easyvContext, easyvOwner))
         .thenReturn(easyvContext);
@@ -180,7 +182,8 @@ class AnalysisFollowUpServiceTest {
     assertEquals("easyv-execution", result.referencedExecutionId());
     assertEquals("ontology-v2", result.ontologyVersionId());
     assertEquals(easyv.snapshot(), result.capabilityBinding());
-    assertEquals("easyv-set-1", result.datasetVersionSetId());
+    // 新消息绑定提交时刻解析到的最新冻结集，而非来源执行的旧集合
+    assertEquals("easyv-set-2", result.datasetVersionSetId());
     assertEquals(easyvContext, result.inheritedContext());
     assertEquals(easyvContext, result.mergedContext());
     verify(analyses).followUpPolicy(easyvOwner, easyv);

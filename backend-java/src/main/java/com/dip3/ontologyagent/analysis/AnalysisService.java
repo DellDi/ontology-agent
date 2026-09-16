@@ -111,6 +111,16 @@ public final class AnalysisService {
     capabilities.require(binding, ontologies.published(binding.ontologyVersionId()), owner);
   }
 
+  /** Resolves the freshest complete frozen set for an execution submission (same rule as root submit). */
+  public String resolveExecutionDatasetVersionSet(AuthSession owner, CapabilityBinding binding) {
+    if (binding == null) {
+      throw new BackendException("CAPABILITY_BINDING_INVALID", "执行任务缺少能力绑定。");
+    }
+    var ontology = ontologies.published(binding.ontologyVersionId());
+    CapabilityDescriptor descriptor = capabilities.require(binding, ontology, owner);
+    return latestDatasetVersionSet(descriptor);
+  }
+
   /** Validates an inherited execution data binding without selecting newer product versions. */
   public void validateDatasetVersionSet(
       AuthSession owner, CapabilityBinding binding, String datasetVersionSetId) {
