@@ -68,7 +68,7 @@ export default async function WorkspaceLayout({
       menuItems={[
         ...WORKSPACE_MENU.filter(
           (item) =>
-            item.href === '/workspace' ||
+            item.href.startsWith('/workspace') ||
             canViewOntologyGovernance(viewer.scope.roleCodes),
         ),
         ...(access.canView

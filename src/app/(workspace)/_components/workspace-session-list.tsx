@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowUpRight, Search } from 'lucide-react';
+import { ArrowUpRight, Search, Trash2 } from 'lucide-react';
 
 import type { WorkspaceHomeModel } from '@/application/workspace/home';
 import { filterWorkspaceHistory, sessionToHistoryItem } from '@/application/workspace/home';
@@ -63,14 +64,45 @@ function snapshotFromSummary(session: JavaHomeSession) {
 }
 
 export function WorkspaceSessionList({ items, sessionPage, canCreateAnalysis }: { items: WorkspaceHomeModel['historyItems']; sessionPage: SessionPage; canCreateAnalysis: boolean }) {
+  const router = useRouter();
   const [status, setStatus] = useState<(typeof FILTERS)[number]['value']>('all');
   const [query, setQuery] = useState('');
   const [extraItems, setExtraItems] = useState<HistoryItem[]>([]);
   const [page, setPage] = useState<SessionPage>(sessionPage);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  const allItems = [...items, ...extraItems];
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null);
+  const allItems = [...items, ...extraItems].filter((item) => !deletedIds.has(item.id));
   const visible = filterWorkspaceHistory(allItems, status, query);
+
+  async function deleteSession(item: HistoryItem) {
+    setDeletingId(item.id);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/analysis/sessions/${encodeURIComponent(item.id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        let message = `删除失败（${response.status}）`;
+        try {
+          const body = await response.json();
+          if (typeof body?.error === 'string' && body.error) message = body.error;
+        } catch { /* 非 JSON 响应保留默认文案 */ }
+        throw new Error(message);
+      }
+      setDeletedIds((current) => new Set(current).add(item.id));
+      setConfirmingId(null);
+      router.refresh();
+    } catch (error) {
+      setDeleteError({ id: item.id, message: error instanceof Error ? error.message : '删除失败，请稍后重试。' });
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   async function loadMore() {
     setLoadingMore(true);
@@ -115,15 +147,53 @@ export function WorkspaceSessionList({ items, sessionPage, canCreateAnalysis }: 
         <ul className="divide-y divide-border">
           {visible.map(item => (
             <li key={item.id}>
-              <Link href={item.href} className="group flex items-start gap-4 rounded-sm px-2 py-5 transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <div className="min-w-0 flex-1">
-                  <h3 className="break-words text-sm font-medium leading-6 text-foreground group-hover:text-primary">{item.title}</h3>
-                  {item.failureMessage ? <p className={`mt-1 text-sm leading-6 ${item.derivedStatus === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>{item.failureMessage}</p> : null}
-                  <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>{item.domainLabel}</span><span>{item.updatedAtLabel}</span></p>
+              <div className="group flex items-start gap-2">
+                <Link href={item.href} className="flex min-w-0 flex-1 items-start gap-4 rounded-sm px-2 py-5 transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words text-sm font-medium leading-6 text-foreground group-hover:text-primary">{item.title}</h3>
+                    {item.failureMessage ? <p className={`mt-1 text-sm leading-6 ${item.derivedStatus === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>{item.failureMessage}</p> : null}
+                    <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>{item.domainLabel}</span><span>{item.updatedAtLabel}</span></p>
+                  </div>
+                  <span className={`mt-1 shrink-0 text-xs ${item.derivedStatus === 'failed' ? 'text-destructive' : item.derivedStatus === 'running' ? 'text-primary' : 'text-muted-foreground'}`}>{item.statusLabel}</span>
+                  <ArrowUpRight aria-hidden="true" className="mt-1 hidden size-4 shrink-0 text-muted-foreground sm:block" />
+                </Link>
+                <button
+                  aria-label={`删除会话：${item.title}`}
+                  className="mt-5 shrink-0 rounded-md p-1.5 text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => { setConfirmingId(item.id); setDeleteError(null); }}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" className="size-4" />
+                </button>
+              </div>
+              {confirmingId === item.id ? (
+                <div className="mx-2 mb-3 flex flex-wrap items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                  <p className="min-w-0 flex-1 text-xs leading-5 text-foreground">
+                    删除这条分析记录？该会话的全部轮次与执行记录将一并删除，不可恢复。
+                  </p>
+                  {deleteError?.id === item.id ? (
+                    <p className="text-xs text-destructive">{deleteError.message}</p>
+                  ) : null}
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground transition-opacity disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      disabled={deletingId === item.id}
+                      onClick={() => deleteSession(item)}
+                      type="button"
+                    >
+                      {deletingId === item.id ? '删除中…' : '确认删除'}
+                    </button>
+                    <button
+                      className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      disabled={deletingId === item.id}
+                      onClick={() => { setConfirmingId(null); setDeleteError(null); }}
+                      type="button"
+                    >
+                      取消
+                    </button>
+                  </div>
                 </div>
-                <span className={`mt-1 shrink-0 text-xs ${item.derivedStatus === 'failed' ? 'text-destructive' : item.derivedStatus === 'running' ? 'text-primary' : 'text-muted-foreground'}`}>{item.statusLabel}</span>
-                <ArrowUpRight aria-hidden="true" className="mt-1 hidden size-4 shrink-0 text-muted-foreground sm:block" />
-              </Link>
+              ) : null}
             </li>
           ))}
         </ul>

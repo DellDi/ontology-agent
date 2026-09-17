@@ -8,6 +8,7 @@ export type ShellMenuItem = {
 export const WORKSPACE_MENU: ShellMenuItem[] = [
   { href: '/workspace', label: '分析首页', activePrefix: '/workspace' },
   { href: '/admin/ontology', label: '本体治理', activePrefix: '/admin' },
+  { href: '/workspace/me', label: '个人中心', activePrefix: '/workspace/me' },
 ];
 
 export const ADMIN_MENU: ShellMenuItem[] = [
