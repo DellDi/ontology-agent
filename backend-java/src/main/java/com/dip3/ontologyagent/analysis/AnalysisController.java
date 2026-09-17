@@ -13,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,20 +37,23 @@ public final class AnalysisController {
     private final JsonCodec json;
     private final BackendProperties properties;
     private final AnalysisFollowUpService followUps;
+    private final AnalysisSessionDeletionService deletions;
 
     public AnalysisController(CookieSessionAuthenticator auth, AnalysisService analyses,
                               JsonCodec json, BackendProperties properties) {
-        this(auth, analyses, json, properties, null);
+        this(auth, analyses, json, properties, null, null);
     }
 
     @Autowired
     public AnalysisController(CookieSessionAuthenticator auth, AnalysisService analyses,
-                              JsonCodec json, BackendProperties properties, AnalysisFollowUpService followUps) {
+                              JsonCodec json, BackendProperties properties, AnalysisFollowUpService followUps,
+                              AnalysisSessionDeletionService deletions) {
         this.auth = auth;
         this.analyses = analyses;
         this.json = json;
         this.properties = properties;
         this.followUps = followUps;
+        this.deletions = deletions;
     }
 
     @PostMapping(path = "/api/analysis/sessions",
@@ -143,6 +147,16 @@ public final class AnalysisController {
                 .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-transform")
                 .header(HttpHeaders.CONNECTION, "keep-alive")
                 .header("X-Accel-Buffering", "no").body(body);
+    }
+
+    @DeleteMapping("/api/analysis/sessions/{sessionId}")
+    public ResponseEntity<Void> delete(@PathVariable String sessionId, HttpServletRequest request) {
+        AuthSession owner = requireAuth(request);
+        if (deletions == null) {
+            throw new BackendException("SESSION_DELETE_UNAVAILABLE", "会话删除组件未配置。");
+        }
+        deletions.delete(sessionId, owner);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/internal/analysis/sessions/{sessionId}/executions/{executionId}/snapshot")
