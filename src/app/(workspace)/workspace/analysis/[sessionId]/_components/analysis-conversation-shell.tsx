@@ -18,7 +18,8 @@ import {
   AnalysisAssistantMessage,
   AssistantAvatar,
 } from './analysis-assistant-message';
-import { AnalysisStaticAssistantMessage } from './analysis-static-assistant-message';
+import { AnalysisThinkingMessage } from './analysis-thinking-message';
+import { buildStaticAssistantProps } from './analysis-static-assistant-props';
 import {
   AnalysisDetailDrawer,
   type DetailDrawerType,
@@ -197,13 +198,17 @@ export function AnalysisConversationShell({
                     toolTimeline={viewModel.assistantMessage.toolTimeline}
                     visualizations={viewModel.assistantMessage.visualizations}
                   />
-                ) : (
-                  <AnalysisStaticAssistantMessage
+                ) : turn.status === 'completed' || turn.status === 'failed' ? (
+                  /* 完成/失败历史轮与 live 轮共用组件树：推送新执行时
+                     live→static 仅 props 变化，React reconcile 不重挂载，
+                     避免图表闪烁重绘 */
+                  <AnalysisAssistantMessage
                     availableDetails={availableDetails}
-                    conclusionState={turn.conclusionState ?? null}
                     onOpenDetail={openDetail(turn.key)}
-                    status={turn.status}
+                    {...buildStaticAssistantProps(turn)}
                   />
+                ) : (
+                  <AnalysisThinkingMessage />
                 )}
                 {/* 待执行新消息轮：进入页面即自动接力执行 */}
                 {turn.status === 'pending' && turn.followUpId ? (

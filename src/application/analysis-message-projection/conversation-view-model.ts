@@ -355,6 +355,19 @@ function dedupeVisualizations(
   return result;
 }
 
+/**
+ * 从已渲染块提取指标卡与可视化——历史轮次静态渲染复用同一提取规则，
+ * 保证与 live 视图模型产出的组件树同构（reconcile 而非重挂载）。
+ */
+export function extractBusinessViews(
+  blocks: readonly AnalysisRenderedBlock[],
+): { metricCards: MetricCard[]; visualizations: Visualization[] } {
+  return {
+    metricCards: dedupeMetricCards(extractMetricCards(blocks)),
+    visualizations: dedupeVisualizations(extractVisualizations(blocks)),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 状态映射
 // ---------------------------------------------------------------------------
