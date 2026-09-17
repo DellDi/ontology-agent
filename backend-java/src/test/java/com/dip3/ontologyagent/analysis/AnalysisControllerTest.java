@@ -41,6 +41,7 @@ class AnalysisControllerTest {
     private final CookieSessionAuthenticator auth = mock(CookieSessionAuthenticator.class);
     private final AnalysisService analyses = mock(AnalysisService.class);
     private final AnalysisFollowUpService followUps = mock(AnalysisFollowUpService.class);
+    private final AnalysisSessionDeletionService deletions = mock(AnalysisSessionDeletionService.class);
     private final AuthSession owner = new AuthSession("auth-1", "user-1", "用户",
             new AccessScope("org-1", List.of("project-1"), List.of(), List.of("analyst")), Instant.MAX);
     private MockMvc mvc;
@@ -57,7 +58,8 @@ class AnalysisControllerTest {
                         new BackendProperties.Auth.Providers.Bridge(false))),
                 false);
         mvc = MockMvcBuilders.standaloneSetup(
-                        new AnalysisController(auth, analyses, new JsonCodec(), properties, followUps))
+                        new AnalysisController(auth, analyses, new JsonCodec(), properties, followUps,
+                                deletions))
                 .setControllerAdvice(new ApiExceptionHandler()).build();
     }
 
