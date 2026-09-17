@@ -109,6 +109,17 @@ export type WorkspaceHomeModel = {
   sessionPage: { total: number; limit: number; offset: number; hasMore: boolean };
 };
 
+/** 能力授权范围的一句话描述——首页与个人中心共用同一口径。 */
+export function describeCapabilityScope(capability: WorkspaceHomeCapability): string {
+  const values = capability.resolvedScope?.values;
+  if (!capability.available) return capability.unavailableReason!;
+  if (capability.domainKey === 'easyv') return '仅限当前账号创建的 EasyV 应用与生成任务';
+  if (capability.domainKey === 'property' && values) {
+    return `授权项目 ${Array.isArray(values.projectIds) ? values.projectIds.length : 0} 个 · 区域 ${Array.isArray(values.areaIds) ? values.areaIds.length : 0} 个`;
+  }
+  return '以本轮分析的授权范围为准';
+}
+
 /** 首页只筛选已加载且后端授权可见的会话，不请求或推断其他范围。 */
 export function filterWorkspaceHistory(
   items: WorkspaceHomeModel['historyItems'],
@@ -301,15 +312,10 @@ export function createWorkspaceHomeModel(
   const newAnalysisHref = hasTargets ? '#new-analysis' : undefined;
 
   return {
-    capabilities: capabilities.map(capability => {
-      const values = capability.resolvedScope?.values;
-      const scopeDescription = !capability.available ? capability.unavailableReason!
-        : capability.domainKey === 'easyv' ? '仅限当前账号创建的 EasyV 应用与生成任务'
-        : capability.domainKey === 'property' && values
-          ? `授权项目 ${Array.isArray(values.projectIds) ? values.projectIds.length : 0} 个 · 区域 ${Array.isArray(values.areaIds) ? values.areaIds.length : 0} 个`
-          : '以本轮分析的授权范围为准';
-      return { ...capability, scopeDescription };
-    }),
+    capabilities: capabilities.map(capability => ({
+      ...capability,
+      scopeDescription: describeCapabilityScope(capability),
+    })),
     greeting: `${session.displayName}，从你有权限的范围开始今天的分析`,
     analysisActions: [
       {
