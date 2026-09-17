@@ -115,10 +115,12 @@ public final class EasyVGenerationWorkflow {
     validateWindow(snapshot.pipeline().window(), request);
     validateWindow(snapshot.forge().window(), request);
     validateWindow(snapshot.feedback().window(), request);
+    // 单类事实为空是合法数据状态（窗口内无该类记录=数据缺口证据），
+    // 四类全空才判定授权范围/绑定/采集链路故障，继续 fail loud。
     if (snapshot.application().applicationCount() <= 0
-        || snapshot.pipeline().taskCount() <= 0
-        || snapshot.forge().taskCount() <= 0
-        || snapshot.feedback().operationCount() <= 0) {
+        && snapshot.pipeline().taskCount() <= 0
+        && snapshot.forge().taskCount() <= 0
+        && snapshot.feedback().operationCount() <= 0) {
       throw new BackendException("EASYV_FACTS_EMPTY", "EasyV 授权范围内缺少可分析的四类聚合事实。");
     }
     validateCounts(snapshot);
@@ -156,9 +158,10 @@ public final class EasyVGenerationWorkflow {
         || pipeline.mainNodeCount() < 0
         || pipeline.timedNodeCount() < 0
         || pipeline.timedNodeCount() > pipeline.mainNodeCount()
-        || pipeline.mainNodeCount() == 0
-        || pipeline.bottleneckStep() == null
-        || pipeline.bottleneckStep().isBlank()
+        || pipeline.taskCount() > 0
+            && (pipeline.mainNodeCount() == 0
+                || pipeline.bottleneckStep() == null
+                || pipeline.bottleneckStep().isBlank())
         || pipeline.bottleneckP95Millis() < 0
         || forge.taskCount() < 0
         || forge.completedTaskCount() < 0
@@ -171,7 +174,7 @@ public final class EasyVGenerationWorkflow {
             != forge.completedTaskCount() + forge.failedTaskCount() + forge.cancelledTaskCount()
         || forge.timedTerminalTaskCount() < 0
         || forge.timedTerminalTaskCount() > forge.terminalTaskCount()
-        || forge.timedTerminalTaskCount() == 0
+        || forge.taskCount() > 0 && forge.timedTerminalTaskCount() == 0
         || forge.p50DurationMillis() < 0
         || forge.p95DurationMillis() < forge.p50DurationMillis()
         || feedback.ratedCount() < 0
@@ -547,17 +550,7 @@ public final class EasyVGenerationWorkflow {
         new Evidence(
             "easyv-pipeline-node",
             "EasyV 原型阶段聚合",
-            List.of(
-                Map.of(
-                    "taskCount", pipeline.taskCount(),
-                    "completedTaskCount", pipeline.completedTaskCount(),
-                    "failedTaskCount", pipeline.failedTaskCount(),
-                    "incompleteTaskCount", pipeline.incompleteTaskCount(),
-                    "mainNodeCount", pipeline.mainNodeCount(),
-                    "timedNodeCount", pipeline.timedNodeCount(),
-                    "bottleneckStep", pipeline.bottleneckStep(),
-                    "bottleneckP95Millis", pipeline.bottleneckP95Millis(),
-                    "freshnessAt", pipeline.window().freshnessAt().toString())),
+            List.of(pipelineRow(pipeline)),
             provenance(request, snapshot, pipeline.window().freshnessAt(), "easyv-pipeline-node")),
         new Evidence(
             "easyv-forge-task",
@@ -582,6 +575,22 @@ public final class EasyVGenerationWorkflow {
             List.of(feedbackRow(feedback)),
             provenance(request, snapshot, feedback.window().freshnessAt(),
                 "easyv-generation-feedback")));
+  }
+
+  private static Map<String, Object> pipelineRow(EasyVGenerationFacts.PipelineFacts pipeline) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("taskCount", pipeline.taskCount());
+    row.put("completedTaskCount", pipeline.completedTaskCount());
+    row.put("failedTaskCount", pipeline.failedTaskCount());
+    row.put("incompleteTaskCount", pipeline.incompleteTaskCount());
+    row.put("mainNodeCount", pipeline.mainNodeCount());
+    row.put("timedNodeCount", pipeline.timedNodeCount());
+    if (pipeline.taskCount() > 0) {
+      row.put("bottleneckStep", pipeline.bottleneckStep());
+      row.put("bottleneckP95Millis", pipeline.bottleneckP95Millis());
+    }
+    row.put("freshnessAt", pipeline.window().freshnessAt().toString());
+    return Map.copyOf(row);
   }
 
   private static Map<String, Object> feedbackRow(EasyVGenerationFacts.FeedbackFacts feedback) {

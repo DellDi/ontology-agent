@@ -119,12 +119,27 @@ class EasyVGenerationWorkflowTest {
   }
 
   @Test
-  void eachEmptySourceIsReportedAsFactsEmpty() {
+  void partialEmptyFactsAreLegitimateDataNotFailure() {
     EasyVGenerationFacts.Snapshot base = facts(REQUESTED_AT);
-    assertCode("EASYV_FACTS_EMPTY", () -> run(emptyApplication(base)));
-    assertCode("EASYV_FACTS_EMPTY", () -> run(emptyPipeline(base)));
-    assertCode("EASYV_FACTS_EMPTY", () -> run(emptyForge(base)));
-    assertCode("EASYV_FACTS_EMPTY", () -> run(emptyFeedback(base)));
+    // 单类事实为空=该维度在窗口内无数据（如采集缺口日），分析照常完成并如实表述。
+    run(emptyApplication(base));
+    run(emptyPipeline(base));
+    run(emptyForge(base));
+    run(emptyFeedback(base));
+  }
+
+  @Test
+  void allEmptyFactsAreStillRejectedAsScopeFailure() {
+    EasyVGenerationFacts.Snapshot base = facts(REQUESTED_AT);
+    // 四类全空=授权范围/绑定/采集链路故障，继续 fail loud。
+    assertCode("EASYV_FACTS_EMPTY", () -> run(new EasyVGenerationFacts.Snapshot(
+        new EasyVGenerationFacts.ApplicationFacts(base.application().window(), 0, 0),
+        new EasyVGenerationFacts.PipelineFacts(base.pipeline().window(), 0, 0, 0, 0, 0, 0, "", 0,
+            List.of()),
+        new EasyVGenerationFacts.ForgeFacts(base.forge().window(), 0, 0, 0, 0, 0, 0, 0, 0,
+            Map.of()),
+        new EasyVGenerationFacts.FeedbackFacts(base.feedback().window(), 0, 0, 0, 0, 0, 0),
+        base.productVersionIds())));
   }
 
   @Test
@@ -200,27 +215,28 @@ class EasyVGenerationWorkflowTest {
   private static EasyVGenerationFacts.Snapshot emptyApplication(EasyVGenerationFacts.Snapshot base) {
     return new EasyVGenerationFacts.Snapshot(
         new EasyVGenerationFacts.ApplicationFacts(base.application().window(), 0, 0),
-        base.pipeline(), base.forge(), base.feedback());
+        base.pipeline(), base.forge(), base.feedback(), base.productVersionIds());
   }
 
   private static EasyVGenerationFacts.Snapshot emptyPipeline(EasyVGenerationFacts.Snapshot base) {
     return new EasyVGenerationFacts.Snapshot(
         base.application(),
-        new EasyVGenerationFacts.PipelineFacts(base.pipeline().window(), 0, 0, 0, 0, 0, 0, "Step2-Main", 0, List.of()),
-        base.forge(), base.feedback());
+        new EasyVGenerationFacts.PipelineFacts(base.pipeline().window(), 0, 0, 0, 0, 0, 0, "", 0, List.of()),
+        base.forge(), base.feedback(), base.productVersionIds());
   }
 
   private static EasyVGenerationFacts.Snapshot emptyForge(EasyVGenerationFacts.Snapshot base) {
     return new EasyVGenerationFacts.Snapshot(
         base.application(), base.pipeline(),
         new EasyVGenerationFacts.ForgeFacts(base.forge().window(), 0, 0, 0, 0, 0, 0, 0, 0, Map.of()),
-        base.feedback());
+        base.feedback(), base.productVersionIds());
   }
 
   private static EasyVGenerationFacts.Snapshot emptyFeedback(EasyVGenerationFacts.Snapshot base) {
     return new EasyVGenerationFacts.Snapshot(
         base.application(), base.pipeline(), base.forge(),
-        new EasyVGenerationFacts.FeedbackFacts(base.feedback().window(), 0, 0, 0, 0, 0, 0));
+        new EasyVGenerationFacts.FeedbackFacts(base.feedback().window(), 0, 0, 0, 0, 0, 0),
+        base.productVersionIds());
   }
 
   private static void assertCode(String expected, Executable action) {

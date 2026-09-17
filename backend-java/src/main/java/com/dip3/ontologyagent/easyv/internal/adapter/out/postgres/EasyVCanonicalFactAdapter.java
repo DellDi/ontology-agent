@@ -91,10 +91,12 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
         PipelineFacts pipeline = pipelineFacts(query, versions, bounds, set.capturedAt());
         ForgeFacts forge = forgeFacts(query, versions, bounds, set.capturedAt());
         FeedbackFacts feedback = feedbackFacts(query, versions, bounds, set.capturedAt());
-        if (application.applicationCount() == 0 || pipeline.taskCount() == 0
-                || forge.taskCount() == 0 || feedback.operationCount() == 0) {
+        // 单类事实在窗口内为空属合法数据状态（如采集缺口日），如实返回零值
+        // 供结果层表述"该维度无数据"；四类全空才判定授权范围/绑定/采集链路故障。
+        if (application.applicationCount() == 0 && pipeline.taskCount() == 0
+                && forge.taskCount() == 0 && feedback.operationCount() == 0) {
             throw new BackendException("EASYV_FACTS_EMPTY",
-                    "EasyV 授权范围内缺少可分析的四类 canonical facts。");
+                    "EasyV 授权范围内没有任何可分析的 canonical facts。");
         }
         return new Snapshot(application, pipeline, forge, feedback, set.productVersionIds());
     }
@@ -433,7 +435,9 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     "EasyV 原型任务同时出现成功和失败终态，无法确定归并结果。");
         }
         if (number(counts, "task_count") == 0) {
-            throw new BackendException("EASYV_FACTS_EMPTY", "EasyV 授权范围内没有原型流水线任务事实。");
+            // 窗口内无原型任务：返回零值事实，跳过依赖非空数据的覆盖度/阶段耗时查询。
+            return new PipelineFacts(window(query, freshnessAt), 0, 0, 0, 0, 0, 0, "", 0,
+                    List.of());
         }
         Map<String, Object> coverage = jdbc.queryForMap("""
                 with scoped as (
@@ -515,7 +519,9 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
             throw new BackendException("EASYV_FACTS_INCOMPLETE", "EasyV Forge 存在未终态或未知状态任务。");
         }
         if (number(counts, "task_count") == 0) {
-            throw new BackendException("EASYV_FACTS_EMPTY", "EasyV 授权范围内没有 Forge 任务事实。");
+            // 窗口内无 Forge 任务：返回零值事实，跳过耗时与失败原因聚合。
+            return new ForgeFacts(window(query, freshnessAt), 0, 0, 0, 0, 0, 0, 0, 0,
+                    Map.of());
         }
         Map<String, Object> duration = jdbc.queryForMap("""
                 with scoped as (
@@ -595,7 +601,8 @@ public final class EasyVCanonicalFactAdapter implements EasyVGenerationFacts {
                     "EasyV 操作日志存在未知 execute_result 值。");
         }
         if (number(values, "operation_count") == 0) {
-            throw new BackendException("EASYV_FACTS_EMPTY", "EasyV 授权范围内没有操作与反馈事实。");
+            // 窗口内无操作与反馈：返回零值事实（平均评分如实 NaN，由 workflow 表述）。
+            return new FeedbackFacts(window(query, freshnessAt), 0, 0, Double.NaN, 0, 0, 0);
         }
         // 有效评分可能为 0（评分功能无人使用是真实数据特征）：如实返回 NaN 平均，
         // 由 workflow 决定如何表述，不能在此处把窗口打死或把平均默认为 0。
