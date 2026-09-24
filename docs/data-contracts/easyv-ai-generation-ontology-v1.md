@@ -753,8 +753,7 @@ V1 只读问数不需要 Action Ontology。后续若展示“停止失败任务�
 - `backend-java/src/main/java/com/dip3/ontologyagent/property/internal/adapter/out/llm/SpringAiConclusionProvider.java`：Property claim contract；
 - `backend-java/src/main/java/com/dip3/ontologyagent/capability/api/FollowUpPolicy.java`：按冻结 capability binding 分派追问策略的公共 Port；
 - `backend-java/src/main/resources/db/migration/V1__init.sql:535-737`：Ontology/Metric/Tool/Plan/Evidence 注册表；
-- `docs/data-contracts/graph-sync-baseline.md`：PostgreSQL canonical facts 与 Neo4j projection 边界；
-- `docs/java-backend-phase-3-operational-closure.md`：当前静态验证与 live provider/生产数据验证边界。
+- `docs/data-contracts/graph-sync-baseline.md`：PostgreSQL canonical facts 与 Neo4j projection 边界。
 
 ### 20.3 `easyv-ai-java`
 

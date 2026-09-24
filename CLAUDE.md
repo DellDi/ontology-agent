@@ -25,7 +25,7 @@ ontology-agent/
 
 Clean Architecture（六边形），依赖方向：`domain ← application ← infrastructure ← app`。
 
-详细现状、目标包边界与渐进迁移门禁见 [`docs/architecture/java-architecture-baseline.md`](./docs/architecture/java-architecture-baseline.md)；跨领域 Capability、Domain Pack 与 EasyV 前置顺序见 [`docs/architecture/multi-domain-runtime-architecture.md`](./docs/architecture/multi-domain-runtime-architecture.md)。两份文档描述目标与迁移规则，不代表当前源码已经完成多领域改造。
+详细现状、目标包边界与渐进迁移门禁见 [`docs/architecture/java-architecture-baseline.md`](./docs/architecture/java-architecture-baseline.md)；跨领域 Capability、Domain Pack 与 EasyV 前置顺序见 [`docs/architecture/multi-domain-runtime-architecture.md`](./docs/architecture/multi-domain-runtime-architecture.md)。两份文档描述目标与迁移规则，不代表当前源码已经完成多领域改造。本体契约 + Cube 语义查询 + 结构化时间语义 + 多步 Agent 的演进目标与阶段门禁见 [`docs/architecture/ontology-agent-runtime.md`](./docs/architecture/ontology-agent-runtime.md)。
 
 | 层 | 职责 |
 |---|---|

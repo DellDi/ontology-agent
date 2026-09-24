@@ -561,5 +561,4 @@ mise exec java@21.0.2 -- mvn -f backend-java/pom.xml \
 - `backend-java/src/main/java/com/dip3/ontologyagent/agent/SpringAiMainAgent.java:30-360`：Spring AI adapter、物业能力、Tool adapter 与审计失败语义当前混合点；
 - `backend-java/src/main/java/com/dip3/ontologyagent/agent/SpringAiConclusionProvider.java:25-114`：provider 与物业 claim 当前混合点；
 - `backend-java/src/test/java/com/dip3/ontologyagent/architecture/ArchitectureRulesTest.java`：J1/M1 新增架构依赖门禁；
-- `backend-java/src/test/java/com/dip3/ontologyagent/tooling/PropertyCapabilityContractTest.java`：物业 capability 与 catalog characterization gate；
-- `docs/java-backend-phase-3-operational-closure.md:7-13`：保留 package-by-feature、Java runtime ownership 的既有决定。
+- `backend-java/src/test/java/com/dip3/ontologyagent/tooling/PropertyCapabilityContractTest.java`：物业 capability 与 catalog characterization gate。

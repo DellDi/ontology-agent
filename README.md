@@ -233,7 +233,7 @@ tests/story-{epic}-{story}-{name}.test.mjs
 
 ## 📝 更新日志
 
-查看 [AGENTS.md](./AGENTS.md) 获取工程规范；三阶段目标与验收证据见 [Java 后端三阶段收口](./docs/java-backend-phase-3-operational-closure.md)。
+查看 [AGENTS.md](./AGENTS.md) 获取工程规范；当前演进目标、分阶段清单与验收记录见 [Ontology Agent Runtime](./docs/architecture/ontology-agent-runtime.md)。
 
 ## 🤝 贡献
 
