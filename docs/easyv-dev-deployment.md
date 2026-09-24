@@ -175,6 +175,8 @@ scripts/easyv-dev backup [输出目录]        # 默认 ./backups，文件 ontol
 scripts/easyv-dev restore backups/ontology-agent-<db>-<时间戳>.dump
 ```
 
+平台库地址从 `JAVA_DATABASE_URL` 解析（与 backend 同源）；`PLATFORM_POSTGRES_*` 仅供 Cube，两者可能不一致，不作为备份目标。
+
 注意：`JAVA_DATABASE_USERNAME` 应用账号通常无 `CREATEDB`——恢复到**全新库**需 DBA 先建库；
 同库回写可直接执行（`--clean --if-exists`）。恢复属破坏性操作，脚本要求输入库名二次确认。
 建议每日备份并保留 7 份归档；升级发布前强制备份一次。
@@ -187,8 +189,26 @@ scripts/easyv-dev restore backups/ontology-agent-<db>-<时间戳>.dump
 | EasyV 源只读账号 `EASYV_POSTGRES_*` | `source-reader.env`（私有，不进仓库） | ingest / release-worker | 源侧改密后更新私有 env |
 | `SESSION_SECRET` | `.env.easyv-dev` | backend 签名会话 Cookie | 更换后全量会话失效需重登 |
 | `GRAPH_SYNC_OPS_SECRET` | `.env.easyv-dev` | graph-sync 运维端点 | 更换后同步调用方 |
-| 平台管理员初始密码 | `ADMIN_SEED_PASSWORD` 一次性注入 | admin-seed | 种子只在账号不存在时写入，登录后应立即改密 |
+| 平台管理员初始密码 | `ADMIN_SEED_PASSWORD` 一次性注入 | admin-seed | 种子只在账号不存在时写入；改密见下方“密码轮换” |
 | LLM API Key（`LLM_*`） | `.env.easyv-dev` | backend | 供应商控制台轮换后更新 env |
 
 原则：源凭据只存在于采集进程环境（宿主机私有文件），不进入 `.env.easyv-dev`、不进仓库、不进镜像；
 `.env.easyv-dev` 文件权限 `600`，仅部署账号可读；任何凭据不得以明文进入提交物或文档。
+
+### 密码轮换
+
+当前只有管理员 API，无 Web 改密页面，也无用户自助改密。平台管理员登录后调用
+`PATCH /api/admin/identity/accounts/{id}`（body `{"password":"..."}`，8-1024 位；管理员账号建议 ≥16 位）；
+可修改包括自身在内的任意本地账号，操作限 `PLATFORM_ADMIN`。改密不会使既有会话失效；需要立即踢出时
+同时更换 `SESSION_SECRET`（影响全部用户）。初始管理员口令轮换后，删除部署机私有 `admin-seed.env`。
+
+## release-worker 看守
+
+release-worker 不提供 HTTP 健康检查。已知两类停摆：宿主 Docker 20.10 下 SIGKILL 后
+`restart=unless-stopped` 不触发重启；容器重建时未注入 `source-reader.env` 导致启动失败并无限重启
+（2026-09-15 至 09-24 持续 9 天、11116 次，期间 Web 发布任务无人执行）。重建 release-worker 必须
+通过 `scripts/easyv-dev release-worker` 并先加载私有源配置。
+
+看守方案（待实施）：宿主机 systemd timer 每分钟检查容器 `State.Status=running` 且 `RestartCount`
+未增长；存在 `pending` 超过 5 分钟的 `ingestion.release_tasks` 视为停摆；异常时告警，不在看守脚本中
+持有源凭据或自动重建。
