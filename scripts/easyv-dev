@@ -96,11 +96,17 @@ pg_credentials() {
   # shellcheck disable=SC1090
   . "$ENV_FILE"
   set +a
-  : "${PLATFORM_POSTGRES_HOST:?missing PLATFORM_POSTGRES_HOST}"
-  : "${PLATFORM_POSTGRES_PORT:?missing PLATFORM_POSTGRES_PORT}"
-  : "${PLATFORM_POSTGRES_DB:?missing PLATFORM_POSTGRES_DB}"
+  : "${JAVA_DATABASE_URL:?missing JAVA_DATABASE_URL}"
   : "${JAVA_DATABASE_USERNAME:?missing JAVA_DATABASE_USERNAME}"
   : "${JAVA_DATABASE_PASSWORD:?missing JAVA_DATABASE_PASSWORD}"
+  # 平台库地址以 backend 实际使用的 JAVA_DATABASE_URL 为唯一来源；PLATFORM_POSTGRES_* 仅供 Cube。
+  if [[ ! "$JAVA_DATABASE_URL" =~ ^jdbc:postgresql://([^/:?]+):([0-9]+)/([^/?]+) ]]; then
+    echo "JAVA_DATABASE_URL must be jdbc:postgresql://host:port/database: $JAVA_DATABASE_URL" >&2
+    exit 1
+  fi
+  PLATFORM_POSTGRES_HOST=${BASH_REMATCH[1]}
+  PLATFORM_POSTGRES_PORT=${BASH_REMATCH[2]}
+  PLATFORM_POSTGRES_DB=${BASH_REMATCH[3]}
 }
 
 run_backup() {
