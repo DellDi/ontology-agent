@@ -5,6 +5,7 @@
 > 实施状态：M3-M6 已落地并完成源码与契约验收；Property 与 EasyV 已成为两个真实可执行 capability。EasyV 已通过真实 OpenAI-compatible 模型与 test PostgreSQL 联合门禁。EasyV 使用 `accessMode=all` 全量 scope、只读 facts adapter，并由 `dip3.easyv.enabled` 显式开关控制，默认关闭；Ontology v2 已发布。test/开发环境观测不代表生产部署或生产数据结论。
 > 配套 Java 分层规则：[Java Architecture Baseline](./java-architecture-baseline.md)
 > 首个新领域实例：[EasyV AI 大屏生产领域 Ontology V1](../data-contracts/easyv-ai-generation-ontology-v1.md)
+> 后续演进基线（2026-09-24）：[Ontology Agent Runtime](./ontology-agent-runtime.md)——本体契约、Cube 语义查询、结构化时间语义与多步 Agent；其 §7 调整了本文“Main Agent 只调用一次 workflow tool”等约束
 
 ## 1. 目标
 
@@ -685,6 +686,5 @@ M8  Evidence provenance invariant               完成态 evidence 必须可复�
 - `backend-java/src/main/resources/db/migration/V1__init.sql:535-737`：Ontology/Metric/Tool/Plan/Evidence 注册表；
 - `backend-java/src/main/resources/db/migration/V2__bind_java_analysis_jobs_to_property_capability.sql`：合法历史 Java Job 的幂等 Property binding 回填；异常旧 Job 不伪造 binding，claim 时 fail loud；
 - `backend-java/src/main/resources/db/migration/V3__persist_capability_binding_snapshots_and_follow_ups.sql`：snapshot/follow-up binding 历史标记与新写 fail-loud 约束；
-- `docs/java-backend-phase-3-operational-closure.md:7-13`：Java 唯一运行时与一次 Tool Call 的既有决定；
 - `docs/data-contracts/easyv-ai-generation-ontology-v1.md:378-433`：EasyV Domain Pack 与最小 Capability 边界；
 - `docs/data-contracts/easyv-ai-generation-ontology-v1.md:460-509`：EasyV 分阶段接入门禁。
