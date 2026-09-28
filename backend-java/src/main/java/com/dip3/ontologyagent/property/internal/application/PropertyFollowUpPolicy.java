@@ -216,7 +216,7 @@ final class PropertyFollowUpPolicy implements FollowUpPolicy {
   @Override
   @SuppressWarnings("unchecked")
   public Map<String, Object> executableContext(
-      Map<String, Object> plan, Map<String, Object> mergedContext) {
+      Map<String, Object> sourcePlan, Map<String, Object> plan, Map<String, Object> mergedContext) {
     Object resolved = plan == null ? null : plan.get("_resolvedContext");
     Map<String, Object> context = new LinkedHashMap<>(mergedContext);
     if (resolved instanceof Map<?, ?> map) {

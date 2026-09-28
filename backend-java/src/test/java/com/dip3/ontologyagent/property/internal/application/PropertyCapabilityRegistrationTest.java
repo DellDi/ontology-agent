@@ -170,7 +170,7 @@ class PropertyCapabilityRegistrationTest {
     CapabilityExecutionContext context =
         new CapabilityExecutionContext(owner, turn, "execution-1", ontology, "trace-1", "worker-1");
 
-    assertEquals(expected, registration.execute(context));
+    assertEquals(expected, registration.execute(context, new ResolvedScopeSnapshot("property", 1, Map.of("projectIds", List.of("p-1")))));
     verify(mainAgent).execute(owner, turn, "execution-1", ontology, null, "trace-1", "worker-1");
   }
 
@@ -205,7 +205,7 @@ class PropertyCapabilityRegistrationTest {
         new CapabilityExecutionContext(
             owner, turn, "execution-2", ontology, "dataset-set-1", "trace-2", "worker-2");
 
-    assertEquals(expected, registration.execute(context));
+    assertEquals(expected, registration.execute(context, new ResolvedScopeSnapshot("property", 1, Map.of("projectIds", List.of("p-1")))));
     verify(mainAgent)
         .execute(owner, turn, "execution-2", ontology, "dataset-set-1", "trace-2", "worker-2");
   }

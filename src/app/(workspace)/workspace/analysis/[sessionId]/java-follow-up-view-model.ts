@@ -56,7 +56,29 @@ export function rootContextFromJava(aggregate: JavaAnalysisSession): AnalysisCon
     ?.planSnapshot?._resolvedContext;
   if (!resolved) return null;
 
-  // EasyV 域：_resolvedContext 为 {entity, metric, time, from, to, accessMode, userId} 形态；
+  // EasyV 语义查询：_resolvedContext 为 {userId, accessMode, easyvUserId?, dataScope, queries} 形态；
+  // 展示形态与后端 EasyVFollowUpPolicy.inheritedContext 保持一致。
+  const semanticQueries = easyVSemanticQueries(resolved);
+  if (semanticQueries && typeof resolved.dataScope === 'string') {
+    const comparisons = semanticQueries.flatMap((query) => query.compareRange ? [query.compareRange] : []);
+    return {
+      targetMetric: { label: '分析指标', value: semanticQueries.map((query) => query.label).join('；'), state: 'confirmed' },
+      entity: { label: '分析对象', value: 'EasyV 数据', state: 'confirmed' },
+      timeRange: {
+        label: '时间范围',
+        value: [...new Set(semanticQueries.map((query) => query.range))].join('；'),
+        state: 'confirmed',
+      },
+      comparison: {
+        label: '比较方式',
+        value: comparisons.length ? `对比 ${comparisons.join('；')}` : '无需比较',
+        state: 'confirmed',
+      },
+      constraints: [{ label: '数据范围', value: resolved.dataScope }],
+    };
+  }
+
+  // EasyV 历史执行：_resolvedContext 为 {entity, metric, time, from, to, accessMode, userId} 形态；
   // 展示形态与后端 EasyVFollowUpPolicy.displayContext 保持一致。
   if (typeof resolved.entity === 'string'
     && typeof resolved.metric === 'string'
@@ -110,6 +132,21 @@ export function rootContextFromJava(aggregate: JavaAnalysisSession): AnalysisCon
   };
 }
 
+type EasyVSemanticQueryView = { label: string; range: string; compareRange?: string };
+
+function easyVSemanticQueries(resolved: Record<string, unknown>): EasyVSemanticQueryView[] | null {
+  const queries = resolved.queries;
+  if (!Array.isArray(queries) || queries.length === 0) return null;
+  const views: EasyVSemanticQueryView[] = [];
+  for (const query of queries) {
+    if (!query || typeof query !== 'object') return null;
+    const { label, range, compareRange } = query as Record<string, unknown>;
+    if (typeof label !== 'string' || typeof range !== 'string') return null;
+    views.push({ label, range, ...(typeof compareRange === 'string' ? { compareRange } : {}) });
+  }
+  return views;
+}
+
 function contextSummary(context: AnalysisContext) {
   return [
     `指标：${context.targetMetric.value}`,
@@ -128,7 +165,14 @@ export function buildJavaHistoryReadModel(
   const rootProjectIds = Array.isArray(rootResolved?.projectIds)
     ? (rootResolved.projectIds as string[])
     : [];
-  const rootSummary = rootResolved
+  const rootSemanticQueries = rootResolved ? easyVSemanticQueries(rootResolved) : null;
+  const rootSummary = rootSemanticQueries
+    ? [
+        `指标：${rootSemanticQueries.map((query) => query.label).join('；')}`,
+        `范围：${String(rootResolved?.dataScope)}`,
+        `时间：${[...new Set(rootSemanticQueries.map((query) => query.range))].join('；')}`,
+      ]
+    : rootResolved
     ? [
         `指标：${String(rootResolved.metricVariantKey ?? rootResolved.metric)}`,
         `实体：${rootProjectIds.join('、') || String(rootResolved.entityKey ?? rootResolved.entity)}`,

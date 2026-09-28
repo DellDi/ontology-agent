@@ -16,6 +16,7 @@ import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.capability.api.InitialCapabilityCandidate;
 import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
+import com.dip3.ontologyagent.semantic.api.SemanticModel;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVInvocationContract;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.support.BackendException;
@@ -23,13 +24,16 @@ import com.dip3.ontologyagent.tooling.WorkflowResult;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class EasyVCapabilityRegistrationTest {
   private final EasyVMainAgent mainAgent = mock(EasyVMainAgent.class);
-  private final EasyVScopeResolver scopes = new EasyVScopeResolver(mock(IdentityAccountService.class));
+  private final IdentityAccountService accounts = mock(IdentityAccountService.class);
+  private final EasyVScopeResolver scopes = new EasyVScopeResolver(accounts);
   private final EasyVCapabilityRegistration registration =
-      new EasyVCapabilityRegistration(mainAgent, scopes);
+      new EasyVCapabilityRegistration(mainAgent, scopes, SemanticModel.discover());
   private final AuthSession owner =
       new AuthSession(
           "auth-1",
@@ -44,18 +48,8 @@ class EasyVCapabilityRegistrationTest {
     assertEquals(
         List.of("easyv-ai-application", "easyv-generation-quality", "easyv-generation-time"),
         registration.descriptor().supportedOntologyDefinitionKeys().stream().sorted().toList());
-    assertEquals(
-        List.of("easyv-ai-application", "easyv-forge-task", "easyv-generation-feedback", "easyv-pipeline-node"),
-        registration.descriptor().requiredEvidenceTypes().stream().sorted().toList());
-    assertEquals(
-        List.of(
-            "business-success-settlement-distinct",
-            "direct-answer",
-            "failure-concentration",
-            "feedback-association",
-            "generation-quality",
-            "stage-bottleneck"),
-        registration.descriptor().allowedClaimKinds().stream().sorted().toList());
+    assertEquals(Set.of("easyv-data-scope"), registration.descriptor().requiredEvidenceTypes());
+    assertEquals(Set.of("direct-answer"), registration.descriptor().allowedClaimKinds());
     assertEquals(EasyVInvocationContract.CONTRACT, registration.descriptor().invocationContract());
     assertEquals(EasyVInvocationContract.TOOL_NAME, registration.descriptor().invocationContract().toolName());
     assertEquals(1, registration.descriptor().invocationContract().exactCount());
@@ -81,7 +75,9 @@ class EasyVCapabilityRegistrationTest {
 
   @Test
   void scopeAndCatalogValidationUseTheTypedEasyVBoundaries() {
+    when(accounts.subjectValue(123L, "easyv", "userId")).thenReturn(Optional.of("16"));
     ResolvedScopeSnapshot resolved = registration.resolveScope(owner);
+    assertEquals(Map.of("userId", "123", "accessMode", "scoped", "easyvUserId", "16"), resolved.values());
     registration.validateScope(resolved, owner);
     registration.validateCatalog(ontology());
 
@@ -106,15 +102,17 @@ class EasyVCapabilityRegistrationTest {
         new AgentTurn(
             "java-initial-v1", "session-1", "分析 EasyV 大屏生成质量", null, null, Map.of(), Map.of(), Instant.now());
     WorkflowResult expected = new WorkflowResult(Map.of(), List.of(), "result", List.of(), List.of());
-    when(mainAgent.execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1", ExecutionProgress.NOOP))
-        .thenReturn(expected);
+    ResolvedScopeSnapshot scope = new ResolvedScopeSnapshot("easyv", 2, Map.of("userId", "123", "accessMode", "all"));
+    when(mainAgent.execute(owner, turn, "execution-1", ontology, "easyv-set-1", scope, "trace-1", "worker-1",
+        ExecutionProgress.NOOP)).thenReturn(expected);
 
     WorkflowResult actual =
         registration.execute(new CapabilityExecutionContext(owner, turn, "execution-1", ontology,
-            "easyv-set-1", "trace-1", "worker-1"));
+            "easyv-set-1", "trace-1", "worker-1"), scope);
 
     assertSame(expected, actual);
-    verify(mainAgent).execute(owner, turn, "execution-1", ontology, "easyv-set-1", "trace-1", "worker-1", ExecutionProgress.NOOP);
+    verify(mainAgent).execute(owner, turn, "execution-1", ontology, "easyv-set-1", scope, "trace-1", "worker-1",
+        ExecutionProgress.NOOP);
   }
 
   private static OntologyCatalog ontology() {

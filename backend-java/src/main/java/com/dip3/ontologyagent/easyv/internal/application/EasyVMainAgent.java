@@ -3,6 +3,7 @@ package com.dip3.ontologyagent.easyv.internal.application;
 import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.ExecutionProgress;
+import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 
@@ -13,6 +14,7 @@ public interface EasyVMainAgent {
       String executionId,
       OntologyCatalog ontology,
       String datasetVersionSetId,
+      ResolvedScopeSnapshot scope,
       String traceId,
       String leaseOwner,
       ExecutionProgress progress);

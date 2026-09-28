@@ -290,7 +290,7 @@ class StaticCapabilityRegistryTest {
     }
 
     @Override
-    public WorkflowResult execute(CapabilityExecutionContext context) {
+    public WorkflowResult execute(CapabilityExecutionContext context, ResolvedScopeSnapshot scope) {
       return new WorkflowResult(Map.of(), List.of(), "result", List.of(), List.of());
     }
   }

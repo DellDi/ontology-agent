@@ -157,7 +157,7 @@ order[], limit  limit ≤ 5000；达到上限视为截断失败
 ## 7. 对现有基线的调整
 
 - Multi-domain 基线“Main Agent 必须且只能调用一次 workflow tool”调整为：A 阶段单次结构化规划；B 阶段起允许限定步数的多步工具调用。Job pin、binding、Worker revalidate、审计与终态原子写入不变。
-- EasyV 领域包内 `EasyVDateRange` 正则、`EasyVQueryCatalog` 固定 SQL、`requireFacts` 全局门禁在 A 阶段移除；领域不变量改为按查询/指标声明。
+- EasyV 领域包内 `EasyVDateRange` 正则、`EasyVQueryCatalog` 固定 SQL、`requireFacts` 全局门禁已在 A 阶段移除，由 `EasyVSemanticAgent`（规划 → `SemanticQueryCompiler` 校验编译 → `SemanticQueryPort` 执行 → 引用校验）替代；领域不变量改为按查询/指标声明。计划模式为 `semantic-query-read-only`，范围快照为 schema v2；历史 `deterministic-read-only` / `question-driven-read-only` 执行保留只读展示，不支持追问（`FOLLOW_UP_LEGACY_EXECUTION`）。
 - Cube 从 Property 专属 profile 中拆出为平台语义查询引擎；Cube 模型为本体生成物，不手写。
 - Property 域维持封存，不在本轮迁移。
 

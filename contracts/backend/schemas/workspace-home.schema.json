@@ -170,41 +170,105 @@
               }
             },
             {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "domainKey",
-                "schemaVersion",
-                "values"
-              ],
-              "properties": {
-                "domainKey": {
-                  "const": "easyv"
-                },
-                "schemaVersion": {
-                  "const": 1
-                },
-                "values": {
+              "oneOf": [
+                {
                   "type": "object",
                   "additionalProperties": false,
                   "required": [
-                    "userId",
-                    "accessMode"
+                    "domainKey",
+                    "schemaVersion",
+                    "values"
                   ],
                   "properties": {
-                    "userId": {
-                      "type": "string",
-                      "pattern": "^[1-9][0-9]*$"
+                    "domainKey": {
+                      "const": "easyv"
                     },
-                    "accessMode": {
-                      "enum": [
-                        "all",
-                        "creator-owned"
+                    "schemaVersion": {
+                      "const": 1
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "userId",
+                        "accessMode"
+                      ],
+                      "properties": {
+                        "userId": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]*$"
+                        },
+                        "accessMode": {
+                          "enum": [
+                            "all",
+                            "creator-owned"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "domainKey",
+                    "schemaVersion",
+                    "values"
+                  ],
+                  "properties": {
+                    "domainKey": {
+                      "const": "easyv"
+                    },
+                    "schemaVersion": {
+                      "const": 2
+                    },
+                    "values": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "userId",
+                            "accessMode"
+                          ],
+                          "properties": {
+                            "userId": {
+                              "type": "string",
+                              "pattern": "^[1-9][0-9]*$"
+                            },
+                            "accessMode": {
+                              "const": "all"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "userId",
+                            "accessMode",
+                            "easyvUserId"
+                          ],
+                          "properties": {
+                            "userId": {
+                              "type": "string",
+                              "pattern": "^[1-9][0-9]*$"
+                            },
+                            "accessMode": {
+                              "const": "scoped"
+                            },
+                            "easyvUserId": {
+                              "type": "string",
+                              "pattern": "^[1-9][0-9]*$"
+                            }
+                          }
+                        }
                       ]
                     }
                   }
                 }
-              }
+              ]
             }
           ]
         }
@@ -365,7 +429,10 @@
                       ]
                     },
                     "schemaVersion": {
-                      "const": 1
+                      "enum": [
+                        1,
+                        2
+                      ]
                     },
                     "values": {
                       "type": "object",
@@ -768,139 +835,254 @@
                     "const": "generation-quality-analysis"
                   },
                   "resolvedScope": {
-                    "type": "object",
-                    "required": [
-                      "domainKey",
-                      "schemaVersion",
-                      "values"
-                    ],
-                    "properties": {
-                      "domainKey": {
-                        "const": "easyv"
-                      },
-                      "schemaVersion": {
-                        "const": 1
-                      },
-                      "values": {
+                    "oneOf": [
+                      {
                         "type": "object",
-                        "additionalProperties": false,
                         "required": [
-                          "userId",
-                          "accessMode"
+                          "domainKey",
+                          "schemaVersion",
+                          "values"
                         ],
                         "properties": {
-                          "userId": {
-                            "type": "string",
-                            "pattern": "^[1-9][0-9]*$"
+                          "domainKey": {
+                            "const": "easyv"
                           },
-                          "accessMode": {
-                            "enum": [
-                              "all",
-                              "creator-owned"
+                          "schemaVersion": {
+                            "const": 1
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "userId",
+                              "accessMode"
+                            ],
+                            "properties": {
+                              "userId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "accessMode": {
+                                "enum": [
+                                  "all",
+                                  "creator-owned"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "domainKey",
+                          "schemaVersion",
+                          "values"
+                        ],
+                        "properties": {
+                          "domainKey": {
+                            "const": "easyv"
+                          },
+                          "schemaVersion": {
+                            "const": 2
+                          },
+                          "values": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "userId",
+                                  "accessMode"
+                                ],
+                                "properties": {
+                                  "userId": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  },
+                                  "accessMode": {
+                                    "const": "all"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "userId",
+                                  "accessMode",
+                                  "easyvUserId"
+                                ],
+                                "properties": {
+                                  "userId": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  },
+                                  "accessMode": {
+                                    "const": "scoped"
+                                  },
+                                  "easyvUserId": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  }
+                                }
+                              }
                             ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "conclusionState": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "evidence": {
+                        "type": "array",
+                        "minItems": 4,
+                        "allOf": [
+                          {
+                            "contains": {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "const": "easyv-ai-application"
+                                }
+                              },
+                              "required": [
+                                "source"
+                              ]
+                            }
+                          },
+                          {
+                            "contains": {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "const": "easyv-pipeline-node"
+                                }
+                              },
+                              "required": [
+                                "source"
+                              ]
+                            }
+                          },
+                          {
+                            "contains": {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "const": "easyv-forge-task"
+                                }
+                              },
+                              "required": [
+                                "source"
+                              ]
+                            }
+                          },
+                          {
+                            "contains": {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "const": "easyv-generation-feedback"
+                                }
+                              },
+                              "required": [
+                                "source"
+                              ]
+                            }
+                          }
+                        ],
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "type": "string",
+                              "pattern": "^(easyv-ai-application|easyv-pipeline-node|easyv-forge-task|easyv-generation-feedback|easyv-query:[a-z0-9][a-z0-9-]*)$"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        }
+                      },
+                      "claims": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "kind"
+                          ],
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "direct-answer",
+                                "generation-quality",
+                                "stage-bottleneck",
+                                "failure-concentration",
+                                "feedback-association",
+                                "business-success-settlement-distinct"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "evidence": {
+                        "type": "array",
+                        "minItems": 1,
+                        "contains": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "const": "easyv-data-scope"
+                            }
+                          },
+                          "required": [
+                            "source"
+                          ]
+                        },
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "source"
+                          ],
+                          "properties": {
+                            "source": {
+                              "type": "string",
+                              "pattern": "^(easyv-data-scope|easyv-query:q[1-9][0-9]*(:compare)?)$"
+                            }
+                          }
+                        }
+                      },
+                      "claims": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 1,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "kind"
+                          ],
+                          "properties": {
+                            "kind": {
+                              "const": "direct-answer"
+                            }
                           }
                         }
                       }
                     }
                   }
-                }
-              },
-              "conclusionState": {
-                "type": "object",
-                "properties": {
-                  "evidence": {
-                    "type": "array",
-                    "minItems": 4,
-                    "allOf": [
-                      {
-                        "contains": {
-                          "type": "object",
-                          "properties": {
-                            "source": {
-                              "const": "easyv-ai-application"
-                            }
-                          },
-                          "required": [
-                            "source"
-                          ]
-                        }
-                      },
-                      {
-                        "contains": {
-                          "type": "object",
-                          "properties": {
-                            "source": {
-                              "const": "easyv-pipeline-node"
-                            }
-                          },
-                          "required": [
-                            "source"
-                          ]
-                        }
-                      },
-                      {
-                        "contains": {
-                          "type": "object",
-                          "properties": {
-                            "source": {
-                              "const": "easyv-forge-task"
-                            }
-                          },
-                          "required": [
-                            "source"
-                          ]
-                        }
-                      },
-                      {
-                        "contains": {
-                          "type": "object",
-                          "properties": {
-                            "source": {
-                              "const": "easyv-generation-feedback"
-                            }
-                          },
-                          "required": [
-                            "source"
-                          ]
-                        }
-                      }
-                    ],
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "source": {
-                          "type": "string",
-                          "pattern": "^(easyv-ai-application|easyv-pipeline-node|easyv-forge-task|easyv-generation-feedback|easyv-query:[a-z0-9][a-z0-9-]*)$"
-                        }
-                      },
-                      "required": [
-                        "source"
-                      ]
-                    }
-                  },
-                  "claims": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                      "type": "object",
-                      "required": [
-                        "kind"
-                      ],
-                      "properties": {
-                        "kind": {
-                          "enum": [
-                            "direct-answer",
-                            "generation-quality",
-                            "stage-bottleneck",
-                            "failure-concentration",
-                            "feedback-association",
-                            "business-success-settlement-distinct"
-                          ]
-                        }
-                      }
-                    }
-                  }
-                }
+                ]
               }
             }
           }

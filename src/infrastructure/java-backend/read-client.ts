@@ -27,19 +27,34 @@ const propertyCapabilityBindingSchema = z.strictObject({
   }),
 });
 
-const easyVCapabilityBindingSchema = z.strictObject({
-  domainKey: z.literal('easyv'),
-  capabilityKey: z.literal('generation-quality-analysis'),
-  ontologyVersionId: z.string().min(1),
-  resolvedScope: z.strictObject({
+const positiveIdSchema = z.string().regex(/^[1-9][0-9]*$/);
+
+const easyVResolvedScopeSchema = z.union([
+  z.strictObject({
     domainKey: z.literal('easyv'),
     schemaVersion: z.literal(1),
     values: z.strictObject({
-      userId: z.string().regex(/^[1-9][0-9]*$/),
+      userId: positiveIdSchema,
       // 历史执行快照中可能保留 creator-owned 绑定（扩权前的真实审计事实），只读契约如实接受。
       accessMode: z.enum(['all', 'creator-owned']),
     }),
   }),
+  // v2：语义查询链路冻结的数据范围——平台管理员全部数据，分析员限定为绑定的 EasyV 用户。
+  z.strictObject({
+    domainKey: z.literal('easyv'),
+    schemaVersion: z.literal(2),
+    values: z.union([
+      z.strictObject({ userId: positiveIdSchema, accessMode: z.literal('all') }),
+      z.strictObject({ userId: positiveIdSchema, accessMode: z.literal('scoped'), easyvUserId: positiveIdSchema }),
+    ]),
+  }),
+]);
+
+const easyVCapabilityBindingSchema = z.strictObject({
+  domainKey: z.literal('easyv'),
+  capabilityKey: z.literal('generation-quality-analysis'),
+  ontologyVersionId: z.string().min(1),
+  resolvedScope: easyVResolvedScopeSchema,
 });
 
 const capabilityBindingSchema = z.union([
@@ -184,8 +199,16 @@ const planRuntimeFields = {
   _resolvedContext: resolvedContextSchema,
 };
 
+const planModeSchema = z.enum([
+  'minimal',
+  'multi-step',
+  'deterministic-read-only',
+  'question-driven-read-only',
+  'semantic-query-read-only',
+]);
+
 const javaPlanSnapshotSchema = z.strictObject({
-  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only', 'question-driven-read-only']),
+  mode: planModeSchema,
   summary: z.string().min(1),
   steps: z.array(planStepSchema).min(1),
   ...planRuntimeFields,
@@ -198,7 +221,7 @@ const javaPlanSnapshotSchema = z.strictObject({
 });
 
 const javaExecutionPlanEnvelopeSchema = z.strictObject({
-  mode: z.enum(['minimal', 'multi-step', 'deterministic-read-only', 'question-driven-read-only']),
+  mode: planModeSchema,
   summary: z.string().min(1),
   steps: z.array(planStepSchema),
   _executionContract: z.enum(['java-initial-v1', 'java-follow-up-v1']),
@@ -227,7 +250,7 @@ const propertyResolvedContextSchema = z.strictObject({
   path: ['from'],
 });
 
-const easyVResolvedContextSchema = z.strictObject({
+const easyVLegacyResolvedContextSchema = z.strictObject({
   entity: z.string().min(1),
   metric: z.string().min(1),
   time: z.string().min(1),
@@ -235,11 +258,37 @@ const easyVResolvedContextSchema = z.strictObject({
   to: z.iso.date(),
   // 同上：历史 plan 快照可能含扩权前的 creator-owned 值。
   accessMode: z.enum(['all', 'creator-owned']),
-  userId: z.string().regex(/^[1-9][0-9]*$/),
+  userId: positiveIdSchema,
 }).refine(({ from, to }) => from <= to, {
   message: '_resolvedContext.from 不能晚于 to。',
   path: ['from'],
 });
+
+const easyVSemanticQuerySchema = z.strictObject({
+  id: z.string().regex(/^q[1-9][0-9]*$/),
+  label: z.string().min(1),
+  intent: jsonObjectSchema,
+  range: z.string().min(1),
+  from: z.iso.date().optional(),
+  to: z.iso.date(),
+  compareRange: z.string().min(1).optional(),
+});
+
+const easyVSemanticResolvedContextSchema = z.strictObject({
+  userId: positiveIdSchema,
+  accessMode: z.enum(['all', 'scoped']),
+  easyvUserId: positiveIdSchema.optional(),
+  dataScope: z.string().min(1),
+  queries: z.array(easyVSemanticQuerySchema).min(1).max(4),
+}).refine(({ accessMode, easyvUserId }) => (accessMode === 'scoped') === (easyvUserId !== undefined), {
+  message: '_resolvedContext.easyvUserId 必须且仅在 scoped 数据范围下出现。',
+  path: ['easyvUserId'],
+});
+
+const easyVResolvedContextSchema = z.union([
+  easyVLegacyResolvedContextSchema,
+  easyVSemanticResolvedContextSchema,
+]);
 
 const propertyEvidenceSources = ['erp-staging', 'cube', 'neo4j'] as const;
 const easyVEvidenceSources = [
@@ -256,6 +305,8 @@ const easyVClaimKinds = [
   'business-success-settlement-distinct',
 ] as const;
 const easyVQuestionDrivenClaimKinds = ['direct-answer', ...easyVClaimKinds] as const;
+const easyVDataScopeSource = 'easyv-data-scope';
+const easyVSemanticQuerySource = /^easyv-query:q[1-9][0-9]*(:compare)?$/;
 const propertyClaimKinds = [
   'collection-rate',
   'erp-balance',
@@ -341,6 +392,34 @@ function addQuestionDrivenEasyVIssues(
   }
 }
 
+// 语义查询模式：恰好一条 direct-answer 结论；证据为数据范围证据 + 各查询（及对比期）结果证据。
+function addSemanticEasyVIssues(
+  state: z.infer<typeof conclusionStateSchema> | null,
+  context: z.RefinementCtx,
+) {
+  const claims = state?.claims ?? [];
+  if (claims.length !== 1 || claims[0].kind !== 'direct-answer') {
+    context.addIssue({
+      code: 'custom',
+      path: ['conclusionState', 'claims'],
+      message: '语义查询完成态必须且仅包含一条 direct-answer 结论。',
+    });
+  }
+  const sources = state?.evidence?.map((item) => item.source) ?? [];
+  if (!sources.includes(easyVDataScopeSource)
+    || sources.some((source) => source !== easyVDataScopeSource && !easyVSemanticQuerySource.test(source))) {
+    context.addIssue({
+      code: 'custom',
+      path: ['conclusionState', 'evidence'],
+      message: `语义查询完成态必须包含 ${easyVDataScopeSource} 证据，查询证据来源须受控。`,
+    });
+  }
+}
+
+function isSemanticEasyVState(state: z.infer<typeof conclusionStateSchema> | null) {
+  return state?.evidence?.some((item) => item.source === easyVDataScopeSource) ?? false;
+}
+
 function validateCapabilityPayload(
   value: {
     ontologyVersionId: string | null;
@@ -390,7 +469,13 @@ function validateCapabilityPayload(
     if (value.planSnapshot.steps.some((step) => !easyVPlanStepSchema.safeParse(step).success)) {
       context.addIssue({ code: 'custom', path: ['planSnapshot', 'steps'], message: 'EasyV 计划步骤必须包含稳定 ID、顺序和步骤类型。' });
     }
-    if (value.planSnapshot.mode === 'question-driven-read-only') {
+    if (value.planSnapshot.mode === 'semantic-query-read-only') {
+      if (!easyVSemanticResolvedContextSchema.safeParse(value.planSnapshot._resolvedContext).success
+        || binding.resolvedScope.schemaVersion !== 2) {
+        context.addIssue({ code: 'custom', path: ['planSnapshot', '_resolvedContext'], message: 'EasyV 语义查询计划必须使用 v2 数据范围与查询上下文。' });
+      }
+      addSemanticEasyVIssues(value.conclusionState, context);
+    } else if (value.planSnapshot.mode === 'question-driven-read-only') {
       addQuestionDrivenEasyVIssues(value.conclusionState, context);
     } else {
       addClaimKindIssues(value.conclusionState, easyVClaimKinds, context);
@@ -549,8 +634,12 @@ const latestExecutionSchema = z.strictObject({
       addClaimKindIssues(value.conclusionState, propertyClaimKinds, context);
       addSourceCoverageIssues(value.conclusionState, propertyEvidenceSources, context, 3);
     } else if (value.capabilityBinding.domainKey === 'easyv') {
-      // 历史列表无法区分计划模式：新旧两代完成态并存，结论类型受控即可。
-      addQuestionDrivenEasyVIssues(value.conclusionState, context, false);
+      // 历史列表无计划模式：按数据范围证据区分语义查询完成态与历史完成态。
+      if (isSemanticEasyVState(value.conclusionState)) {
+        addSemanticEasyVIssues(value.conclusionState, context);
+      } else {
+        addQuestionDrivenEasyVIssues(value.conclusionState, context, false);
+      }
     } else {
       context.addIssue({ code: 'custom', path: ['capabilityBinding', 'domainKey'], message: '未注册的分析领域。' });
     }
@@ -566,7 +655,7 @@ const workspaceCapabilitySchema = z.strictObject({
   exampleQuestion: z.string().min(1),
   resolvedScope: z.union([
     propertyCapabilityBindingSchema.shape.resolvedScope,
-    easyVCapabilityBindingSchema.shape.resolvedScope,
+    easyVResolvedScopeSchema,
   ]).nullable(),
 }).superRefine((value, context) => {
   if (value.available ? !value.resolvedScope || value.unavailableReason !== null

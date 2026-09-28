@@ -24,5 +24,6 @@ public interface CapabilityRegistration {
 
   void validateScope(ResolvedScopeSnapshot scope, AuthSession principal);
 
-  WorkflowResult execute(CapabilityExecutionContext context);
+  /** scope 为提交时冻结并已由 validateScope 校验的授权快照。 */
+  WorkflowResult execute(CapabilityExecutionContext context, ResolvedScopeSnapshot scope);
 }

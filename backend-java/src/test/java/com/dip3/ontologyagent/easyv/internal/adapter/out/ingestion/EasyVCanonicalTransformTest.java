@@ -15,8 +15,7 @@ import com.dip3.ontologyagent.ingestion.internal.application.IngestionPersistenc
 import com.dip3.ontologyagent.ingestion.internal.application.ProductMaterializer;
 import com.dip3.ontologyagent.ingestion.internal.application.SourceBatchManifest;
 import com.dip3.ontologyagent.ingestion.internal.application.SourceCatalogPort;
-import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVCanonicalFactAdapter;
-import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationFacts;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.support.JsonCodec;
 import com.dip3.ontologyagent.support.MigrationTestSupport;
 import org.junit.jupiter.api.BeforeAll;
@@ -111,12 +110,7 @@ class EasyVCanonicalTransformTest {
                 "easyv-set-1", productVersions, capturedAt, "test"));
         DatasetVersionSetPostgresAdapter versionSets = new DatasetVersionSetPostgresAdapter(jdbc, json);
         assertEquals("easyv-set-1", versionSets.latestFrozen(
-                EasyVCanonicalFactAdapter.REQUIRED_PRODUCTS).orElseThrow().publicationId());
-        EasyVGenerationFacts.Snapshot snapshot = new EasyVCanonicalFactAdapter(
-                jdbc, new JdbcTransactionManager(jdbc.getDataSource()), versionSets).collect(
-                new EasyVGenerationFacts.Query("execution-1", "11", "all",
-                        "ontology-1", "easyv-set-1", LocalDate.of(2026, 9, 4),
-                        LocalDate.of(2026, 9, 4), Instant.now()));
+                EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS).orElseThrow().publicationId());
 
         assertEquals(1L, count("facts.easyv_ai_application"));
         assertEquals(1L, count("facts.easyv_prototype_task"));
@@ -125,11 +119,12 @@ class EasyVCanonicalTransformTest {
         assertEquals(1L, count("facts.easyv_generation_feedback"));
         assertEquals(5L, count("ingestion.data_product_versions"));
         assertEquals(5L, count("ingestion.data_product_version_lineage"));
-        assertEquals(1L, snapshot.application().applicationCount());
-        assertEquals(1L, snapshot.application().prototypeCount());
-        assertEquals(1L, snapshot.pipeline().completedTaskCount());
-        assertEquals(1L, snapshot.forge().failedTaskCount());
-        assertEquals(1L, snapshot.feedback().combinedExecuteSuccessCount());
+        assertEquals(1L, jdbc.queryForObject(
+                "select count(*) from facts.easyv_pipeline_task where outcome='completed'", Long.class));
+        assertEquals(1L, jdbc.queryForObject(
+                "select count(*) from facts.easyv_forge_generation_task where status='failed'", Long.class));
+        assertEquals(1L, jdbc.queryForObject(
+                "select count(*) from facts.easyv_generation_feedback where execute_result=1", Long.class));
         assertEquals(false, jdbc.queryForObject(
                 "select is_deleted from facts.easyv_ai_application", Boolean.class));
         assertEquals("failed", jdbc.queryForObject(
