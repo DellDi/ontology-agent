@@ -148,8 +148,8 @@ order[], limit  limit ≤ 5000；达到上限视为截断失败
 
 ### 6.2 遗留待确认（2026-09-24 自原前端计划进度日志迁入）
 
-- EasyV 用户映射：会话 userId 为平台账号主键（验收账号 `18668184122` 为 2），业务方提供的 EasyV userId=16 当前无字段承载；EasyV scope 为 `accessMode=all`，userId 仅作审计归属。若需按创建者限定数据，需设计平台账号与 EasyV 用户的映射契约。
-- 反馈 cohort 口径（原 P1-2）：由 A-1 的双时间口径承接，仍需业务确认默认口径；长期源库地址待确认。
+- EasyV 用户映射（2026-09-28 已确认）：仅按 EasyV `user_id` 限定数据；需平台账号与 EasyV `user_id` 的绑定契约（待实现），`PLATFORM_ADMIN` 默认全部数据。语义层 `Scope.restricted({userId})` 已由 Cube 访问策略强制。
+- 反馈 cohort 口径（原 P1-2，2026-09-28 已确认）：默认按操作时间 `operated_at`；可按 `application.createdAt` 关联时间切换。当前源库为测试环境，开发阶段按真实业务场景使用，后续切换正式地址。
 - 密码轮换仅有管理员 API（见部署文档），无 Web 改密与自助改密。
 - Property 域维持封存（`dip3.property.enabled=false`）；Property 数据与跨组件验收（原 P0-4）暂停。
 - 历史进度、部署与验收证据以 git 历史为准（原 `docs/superpowers/plans/2026-09-08-frontend-capability-alignment.md`）。
@@ -186,5 +186,5 @@ A 阶段需处理的发现：
 - `queryRewrite` 抛错时 Cube 返回 HTTP 500；Java 适配层须按 `SEMANTIC_VERSION_*` 错误码识别并 fail loud，或改为抛出 Cube `UserError` 返回 4xx。
 - `compose.easyv-dev.yaml` 的 Cube 使用 `PLATFORM_POSTGRES_*`，在当前部署与 backend 实际库（`JAVA_DATABASE_URL`）不一致；启用 Cube 前须统一来源。
 - Cube 目前复用平台库应用账号；生产应为 Cube 配置仅能读取 `facts` 的只读角色。
-- `versioned-cubes.json` 为全局索引，当前仅由 EasyV 漂移测试生成；第二个本体生成领域接入前改为汇总所有领域声明生成。
-- 派生指标（如成功率 = completed / terminal）需扩展生成器支持引用其他指标。
+- `versioned-cubes.json` 为全局索引，当前仅由 EasyV 漂移测试生成；第二个本体生成领域接入前改为汇总所有领域声明生成。（A1 已解决：由 `SemanticModel.discover()` 汇总全部 `OntologyModelContribution` 生成 `semantic-access-policy.json`。）
+- 派生指标（如成功率 = completed / terminal）需扩展生成器支持引用其他指标。（A1 已解决：`OntologyMetric` 比率指标。）

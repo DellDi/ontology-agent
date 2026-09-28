@@ -7,34 +7,56 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * 由本体对象声明生成 Cube 模型（YAML）与版本强制索引。生成物入库，
- * 由领域包的漂移测试保证与声明一致；Cube 模型不手写。
+ * 由本体声明生成 Cube 模型（YAML，按领域分目录）与访问策略索引。生成物入库，
+ * 由漂移测试保证与声明一致；Cube 模型不手写。
  */
 public final class CubeModelGenerator {
-  /** cube.js queryRewrite 读取：cubeName → productKey。 */
-  public static final String VERSIONED_INDEX_FILE = "versioned-cubes.json";
+  /**
+   * cube.js queryRewrite 读取：cubeName → {productKey, requiredMembers, scopeMembers}，
+   * 用于强制注入冻结数据版本、成员资格关联与授权范围过滤。
+   */
+  public static final String ACCESS_POLICY_FILE = "semantic-access-policy.json";
+  public static final String MODEL_DIR = "model";
 
-  /** @return 文件名 → 内容（按文件名排序） */
-  public static Map<String, String> generate(List<OntologyObjectType> objects) {
+  /** @return 相对 cube/conf 的路径 → 内容（按路径排序） */
+  public static Map<String, String> generate(SemanticModel model) {
     Map<String, OntologyObjectType> byKey = new HashMap<>();
-    Map<String, String> index = new TreeMap<>();
-    for (OntologyObjectType object : objects) {
-      if (byKey.put(object.key(), object) != null || index.put(object.cubeName(), object.productKey()) != null) {
-        throw SemanticNames.invalid("对象或 Cube 名称重复：" + object.key() + " / " + object.cubeName());
-      }
-    }
+    model.objects().forEach(object -> byKey.put(object.key(), object));
     Map<String, String> files = new TreeMap<>();
-    for (OntologyObjectType object : objects) {
-      files.put(object.cubeName() + ".yml", yaml(object, byKey));
+    Map<String, OntologyObjectType> byCube = new TreeMap<>();
+    for (OntologyObjectType object : model.objects()) {
+      files.put(MODEL_DIR + "/" + model.domainKey(object.key()) + "/" + object.cubeName() + ".yml", yaml(object, byKey));
+      byCube.put(object.cubeName(), object);
     }
-    StringBuilder json = new StringBuilder("{\n");
-    int remaining = index.size();
-    for (Map.Entry<String, String> entry : index.entrySet()) {
-      json.append("  ").append(quote(entry.getKey())).append(": ").append(quote(entry.getValue()))
-          .append(--remaining > 0 ? ",\n" : "\n");
-    }
-    files.put(VERSIONED_INDEX_FILE, json.append("}\n").toString());
+    files.put(ACCESS_POLICY_FILE, accessPolicy(model, byCube));
     return files;
+  }
+
+  private static String accessPolicy(SemanticModel model, Map<String, OntologyObjectType> byCube) {
+    StringBuilder json = new StringBuilder("{\n");
+    int remaining = byCube.size();
+    for (OntologyObjectType object : byCube.values()) {
+      json.append("  ").append(quote(object.cubeName())).append(": {\n");
+      json.append("    \"productKey\": ").append(quote(object.productKey())).append(",\n");
+      json.append("    \"requiredMembers\": [");
+      List<String> required = object.requiredLinks().stream()
+          .map(link -> model.requiredLinkMember(object, link)).sorted().toList();
+      for (int index = 0; index < required.size(); index += 1) {
+        json.append(index == 0 ? "" : ", ").append(quote(required.get(index)));
+      }
+      json.append("],\n");
+      json.append("    \"scopeMembers\": {");
+      Map<String, String> scopes = new TreeMap<>();
+      object.scopeBindings().forEach((dimension, path) ->
+          scopes.put(dimension, model.resolve(object.key(), path).cubeMember()));
+      int left = scopes.size();
+      for (Map.Entry<String, String> entry : scopes.entrySet()) {
+        json.append(left == scopes.size() ? "\n" : "").append("      ").append(quote(entry.getKey())).append(": ")
+            .append(quote(entry.getValue())).append(--left > 0 ? ",\n" : "\n    ");
+      }
+      json.append("}\n  }").append(--remaining > 0 ? ",\n" : "\n");
+    }
+    return json.append("}\n").toString();
   }
 
   private static String yaml(OntologyObjectType object, Map<String, OntologyObjectType> byKey) {
@@ -79,7 +101,9 @@ public final class CubeModelGenerator {
       line(out, 8, "type", property.type().name().toLowerCase(Locale.ROOT));
       if (property.primaryKey()) out.append("        primary_key: true\n        public: true\n");
     }
-    if (!object.metrics().isEmpty()) {
+    List<OntologyProperty> times = object.properties().stream()
+        .filter(property -> property.type() == OntologyProperty.Type.TIME).toList();
+    if (!object.metrics().isEmpty() || !times.isEmpty()) {
       out.append("    measures:\n");
       for (OntologyMetric metric : object.metrics()) {
         out.append("      - name: ").append(quote(metric.key())).append('\n');
@@ -87,12 +111,30 @@ public final class CubeModelGenerator {
         if (metric.description() != null) line(out, 8, "description", metric.description());
         measure(out, metric);
       }
+      for (OntologyProperty time : times) {
+        coverage(out, OntologyObjectType.coverageFrom(time.key()), time.label() + "（最早）", "min", time.sql());
+        coverage(out, OntologyObjectType.coverageTo(time.key()), time.label() + "（最晚）", "max", time.sql());
+      }
     }
     return out.toString();
   }
 
+  private static void coverage(StringBuilder out, String name, String title, String function, String sql) {
+    out.append("      - name: ").append(quote(name)).append('\n');
+    line(out, 8, "title", title);
+    line(out, 8, "sql", "extract(epoch from " + function + "(" + sql + "))");
+    line(out, 8, "type", "number");
+    out.append("        meta:\n");
+    line(out, 10, "coverage", "true");
+  }
+
   private static void measure(StringBuilder out, OntologyMetric metric) {
     switch (metric.aggregation()) {
+      case RATIO -> {
+        List<String> operands = metric.ratioOperands();
+        line(out, 8, "sql", "round(100.0 * {" + operands.get(0) + "} / nullif({" + operands.get(1) + "}, 0), 2)");
+        line(out, 8, "type", "number");
+      }
       case PERCENTILE_50, PERCENTILE_95 -> {
         String fraction = metric.aggregation() == OntologyMetric.Aggregation.PERCENTILE_50 ? "0.50" : "0.95";
         String filter = metric.filter() == null ? "" : " filter (where " + metric.filter() + ")";
