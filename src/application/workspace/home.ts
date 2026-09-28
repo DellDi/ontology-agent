@@ -113,7 +113,11 @@ export type WorkspaceHomeModel = {
 export function describeCapabilityScope(capability: WorkspaceHomeCapability): string {
   const values = capability.resolvedScope?.values;
   if (!capability.available) return capability.unavailableReason!;
-  if (capability.domainKey === 'easyv') return '仅限当前账号创建的 EasyV 应用与生成任务';
+  if (capability.domainKey === 'easyv') {
+    return values?.accessMode === 'all'
+      ? '全部 EasyV 应用与生成任务'
+      : `仅限绑定的 EasyV 用户 ${String(values?.easyvUserId ?? '')} 的应用与生成任务`;
+  }
   if (capability.domainKey === 'property' && values) {
     return `授权项目 ${Array.isArray(values.projectIds) ? values.projectIds.length : 0} 个 · 区域 ${Array.isArray(values.areaIds) ? values.areaIds.length : 0} 个`;
   }

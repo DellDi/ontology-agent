@@ -295,16 +295,17 @@ public class AnalysisFollowUpService {
     analyses.validateCapabilityBinding(owner, persistedBinding);
     // 来源执行须仍为已完成态（引用完整性）；绑定集合在创建时即解析为最新冻结集，
     // 不要求与来源集合相同——下方的 validateDatasetVersionSet 校验其仍为完整冻结集。
-    followUps
-        .completedSourceSnapshot(followUp)
-        .orElseThrow(
-            () -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND",
-                "来源执行已失效或不再是已完成状态。"));
+    ExecutionSnapshotEntity source =
+        followUps
+            .completedSourceSnapshot(followUp)
+            .orElseThrow(
+                () -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND",
+                    "来源执行已失效或不再是已完成状态。"));
     analyses.validateDatasetVersionSet(owner, persistedBinding, followUp.datasetVersionSetId());
     Map<String, Object> effectiveContext =
         analyses
             .followUpPolicy(owner, persistedBinding)
-            .executableContext(followUp.currentPlanSnapshot(), followUp.mergedContext());
+            .executableContext(source.planSnapshot, followUp.currentPlanSnapshot(), followUp.mergedContext());
     String key =
         idempotencyKey == null || idempotencyKey.isBlank() ? "follow-up" : idempotencyKey.trim();
     if (key.length() > 128)

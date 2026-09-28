@@ -51,7 +51,7 @@ public interface FollowUpPolicy {
 
       @Override
       public Map<String, Object> executableContext(
-          Map<String, Object> currentPlan, Map<String, Object> mergedContext) {
+          Map<String, Object> sourcePlan, Map<String, Object> currentPlan, Map<String, Object> mergedContext) {
         throw unavailable();
       }
     };
@@ -78,8 +78,12 @@ public interface FollowUpPolicy {
       String followUpId,
       String referencedExecutionId);
 
+  /**
+   * @param sourcePlan 被追问的已完成执行的计划快照
+   * @param currentPlan 重规划后的当前计划，未重规划时为空
+   */
   Map<String, Object> executableContext(
-      Map<String, Object> currentPlan, Map<String, Object> mergedContext);
+      Map<String, Object> sourcePlan, Map<String, Object> currentPlan, Map<String, Object> mergedContext);
 
   record FollowUpAdjustment(Map<String, Object> mergedContext, Map<String, Object> diff) {
     public FollowUpAdjustment {

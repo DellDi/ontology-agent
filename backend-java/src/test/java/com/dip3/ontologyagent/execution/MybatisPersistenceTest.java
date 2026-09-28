@@ -5,8 +5,6 @@ import com.dip3.ontologyagent.analysis.AnalysisService;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
-import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVCanonicalFactAdapter;
-import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationFacts;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.integration.erp.ErpEvidenceMapper;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -100,7 +98,6 @@ class MybatisPersistenceTest {
     @Autowired InvocationEventRecorder invocationEvents;
     @Autowired AnalysisService analyses;
     @Autowired CapabilityRegistry capabilities;
-    @Autowired EasyVGenerationFacts easyVGenerationFacts;
     @Autowired JdbcTemplate jdbc;
     @Autowired ErpEvidenceMapper erpEvidence;
     @Autowired ChatMemory chatMemory;
@@ -224,7 +221,7 @@ class MybatisPersistenceTest {
         assertEquals("ontology-v2", reloaded.ontologyVersionId());
         assertEquals(EASYV_ID, reloaded.capabilityBinding().id());
         assertEquals("easyv", reloaded.capabilityBinding().resolvedScope().domainKey());
-        assertEquals(1, reloaded.capabilityBinding().resolvedScope().schemaVersion());
+        assertEquals(2, reloaded.capabilityBinding().resolvedScope().schemaVersion());
         assertEquals(Map.of("userId", "123", "accessMode", "all"),
                 reloaded.capabilityBinding().resolvedScope().values());
         assertEquals(expected.scopeSnapshotRef(submission.executionId()),
@@ -240,8 +237,7 @@ class MybatisPersistenceTest {
     }
 
     @Test
-    void enabledSpringContextWiresBothDomainRegistrationsAndCanonicalEasyVReader() {
-        assertInstanceOf(EasyVCanonicalFactAdapter.class, easyVGenerationFacts);
+    void enabledSpringContextWiresBothDomainRegistrations() {
         assertEquals(PROPERTY_ID, capabilities.selectInitial("分析项目收缴率"));
         assertEquals(EASYV_ID, capabilities.selectInitial("分析 EasyV 大屏生成质量"));
     }

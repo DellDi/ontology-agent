@@ -157,7 +157,10 @@
                   ]
                 },
                 "schemaVersion": {
-                  "const": 1
+                  "enum": [
+                    1,
+                    2
+                  ]
                 },
                 "values": {
                   "type": "object",
@@ -419,49 +422,137 @@
       }
     },
     "easyVResolvedContext": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "entity",
-        "metric",
-        "time",
-        "from",
-        "to",
-        "accessMode",
-        "userId"
-      ],
-      "properties": {
-        "entity": {
-          "type": "string",
-          "minLength": 1
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entity",
+            "metric",
+            "time",
+            "from",
+            "to",
+            "accessMode",
+            "userId"
+          ],
+          "properties": {
+            "entity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "metric": {
+              "type": "string",
+              "minLength": 1
+            },
+            "time": {
+              "type": "string",
+              "minLength": 1
+            },
+            "from": {
+              "type": "string",
+              "format": "date"
+            },
+            "to": {
+              "type": "string",
+              "format": "date"
+            },
+            "accessMode": {
+              "enum": [
+                "all",
+                "creator-owned"
+              ]
+            },
+            "userId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
         },
-        "metric": {
-          "type": "string",
-          "minLength": 1
-        },
-        "time": {
-          "type": "string",
-          "minLength": 1
-        },
-        "from": {
-          "type": "string",
-          "format": "date"
-        },
-        "to": {
-          "type": "string",
-          "format": "date"
-        },
-        "accessMode": {
-          "enum": [
-            "all",
-            "creator-owned"
-          ]
-        },
-        "userId": {
-          "type": "string",
-          "pattern": "^[1-9][0-9]*$"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "userId",
+            "accessMode",
+            "dataScope",
+            "queries"
+          ],
+          "properties": {
+            "userId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "accessMode": {
+              "enum": [
+                "all",
+                "scoped"
+              ]
+            },
+            "easyvUserId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "dataScope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "queries": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "label",
+                  "intent",
+                  "range",
+                  "to"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^q[1-9][0-9]*$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "intent": {
+                    "type": "object",
+                    "required": [
+                      "object"
+                    ],
+                    "properties": {
+                      "object": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "range": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "to": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "compareRange": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
         }
-      }
+      ]
     },
     "propertyPlanStep": {
       "type": "object",
@@ -553,7 +644,8 @@
             "minimal",
             "multi-step",
             "deterministic-read-only",
-            "question-driven-read-only"
+            "question-driven-read-only",
+            "semantic-query-read-only"
           ]
         },
         "summary": {
@@ -962,40 +1054,103 @@
                 "const": "generation-quality-analysis"
               },
               "resolvedScope": {
-                "type": "object",
-                "required": [
-                  "domainKey",
-                  "schemaVersion",
-                  "values"
-                ],
-                "properties": {
-                  "domainKey": {
-                    "const": "easyv"
-                  },
-                  "schemaVersion": {
-                    "const": 1
-                  },
-                  "values": {
+                "oneOf": [
+                  {
                     "type": "object",
-                    "additionalProperties": false,
                     "required": [
-                      "userId",
-                      "accessMode"
+                      "domainKey",
+                      "schemaVersion",
+                      "values"
                     ],
                     "properties": {
-                      "userId": {
-                        "type": "string",
-                        "pattern": "^[1-9][0-9]*$"
+                      "domainKey": {
+                        "const": "easyv"
                       },
-                      "accessMode": {
-                        "enum": [
-                          "all",
-                          "creator-owned"
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "values": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "userId",
+                          "accessMode"
+                        ],
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]*$"
+                          },
+                          "accessMode": {
+                            "enum": [
+                              "all",
+                              "creator-owned"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "domainKey",
+                      "schemaVersion",
+                      "values"
+                    ],
+                    "properties": {
+                      "domainKey": {
+                        "const": "easyv"
+                      },
+                      "schemaVersion": {
+                        "const": 2
+                      },
+                      "values": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "userId",
+                              "accessMode"
+                            ],
+                            "properties": {
+                              "userId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "accessMode": {
+                                "const": "all"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "userId",
+                              "accessMode",
+                              "easyvUserId"
+                            ],
+                            "properties": {
+                              "userId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "accessMode": {
+                                "const": "scoped"
+                              },
+                              "easyvUserId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              }
+                            }
+                          }
                         ]
                       }
                     }
                   }
-                }
+                ]
               }
             }
           },

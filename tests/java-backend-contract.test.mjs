@@ -143,6 +143,62 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
     '问题驱动完成态不得接受未注册的结论类型',
   );
 
+  // 语义查询完成态：v2 数据范围 + 查询上下文 + 数据范围证据 + easyv-query:q<n> 证据。
+  const semantic = structuredClone(questionDriven);
+  semantic.capabilityBinding.resolvedScope = {
+    domainKey: 'easyv',
+    schemaVersion: 2,
+    values: { userId: '2', accessMode: 'scoped', easyvUserId: '16' },
+  };
+  semantic.planSnapshot.mode = 'semantic-query-read-only';
+  semantic.planSnapshot._resolvedContext = {
+    userId: '2',
+    accessMode: 'scoped',
+    easyvUserId: '16',
+    dataScope: 'EasyV 用户 16 的数据',
+    queries: [{
+      id: 'q1',
+      label: 'AI 应用 · 应用数',
+      intent: { object: 'easyv-ai-application', measures: ['count'] },
+      range: '全部数据',
+      to: '2026-09-15',
+    }],
+  };
+  const [scopeEvidence, queryEvidence] = semantic.conclusionState.evidence.slice(-2);
+  semantic.conclusionState.evidence = [
+    { ...scopeEvidence, source: 'easyv-data-scope' },
+    { ...queryEvidence, source: 'easyv-query:q1' },
+    { ...queryEvidence, source: 'easyv-query:q1:compare' },
+  ];
+  semantic.conclusionState.claims[0].evidenceRefs = [
+    { ...semantic.conclusionState.claims[0].evidenceRefs[0], source: 'easyv-query:q1' },
+  ];
+  assertJsonSchema(ajv, 'execution-snapshot.schema.json', semantic, 'snapshot-semantic(derived)');
+  const semanticView = { ...semantic };
+  semanticView.ontologyVersionBindingSource = semantic.ontologyVersionBinding.source;
+  delete semanticView.ownerUserId;
+  delete semanticView.ontologyVersionBinding;
+  delete semanticView.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema, semanticView, 'snapshot-semantic(view,derived)');
+
+  for (const [label, mutate] of [
+    ['数据范围证据缺失', (value) => { value.conclusionState.evidence.shift(); }],
+    ['历史快照证据混入', (value) => { value.conclusionState.evidence[1].source = 'easyv-forge-task'; }],
+    ['多条结论', (value) => { value.conclusionState.claims.push(structuredClone(value.conclusionState.claims[0])); }],
+    ['v1 范围快照', (value) => { value.capabilityBinding.resolvedScope = questionDriven.capabilityBinding.resolvedScope; }],
+    ['scoped 缺少 easyvUserId', (value) => { delete value.capabilityBinding.resolvedScope.values.easyvUserId; }],
+    ['历史解析上下文', (value) => { value.planSnapshot._resolvedContext = questionDriven.planSnapshot._resolvedContext; }],
+  ]) {
+    const invalid = structuredClone(semantic);
+    mutate(invalid);
+    assert.equal(ajv.getSchema('execution-snapshot.schema.json')(invalid), false, `语义查询完成态必须拒绝：${label}`);
+    const invalidView = { ...invalid, ontologyVersionBindingSource: invalid.ontologyVersionBinding.source };
+    delete invalidView.ownerUserId;
+    delete invalidView.ontologyVersionBinding;
+    delete invalidView.datasetVersionSetId;
+    assert.equal(javaExecutionSnapshotSchema.safeParse(invalidView).success, false, `Next 读取契约必须拒绝：${label}`);
+  }
+
   const followUp = await jsonFixture('analysis-follow-up.json');
   assertJsonSchema(ajv, 'analysis-follow-up.schema.json', followUp, 'analysis-follow-up.json');
   assertZod(javaAnalysisFollowUpSchema, followUp, 'analysis-follow-up.json');

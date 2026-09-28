@@ -12,13 +12,14 @@ import com.dip3.ontologyagent.easyv.internal.domain.EasyVCapabilityPolicy;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVInvocationContract;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
+import com.dip3.ontologyagent.semantic.api.SemanticModel;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-/** EasyV registration is intentionally not a Spring bean until its source adapter is wired. */
+/** EasyV 生成质量分析能力：语义层查询 + 冻结数据集版本 + 提交时冻结的数据范围。 */
 @Component
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public final class EasyVCapabilityRegistration implements CapabilityRegistration {
@@ -33,27 +34,17 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
               EasyVGenerationOntology.METRIC_KEY,
               EasyVGenerationOntology.TIME_KEY),
           EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS,
-          Set.of(
-              "easyv-ai-application",
-              "easyv-pipeline-node",
-              "easyv-forge-task",
-              "easyv-generation-feedback"),
-          Set.of(
-              "direct-answer",
-              "generation-quality",
-              "stage-bottleneck",
-              "failure-concentration",
-              "feedback-association",
-              "business-success-settlement-distinct"),
+          Set.of(EasyVSemanticAgent.DATA_SCOPE_EVIDENCE),
+          Set.of(EasyVSemanticAgent.CLAIM_KIND),
           EasyVInvocationContract.CONTRACT);
   private final EasyVMainAgent mainAgent;
   private final EasyVScopeResolver scopes;
   private final FollowUpPolicy followUpPolicy;
 
-  public EasyVCapabilityRegistration(EasyVMainAgent mainAgent, EasyVScopeResolver scopes) {
+  public EasyVCapabilityRegistration(EasyVMainAgent mainAgent, EasyVScopeResolver scopes, SemanticModel semantic) {
     this.mainAgent = mainAgent;
     this.scopes = scopes;
-    this.followUpPolicy = new EasyVFollowUpPolicy();
+    this.followUpPolicy = new EasyVFollowUpPolicy(semantic);
   }
 
   @Override
@@ -105,13 +96,14 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
   }
 
   @Override
-  public WorkflowResult execute(CapabilityExecutionContext context) {
+  public WorkflowResult execute(CapabilityExecutionContext context, ResolvedScopeSnapshot scope) {
     return mainAgent.execute(
         context.principal(),
         context.turn(),
         context.executionId(),
         context.ontology(),
         context.datasetVersionSetId(),
+        scope,
         context.traceId(),
         context.leaseOwner(),
         context.progress());

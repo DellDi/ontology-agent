@@ -56,8 +56,8 @@ final class StaticCapabilityRegistry implements CapabilityRegistry {
           true, null, registration.exampleQuestion(), scope);
     } catch (BackendException error) {
       // Only known authorization rejections become unavailable entries. Integration failures propagate.
-      if (!java.util.Set.of("CAPABILITY_SCOPE_INVALID", "EASYV_SCOPE_INVALID", "EASYV_SCOPE_FORBIDDEN")
-          .contains(error.code())) throw error;
+      if (!java.util.Set.of("CAPABILITY_SCOPE_INVALID", "EASYV_SCOPE_INVALID", "EASYV_SCOPE_FORBIDDEN",
+          "EASYV_USER_BINDING_REQUIRED", "EASYV_USER_BINDING_INVALID").contains(error.code())) throw error;
       return new CapabilityAvailability(id.domainKey(), id.capabilityKey(), descriptor.displayName(),
           false, error.getMessage(), registration.exampleQuestion(), null);
     }
@@ -149,7 +149,7 @@ final class StaticCapabilityRegistry implements CapabilityRegistry {
   public CapabilityResult<WorkflowResult, Evidence> execute(
       CapabilityBinding binding, CapabilityExecutionContext context) {
     CapabilityDescriptor descriptor = require(binding, context.ontology(), context.principal());
-    WorkflowResult result = registrations.get(descriptor.id()).execute(context);
+    WorkflowResult result = registrations.get(descriptor.id()).execute(context, binding.resolvedScope());
     String scopeSnapshotRef = binding.scopeSnapshotRef(context.executionId());
     List<CapabilityEvidence<Evidence>> evidence =
         result.evidence().stream()

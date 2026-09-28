@@ -98,7 +98,7 @@ tooling  -> ontology
 #### Spring AI Adapter 的领域归属已显式化
 
 物业 `SpringAiMainAgent`、`SpringAiConclusionProvider` 与 `WorkflowToolInput` 已迁入
-`property.internal.adapter.out.llm`；EasyV 的 `EasyVSpringAiMainAgent` 与 `EasyVToolInput`
+`property.internal.adapter.out.llm`；EasyV 的 `EasyVSpringAiAnalysisModel`（`EasyVAnalysisModel` 端口实现）
 位于 `easyv.internal.adapter.out.llm`。两者各自持有领域 entity、metric、claim 和 Tool Calling
 语义，不被平台 Worker、Capability Registry 或另一领域复用；平台没有假定所有领域共享
 prompt/claim 的“通用 Spring AI 业务适配器”。

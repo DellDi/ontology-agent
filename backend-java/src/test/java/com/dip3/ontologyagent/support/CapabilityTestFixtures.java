@@ -72,7 +72,7 @@ public final class CapabilityTestFixtures {
 
     public static CapabilityBinding easyvBinding(AuthSession owner, String ontologyVersionId) {
         return new CapabilityBinding(EASYV_ID, ontologyVersionId,
-                new ResolvedScopeSnapshot(EASYV_ID.domainKey(), 1, Map.of(
+                new ResolvedScopeSnapshot(EASYV_ID.domainKey(), 2, Map.of(
                         "userId", owner.userId(), "accessMode", "all")));
     }
 
@@ -81,10 +81,8 @@ public final class CapabilityTestFixtures {
                 Set.of(EasyVGenerationOntology.ENTITY_KEY, EasyVGenerationOntology.METRIC_KEY,
                         EasyVGenerationOntology.TIME_KEY),
                 EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS,
-                Set.of("easyv-ai-application", "easyv-pipeline-node", "easyv-forge-task",
-                        "easyv-generation-feedback"),
-                Set.of("generation-quality", "stage-bottleneck", "failure-concentration",
-                        "feedback-association", "business-success-settlement-distinct"),
+                Set.of("easyv-data-scope"),
+                Set.of("direct-answer"),
                 EasyVInvocationContract.CONTRACT);
     }
 }

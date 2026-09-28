@@ -128,7 +128,7 @@ final class PropertyCapabilityRegistration implements CapabilityRegistration {
   }
 
   @Override
-  public WorkflowResult execute(CapabilityExecutionContext context) {
+  public WorkflowResult execute(CapabilityExecutionContext context, ResolvedScopeSnapshot scope) {
     return mainAgent.execute(
         context.principal(),
         context.turn(),

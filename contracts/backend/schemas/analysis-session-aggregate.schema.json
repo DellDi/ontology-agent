@@ -231,7 +231,8 @@
                     "minimal",
                     "multi-step",
                     "deterministic-read-only",
-                    "question-driven-read-only"
+                    "question-driven-read-only",
+                    "semantic-query-read-only"
                   ]
                 },
                 "summary": {
@@ -630,24 +631,112 @@
                 "type": "object",
                 "properties": {
                   "_resolvedContext": {
-                    "type": "object",
-                    "properties": {
-                      "entity": {},
-                      "metric": {},
-                      "time": {},
-                      "from": {},
-                      "to": {},
-                      "accessMode": {},
-                      "userId": {}
-                    },
-                    "required": [
-                      "entity",
-                      "metric",
-                      "time",
-                      "from",
-                      "to",
-                      "accessMode",
-                      "userId"
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "entity": {},
+                          "metric": {},
+                          "time": {},
+                          "from": {},
+                          "to": {},
+                          "accessMode": {},
+                          "userId": {}
+                        },
+                        "required": [
+                          "entity",
+                          "metric",
+                          "time",
+                          "from",
+                          "to",
+                          "accessMode",
+                          "userId"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "userId",
+                          "accessMode",
+                          "dataScope",
+                          "queries"
+                        ],
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]*$"
+                          },
+                          "accessMode": {
+                            "enum": [
+                              "all",
+                              "scoped"
+                            ]
+                          },
+                          "easyvUserId": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]*$"
+                          },
+                          "dataScope": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "queries": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 4,
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "id",
+                                "label",
+                                "intent",
+                                "range",
+                                "to"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^q[1-9][0-9]*$"
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "intent": {
+                                  "type": "object",
+                                  "required": [
+                                    "object"
+                                  ],
+                                  "properties": {
+                                    "object": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  }
+                                },
+                                "range": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "from": {
+                                  "type": "string",
+                                  "format": "date"
+                                },
+                                "to": {
+                                  "type": "string",
+                                  "format": "date"
+                                },
+                                "compareRange": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     ]
                   },
                   "_suggestedQuestions": {
@@ -816,138 +905,312 @@
                   }
                 },
                 "else": {
-                  "properties": {
-                    "conclusionState": {
-                      "type": "object",
-                      "properties": {
-                        "evidence": {
-                          "type": "array",
-                          "minItems": 4,
-                          "maxItems": 4,
-                          "allOf": [
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-ai-application"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-pipeline-node"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-forge-task"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-generation-feedback"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            }
-                          ]
+                  "if": {
+                    "properties": {
+                      "planSnapshot": {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "const": "semantic-query-read-only"
+                          }
                         },
-                        "claims": {
-                          "type": "array",
-                          "allOf": [
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "generation-quality"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
+                        "required": [
+                          "mode"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "planSnapshot"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "conclusionState": {
+                        "type": "object",
+                        "properties": {
+                          "evidence": {
+                            "type": "array",
+                            "minItems": 1,
+                            "contains": {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "const": "easyv-data-scope"
+                                }
+                              },
+                              "required": [
+                                "source"
+                              ]
                             },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "stage-bottleneck"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "failure-concentration"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "feedback-association"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "business-success-settlement-distinct"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "source"
+                              ],
+                              "properties": {
+                                "source": {
+                                  "type": "string",
+                                  "pattern": "^(easyv-data-scope|easyv-query:q[1-9][0-9]*(:compare)?)$"
+                                }
                               }
                             }
-                          ]
+                          },
+                          "claims": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1,
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "const": "direct-answer"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "capabilityBinding": {
+                        "type": "object",
+                        "properties": {
+                          "resolvedScope": {
+                            "type": "object",
+                            "properties": {
+                              "schemaVersion": {
+                                "const": 2
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "planSnapshot": {
+                        "type": "object",
+                        "properties": {
+                          "_resolvedContext": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "userId",
+                              "accessMode",
+                              "dataScope",
+                              "queries"
+                            ],
+                            "properties": {
+                              "userId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "accessMode": {
+                                "enum": [
+                                  "all",
+                                  "scoped"
+                                ]
+                              },
+                              "easyvUserId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "dataScope": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "queries": {
+                                "type": "array",
+                                "minItems": 1,
+                                "maxItems": 4,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "id",
+                                    "label",
+                                    "intent",
+                                    "range",
+                                    "to"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^q[1-9][0-9]*$"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "intent": {
+                                      "type": "object",
+                                      "required": [
+                                        "object"
+                                      ],
+                                      "properties": {
+                                        "object": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      }
+                                    },
+                                    "range": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "from": {
+                                      "type": "string",
+                                      "format": "date"
+                                    },
+                                    "to": {
+                                      "type": "string",
+                                      "format": "date"
+                                    },
+                                    "compareRange": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "conclusionState": {
+                        "type": "object",
+                        "properties": {
+                          "evidence": {
+                            "type": "array",
+                            "minItems": 4,
+                            "maxItems": 4,
+                            "allOf": [
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-ai-application"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-pipeline-node"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-forge-task"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-generation-feedback"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          "claims": {
+                            "type": "array",
+                            "allOf": [
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "generation-quality"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "stage-bottleneck"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "failure-concentration"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "feedback-association"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "business-success-settlement-distinct"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              }
+                            ]
+                          }
                         }
                       }
                     }
@@ -1154,7 +1417,10 @@
                       ]
                     },
                     "schemaVersion": {
-                      "const": 1
+                      "enum": [
+                        1,
+                        2
+                      ]
                     },
                     "values": {
                       "type": "object",
@@ -1186,7 +1452,8 @@
                 "minimal",
                 "multi-step",
                 "deterministic-read-only",
-                "question-driven-read-only"
+                "question-driven-read-only",
+                "semantic-query-read-only"
               ]
             },
             "summary": {
@@ -2007,40 +2274,103 @@
                     "const": "generation-quality-analysis"
                   },
                   "resolvedScope": {
-                    "type": "object",
-                    "required": [
-                      "domainKey",
-                      "schemaVersion",
-                      "values"
-                    ],
-                    "properties": {
-                      "domainKey": {
-                        "const": "easyv"
-                      },
-                      "schemaVersion": {
-                        "const": 1
-                      },
-                      "values": {
+                    "oneOf": [
+                      {
                         "type": "object",
-                        "additionalProperties": false,
                         "required": [
-                          "userId",
-                          "accessMode"
+                          "domainKey",
+                          "schemaVersion",
+                          "values"
                         ],
                         "properties": {
-                          "userId": {
-                            "type": "string",
-                            "pattern": "^[1-9][0-9]*$"
+                          "domainKey": {
+                            "const": "easyv"
                           },
-                          "accessMode": {
-                            "enum": [
-                              "all",
-                              "creator-owned"
+                          "schemaVersion": {
+                            "const": 1
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "userId",
+                              "accessMode"
+                            ],
+                            "properties": {
+                              "userId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "accessMode": {
+                                "enum": [
+                                  "all",
+                                  "creator-owned"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "domainKey",
+                          "schemaVersion",
+                          "values"
+                        ],
+                        "properties": {
+                          "domainKey": {
+                            "const": "easyv"
+                          },
+                          "schemaVersion": {
+                            "const": 2
+                          },
+                          "values": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "userId",
+                                  "accessMode"
+                                ],
+                                "properties": {
+                                  "userId": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  },
+                                  "accessMode": {
+                                    "const": "all"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "userId",
+                                  "accessMode",
+                                  "easyvUserId"
+                                ],
+                                "properties": {
+                                  "userId": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  },
+                                  "accessMode": {
+                                    "const": "scoped"
+                                  },
+                                  "easyvUserId": {
+                                    "type": "string",
+                                    "pattern": "^[1-9][0-9]*$"
+                                  }
+                                }
+                              }
                             ]
                           }
                         }
                       }
-                    }
+                    ]
                   }
                 }
               },
@@ -2080,48 +2410,136 @@
                     }
                   },
                   "_resolvedContext": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "entity": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "metric": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "time": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "from": {
-                        "type": "string",
-                        "format": "date"
-                      },
-                      "to": {
-                        "type": "string",
-                        "format": "date"
-                      },
-                      "accessMode": {
-                        "enum": [
-                          "all",
-                          "creator-owned"
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "entity": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "metric": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "time": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "from": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "to": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "accessMode": {
+                            "enum": [
+                              "all",
+                              "creator-owned"
+                            ]
+                          },
+                          "userId": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]*$"
+                          }
+                        },
+                        "required": [
+                          "entity",
+                          "metric",
+                          "time",
+                          "from",
+                          "to",
+                          "accessMode",
+                          "userId"
                         ]
                       },
-                      "userId": {
-                        "type": "string",
-                        "pattern": "^[1-9][0-9]*$"
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "userId",
+                          "accessMode",
+                          "dataScope",
+                          "queries"
+                        ],
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]*$"
+                          },
+                          "accessMode": {
+                            "enum": [
+                              "all",
+                              "scoped"
+                            ]
+                          },
+                          "easyvUserId": {
+                            "type": "string",
+                            "pattern": "^[1-9][0-9]*$"
+                          },
+                          "dataScope": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "queries": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 4,
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "id",
+                                "label",
+                                "intent",
+                                "range",
+                                "to"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^q[1-9][0-9]*$"
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "intent": {
+                                  "type": "object",
+                                  "required": [
+                                    "object"
+                                  ],
+                                  "properties": {
+                                    "object": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  }
+                                },
+                                "range": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "from": {
+                                  "type": "string",
+                                  "format": "date"
+                                },
+                                "to": {
+                                  "type": "string",
+                                  "format": "date"
+                                },
+                                "compareRange": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
-                    },
-                    "required": [
-                      "entity",
-                      "metric",
-                      "time",
-                      "from",
-                      "to",
-                      "accessMode",
-                      "userId"
                     ]
                   },
                   "_suggestedQuestions": {
@@ -2290,154 +2708,328 @@
                   }
                 },
                 "else": {
-                  "properties": {
-                    "conclusionState": {
-                      "type": "object",
-                      "properties": {
-                        "evidence": {
-                          "type": "array",
-                          "minItems": 4,
-                          "maxItems": 4,
-                          "allOf": [
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-ai-application"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-pipeline-node"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-forge-task"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "source": {
-                                    "const": "easyv-generation-feedback"
-                                  }
-                                },
-                                "required": [
-                                  "source"
-                                ]
-                              }
-                            }
-                          ]
+                  "if": {
+                    "properties": {
+                      "planSnapshot": {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "const": "semantic-query-read-only"
+                          }
                         },
-                        "claims": {
-                          "type": "array",
-                          "minItems": 5,
-                          "maxItems": 5,
-                          "allOf": [
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "generation-quality"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
+                        "required": [
+                          "mode"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "planSnapshot"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "conclusionState": {
+                        "type": "object",
+                        "properties": {
+                          "evidence": {
+                            "type": "array",
+                            "minItems": 1,
+                            "contains": {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "const": "easyv-data-scope"
+                                }
+                              },
+                              "required": [
+                                "source"
+                              ]
                             },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "stage-bottleneck"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "failure-concentration"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "feedback-association"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
-                              }
-                            },
-                            {
-                              "contains": {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "const": "business-success-settlement-distinct"
-                                  }
-                                },
-                                "required": [
-                                  "kind"
-                                ]
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "source"
+                              ],
+                              "properties": {
+                                "source": {
+                                  "type": "string",
+                                  "pattern": "^(easyv-data-scope|easyv-query:q[1-9][0-9]*(:compare)?)$"
+                                }
                               }
                             }
-                          ],
-                          "items": {
+                          },
+                          "claims": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1,
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "const": "direct-answer"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "capabilityBinding": {
+                        "type": "object",
+                        "properties": {
+                          "resolvedScope": {
                             "type": "object",
+                            "properties": {
+                              "schemaVersion": {
+                                "const": 2
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "planSnapshot": {
+                        "type": "object",
+                        "properties": {
+                          "_resolvedContext": {
+                            "type": "object",
+                            "additionalProperties": false,
                             "required": [
-                              "kind"
+                              "userId",
+                              "accessMode",
+                              "dataScope",
+                              "queries"
                             ],
                             "properties": {
-                              "kind": {
+                              "userId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "accessMode": {
                                 "enum": [
-                                  "generation-quality",
-                                  "stage-bottleneck",
-                                  "failure-concentration",
-                                  "feedback-association",
-                                  "business-success-settlement-distinct"
+                                  "all",
+                                  "scoped"
                                 ]
+                              },
+                              "easyvUserId": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]*$"
+                              },
+                              "dataScope": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "queries": {
+                                "type": "array",
+                                "minItems": 1,
+                                "maxItems": 4,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "id",
+                                    "label",
+                                    "intent",
+                                    "range",
+                                    "to"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^q[1-9][0-9]*$"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "intent": {
+                                      "type": "object",
+                                      "required": [
+                                        "object"
+                                      ],
+                                      "properties": {
+                                        "object": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      }
+                                    },
+                                    "range": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "from": {
+                                      "type": "string",
+                                      "format": "date"
+                                    },
+                                    "to": {
+                                      "type": "string",
+                                      "format": "date"
+                                    },
+                                    "compareRange": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "conclusionState": {
+                        "type": "object",
+                        "properties": {
+                          "evidence": {
+                            "type": "array",
+                            "minItems": 4,
+                            "maxItems": 4,
+                            "allOf": [
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-ai-application"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-pipeline-node"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-forge-task"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {
+                                      "const": "easyv-generation-feedback"
+                                    }
+                                  },
+                                  "required": [
+                                    "source"
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          "claims": {
+                            "type": "array",
+                            "minItems": 5,
+                            "maxItems": 5,
+                            "allOf": [
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "generation-quality"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "stage-bottleneck"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "failure-concentration"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "feedback-association"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              },
+                              {
+                                "contains": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "const": "business-success-settlement-distinct"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind"
+                                  ]
+                                }
+                              }
+                            ],
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "generation-quality",
+                                    "stage-bottleneck",
+                                    "failure-concentration",
+                                    "feedback-association",
+                                    "business-success-settlement-distinct"
+                                  ]
+                                }
                               }
                             }
                           }

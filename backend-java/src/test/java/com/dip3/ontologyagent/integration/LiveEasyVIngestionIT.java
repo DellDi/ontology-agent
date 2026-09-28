@@ -1,8 +1,7 @@
 package com.dip3.ontologyagent.integration;
 
 import com.dip3.ontologyagent.easyv.internal.adapter.out.ingestion.EasyVCanonicalTransform;
-import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVCanonicalFactAdapter;
-import com.dip3.ontologyagent.easyv.internal.application.EasyVGenerationFacts;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.ingestion.api.CanonicalProductTransform;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersion;
@@ -78,9 +77,6 @@ class LiveEasyVIngestionIT {
         required("EASYV_POSTGRES_JDBC_URL");
         required("EASYV_POSTGRES_USERNAME");
         required("EASYV_POSTGRES_PASSWORD");
-        required("LIVE_EASYV_USER_ID");
-        required("LIVE_EASYV_FROM");
-        required("LIVE_EASYV_TO");
         MigrationTestSupport.migrate(TARGET);
     }
 
@@ -151,14 +147,7 @@ class LiveEasyVIngestionIT {
         DatasetVersionSetPostgresAdapter versionSets = new DatasetVersionSetPostgresAdapter(
                 targetJdbc, json);
         assertEquals(setId, versionSets.latestFrozen(
-                EasyVCanonicalFactAdapter.REQUIRED_PRODUCTS).orElseThrow().publicationId());
-        EasyVGenerationFacts.Snapshot runtimeSnapshot = new EasyVCanonicalFactAdapter(
-                targetJdbc, targetTransactions, versionSets).collect(
-                new EasyVGenerationFacts.Query("live-easyv-execution", required("LIVE_EASYV_USER_ID"),
-                        "all", "live-easyv-ontology", setId,
-                        LocalDate.parse(required("LIVE_EASYV_FROM")),
-                        LocalDate.parse(required("LIVE_EASYV_TO")), Instant.now()));
-        assertEquals(required("LIVE_EASYV_USER_ID"), runtimeSnapshot.application().window().userId());
+                EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS).orElseThrow().publicationId());
 
         for (String datasetKey : DATASET_KEYS) {
             assertEquals(sourceCountsBefore.get(datasetKey),

@@ -11,10 +11,12 @@ import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVCapabilityRegistration;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVMainAgent;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVScopeResolver;
+import com.dip3.ontologyagent.semantic.api.SemanticModel;
 import com.dip3.ontologyagent.workspace.WorkspaceHomeMapper;
 import com.dip3.ontologyagent.workspace.WorkspaceHomeService;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
@@ -33,7 +35,12 @@ class WorkspaceCapabilityAvailabilityTest {
       .withBean(MainAgent.class, () -> mock(MainAgent.class))
       .withBean(PropertyProjectScopeResolver.class, () -> mock(PropertyProjectScopeResolver.class))
       .withBean(EasyVMainAgent.class, () -> mock(EasyVMainAgent.class))
-      .withBean(IdentityAccountService.class, () -> mock(IdentityAccountService.class))
+      .withBean(IdentityAccountService.class, () -> {
+        IdentityAccountService accounts = mock(IdentityAccountService.class);
+        when(accounts.subjectValue(123L, "easyv", "userId")).thenReturn(Optional.of("16"));
+        return accounts;
+      })
+      .withBean(SemanticModel.class, SemanticModel::discover)
       .withBean(WorkspaceHomeMapper.class, () -> mock(WorkspaceHomeMapper.class));
 
   private AuthSession viewer(String userId, boolean property, boolean easyv) {
@@ -117,6 +124,17 @@ class WorkspaceCapabilityAvailabilityTest {
       assertFalse(easyv.available());
       assertNull(easyv.resolvedScope());
       assertTrue(easyv.unavailableReason().contains("用户 ID"));
+    });
+  }
+
+  @Test
+  void unboundEasyvAnalystIsUnavailableWithBindingReason() {
+    runner.withPropertyValues("dip3.easyv.enabled=true").run(context -> {
+      var easyv = capability(context.getBean(CapabilityRegistry.class)
+          .availableFor(viewer("456", false, true)), "easyv");
+      assertFalse(easyv.available());
+      assertNull(easyv.resolvedScope());
+      assertTrue(easyv.unavailableReason().contains("未绑定 EasyV 用户"));
     });
   }
 }

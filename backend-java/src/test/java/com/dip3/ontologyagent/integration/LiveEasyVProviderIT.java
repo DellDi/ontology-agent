@@ -14,7 +14,8 @@ import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.ontology.bootstrap.OntologyBootstrapService;
 import com.dip3.ontologyagent.support.MigrationTestSupport;
 import java.time.Instant;
-import java.time.LocalDate;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.BindMode;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.lifecycle.Startable;
@@ -39,8 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Explicit live gate: real OpenAI-compatible model + real EasyV test PostgreSQL + local disposable
- * platform ledger. It is only included by the {@code live-integration} Maven profile.
+ * Explicit live gate: real OpenAI-compatible model + real EasyV test PostgreSQL + real Cube semantic
+ * layer + local disposable platform ledger. It is only included by the {@code live-integration} Maven profile.
+ * Persistent mode reads Cube from {@code LIVE_CUBE_API_URL}/{@code LIVE_CUBE_API_SECRET}.
  */
 @Testcontainers
 @SpringBootTest(properties = {
@@ -63,16 +69,38 @@ class LiveEasyVProviderIT {
       "LLM_PROVIDER_STRUCTURED_OUTPUT",
       "EASYV_POSTGRES_JDBC_URL",
       "EASYV_POSTGRES_USERNAME",
-      "EASYV_POSTGRES_PASSWORD",
-      "LIVE_EASYV_USER_ID",
-      "LIVE_EASYV_FROM",
-      "LIVE_EASYV_TO");
+      "EASYV_POSTGRES_PASSWORD");
+  private static final String CUBE_SECRET = "live-easyv-cube-secret-with-adequate-entropy";
+  private static final Network NETWORK = Network.newNetwork();
 
-  static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.8-alpine");
+  static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.8-alpine")
+      .withNetwork(NETWORK).withNetworkAliases("postgres");
+
+  static final GenericContainer<?> CUBE = new GenericContainer<>("cubejs/cube:v1.6.31")
+      .withNetwork(NETWORK)
+      .dependsOn(POSTGRES)
+      .withEnv("CUBEJS_DB_TYPE", "postgres")
+      .withEnv("CUBEJS_DB_HOST", "postgres")
+      .withEnv("CUBEJS_DB_PORT", "5432")
+      .withEnv("CUBEJS_DB_NAME", "test")
+      .withEnv("CUBEJS_DB_USER", "test")
+      .withEnv("CUBEJS_DB_PASS", "test")
+      .withEnv("CUBEJS_API_SECRET", CUBE_SECRET)
+      .withEnv("CUBEJS_DEV_MODE", "false")
+      .withEnv("CUBEJS_TELEMETRY", "false")
+      .withEnv("CUBEJS_CACHE_AND_QUEUE_DRIVER", "memory")
+      .withFileSystemBind(Path.of("..", "cube", "conf").toAbsolutePath().normalize().toString(),
+          "/cube/conf", BindMode.READ_ONLY)
+      .withExposedPorts(4000)
+      .waitingFor(Wait.forHttp("/readyz").forPort(4000).forStatusCode(200))
+      .withStartupTimeout(Duration.ofMinutes(3));
 
   @Container
   static final Startable PLATFORM_DATABASE = PERSIST_PLATFORM_RESULTS
       ? NoopStartable.INSTANCE : POSTGRES;
+
+  @Container
+  static final Startable CUBE_ENGINE = PERSIST_PLATFORM_RESULTS ? NoopStartable.INSTANCE : CUBE;
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) {
@@ -104,9 +132,11 @@ class LiveEasyVProviderIT {
     registry.add("spring.ai.chat.memory.repository.jdbc.initialize-schema", () -> "never");
     registry.add("dip3.session-secret", () -> "live-easyv-session-secret-with-adequate-entropy");
     registry.add("dip3.redis-key-prefix", () -> "live-easyv");
-    registry.add("dip3.cube.api-url", () -> "http://127.0.0.1:1/cubejs-api/v1");
-    registry.add("dip3.cube.api-secret", () -> "unused-live-easyv-cube-secret");
-    registry.add("dip3.cube.timeout", () -> "1s");
+    registry.add("dip3.cube.api-url", () -> PERSIST_PLATFORM_RESULTS ? required("LIVE_CUBE_API_URL")
+        : "http://" + CUBE.getHost() + ":" + CUBE.getMappedPort(4000) + "/cubejs-api/v1");
+    registry.add("dip3.cube.api-secret", () -> PERSIST_PLATFORM_RESULTS ? required("LIVE_CUBE_API_SECRET")
+        : CUBE_SECRET);
+    registry.add("dip3.cube.timeout", () -> "60s");
     registry.add("dip3.neo4j.uri", () -> "bolt://127.0.0.1:1");
     registry.add("dip3.neo4j.username", () -> "neo4j");
     registry.add("dip3.neo4j.password", () -> "unused-live-easyv-neo4j-password");
@@ -137,7 +167,7 @@ class LiveEasyVProviderIT {
   @MockitoBean WakeupPublisher wakeups;
 
   @Test
-  void realModelCallsEasyVToolExactlyOnceAndPersistsGroundedTestDatabaseResult() {
+  void realModelPlansSemanticQueriesAndPersistsGroundedTestDatabaseResult() {
     AuthSession admin = new AuthSession(
         "live-easyv-admin",
         "platform-admin",
@@ -147,17 +177,13 @@ class LiveEasyVProviderIT {
     assertTrue(bootstrap.bootstrap(admin, "live-easyv-bootstrap").status().ready());
     String datasetVersionSetId = publishCanonicalEasyV();
 
-    String userId = required("LIVE_EASYV_USER_ID");
-    LocalDate from = LocalDate.parse(required("LIVE_EASYV_FROM"));
-    LocalDate to = LocalDate.parse(required("LIVE_EASYV_TO"));
     AuthSession owner = new AuthSession(
         "live-easyv-auth",
-        userId,
-        "live-easyv-user",
-        new AccessScope("live-easyv", List.of(), List.of(), List.of("EASYV_ANALYST")),
+        "1",
+        "live-easyv-admin",
+        new AccessScope("live-easyv", List.of(), List.of(), List.of("PLATFORM_ADMIN")),
         Instant.now().plusSeconds(600));
-    String question = "查询 " + from + (from.equals(to) ? "" : " 到 " + to)
-        + " 的 EasyV AI 大屏生成质量、阶段耗时、失败和评分。";
+    String question = "EasyV 大屏生成任务的成功率、失败原因分布和各月生成趋势";
 
     var session = analyses.createSession(owner, question);
     @SuppressWarnings("unchecked")
@@ -174,20 +200,16 @@ class LiveEasyVProviderIT {
         () -> "live EasyV execution failed: " + snapshot.errorCode() + " " + snapshot.mobileProjection());
     assertEquals("easyv", snapshot.capabilityBinding().get("domainKey"));
     assertEquals("generation-quality-analysis", snapshot.capabilityBinding().get("capabilityKey"));
-    assertEquals("deterministic-read-only", snapshot.planSnapshot().get("mode"));
+    assertEquals("semantic-query-read-only", snapshot.planSnapshot().get("mode"));
     assertEquals(datasetVersionSetId, snapshot.datasetVersionSetId());
 
     List<Map<String, Object>> evidence = listOfMaps(snapshot.conclusionState().get("evidence"));
     List<Map<String, Object>> claims = listOfMaps(snapshot.conclusionState().get("claims"));
-    assertEquals(List.of(
-            "easyv-ai-application",
-            "easyv-pipeline-node",
-            "easyv-forge-task",
-            "easyv-generation-feedback"),
-        evidence.stream().map(item -> item.get("source")).toList());
-    assertEquals(5, claims.size());
-    assertTrue(evidence.stream().flatMap(item -> listOfMaps(item.get("rows")).stream())
-        .allMatch(row -> row.containsKey("freshnessAt")));
+    assertEquals("easyv-data-scope", evidence.getFirst().get("source"));
+    assertTrue(evidence.stream().skip(1).allMatch(item -> item.get("source").toString().startsWith("easyv-query:")));
+    assertEquals(1, claims.size());
+    assertEquals("direct-answer", claims.getFirst().get("kind"));
+    assertTrue(!listOfMaps(claims.getFirst().get("evidenceRefs")).isEmpty());
     assertEquals(1, invocations.count(
         executionId,
         EasyVInvocationContract.CONTRACT.invocationType(),

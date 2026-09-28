@@ -468,16 +468,12 @@ class AnalysisWorkerTest {
 
     private static WorkflowResult easyvWorkflowResult() {
         List<Evidence> evidence = List.of(
-                new Evidence("easyv-ai-application", "应用", List.of(Map.of("count", 1)), easyvProvenance()),
-                new Evidence("easyv-pipeline-node", "流水线", List.of(Map.of("count", 1)), easyvProvenance()),
-                new Evidence("easyv-forge-task", "Forge", List.of(Map.of("count", 1)), easyvProvenance()),
-                new Evidence("easyv-generation-feedback", "反馈", List.of(Map.of("count", 1)), easyvProvenance()));
+                new Evidence("easyv-data-scope", "数据范围与冻结版本", List.of(Map.of("resultRows", 1)),
+                        easyvProvenance()),
+                new Evidence("easyv-query:q1", "生成任务 · 生成任务数", List.of(Map.of("value", 1)),
+                        easyvProvenance()));
         List<com.dip3.ontologyagent.tooling.GroundedConclusion.Claim> claims = List.of(
-                claim("generation-quality", "easyv-forge-task"),
-                claim("stage-bottleneck", "easyv-pipeline-node"),
-                claim("failure-concentration", "easyv-forge-task"),
-                claim("feedback-association", "easyv-generation-feedback"),
-                claim("business-success-settlement-distinct", "easyv-generation-feedback"));
+                claim("direct-answer", "easyv-query:q1"));
         return new WorkflowResult(Map.of("steps", List.of(), "_executionContract",
                 ExecutionRepository.EXECUTION_CONTRACT, "_resolvedContext", Map.of()),
                 evidence, "EasyV result", claims, List.of());

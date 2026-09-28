@@ -335,7 +335,7 @@ golden query 仍待确认。
 
 ### P4：Agent Runtime 切换（EasyV 联合门禁已完成）
 
-- [x] EasyV capability 改读平台 `facts`，运行时入口为 `EasyVCanonicalFactAdapter`；
+- [x] EasyV capability 改读平台 `facts`，运行时入口为 `EasyVCanonicalFactAdapter`（已由 `EasyVSemanticAgent` + `SemanticQueryPort`（Cube）替代，见 `ontology-agent-runtime.md` §7）；
 - [x] source credential 只出现在 ingestion source connector 配置边界，canonical runtime 不直连来源表；
 - [x] Job/Execution/Snapshot/Evidence metadata 保存并校验 `DatasetVersionSet` binding；
 - [x] Follow-up 与 retry 继承原 dataset binding；
