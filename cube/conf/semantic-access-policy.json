@@ -1,0 +1,44 @@
+{
+  "EasyvApplication": {
+    "productKey": "easyv-ai-application",
+    "requiredMembers": [],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
+  },
+  "EasyvFeedback": {
+    "productKey": "easyv-generation-feedback",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvFeedback.userId"
+    }
+  },
+  "EasyvForgeTask": {
+    "productKey": "easyv-forge-task",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
+  },
+  "EasyvPipelineNode": {
+    "productKey": "easyv-pipeline-node",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
+  },
+  "EasyvPipelineTask": {
+    "productKey": "easyv-pipeline-node",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
+  },
+  "EasyvPrototype": {
+    "productKey": "easyv-prototype-task",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
+  }
+}

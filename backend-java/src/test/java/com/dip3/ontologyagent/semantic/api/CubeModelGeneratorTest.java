@@ -8,11 +8,31 @@ import com.dip3.ontologyagent.semantic.api.OntologyLink.Cardinality;
 import com.dip3.ontologyagent.semantic.api.OntologyMetric.Aggregation;
 import com.dip3.ontologyagent.semantic.api.OntologyProperty.Type;
 import com.dip3.ontologyagent.support.BackendException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CubeModelGeneratorTest {
+
+  private static SemanticModel model(OntologyObjectType... objects) {
+    return SemanticModel.of(List.of(new OntologyModelContribution() {
+      @Override
+      public String domainKey() {
+        return "demo";
+      }
+
+      @Override
+      public ZoneId businessZone() {
+        return ZoneId.of("Asia/Shanghai");
+      }
+
+      @Override
+      public List<OntologyObjectType> objects() {
+        return List.of(objects);
+      }
+    }));
+  }
 
   private static OntologyObjectType order() {
     return new OntologyObjectType("demo-order", "订单", "演示订单", "DemoOrder", "demo-order-product",
@@ -28,22 +48,26 @@ class CubeModelGeneratorTest {
             new OntologyMetric("failedCount", "失败订单数", "失败订单", Aggregation.COUNT_DISTINCT,
                 "{CUBE}.order_id", "{CUBE}.status = 'failed'"),
             new OntologyMetric("p95Ms", "P95 耗时", "终态订单耗时 P95", Aggregation.PERCENTILE_95,
-                "{CUBE}.duration_ms", "{CUBE}.duration_ms is not null")));
+                "{CUBE}.duration_ms", "{CUBE}.duration_ms is not null"),
+            OntologyMetric.ratio("failureRate", "失败率（%）", "失败订单 / 订单", "failedCount", "count")),
+        "createdAt", List.of("customer"), Map.of("tenantId", "customer.tenantId"));
   }
 
   private static OntologyObjectType customer() {
     return new OntologyObjectType("demo-customer", "客户", "演示客户", "DemoCustomer", "demo-customer-product",
         "facts.demo_customer", null,
-        List.of(OntologyProperty.key("customerId", "客户 ID", "customer_id")),
+        List.of(OntologyProperty.key("customerId", "客户 ID", "customer_id"),
+            OntologyProperty.column("tenantId", "租户", "租户", Type.STRING, "tenant_id")),
         List.of(),
-        List.of(new OntologyMetric("count", "客户数", "客户数", Aggregation.COUNT, null, null)));
+        List.of(new OntologyMetric("count", "客户数", "客户数", Aggregation.COUNT, null, null)),
+        null, List.of(), Map.of("tenantId", "tenantId"));
   }
 
   @Test
   void generatesDeterministicCubeYamlWithHiddenVersionDimension() {
-    Map<String, String> files = CubeModelGenerator.generate(List.of(order(), customer()));
+    Map<String, String> files = CubeModelGenerator.generate(model(order(), customer()));
 
-    String yaml = files.get("DemoOrder.yml");
+    String yaml = files.get("model/demo/DemoOrder.yml");
     assertEquals("""
         # 由本体声明生成（CubeModelGenerator），请勿手工修改。
         cubes:
@@ -102,27 +126,82 @@ class CubeModelGeneratorTest {
                 description: "终态订单耗时 P95"
                 sql: "ceil(percentile_cont(0.95) within group (order by {CUBE}.duration_ms) filter (where {CUBE}.duration_ms is not null))"
                 type: "number"
+              - name: "failureRate"
+                title: "失败率（%）"
+                description: "失败订单 / 订单"
+                sql: "round(100.0 * {failedCount} / nullif({count}, 0), 2)"
+                type: "number"
+              - name: "createdAtCoverageFrom"
+                title: "创建时间（最早）"
+                sql: "extract(epoch from min({CUBE}.created_at))"
+                type: "number"
+                meta:
+                  coverage: "true"
+              - name: "createdAtCoverageTo"
+                title: "创建时间（最晚）"
+                sql: "extract(epoch from max({CUBE}.created_at))"
+                type: "number"
+                meta:
+                  coverage: "true"
         """, yaml);
-    assertTrue(files.get("DemoCustomer.yml").contains("sql_table: \"facts.demo_customer\""));
-    assertTrue(files.get("DemoCustomer.yml").contains("type: \"count\""));
+    assertTrue(files.get("model/demo/DemoCustomer.yml").contains("sql_table: \"facts.demo_customer\""));
+    assertTrue(files.get("model/demo/DemoCustomer.yml").contains("type: \"count\""));
   }
 
   @Test
-  void generatesVersionedCubeIndexForQueryRewrite() {
-    Map<String, String> files = CubeModelGenerator.generate(List.of(order(), customer()));
+  void generatesAccessPolicyForQueryRewrite() {
+    Map<String, String> files = CubeModelGenerator.generate(model(order(), customer()));
 
     assertEquals("""
         {
-          "DemoCustomer": "demo-customer-product",
-          "DemoOrder": "demo-order-product"
+          "DemoCustomer": {
+            "productKey": "demo-customer-product",
+            "requiredMembers": [],
+            "scopeMembers": {
+              "tenantId": "DemoCustomer.tenantId"
+            }
+          },
+          "DemoOrder": {
+            "productKey": "demo-order-product",
+            "requiredMembers": ["DemoCustomer.customerId"],
+            "scopeMembers": {
+              "tenantId": "DemoCustomer.tenantId"
+            }
+          }
         }
-        """, files.get(CubeModelGenerator.VERSIONED_INDEX_FILE));
+        """, files.get(CubeModelGenerator.ACCESS_POLICY_FILE));
+  }
+
+  @Test
+  void resolvesMemberPathsAcrossOneLink() {
+    SemanticModel model = model(order(), customer());
+
+    assertEquals("DemoOrder.status", model.resolve("demo-order", "status").cubeMember());
+    assertEquals("DemoCustomer.tenantId", model.resolve("demo-order", "customer.tenantId").cubeMember());
+    assertEquals("demo", model.domainKey("demo-order"));
+    assertThrows(BackendException.class, () -> model.resolve("demo-order", "customer.missing"));
+    assertThrows(BackendException.class, () -> model.resolve("demo-order", "customer.tenantId.x"));
+    assertThrows(BackendException.class, () -> model.resolve("demo-order", "unknown.tenantId"));
+  }
+
+  @Test
+  void rejectsInvalidRatioDefaultTimeAndRequiredLink() {
+    assertThrows(BackendException.class, () -> new OntologyMetric("r", "r", "r", Aggregation.RATIO, "{a} / {b} * 2", null));
+    assertThrows(BackendException.class, () -> new OntologyObjectType("x", "x", "x", "X", "p", "t", null,
+        List.of(OntologyProperty.key("a", "a", "a")), List.of(),
+        List.of(OntologyMetric.ratio("r", "r", "r", "missing", "count"))));
+    assertThrows(BackendException.class, () -> new OntologyObjectType("x", "x", "x", "X", "p", "t", null,
+        List.of(OntologyProperty.key("a", "a", "a")), List.of(), List.of(), "a", List.of(), Map.of()));
+    assertThrows(BackendException.class, () -> new OntologyObjectType("x", "x", "x", "X", "p", "t", null,
+        List.of(OntologyProperty.key("a", "a", "a")), List.of(), List.of(), null, List.of("customer"), Map.of()));
+    assertThrows(BackendException.class, () -> model(new OntologyObjectType("x", "x", "x", "X", "p", "t", null,
+        List.of(OntologyProperty.key("a", "a", "a")), List.of(), List.of(), null, List.of(), Map.of("userId", "missing"))));
   }
 
   @Test
   void rejectsDanglingLinkTarget() {
     BackendException error = assertThrows(BackendException.class,
-        () -> CubeModelGenerator.generate(List.of(order())));
+        () -> CubeModelGenerator.generate(model(order())));
     assertEquals("SEMANTIC_MODEL_INVALID", error.code());
     assertTrue(error.getMessage().contains("demo-customer"));
   }
@@ -135,13 +214,13 @@ class CubeModelGeneratorTest {
         List.of());
 
     BackendException error = assertThrows(BackendException.class,
-        () -> CubeModelGenerator.generate(List.of(broken, customer())));
+        () -> CubeModelGenerator.generate(model(broken, customer())));
     assertEquals("SEMANTIC_MODEL_INVALID", error.code());
   }
 
   @Test
   void rejectsDuplicateCubeNameAndReservedMember() {
-    assertThrows(BackendException.class, () -> CubeModelGenerator.generate(List.of(customer(), customer())));
+    assertThrows(BackendException.class, () -> CubeModelGenerator.generate(model(customer(), customer())));
     assertThrows(BackendException.class, () -> new OntologyObjectType("x", "x", "x", "X", "p", "t", null,
         List.of(OntologyProperty.key("productVersionId", "v", "v")), List.of(), List.of()));
   }

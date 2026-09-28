@@ -1,0 +1,64 @@
+# 由本体声明生成（CubeModelGenerator），请勿手工修改。
+cubes:
+  - name: "EasyvPrototype"
+    title: "原型"
+    description: "进入原型流水线的应用（每个应用至多一条）"
+    sql_table: "facts.easyv_prototype_task"
+    meta:
+      ontologyObject: "easyv-prototype"
+      productKey: "easyv-prototype-task"
+    joins:
+      - name: "EasyvApplication"
+        relationship: "one_to_one"
+        sql: "{CUBE}.app_id = {EasyvApplication}.app_id"
+    dimensions:
+      - name: "productVersionId"
+        sql: "{CUBE}.product_version_id"
+        type: "string"
+        public: false
+      - name: "appId"
+        title: "应用 ID"
+        sql: "{CUBE}.app_id"
+        type: "string"
+        primary_key: true
+        public: true
+      - name: "createdAt"
+        title: "原型创建时间"
+        description: "原型创建时间"
+        sql: "{CUBE}.created_at"
+        type: "time"
+      - name: "updatedAt"
+        title: "原型更新时间"
+        description: "原型最近更新时间"
+        sql: "{CUBE}.updated_at"
+        type: "time"
+    measures:
+      - name: "count"
+        title: "原型数"
+        description: "去重原型数"
+        sql: "{CUBE}.app_id"
+        type: "count_distinct"
+      - name: "createdAtCoverageFrom"
+        title: "原型创建时间（最早）"
+        sql: "extract(epoch from min({CUBE}.created_at))"
+        type: "number"
+        meta:
+          coverage: "true"
+      - name: "createdAtCoverageTo"
+        title: "原型创建时间（最晚）"
+        sql: "extract(epoch from max({CUBE}.created_at))"
+        type: "number"
+        meta:
+          coverage: "true"
+      - name: "updatedAtCoverageFrom"
+        title: "原型更新时间（最早）"
+        sql: "extract(epoch from min({CUBE}.updated_at))"
+        type: "number"
+        meta:
+          coverage: "true"
+      - name: "updatedAtCoverageTo"
+        title: "原型更新时间（最晚）"
+        sql: "extract(epoch from max({CUBE}.updated_at))"
+        type: "number"
+        meta:
+          coverage: "true"
