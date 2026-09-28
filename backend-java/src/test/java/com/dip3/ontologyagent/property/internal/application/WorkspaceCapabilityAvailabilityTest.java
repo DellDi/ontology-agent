@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.auth.IdentityAccountService;
 import com.dip3.ontologyagent.capability.api.CapabilityAvailability;
 import com.dip3.ontologyagent.capability.api.CapabilityRegistry;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVCapabilityRegistration;
@@ -32,6 +33,7 @@ class WorkspaceCapabilityAvailabilityTest {
       .withBean(MainAgent.class, () -> mock(MainAgent.class))
       .withBean(PropertyProjectScopeResolver.class, () -> mock(PropertyProjectScopeResolver.class))
       .withBean(EasyVMainAgent.class, () -> mock(EasyVMainAgent.class))
+      .withBean(IdentityAccountService.class, () -> mock(IdentityAccountService.class))
       .withBean(WorkspaceHomeMapper.class, () -> mock(WorkspaceHomeMapper.class));
 
   private AuthSession viewer(String userId, boolean property, boolean easyv) {

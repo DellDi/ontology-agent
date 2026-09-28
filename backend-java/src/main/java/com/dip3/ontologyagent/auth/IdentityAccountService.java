@@ -111,6 +111,52 @@ public class IdentityAccountService {
                 accountId, roleCode);
     }
 
+    /** 平台账号在外部数据源中的主体绑定（identity.subject_bindings）。 */
+    public record SubjectBinding(String sourceKey, String subjectKey, String value) {}
+
+    public List<SubjectBinding> subjectBindings(long accountId) {
+        return jdbc.query("""
+                        select source_key, subject_key, subject_value from identity.subject_bindings
+                        where account_id = ? order by source_key, subject_key
+                        """,
+                (rs, n) -> new SubjectBinding(rs.getString("source_key"), rs.getString("subject_key"),
+                        rs.getString("subject_value")), accountId);
+    }
+
+    public Optional<String> subjectValue(long accountId, String sourceKey, String subjectKey) {
+        return jdbc.queryForList("""
+                        select subject_value from identity.subject_bindings
+                        where account_id = ? and source_key = ? and subject_key = ?
+                        """, String.class, accountId, sourceKey, subjectKey).stream().findFirst();
+    }
+
+    @Transactional
+    public void bindSubject(long accountId, String sourceKey, String subjectKey, String value, String boundBy) {
+        String source = sourceKey == null ? "" : sourceKey.trim();
+        String subject = subjectKey == null ? "" : subjectKey.trim();
+        String normalized = value == null ? "" : value.trim();
+        if (!source.matches("[a-z][a-z0-9-]{0,63}") || !subject.matches("[a-zA-Z][a-zA-Z0-9]{0,63}")
+                || normalized.isEmpty() || normalized.length() > 200) {
+            throw new BackendException("IDENTITY_BINDING_INVALID",
+                    "绑定须提供合法的 sourceKey、subjectKey 与不超过 200 字符的 value。");
+        }
+        if (findById(accountId).isEmpty()) {
+            throw new BackendException("IDENTITY_ACCOUNT_NOT_FOUND", "账号不存在。");
+        }
+        jdbc.update("""
+                        insert into identity.subject_bindings(account_id, source_key, subject_key, subject_value, bound_by)
+                        values (?,?,?,?,?)
+                        on conflict (account_id, source_key, subject_key)
+                        do update set subject_value = excluded.subject_value, bound_by = excluded.bound_by, bound_at = now()
+                        """, accountId, source, subject, normalized, boundBy);
+    }
+
+    @Transactional
+    public void unbindSubject(long accountId, String sourceKey, String subjectKey) {
+        jdbc.update("delete from identity.subject_bindings where account_id = ? and source_key = ? and subject_key = ?",
+                accountId, sourceKey, subjectKey);
+    }
+
     @Transactional
     public void setStatus(long accountId, String status) {
         if (!List.of("active", "disabled").contains(status)) {

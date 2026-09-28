@@ -27,7 +27,8 @@ public final class IdentityAdminController {
     }
 
     public record AccountView(long id, String account, String displayName, String status,
-                              String source, String organizationId, List<String> roles) {}
+                              String source, String organizationId, List<String> roles,
+                              List<IdentityAccountService.SubjectBinding> bindings) {}
 
     public record AccountList(List<AccountView> items) {}
 
@@ -35,6 +36,8 @@ public final class IdentityAdminController {
                                        String organizationId, List<String> roles) {}
 
     public record RoleChangeRequest(String roleCode, String action) {}
+
+    public record BindingChangeRequest(String sourceKey, String subjectKey, String value, String action) {}
 
     public record UpdateAccountRequest(String status, String displayName, String organizationId,
                                        String password) {}
@@ -67,6 +70,20 @@ public final class IdentityAdminController {
         return view(requireAccount(id));
     }
 
+    @PostMapping("/api/admin/identity/accounts/{id}/bindings")
+    public AccountView changeBinding(HttpServletRequest request, @PathVariable long id,
+                                     @RequestBody BindingChangeRequest body) {
+        AuthSession actor = requireAdmin(request);
+        if ("bind".equals(body.action())) {
+            accounts.bindSubject(id, body.sourceKey(), body.subjectKey(), body.value(), actor.userId());
+        } else if ("unbind".equals(body.action())) {
+            accounts.unbindSubject(id, body.sourceKey(), body.subjectKey());
+        } else {
+            throw new BackendException("IDENTITY_BINDING_ACTION_INVALID", "action 仅支持 bind/unbind。");
+        }
+        return view(requireAccount(id));
+    }
+
     @PatchMapping("/api/admin/identity/accounts/{id}")
     public AccountView update(HttpServletRequest request, @PathVariable long id,
                               @RequestBody UpdateAccountRequest body) {
@@ -86,7 +103,7 @@ public final class IdentityAdminController {
     private AccountView view(IdentityAccount account) {
         return new AccountView(account.id(), account.account(), account.displayName(),
                 account.status(), account.source(), account.organizationId(),
-                accounts.roleCodes(account.id()));
+                accounts.roleCodes(account.id()), accounts.subjectBindings(account.id()));
     }
 
     private IdentityAccount requireAccount(long id) {

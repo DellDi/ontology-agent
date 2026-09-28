@@ -26,6 +26,9 @@ Next 侧认证路由与业务路由一样是透明代理，Web 容器不再注�
 `SESSION_SECRET` 或任何认证开关。Web 只保留页面渲染、Java BFF、观测与 UI 映射。
 账号由平台自有 `identity.accounts` 承载，经 `POST /api/admin/identity/accounts`（PLATFORM_ADMIN）
 或 `admin-seed` profile 供给；URL 桥接与本地口令登录都要求账号已存在于平台身份表。
+账号与外部数据源主体的绑定经 `POST /api/admin/identity/accounts/{id}/bindings`（PLATFORM_ADMIN，
+body `{"sourceKey":"easyv","subjectKey":"userId","value":"16","action":"bind"}`，`action` 为 `bind`/`unbind`）
+维护；EasyV 语义查询中，`PLATFORM_ADMIN` 访问全部数据，其余账号限定为绑定的 EasyV `user_id`，未绑定即拒绝。
 
 ## 发布顺序
 
