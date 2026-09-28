@@ -62,6 +62,30 @@ class IdentityAccountServiceTest {
         assertTrue(second.id() > 0);
     }
 
+    @Test void subjectBindingsAreUpsertedListedAndRemoved() {
+        IdentityAccount account = accounts.provision("18668184122", "开发账号", "dev-password-1",
+                "org-easyv", "local", List.of("EASYV_ANALYST"), "test");
+        accounts.bindSubject(account.id(), "easyv", "userId", " 15 ", "admin");
+        accounts.bindSubject(account.id(), "easyv", "userId", "16", "admin");
+
+        assertEquals(java.util.Optional.of("16"), accounts.subjectValue(account.id(), "easyv", "userId"));
+        assertEquals(List.of(new IdentityAccountService.SubjectBinding("easyv", "userId", "16")),
+                accounts.subjectBindings(account.id()));
+
+        accounts.unbindSubject(account.id(), "easyv", "userId");
+        assertTrue(accounts.subjectBindings(account.id()).isEmpty());
+    }
+
+    @Test void subjectBindingRejectsInvalidInputAndUnknownAccount() {
+        IdentityAccount account = accounts.provision("user-1", null, null, null, "local", List.of(), "test");
+        assertEquals("IDENTITY_BINDING_INVALID", assertThrows(BackendException.class,
+                () -> accounts.bindSubject(account.id(), "EasyV", "userId", "16", "admin")).code());
+        assertEquals("IDENTITY_BINDING_INVALID", assertThrows(BackendException.class,
+                () -> accounts.bindSubject(account.id(), "easyv", "userId", " ", "admin")).code());
+        assertEquals("IDENTITY_ACCOUNT_NOT_FOUND", assertThrows(BackendException.class,
+                () -> accounts.bindSubject(account.id() + 1000, "easyv", "userId", "16", "admin")).code());
+    }
+
     @Test void provisionRejectsInvalidAccountAndWeakPassword() {
         assertThrows(BackendException.class,
                 () -> accounts.provision("", null, "password-123", "org", "local", List.of(), "test"));

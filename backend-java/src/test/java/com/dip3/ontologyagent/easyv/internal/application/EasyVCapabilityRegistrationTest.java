@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.auth.IdentityAccountService;
 import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
 import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.capability.api.InitialCapabilityCandidate;
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test;
 
 class EasyVCapabilityRegistrationTest {
   private final EasyVMainAgent mainAgent = mock(EasyVMainAgent.class);
-  private final EasyVScopeResolver scopes = new EasyVScopeResolver();
+  private final EasyVScopeResolver scopes = new EasyVScopeResolver(mock(IdentityAccountService.class));
   private final EasyVCapabilityRegistration registration =
       new EasyVCapabilityRegistration(mainAgent, scopes);
   private final AuthSession owner =

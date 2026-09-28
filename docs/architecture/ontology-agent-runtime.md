@@ -148,7 +148,7 @@ order[], limit  limit ≤ 5000；达到上限视为截断失败
 
 ### 6.2 遗留待确认（2026-09-24 自原前端计划进度日志迁入）
 
-- EasyV 用户映射（2026-09-28 已确认）：仅按 EasyV `user_id` 限定数据；需平台账号与 EasyV `user_id` 的绑定契约（待实现），`PLATFORM_ADMIN` 默认全部数据。语义层 `Scope.restricted({userId})` 已由 Cube 访问策略强制。
+- EasyV 用户映射（2026-09-28 已确认）：仅按 EasyV `user_id` 限定数据；平台账号经 `identity.subject_bindings`（V20，通用于各接入源）绑定 EasyV `user_id`，`EasyVScopeResolver.dataScope` 解析：`PLATFORM_ADMIN` 为全部数据，其余账号限定为绑定值，未绑定即拒绝（尚待分析链路切换后生效）。语义层 `Scope.restricted({userId})` 已由 Cube 访问策略强制。
 - 反馈 cohort 口径（原 P1-2，2026-09-28 已确认）：默认按操作时间 `operated_at`；可按 `application.createdAt` 关联时间切换。当前源库为测试环境，开发阶段按真实业务场景使用，后续切换正式地址。
 - 密码轮换仅有管理员 API（见部署文档），无 Web 改密与自助改密。
 - Property 域维持封存（`dip3.property.enabled=false`）；Property 数据与跨组件验收（原 P0-4）暂停。

@@ -691,6 +691,7 @@ test('Next auth routes are pure Java proxies and Set-Cookie passes through', asy
     'src/app/api/admin/identity/accounts/route.ts',
     'src/app/api/admin/identity/accounts/[id]/route.ts',
     'src/app/api/admin/identity/accounts/[id]/roles/route.ts',
+    'src/app/api/admin/identity/accounts/[id]/bindings/route.ts',
   ]) {
     const source = await readFile(new URL(path, root), 'utf8');
     assert.match(source, /forwardJavaBackendRequest\(request\)/, `${path} 必须是 Java 代理`);
