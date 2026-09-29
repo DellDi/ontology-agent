@@ -534,7 +534,11 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     }
     Map<String, Evidence> bySource = new LinkedHashMap<>();
     evidence.forEach(item -> bySource.put(item.source(), item));
-    boolean hasQueryEvidence = evidence.stream().anyMatch(item -> item.source().startsWith(QUERY_EVIDENCE_PREFIX));
+    // 可引用值与下方 citation 校验同一规则；全空行（如比率 0/0 产生 null）不构成可引用证据
+    boolean hasQueryEvidence = evidence.stream()
+        .filter(item -> item.source().startsWith(QUERY_EVIDENCE_PREFIX))
+        .anyMatch(item -> item.rows().stream()
+            .anyMatch(row -> row.values().stream().anyMatch(EasyVSemanticAgent::citableValue)));
     List<GroundedConclusion.EvidenceReference> references = new ArrayList<>();
     for (Citation citation : answer.citations()) {
       Evidence item = citation.query() == null ? null : bySource.get(QUERY_EVIDENCE_PREFIX + citation.query());
@@ -547,8 +551,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
         continue;
       }
       Object value = item.rows().get(citation.row()).get(citation.field());
-      if (!(value instanceof String || value instanceof Number || value instanceof Boolean)
-          || (value instanceof String text && text.isEmpty())) {
+      if (!citableValue(value)) {
         violations.add("引用 " + citation.query() + " 第 " + citation.row() + " 行的字段无效或为空：" + citation.field());
         continue;
       }
@@ -563,6 +566,11 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
           scope.rows().getFirst().get("resultRows")));
     }
     return references;
+  }
+
+  private static boolean citableValue(Object value) {
+    return value instanceof Number || value instanceof Boolean
+        || (value instanceof String text && !text.isEmpty());
   }
 
   /** “我的理解”投影：每条已执行查询的对象、指标、维度、过滤、解析后时间与数据覆盖。 */
