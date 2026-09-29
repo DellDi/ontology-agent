@@ -470,6 +470,51 @@ class EasyVSemanticAgentTest {
   }
 
   @Test
+  void nullOnlyRowsFallBackToScopeEvidence() {
+    // 复现线上失败：所选区间完全无数据时比率指标返回单行 null（0/0），
+    // 聚合后无可引用数据点；回答应落数据范围证据而非 EASYV_ANSWER_UNGROUNDED
+    Map<String, Object> rateQuery = Map.of("object", "easyv-forge-task",
+        "measures", List.of("successRate"),
+        "time", Map.of("expression", Map.of(
+            "sourceText", "上个月", "kind", "calendar", "unit", "month", "offset", -1)));
+    Map<String, Object> reasonQuery = Map.of("object", "easyv-forge-task",
+        "measures", List.of("count"), "dimensions", List.of("failureReason"), "limit", 5,
+        "time", Map.of("expression", Map.of(
+            "sourceText", "上个月", "kind", "calendar", "unit", "month", "offset", -1)));
+    when(model.plan(any()))
+        .thenReturn(new PlanDecision(PlanStatus.READY, List.of(rateQuery, reasonQuery), null, List.of()));
+    Map<String, Object> nullRow = new java.util.LinkedHashMap<>();
+    nullRow.put("successRate", null);
+    when(queries.execute(any(), any()))
+        .thenReturn(new SemanticQueryResult(List.of(nullRow), List.of(), "select 1"))
+        .thenReturn(new SemanticQueryResult(List.of(), List.of(), "select 1"));
+    when(model.compose(any(), any())).thenReturn(answer(List.of()));
+
+    WorkflowResult result = run(initialTurn(), ALL);
+
+    GroundedConclusion.Claim claim = result.claims().getFirst();
+    assertEquals(1, claim.evidenceRefs().size());
+    GroundedConclusion.EvidenceReference ref = claim.evidenceRefs().getFirst();
+    assertEquals("easyv-data-scope", ref.source());
+    assertEquals("resultRows", ref.field());
+    assertEquals(1, ref.value());
+    verify(model, times(1)).compose(any(), any());
+  }
+
+  @Test
+  void emptyCitationsStillFailLoudWhenCitableValuesExist() {
+    when(model.plan(any())).thenReturn(ready(COUNT_QUERY));
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 12, "successRate", 75.0)));
+    when(model.compose(any(), any())).thenReturn(answer(List.of()));
+
+    BackendException error = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
+
+    assertEquals("EASYV_ANSWER_UNGROUNDED", error.code());
+    assertTrue(error.getMessage().contains("citations"));
+    verify(model, times(2)).compose(any(), any());
+  }
+
+  @Test
   void followUpPassesPreviousQueriesAndRequiresThem() {
     when(model.plan(any())).thenReturn(ready(COUNT_QUERY));
     when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 12, "successRate", 75.0)));
