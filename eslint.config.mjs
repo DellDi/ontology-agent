@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     ".agents/**",
     "_bmad/**",
     "_bmad-output/**",
+    "cube/**",
     "design-artifacts/**",
     "docs/**",
     "skills/**",

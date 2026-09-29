@@ -19,15 +19,20 @@ public final class DatabaseMigrationRunner implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DatabaseMigrationRunner.class);
 
     private final DatabaseMigrationService migration;
+    private final FactsReaderGrants factsReaderGrants;
 
-    public DatabaseMigrationRunner(DatabaseMigrationService migration) {
+    public DatabaseMigrationRunner(DatabaseMigrationService migration,
+            FactsReaderGrants factsReaderGrants) {
         this.migration = migration;
+        this.factsReaderGrants = factsReaderGrants;
     }
 
     @Override
     public void run(ApplicationArguments args) {
         try {
             DatabaseMigrationService.Decision decision = migration.run();
+            // 迁移成功后执行 facts 只读授权；失败沿用同一 fail loud 退出路径。
+            factsReaderGrants.apply();
             log.info("flyway_migrate_complete decision={}", decision);
             System.exit(0);
         } catch (Exception error) {

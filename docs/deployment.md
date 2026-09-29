@@ -101,6 +101,8 @@ body `{"sourceKey":"easyv","subjectKey":"userId","value":"16","action":"bind"}`�
 - `COOKIE_SECURE=true`：生产会话 Cookie 必须带 Secure（compose.prod.yaml 已固定）。
 - `POSTGRES_*`、`REDIS_KEY_PREFIX`：容器内部地址由 Compose 固定，不填写宿主机地址。
 - `CUBE_API_SECRET`、`NEO4J_*`：Java evidence 与 Graph Sync 使用。
+- `CUBE_DATABASE_USERNAME`/`CUBE_DATABASE_PASSWORD`：仅 EasyV 部署；Cube 直连平台库
+  `facts` schema 的只读角色（DBA 预创建，migrate 幂等授权），地址由 `JAVA_DATABASE_URL` 派生。
 - `LLM_PROVIDER_BASE_URL/API_KEY/MODEL`：真实模型配置。
 - `LLM_PROVIDER_MODE`：仅 `openai-compatible` 或 `dashscope`。
 - `LLM_PROVIDER_TOOL_CALLING=true`。
