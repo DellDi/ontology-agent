@@ -1,0 +1,61 @@
+{
+  "executionId": "execution-failed-clarify-1",
+  "sessionId": "session-easyv-1",
+  "ownerUserId": "2",
+  "followUpId": null,
+  "ontologyVersionId": "ontology-java-multidomain-v2",
+  "ontologyVersionBinding": {
+    "ontologyVersionId": "ontology-java-multidomain-v2",
+    "source": "grounded-context"
+  },
+  "capabilityBinding": {
+    "domainKey": "easyv",
+    "capabilityKey": "generation-quality-analysis",
+    "resolvedScope": {
+      "values": {
+        "userId": "2",
+        "accessMode": "scoped",
+        "easyvUserId": "16"
+      },
+      "domainKey": "easyv",
+      "schemaVersion": 2
+    },
+    "ontologyVersionId": "ontology-java-multidomain-v2"
+  },
+  "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e",
+  "status": "failed",
+  "planSnapshot": {
+    "mode": "minimal",
+    "summary": "执行在完成计划前失败",
+    "steps": [],
+    "_executionContract": "java-initial-v1",
+    "_resolvedContext": {},
+    "_clarification": {
+      "question": "“前阵子”指哪段时间？",
+      "options": [
+        "最近 7 天",
+        "最近 30 天"
+      ]
+    }
+  },
+  "stepResults": [],
+  "conclusionState": {
+    "causes": [],
+    "renderBlocks": []
+  },
+  "resultBlocks": [],
+  "mobileProjection": {
+    "summary": "需要先确认：“前阵子”指哪段时间？ 可选：最近 7 天 / 最近 30 天。 请补充后重新提问。",
+    "status": "failed",
+    "updatedAt": "2026-09-28T10:05:02Z"
+  },
+  "failurePoint": {
+    "id": "execution",
+    "order": 0,
+    "title": "首次分析"
+  },
+  "errorCode": "EASYV_CLARIFICATION_REQUIRED",
+  "traceId": "trace-clarify-1",
+  "createdAt": "2026-09-28T10:05:00Z",
+  "updatedAt": "2026-09-28T10:05:02Z"
+}

@@ -88,6 +88,55 @@ class AnalysisFollowUpControllerTest {
     }
 
     @Test
+    void structuredCreateRedirectsWithFollowUpId() throws Exception {
+        when(auth.authenticate(any())).thenReturn(Optional.of(owner));
+        when(service.createStructured(org.mockito.ArgumentMatchers.eq("session-1"),
+                org.mockito.ArgumentMatchers.eq(owner), org.mockito.ArgumentMatchers.eq("调整时间"),
+                org.mockito.ArgumentMatchers.eq(""), any()))
+                .thenReturn(followUp());
+
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")
+                        .contentType("application/x-www-form-urlencoded")
+                        .param("question", "调整时间")
+                        .param("queries", "[{\"id\":\"q1\",\"intent\":{\"object\":\"easyv-forge-task\"}}]"))
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string("Location",
+                        "/workspace/analysis/session-1?followUpId=follow-1"));
+    }
+
+    @Test
+    void structuredCreateRejectsMalformedQueriesAndStructuredErrors() throws Exception {
+        when(auth.authenticate(any())).thenReturn(Optional.of(owner));
+
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")
+                        .contentType("application/x-www-form-urlencoded")
+                        .param("question", "调整时间").param("queries", "not-json"))
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("followUpError=")));
+
+        when(service.createStructured(anyString(), any(), anyString(), anyString(), any()))
+                .thenThrow(new BackendException("FOLLOW_UP_STRUCTURED_INVALID",
+                        "结构化调整未通过本体校验：查询 q1：measures 至少一个根对象指标。"));
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")
+                        .contentType("application/x-www-form-urlencoded")
+                        .param("question", "调整时间").param("queries", "[]"))
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("followUpError=")));
+    }
+
+    @Test
+    void structuredCreatePropagatesUnknownErrors() throws Exception {
+        when(auth.authenticate(any())).thenReturn(Optional.of(owner));
+        when(service.createStructured(anyString(), any(), anyString(), anyString(), any()))
+                .thenThrow(new IllegalStateException("unexpected"));
+
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")
+                        .contentType("application/x-www-form-urlencoded")
+                        .param("question", "调整时间").param("queries", "[]"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
     void contextConflictRedirectsWithDraftAndMachineReadableConflict() throws Exception {
         when(auth.authenticate(any())).thenReturn(Optional.of(owner));
         when(service.adjust(anyString(), anyString(), any(), anyMap(), anyBoolean()))

@@ -1,0 +1,600 @@
+{
+  "executionId": "execution-semantic-1",
+  "sessionId": "session-easyv-1",
+  "ownerUserId": "2",
+  "followUpId": null,
+  "ontologyVersionId": "ontology-java-multidomain-v2",
+  "ontologyVersionBinding": {
+    "ontologyVersionId": "ontology-java-multidomain-v2",
+    "source": "grounded-context"
+  },
+  "capabilityBinding": {
+    "domainKey": "easyv",
+    "capabilityKey": "generation-quality-analysis",
+    "resolvedScope": {
+      "values": {
+        "userId": "2",
+        "accessMode": "scoped",
+        "easyvUserId": "16"
+      },
+      "domainKey": "easyv",
+      "schemaVersion": 2
+    },
+    "ontologyVersionId": "ontology-java-multidomain-v2"
+  },
+  "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e",
+  "status": "completed",
+  "planSnapshot": {
+    "mode": "semantic-query-read-only",
+    "summary": "EasyV 数据问答",
+    "steps": [
+      {
+        "id": "plan-queries",
+        "order": 1,
+        "kind": "llm-plan",
+        "title": "理解问题并规划查询"
+      },
+      {
+        "id": "query-q1",
+        "order": 2,
+        "kind": "semantic-query",
+        "title": "应用生成任务 · 生成任务数、生成成功率（%） 按任务状态"
+      },
+      {
+        "id": "query-q2",
+        "order": 3,
+        "kind": "semantic-query",
+        "title": "操作反馈 · 操作记录数 按日"
+      },
+      {
+        "id": "compose-answer",
+        "order": 4,
+        "kind": "llm-compose",
+        "title": "综合回答"
+      }
+    ],
+    "_executionContract": "java-initial-v1",
+    "_resolvedContext": {
+      "userId": "2",
+      "accessMode": "scoped",
+      "easyvUserId": "16",
+      "dataScope": "EasyV 用户 16 的数据",
+      "queries": [
+        {
+          "id": "q1",
+          "label": "应用生成任务 · 生成任务数、生成成功率（%） 按任务状态",
+          "intent": {
+            "object": "easyv-forge-task",
+            "measures": [
+              "count",
+              "successRate"
+            ],
+            "dimensions": [
+              "status"
+            ],
+            "filters": [
+              {
+                "member": "status",
+                "operator": "not-equals",
+                "values": [
+                  "cancelled"
+                ]
+              }
+            ],
+            "time": {
+              "expression": {
+                "sourceText": "全部",
+                "kind": "all"
+              }
+            },
+            "order": []
+          },
+          "range": "全部数据（截至 2026-09-28）",
+          "to": "2026-09-28"
+        },
+        {
+          "id": "q2",
+          "label": "操作反馈 · 操作记录数 按日",
+          "intent": {
+            "object": "easyv-generation-feedback",
+            "measures": [
+              "count"
+            ],
+            "dimensions": [],
+            "filters": [],
+            "time": {
+              "dimension": "operatedAt",
+              "granularity": "day",
+              "expression": {
+                "sourceText": "最近 30 天",
+                "kind": "relative",
+                "unit": "day",
+                "n": 30
+              }
+            },
+            "order": [],
+            "limit": 10
+          },
+          "range": "最近 30 天（2026-08-30 至 2026-09-28）",
+          "from": "2026-08-30",
+          "to": "2026-09-28"
+        }
+      ]
+    },
+    "_understanding": [
+      {
+        "id": "q1",
+        "label": "应用生成任务 · 生成任务数、生成成功率（%） 按任务状态",
+        "object": {
+          "key": "easyv-forge-task",
+          "label": "应用生成任务"
+        },
+        "measures": [
+          {
+            "key": "count",
+            "label": "生成任务数"
+          },
+          {
+            "key": "successRate",
+            "label": "生成成功率（%）"
+          }
+        ],
+        "dimensions": [
+          {
+            "key": "status",
+            "label": "任务状态"
+          }
+        ],
+        "filters": [
+          {
+            "member": "status",
+            "label": "任务状态",
+            "operator": "not-equals",
+            "values": [
+              "cancelled"
+            ]
+          }
+        ],
+        "time": {
+          "dimension": "createdAt",
+          "label": "任务创建时间",
+          "sourceText": "全部",
+          "kind": "all",
+          "from": null,
+          "to": "2026-09-28",
+          "allData": true,
+          "granularity": null
+        },
+        "compare": null,
+        "limit": null,
+        "coverage": {
+          "status": "full",
+          "dataFrom": "2026-01-01",
+          "dataTo": "2026-09-27",
+          "effectiveFrom": "2026-01-01",
+          "effectiveTo": "2026-09-27"
+        }
+      },
+      {
+        "id": "q2",
+        "label": "操作反馈 · 操作记录数 按日",
+        "object": {
+          "key": "easyv-generation-feedback",
+          "label": "操作反馈"
+        },
+        "measures": [
+          {
+            "key": "count",
+            "label": "操作记录数"
+          }
+        ],
+        "dimensions": [],
+        "filters": [],
+        "time": {
+          "dimension": "operatedAt",
+          "label": "操作时间",
+          "sourceText": "最近 30 天",
+          "kind": "relative",
+          "from": "2026-08-30",
+          "to": "2026-09-28",
+          "allData": false,
+          "granularity": "day"
+        },
+        "compare": null,
+        "limit": 10,
+        "coverage": {
+          "status": "partial",
+          "dataFrom": "2026-03-01",
+          "dataTo": "2026-09-27",
+          "effectiveFrom": "2026-08-30",
+          "effectiveTo": "2026-09-27"
+        }
+      }
+    ],
+    "_editorCatalog": {
+      "objects": [
+        {
+          "key": "easyv-forge-task",
+          "label": "应用生成任务",
+          "defaultTime": "createdAt",
+          "measures": [
+            {
+              "key": "count",
+              "label": "生成任务数"
+            },
+            {
+              "key": "completedCount",
+              "label": "成功任务数"
+            },
+            {
+              "key": "failedCount",
+              "label": "失败任务数"
+            },
+            {
+              "key": "cancelledCount",
+              "label": "取消任务数"
+            },
+            {
+              "key": "terminalCount",
+              "label": "终态任务数"
+            },
+            {
+              "key": "timedTerminalCount",
+              "label": "可计时终态任务数"
+            },
+            {
+              "key": "durationP50Ms",
+              "label": "耗时 P50（毫秒）"
+            },
+            {
+              "key": "durationP95Ms",
+              "label": "耗时 P95（毫秒）"
+            },
+            {
+              "key": "successRate",
+              "label": "生成成功率（%）"
+            },
+            {
+              "key": "failureRate",
+              "label": "生成失败率（%）"
+            }
+          ],
+          "dimensions": [
+            {
+              "key": "taskId",
+              "label": "生成任务 ID"
+            },
+            {
+              "key": "appId",
+              "label": "应用 ID"
+            },
+            {
+              "key": "status",
+              "label": "任务状态"
+            },
+            {
+              "key": "failureReason",
+              "label": "失败原因"
+            },
+            {
+              "key": "application.appId",
+              "label": "AI 应用·应用 ID"
+            },
+            {
+              "key": "application.generationTaskId",
+              "label": "AI 应用·原型生成任务 ID"
+            },
+            {
+              "key": "application.userId",
+              "label": "AI 应用·创建用户 ID"
+            },
+            {
+              "key": "application.spaceId",
+              "label": "AI 应用·空间 ID"
+            },
+            {
+              "key": "application.teamId",
+              "label": "AI 应用·团队 ID"
+            },
+            {
+              "key": "application.scopeType",
+              "label": "AI 应用·归属类型"
+            }
+          ],
+          "timeDimensions": [
+            {
+              "key": "createdAt",
+              "label": "任务创建时间"
+            },
+            {
+              "key": "startedAt",
+              "label": "开始时间"
+            },
+            {
+              "key": "finishedAt",
+              "label": "结束时间"
+            },
+            {
+              "key": "application.createdAt",
+              "label": "AI 应用·应用创建时间"
+            }
+          ]
+        },
+        {
+          "key": "easyv-generation-feedback",
+          "label": "操作反馈",
+          "defaultTime": "operatedAt",
+          "measures": [
+            {
+              "key": "count",
+              "label": "操作记录数"
+            },
+            {
+              "key": "userCount",
+              "label": "操作用户数"
+            },
+            {
+              "key": "ratedCount",
+              "label": "有效评分数"
+            },
+            {
+              "key": "averageRating",
+              "label": "平均评分"
+            },
+            {
+              "key": "saveAsEditCount",
+              "label": "另存编辑数"
+            },
+            {
+              "key": "successCount",
+              "label": "组合成功数"
+            },
+            {
+              "key": "failureCount",
+              "label": "组合失败数"
+            },
+            {
+              "key": "successRate",
+              "label": "组合成功率（%）"
+            }
+          ],
+          "dimensions": [
+            {
+              "key": "operationId",
+              "label": "操作记录 ID"
+            },
+            {
+              "key": "userId",
+              "label": "操作用户 ID"
+            },
+            {
+              "key": "spaceId",
+              "label": "空间 ID"
+            },
+            {
+              "key": "appId",
+              "label": "应用 ID"
+            },
+            {
+              "key": "actionType",
+              "label": "操作类型"
+            },
+            {
+              "key": "executeResult",
+              "label": "执行结果"
+            },
+            {
+              "key": "rating",
+              "label": "评分"
+            },
+            {
+              "key": "saveAsEdit",
+              "label": "是否另存编辑"
+            },
+            {
+              "key": "application.appId",
+              "label": "AI 应用·应用 ID"
+            },
+            {
+              "key": "application.generationTaskId",
+              "label": "AI 应用·原型生成任务 ID"
+            },
+            {
+              "key": "application.userId",
+              "label": "AI 应用·创建用户 ID"
+            },
+            {
+              "key": "application.spaceId",
+              "label": "AI 应用·空间 ID"
+            },
+            {
+              "key": "application.teamId",
+              "label": "AI 应用·团队 ID"
+            },
+            {
+              "key": "application.scopeType",
+              "label": "AI 应用·归属类型"
+            }
+          ],
+          "timeDimensions": [
+            {
+              "key": "operatedAt",
+              "label": "操作时间"
+            },
+            {
+              "key": "application.createdAt",
+              "label": "AI 应用·应用创建时间"
+            }
+          ]
+        }
+      ]
+    },
+    "_evidenceTypes": [
+      "easyv-data-scope",
+      "easyv-query:q1",
+      "easyv-query:q2"
+    ]
+  },
+  "stepResults": [],
+  "conclusionState": {
+    "causes": [
+      {
+        "id": "cause-1",
+        "rank": 1,
+        "title": "综合证据结论",
+        "summary": "近 30 天操作记录数受数据覆盖限制，有效区间为 2026-08-30 至 2026-09-27。",
+        "confidence": null,
+        "evidence": [
+          {
+            "label": "EasyV 数据范围",
+            "summary": "冻结数据覆盖 2026-03-01 至 2026-09-27"
+          },
+          {
+            "label": "应用生成任务 · 生成任务数、生成成功率（%） 按任务状态",
+            "summary": "返回 3 条受范围约束的证据"
+          },
+          {
+            "label": "操作反馈 · 操作记录数 按日",
+            "summary": "返回 10 条受范围约束的证据"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "kind": "direct-answer",
+        "text": "近 30 天操作记录数按日统计共 10 条（数据有效区间 2026-08-30 至 2026-09-27）。",
+        "evidenceRefs": [
+          {
+            "source": "easyv-query:q1",
+            "row": 0,
+            "field": "count",
+            "value": 12
+          },
+          {
+            "source": "easyv-query:q2",
+            "row": 0,
+            "field": "count",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "rows": [
+          {
+            "dataScope": "EasyV 用户 16 的数据",
+            "dataFrom": "2026-03-01",
+            "dataTo": "2026-09-27"
+          }
+        ],
+        "title": "EasyV 数据范围",
+        "source": "easyv-data-scope",
+        "rowCount": 1,
+        "freshnessAt": "2026-09-28T01:00:00Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-ai-application": "9e059184-7e3a-3380-ad4d-5e0c90432751"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      {
+        "rows": [
+          {
+            "status": "completed",
+            "count": 12,
+            "successRate": 92.3
+          },
+          {
+            "status": "failed",
+            "count": 1,
+            "successRate": 7.7
+          }
+        ],
+        "title": "应用生成任务 · 生成任务数、生成成功率（%） 按任务状态",
+        "source": "easyv-query:q1",
+        "rowCount": 2,
+        "freshnessAt": "2026-09-28T01:00:00Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-forge-task": "cd236b71-e9c3-3812-8763-b4109454e6eb"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      },
+      {
+        "rows": [
+          {
+            "operatedAt": "2026-09-27",
+            "count": 8
+          },
+          {
+            "operatedAt": "2026-09-26",
+            "count": 6
+          }
+        ],
+        "title": "操作反馈 · 操作记录数 按日",
+        "source": "easyv-query:q2",
+        "rowCount": 2,
+        "freshnessAt": "2026-09-28T01:00:00Z",
+        "ontologyVersionId": "ontology-java-multidomain-v2",
+        "productVersionIds": {
+          "easyv-generation-feedback": "754a4299-d09e-34e7-8d58-74f88f192229"
+        },
+        "datasetVersionSetId": "ingest-e6fa9794-228d-4362-89e8-278b7b34d95e"
+      }
+    ],
+    "renderBlocks": [
+      {
+        "role": "primary",
+        "type": "table",
+        "title": "操作反馈 · 操作记录数 按日",
+        "columns": [
+          "操作时间",
+          "操作记录数"
+        ],
+        "rows": [
+          [
+            "2026-09-27",
+            "8"
+          ],
+          [
+            "2026-09-26",
+            "6"
+          ]
+        ]
+      }
+    ]
+  },
+  "resultBlocks": [
+    {
+      "role": "primary",
+      "type": "table",
+      "title": "操作反馈 · 操作记录数 按日",
+      "columns": [
+        "操作时间",
+        "操作记录数"
+      ],
+      "rows": [
+        [
+          "2026-09-27",
+          "8"
+        ],
+        [
+          "2026-09-26",
+          "6"
+        ]
+      ]
+    }
+  ],
+  "mobileProjection": {
+    "summary": "近 30 天操作记录数按日统计共 10 条（数据有效区间 2026-08-30 至 2026-09-27）。",
+    "status": "completed",
+    "updatedAt": "2026-09-28T10:06:00Z"
+  },
+  "failurePoint": null,
+  "errorCode": null,
+  "traceId": "trace-semantic-1",
+  "createdAt": "2026-09-28T10:05:30Z",
+  "updatedAt": "2026-09-28T10:06:00Z"
+}

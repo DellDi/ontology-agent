@@ -67,6 +67,41 @@ public class AnalysisFollowUpController {
         }
     }
 
+    /** 结构化调整：queries 为 [{id, intent}] 的 JSON 数组，编译通过即生成可执行计划，不经模型规划。 */
+    @PostMapping(path = "/api/analysis/sessions/{sessionId}/follow-ups/structured",
+            consumes = {MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
+    public ResponseEntity<Void> createStructured(@PathVariable String sessionId,
+            @RequestParam(name = "question", defaultValue = "") String question,
+            @RequestParam(name = "parentFollowUpId", defaultValue = "") String parentId,
+            @RequestParam(name = "queries", defaultValue = "") String queriesJson,
+            HttpServletRequest request) {
+        AuthSession owner = auth.authenticate(request).orElse(null);
+        if (owner == null) return redirect("/login?next=/workspace/analysis/" + sessionId);
+        try {
+            AnalysisFollowUp followUp = followUps.createStructured(sessionId, owner, question, parentId,
+                    parseQueries(queriesJson));
+            return sessionRedirect(sessionId, Map.of("followUpId", followUp.id()));
+        } catch (BackendException error) {
+            if (!List.of("INVALID_FOLLOW_UP_QUESTION", "FOLLOW_UP_SOURCE_NOT_FOUND",
+                    "FOLLOW_UP_PARENT_NOT_COMPLETED", "FOLLOW_UP_CONTEXT_MISSING", "FOLLOW_UP_CONTEXT_INVALID",
+                    "FOLLOW_UP_CONCLUSION_MISSING", "FOLLOW_UP_ONTOLOGY_MISSING", "FOLLOW_UP_NOT_FOUND",
+                    "FOLLOW_UP_CAPABILITY_UNSUPPORTED", "FOLLOW_UP_SCOPE_INVALID",
+                    "FOLLOW_UP_SCOPE_RESOLVER_UNAVAILABLE", "FOLLOW_UP_TIME_RANGE_INVALID",
+                    "ONTOLOGY_PIN_RETIRED", "ONTOLOGY_PIN_NOT_PUBLISHED", "ONTOLOGY_PIN_NOT_FOUND",
+                    "FOLLOW_UP_STRUCTURED_INVALID", "FOLLOW_UP_STRUCTURED_UNSUPPORTED",
+                    "FOLLOW_UP_LEGACY_EXECUTION").contains(error.code())) throw error;
+            return sessionRedirect(sessionId, Map.of("followUpError", error.getMessage()));
+        }
+    }
+
+    private List<Map<String, Object>> parseQueries(String queriesJson) {
+        try {
+            return json.list(queriesJson);
+        } catch (BackendException error) {
+            throw new BackendException("FOLLOW_UP_STRUCTURED_INVALID", "queries 必须是查询意图对象数组。", error);
+        }
+    }
+
     @PostMapping(path = "/api/analysis/sessions/{sessionId}/follow-ups/{followUpId}/context",
             consumes = {MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<Void> adjust(@PathVariable String sessionId, @PathVariable String followUpId,

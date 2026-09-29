@@ -185,6 +185,59 @@ const planStepSchema = z.union([propertyPlanStepSchema, easyVPlanStepSchema]);
 
 const resolvedContextSchema = jsonObjectSchema;
 
+const labeledMemberSchema = z.strictObject({
+  key: z.string().min(1),
+  label: z.string().min(1),
+});
+
+const understandingEntrySchema = z.strictObject({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  object: labeledMemberSchema,
+  measures: z.array(labeledMemberSchema),
+  dimensions: z.array(labeledMemberSchema),
+  filters: z.array(z.strictObject({
+    member: z.string().min(1),
+    label: z.string().min(1),
+    operator: z.string().min(1),
+    values: z.array(z.string()),
+  })),
+  time: z.strictObject({
+    dimension: z.string().min(1),
+    label: z.string().min(1),
+    sourceText: z.string().min(1),
+    kind: z.enum(['relative', 'calendar', 'to-date', 'absolute', 'all', 'ambiguous']),
+    from: z.iso.date().nullable(),
+    to: z.iso.date(),
+    allData: z.boolean(),
+    granularity: z.string().min(1).nullable(),
+  }),
+  compare: z.strictObject({
+    sourceText: z.string().min(1),
+    from: z.iso.date(),
+    to: z.iso.date(),
+  }).nullable(),
+  limit: z.number().int().positive().nullable(),
+  coverage: z.strictObject({
+    status: z.enum(['full', 'partial', 'none']),
+    dataFrom: z.iso.date().nullable(),
+    dataTo: z.iso.date().nullable(),
+    effectiveFrom: z.iso.date().nullable(),
+    effectiveTo: z.iso.date().nullable(),
+  }),
+});
+
+const editorCatalogSchema = z.strictObject({
+  objects: z.array(z.strictObject({
+    key: z.string().min(1),
+    label: z.string().min(1),
+    defaultTime: z.string().min(1).nullable(),
+    measures: z.array(labeledMemberSchema),
+    dimensions: z.array(labeledMemberSchema),
+    timeDimensions: z.array(labeledMemberSchema),
+  })),
+});
+
 const planRuntimeFields = {
   _executionContract: z.enum(['java-initial-v1', 'java-follow-up-v1']),
   _groundedSource: z.string().min(1).optional(),
@@ -193,6 +246,16 @@ const planRuntimeFields = {
   _executionAssumptions: z.array(z.string()).optional(),
   _followUpId: z.string().min(1).optional(),
   _referencedExecutionId: z.string().min(1).optional(),
+  _clarification: z.strictObject({
+    question: z.string().min(1),
+    options: z.array(z.string().min(1)).max(6),
+  }).optional(),
+  _understanding: z.array(understandingEntrySchema).min(1).max(4).optional(),
+  _editorCatalog: editorCatalogSchema.optional(),
+  _queryOverride: z.array(z.strictObject({
+    id: z.string().min(1),
+    intent: jsonObjectSchema,
+  })).min(1).max(4).optional(),
   _evidenceTypes: z.array(z.string()).optional(),
   _suggestedQuestions: z.array(z.string()).optional(),
   _suggestedActions: z.array(suggestedActionSchema).optional(),
@@ -231,6 +294,10 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
   _executionAssumptions: z.array(z.string()).optional(),
   _followUpId: z.string().min(1).optional(),
   _referencedExecutionId: z.string().min(1).optional(),
+  _clarification: planRuntimeFields._clarification,
+  _understanding: planRuntimeFields._understanding,
+  _editorCatalog: planRuntimeFields._editorCatalog,
+  _queryOverride: planRuntimeFields._queryOverride,
   _evidenceTypes: z.array(z.string()).optional(),
   _suggestedQuestions: z.array(z.string()).optional(),
   _suggestedActions: z.array(suggestedActionSchema).optional(),

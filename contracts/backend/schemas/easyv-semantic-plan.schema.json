@@ -1,0 +1,370 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "easyv-semantic-plan.schema.json",
+  "type": "object",
+  "$defs": {
+    "clarification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "options"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "minLength": 1
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 6
+        }
+      }
+    },
+    "labeledMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "label"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "understandingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "object",
+        "measures",
+        "dimensions",
+        "filters",
+        "time",
+        "compare",
+        "limit",
+        "coverage"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^q[1-9][0-9]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "object": {
+          "$ref": "#/$defs/labeledMember"
+        },
+        "measures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/labeledMember"
+          }
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/labeledMember"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "member",
+              "label",
+              "operator",
+              "values"
+            ],
+            "properties": {
+              "member": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "operator": {
+                "type": "string",
+                "minLength": 1
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "time": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dimension",
+            "label",
+            "sourceText",
+            "kind",
+            "from",
+            "to",
+            "allData",
+            "granularity"
+          ],
+          "properties": {
+            "dimension": {
+              "type": "string",
+              "minLength": 1
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sourceText": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "enum": [
+                "relative",
+                "calendar",
+                "to-date",
+                "absolute",
+                "all",
+                "ambiguous"
+              ]
+            },
+            "from": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "to": {
+              "type": "string",
+              "format": "date"
+            },
+            "allData": {
+              "type": "boolean"
+            },
+            "granularity": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            }
+          }
+        },
+        "compare": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sourceText",
+                "from",
+                "to"
+              ],
+              "properties": {
+                "sourceText": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "from": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "to": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          ]
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "dataFrom",
+            "dataTo",
+            "effectiveFrom",
+            "effectiveTo"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "full",
+                "partial",
+                "none"
+              ]
+            },
+            "dataFrom": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "dataTo": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "effectiveFrom": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "effectiveTo": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            }
+          }
+        }
+      }
+    },
+    "understanding": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/understandingEntry"
+      }
+    },
+    "editorCatalogObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "label",
+        "defaultTime",
+        "measures",
+        "dimensions",
+        "timeDimensions"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultTime": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "measures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/labeledMember"
+          }
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/labeledMember"
+          }
+        },
+        "timeDimensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/labeledMember"
+          }
+        }
+      }
+    },
+    "editorCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objects"
+      ],
+      "properties": {
+        "objects": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/editorCatalogObject"
+          }
+        }
+      }
+    },
+    "queryOverrideEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "intent"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intent": {
+          "type": "object",
+          "required": [
+            "object"
+          ],
+          "properties": {
+            "object": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "queryOverride": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/queryOverrideEntry"
+      }
+    }
+  }
+}

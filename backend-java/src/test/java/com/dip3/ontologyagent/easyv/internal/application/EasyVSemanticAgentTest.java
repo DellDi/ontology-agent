@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +34,7 @@ import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.semantic.api.CompiledSemanticQuery;
+import com.dip3.ontologyagent.semantic.api.QueryIntent;
 import com.dip3.ontologyagent.semantic.api.SemanticModel;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryCompiler;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort;
@@ -40,6 +42,7 @@ import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.AccessContext;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.DataCoverage;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.Scope;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.SemanticQueryResult;
+import com.dip3.ontologyagent.semantic.api.TimeExpression;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.GroundedConclusion;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
@@ -176,6 +179,249 @@ class EasyVSemanticAgentTest {
   }
 
   @Test
+  void clarifyCarriesStructuredQuestionAndOptions() {
+    when(model.plan(any()))
+        .thenReturn(new PlanDecision(PlanStatus.CLARIFY, List.of(), "指哪一周？", List.of("本周", "上周")));
+
+    BackendException clarify = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
+
+    assertEquals("EASYV_CLARIFICATION_REQUIRED", clarify.code());
+    assertTrue(clarify.getMessage().contains("本周 / 上周"));
+    BackendException.Clarification clarification = clarify.clarification().orElseThrow();
+    assertEquals("指哪一周？", clarification.question());
+    assertEquals(List.of("本周", "上周"), clarification.options());
+  }
+
+  @Test
+  void clarificationOptionsAreNormalizedToTheContractLimit() {
+    when(model.plan(any()))
+        .thenReturn(new PlanDecision(PlanStatus.CLARIFY, List.of(), "指哪一周？",
+            List.of(" 本周 ", " ", "上周", "本周", "上月", "上月 ", "", "昨天", "今天", "明天")));
+
+    BackendException clarify = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
+
+    BackendException.Clarification clarification = clarify.clarification().orElseThrow();
+    assertEquals(List.of("本周", "上周", "上月", "昨天", "今天", "明天"), clarification.options());
+    assertEquals(6, clarification.options().size());
+    assertTrue(clarify.getMessage().contains("可选：本周 / 上周 / 上月 / 昨天 / 今天 / 明天。"));
+  }
+
+  @Test
+  void ambiguousTimeClarificationCarriesStructuredCandidates() {
+    when(model.plan(any())).thenReturn(ready(Map.of("object", "easyv-forge-task",
+        "measures", List.of("count"),
+        "time", Map.of("expression", Map.of("sourceText", "前阵子", "kind", "ambiguous", "candidates", List.of(
+            Map.of("sourceText", "最近 7 天", "kind", "relative", "unit", "day", "n", 7),
+            Map.of("sourceText", "最近 30 天", "kind", "relative", "unit", "day", "n", 30)))))));
+
+    BackendException ambiguous = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
+
+    assertEquals("EASYV_CLARIFICATION_REQUIRED", ambiguous.code());
+    BackendException.Clarification clarification = ambiguous.clarification().orElseThrow();
+    assertEquals("“前阵子”指哪段时间？", clarification.question());
+    assertEquals(List.of("最近 7 天", "最近 30 天"), clarification.options());
+  }
+
+  @Test
+  void planSnapshotExposesUnderstandingCoverageAndEditorCatalog() {
+    Map<String, Object> taskQuery = Map.of("object", "easyv-forge-task",
+        "measures", List.of("count", "successRate"), "dimensions", List.of("status"),
+        "filters", List.of(Map.of("member", "status", "operator", "not-equals", "values", List.of("cancelled"))),
+        "time", ALL_TIME);
+    Map<String, Object> feedbackQuery = Map.of("object", "easyv-generation-feedback",
+        "measures", List.of("count"), "limit", 10,
+        "time", Map.of("dimension", "operatedAt", "granularity", "day",
+            "expression", Map.of("sourceText", "最近 30 天", "kind", "relative", "unit", "day", "n", 30)));
+    when(model.plan(any()))
+        .thenReturn(new PlanDecision(PlanStatus.READY, List.of(taskQuery, feedbackQuery), null, List.of()));
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 8, "successRate", 80.0)));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+
+    WorkflowResult result = run(initialTurn(), ALL);
+
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> understanding =
+        (List<Map<String, Object>>) result.plan().get("_understanding");
+    assertEquals(2, understanding.size());
+
+    Map<String, Object> first = understanding.get(0);
+    assertEquals("q1", first.get("id"));
+    assertEquals(Map.of("key", "easyv-forge-task", "label", "应用生成任务"), first.get("object"));
+    assertEquals(
+        List.of(Map.of("key", "count", "label", "生成任务数"),
+            Map.of("key", "successRate", "label", "生成成功率（%）")),
+        first.get("measures"));
+    assertEquals(List.of(Map.of("key", "status", "label", "任务状态")), first.get("dimensions"));
+    assertEquals(
+        List.of(Map.of("member", "status", "label", "任务状态", "operator", "not-equals",
+            "values", List.of("cancelled"))),
+        first.get("filters"));
+    @SuppressWarnings("unchecked")
+    Map<String, Object> firstTime = (Map<String, Object>) first.get("time");
+    assertEquals("createdAt", firstTime.get("dimension"));
+    assertEquals("任务创建时间", firstTime.get("label"));
+    assertEquals("全部", firstTime.get("sourceText"));
+    assertEquals("all", firstTime.get("kind"));
+    assertNull(firstTime.get("from"));
+    assertEquals("2026-09-28", firstTime.get("to"));
+    assertEquals(Boolean.TRUE, firstTime.get("allData"));
+    assertNull(firstTime.get("granularity"));
+    assertNull(first.get("compare"));
+    assertNull(first.get("limit"));
+    @SuppressWarnings("unchecked")
+    Map<String, Object> firstCoverage = (Map<String, Object>) first.get("coverage");
+    assertEquals("full", firstCoverage.get("status"));
+    assertEquals("2026-01-01", firstCoverage.get("dataFrom"));
+    assertEquals("2026-09-27", firstCoverage.get("dataTo"));
+    assertEquals("2026-01-01", firstCoverage.get("effectiveFrom"));
+    assertEquals("2026-09-27", firstCoverage.get("effectiveTo"));
+
+    Map<String, Object> second = understanding.get(1);
+    assertEquals("q2", second.get("id"));
+    assertEquals(Map.of("key", "easyv-generation-feedback", "label", "操作反馈"), second.get("object"));
+    assertEquals(List.of(), second.get("dimensions"));
+    assertEquals(List.of(), second.get("filters"));
+    assertEquals(10, second.get("limit"));
+    @SuppressWarnings("unchecked")
+    Map<String, Object> secondTime = (Map<String, Object>) second.get("time");
+    assertEquals("operatedAt", secondTime.get("dimension"));
+    assertEquals("relative", secondTime.get("kind"));
+    assertEquals("2026-08-30", secondTime.get("from"));
+    assertEquals("day", secondTime.get("granularity"));
+    @SuppressWarnings("unchecked")
+    Map<String, Object> secondCoverage = (Map<String, Object>) second.get("coverage");
+    assertEquals("partial", secondCoverage.get("status"));
+    assertEquals("2026-08-30", secondCoverage.get("effectiveFrom"));
+    assertEquals("2026-09-27", secondCoverage.get("effectiveTo"));
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> catalog = (Map<String, Object>) result.plan().get("_editorCatalog");
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> objects = (List<Map<String, Object>>) catalog.get("objects");
+    assertEquals(List.of("easyv-forge-task", "easyv-generation-feedback"),
+        objects.stream().map(item -> item.get("key")).toList());
+    Map<String, Object> task = objects.get(0);
+    assertEquals("应用生成任务", task.get("label"));
+    assertEquals("createdAt", task.get("defaultTime"));
+    assertTrue(((List<?>) task.get("measures")).size() >= 10);
+    @SuppressWarnings("unchecked")
+    List<String> dimensionKeys = ((List<Map<String, Object>>) task.get("dimensions")).stream()
+        .map(item -> (String) item.get("key")).toList();
+    assertTrue(dimensionKeys.containsAll(List.of("status", "appId", "application.userId")));
+    assertTrue(dimensionKeys.stream().noneMatch("createdAt"::equals));
+    @SuppressWarnings("unchecked")
+    List<String> timeKeys = ((List<Map<String, Object>>) task.get("timeDimensions")).stream()
+        .map(item -> (String) item.get("key")).toList();
+    assertEquals(List.of("createdAt", "startedAt", "finishedAt", "application.createdAt"), timeKeys);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> linkDimensions = ((List<Map<String, Object>>) task.get("dimensions"))
+        .stream().filter(item -> item.get("key").toString().startsWith("application.")).toList();
+    assertTrue(linkDimensions.stream().allMatch(item -> item.get("label").toString().startsWith("AI 应用·")));
+  }
+
+  @Test
+  void everyCatalogMemberCompilesAsAQueryForItsObject() {
+    when(model.plan(any())).thenReturn(ready(COUNT_QUERY));
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 1, "successRate", 100.0)));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+
+    WorkflowResult result = run(initialTurn(), ALL);
+
+    SemanticQueryCompiler compiler = new SemanticQueryCompiler(SemanticModel.discover());
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> objects = (List<Map<String, Object>>) ((Map<String, Object>) result.plan()
+        .get("_editorCatalog")).get("objects");
+    for (Map<String, Object> object : objects) {
+      String objectKey = (String) object.get("key");
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> dimensions = (List<Map<String, Object>>) object.get("dimensions");
+      for (Map<String, Object> dimension : dimensions) {
+        QueryIntent intent = new QueryIntent(objectKey, List.of("count"),
+            List.of((String) dimension.get("key")), List.of(),
+            new QueryIntent.TimeSpec(null, allExpression(), null), null, List.of(), null);
+        assertTrue(compiler.compile(intent, ANCHOR).accepted(),
+            objectKey + " 的目录维度应可编译：" + dimension.get("key"));
+      }
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> timeDimensions = (List<Map<String, Object>>) object.get("timeDimensions");
+      for (Map<String, Object> timeDimension : timeDimensions) {
+        QueryIntent intent = new QueryIntent(objectKey, List.of("count"), List.of(), List.of(),
+            new QueryIntent.TimeSpec((String) timeDimension.get("key"), allExpression(), null),
+            null, List.of(), null);
+        assertTrue(compiler.compile(intent, ANCHOR).accepted(),
+            objectKey + " 的目录时间维度应可编译：" + timeDimension.get("key"));
+      }
+    }
+  }
+
+  @Test
+  void emptyFrozenDataReportsNoCoverage() {
+    when(queries.coverage(any(), any())).thenReturn(new DataCoverage(null, null));
+    when(model.plan(any())).thenReturn(ready(COUNT_QUERY));
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 0, "successRate", 0.0)));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+
+    WorkflowResult result = run(initialTurn(), ALL);
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> coverage = (Map<String, Object>)
+        ((List<Map<String, Object>>) result.plan().get("_understanding")).get(0).get("coverage");
+    assertEquals("none", coverage.get("status"));
+    assertNull(coverage.get("dataFrom"));
+    assertNull(coverage.get("effectiveFrom"));
+  }
+
+  @Test
+  void projectionReportsCoverageStatusToTheComposer() {
+    when(model.plan(any())).thenReturn(ready(Map.of("object", "easyv-forge-task",
+        "measures", List.of("count"),
+        "time", Map.of("expression", Map.of("sourceText", "最近 30 天", "kind", "relative", "unit", "day", "n", 30)))));
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 8)));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+
+    run(initialTurn(), ALL);
+
+    ArgumentCaptor<ComposeRequest> requests = ArgumentCaptor.forClass(ComposeRequest.class);
+    verify(model).compose(requests.capture(), any());
+    Map<String, Object> projection = requests.getValue().results().getFirst();
+    assertEquals("partial", projection.get("coverageStatus"));
+    assertEquals("2026-01-01 至 2026-09-27", projection.get("dataCoverage"));
+    assertEquals("2026-08-30 至 2026-09-27", projection.get("effectiveRange"));
+  }
+
+  @Test
+  void structuredOverrideCompilesWithoutCallingTheModel() {
+    AgentTurn turn = followUpTurn(Map.of(
+        "queries", List.of(COUNT_QUERY),
+        "override", List.of(Map.of("id", "q1", "intent", COUNT_QUERY))));
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 4, "successRate", 100.0)));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+
+    WorkflowResult result = run(turn, ALL);
+
+    verify(model, never()).plan(any());
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> steps = (List<Map<String, Object>>) result.plan().get("steps");
+    assertEquals("应用结构化调整", steps.getFirst().get("title"));
+    assertEquals("structured-adjustment", steps.getFirst().get("kind"));
+  }
+
+  @Test
+  void invalidOverrideFailsLoudWithoutModelFallback() {
+    AgentTurn turn = followUpTurn(Map.of(
+        "queries", List.of(COUNT_QUERY),
+        "override", List.of(Map.of("id", "q1", "intent",
+            Map.of("object", "easyv-forge-task", "measures", List.of("nope"), "time", ALL_TIME)))));
+
+    BackendException error = assertThrows(BackendException.class, () -> run(turn, ALL));
+
+    assertEquals("EASYV_OVERRIDE_INVALID", error.code());
+    assertTrue(error.getMessage().contains("q1"));
+    verify(model, never()).plan(any());
+    verify(queries, never()).execute(any(), any());
+  }
+
+  @Test
   void clarifyUnsupportedAndAmbiguousTimeFailLoud() {
     when(model.plan(any()))
         .thenReturn(new PlanDecision(PlanStatus.CLARIFY, List.of(), "指哪一周？", List.of("本周", "上周")))
@@ -263,6 +509,10 @@ class EasyVSemanticAgentTest {
   private static ComposedAnswer answer(List<Citation> citations) {
     return new ComposedAnswer("共 12 个任务，成功率 75%", citations, List.of(new Highlight("q1", "table")),
         List.of("追问 1"), List.of());
+  }
+
+  private static TimeExpression allExpression() {
+    return new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
   }
 
   private static AgentTurn initialTurn() {
