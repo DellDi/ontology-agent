@@ -113,7 +113,7 @@ order[], limit  limit ≤ 5000；达到上限视为截断失败
 
 每项完成标准：测试先行、Java 全量与 Web 门禁通过、契约同步；涉及部署的项需记录真实环境验证。
 
-**A 语义问数**（A0 已完成，见 §9）
+**A 语义问数**（A0 已完成，见 §9；1–7 已完成，结果见 §10）
 
 1. 本体补齐原型任务、流水线节点、反馈对象与关系；生成器支持派生指标（成功率等）与反馈双时间口径（操作时间 / 应用创建时间）。
 2. Java Cube 适配器：签发含冻结 `productVersions` 的 JWT；识别 `SEMANTIC_VERSION_*`；`/meta` 校验本体成员；Cube 部署从 Property profile 拆出，数据库来源统一为 `JAVA_DATABASE_URL`，使用 facts 只读角色。
@@ -183,8 +183,23 @@ order[], limit  limit ≤ 5000；达到上限视为截断失败
 
 A 阶段需处理的发现：
 
-- `queryRewrite` 抛错时 Cube 返回 HTTP 500；Java 适配层须按 `SEMANTIC_VERSION_*` 错误码识别并 fail loud，或改为抛出 Cube `UserError` 返回 4xx。
-- `compose.easyv-dev.yaml` 的 Cube 使用 `PLATFORM_POSTGRES_*`，在当前部署与 backend 实际库（`JAVA_DATABASE_URL`）不一致；启用 Cube 前须统一来源。
-- Cube 目前复用平台库应用账号；生产应为 Cube 配置仅能读取 `facts` 的只读角色。
+- `queryRewrite` 抛错时 Cube 返回 HTTP 500；Java 适配层须按 `SEMANTIC_VERSION_*` 错误码识别并 fail loud，或改为抛出 Cube `UserError` 返回 4xx。（已解决：保持 HTTP 500 + `SEMANTIC_*` fail loud 映射，不引入 Cube UserError。）
+- `compose.easyv-dev.yaml` 的 Cube 使用 `PLATFORM_POSTGRES_*`，在当前部署与 backend 实际库（`JAVA_DATABASE_URL`）不一致；启用 Cube 前须统一来源。（已解决：`scripts/easyv-dev` 统一从 `JAVA_DATABASE_URL` 派生 `CUBE_DB_HOST/PORT/NAME` 注入 Cube，删除 `PLATFORM_POSTGRES_*`。）
+- Cube 目前复用平台库应用账号；生产应为 Cube 配置仅能读取 `facts` 的只读角色。（已解决：`CUBE_DATABASE_*` 独立只读角色，DBA 经 `scripts/sql/create-facts-reader-role.sql` 创建，migrate 幂等授权。）
 - `versioned-cubes.json` 为全局索引，当前仅由 EasyV 漂移测试生成；第二个本体生成领域接入前改为汇总所有领域声明生成。（A1 已解决：由 `SemanticModel.discover()` 汇总全部 `OntologyModelContribution` 生成 `semantic-access-policy.json`。）
 - 派生指标（如成功率 = completed / terminal）需扩展生成器支持引用其他指标。（A1 已解决：`OntologyMetric` 比率指标。）
+
+## 10. A 阶段实施与评测结果（2026-09-29）
+
+实现（§6.1 A 1–7）：
+
+- 结构化澄清：模型 `clarify` 与 `ambiguous` 时间经 `BackendException.clarification` 透传，失败快照写入 `planSnapshot._clarification{question, options≤6}`；界面展示问题与候选项。首轮澄清以“原问题（补充：所选项）”新建会话承接，追问轮澄清在当前会话作为新追问执行；首轮未完成的会话发送消息同样新建会话。
+- 「我的理解」：完成快照写入 `_understanding`（对象、指标、维度、过滤、原话→解析区间、粒度、对比期、Top N、数据覆盖 full/partial/none）与 `_editorCatalog`（编译器可接受的成员路径）；综合回答输入带 `coverageStatus` / `effectiveRange`。
+- 结构化调整：`POST /api/analysis/sessions/{id}/follow-ups/structured` 以用户编辑后的查询意图创建追问（`FollowUpPolicy.structuredPlan` 校验编译，计划含 `_queryOverride`），执行时跳过模型规划直接编译，违规 `EASYV_OVERRIDE_INVALID` fail loud。
+- 部署：Cube/Cube Store 成为 EasyV 运行依赖（脱离 property profile，纳入 easyv 健康组）；Cube 库地址由 `JAVA_DATABASE_URL` 派生，账号为 DBA 预创建的 facts 只读角色，migrate 入口幂等授权（`FactsReaderGrants`）。
+
+评测门禁（`EasyVPlanningEvalIT`，`-Plive-integration`；评测集 `backend-java/src/test/resources/eval/easyv-planning-eval.json`，80 题：指标 8、时间 25、粒度 7、对比 5、维度/排行 8、过滤 7、时间属性 3、追问 8、澄清 4、不支持 5；锚点 2026-09-24 Asia/Shanghai）：
+
+- 判分：状态一致；查询按对象、指标（期望⊆产出）、维度/过滤集合、粒度、时间属性、解析区间、对比区间逐项命中；等价写法以 anyOf/alternatives 显式列出。门禁：整体 ≥ 90%，time 标签题时间正确率 100%。
+- 过程：首轮基线 69/80（86.3%）、时间 54/55。失败归因为规划提示词缺陷（单值问题附加粒度、“昨天”误用 relative、time.expression 嵌套错误、追问对比丢失 compare）与校验反馈不可纠正，已在提示词与 `QueryIntentCodec` 违规信息中修复根因；未以放宽判分规则换取通过（仅补充语义等价写法：失败数指标带冗余状态过滤、P50 指标带冗余主链过滤、两个月份拆成两条查询）。
+- 最终（模型 `deepseek-flash`，同一代码连续 3 轮）：80/80 时间 55/55、80/80 时间 55/55、79/80 时间 54/55。未通过的 1 题为“上周末有多少生成任务？”模型选择澄清（未给出错误数字）；门禁按单轮判定，3 轮中 2 轮通过，模型输出存在波动，发布前应重跑评测。

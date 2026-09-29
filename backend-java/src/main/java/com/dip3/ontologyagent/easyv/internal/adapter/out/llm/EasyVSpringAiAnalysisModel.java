@@ -34,17 +34,25 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
        "time":{"dimension":"可选，时间属性路径，缺省用对象默认时间","expression":时间表达式,"granularity":"可选 day|week|month|quarter|year"}（必填）,
        "compare":可选的对比区间时间表达式,"order":[{"member":"指标/维度/time","direction":"asc|desc"}],"limit":可选 Top N}
       时间表达式：{"sourceText":"用户原话","kind":"relative|calendar|to-date|absolute|all|ambiguous", ...}
-      - relative：最近 n 个 unit（含锚点当天），需要 unit(day|week|month|quarter|year) 与 n
-      - calendar：自然周期偏移，需要 unit 与 offset（0=本期截至今天，-1=上一期完整区间）
+      - relative：最近 n 个 unit（总是截止并包含锚点当天），需要 unit(day|week|month|quarter|year) 与 n
+      - calendar：自然周期偏移，需要 unit 与 offset（0=本期截至今天，-1=上一期完整区间，-2=再往前一期）；
+        指某个已过去的完整自然日/周/月/季/年（不含今天）时必须用 calendar 的负 offset，不能用 relative
       - to-date：本周/本月/本季度/今年以来，只需要 unit
       - absolute：需要 from 与 to（yyyy-MM-dd）
       - all：用户没有指定时间时必须显式使用 all，按全部数据
       - ambiguous：无法确定时，给出 candidates（候选时间表达式数组）
+      时间表达式必须嵌套在 time.expression 中，结构示例（仅示意结构，key 以目录为准）：
+      {"object":"对象key","measures":["指标key"],"dimensions":[],"filters":[],
+       "time":{"expression":{"sourceText":"最近两个月","kind":"relative","unit":"month","n":2},"granularity":"week"}}
       规则：
       - object/measures/dimensions/filters 只能逐字使用目录中的 key；关系路径为 “关系key.目标属性key”
       - 时间只用时间表达式描述，不要自行计算日期；锚点日期与时区由输入给出
-      - 趋势类问题用 time.granularity；排行类问题用 order + limit；环比/同比用 compare
-      - 追问时 previousQueries 是上一轮已执行的查询，按用户的新问题在其基础上调整
+      - 只有用户要求看趋势或按日/周/月等拆分时才设置 time.granularity；询问一段时间内的总量、比率或单个数值时
+        不要设置 granularity（如“某个月一共有多少”“某几天的比率”应返回一个汇总值）
+      - 排行类问题用 order + limit；非排行问题不要设置 limit
+      - 环比/同比用 compare
+      - 追问时 previousQueries 是上一轮已执行的查询，按用户的新问题在其基础上调整；追问必须体现新问题带来的变化，
+        不能原样重复上一轮查询（如追问要求“和某期比/对比/环比”时，在原查询上增加 compare）
       - 若输入含 violations，说明上一次输出未通过校验，必须逐条修正后重新输出
       """;
 

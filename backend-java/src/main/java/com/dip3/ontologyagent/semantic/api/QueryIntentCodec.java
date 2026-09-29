@@ -66,6 +66,10 @@ public final class QueryIntentCodec {
     if (!(map.get("time") instanceof Map<?, ?> timeMap)) {
       violations.add("time 必填；用户未指定时间时 expression.kind=all");
     } else {
+      if (timeMap.get("expression") == null && timeMap.get("kind") != null) {
+        violations.add("time 下缺少 expression：sourceText/kind/unit/n/offset/from/to 必须嵌套写在 time.expression 中，"
+            + "不能直接写在 time 下；收到 time=" + timeMap);
+      }
       TimeExpression expression = expression(timeMap.get("expression"), "time.expression", violations);
       String dimension = text(timeMap.get("dimension"), "time.dimension", violations, false);
       Granularity granularity =
@@ -161,7 +165,8 @@ public final class QueryIntentCodec {
 
   private static TimeExpression expression(Object raw, String field, List<String> violations) {
     if (!(raw instanceof Map<?, ?> map)) {
-      violations.add(field + " 必须是时间表达式对象");
+      violations.add(field + " 必须是时间表达式对象（如 {\"sourceText\":\"上个月\",\"kind\":\"calendar\",\"unit\":\"month\","
+          + "\"offset\":-1}），收到 " + (raw == null ? "null" : raw));
       return null;
     }
     List<String> local = new ArrayList<>();
