@@ -12,6 +12,14 @@ import {
 } from 'react';
 
 import type { AnalysisConversationViewModel } from '@/application/analysis-message-projection/conversation-view-model';
+import {
+  composeClarificationQuestion,
+  resolveComposerTarget,
+  type ResolvedQueryIntent,
+  type SemanticClarification,
+  type SemanticEditorCatalog,
+  type SemanticQueryUnderstanding,
+} from '@/application/analysis-message-projection/semantic-understanding';
 import type { JavaAnalysisSession } from '@/infrastructure/java-backend';
 import { AnalysisUserMessage } from './analysis-user-message';
 import {
@@ -28,8 +36,11 @@ import { AnalysisChatComposer } from './analysis-chat-composer';
 import { AnalysisChatLocator } from './analysis-chat-locator';
 import {
   createFollowUpAndExecute,
+  createSessionWithQuestion,
+  createStructuredFollowUpAndExecute,
   executePendingFollowUp,
 } from './analysis-send-message';
+import { AnalysisUnderstandingEditor } from './analysis-understanding-editor';
 
 export type ChatTurnStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -39,6 +50,8 @@ export type RoundConclusionState = NonNullable<
 
 export type ChatTurn = {
   key: string;
+  /** 根轮次或追问轮次；pending 消息轮一律为 follow-up */
+  kind: 'initial' | 'follow-up';
   questionText: string;
   status: ChatTurnStatus;
   /** true 时该轮由 live viewModel 渲染（当前执行轮） */
@@ -46,6 +59,11 @@ export type ChatTurn = {
   /** 待执行的新消息轮：无执行事实时由 gate 自动接力 */
   followUpId?: string | null;
   conclusionState?: RoundConclusionState | null;
+  /** EasyV 语义计划快照：我的理解 / 编辑目录 / 结构化澄清 / 已执行意图 */
+  understanding?: SemanticQueryUnderstanding[] | null;
+  editorCatalog?: SemanticEditorCatalog | null;
+  clarification?: SemanticClarification | null;
+  resolvedQueries?: ResolvedQueryIntent[];
 };
 
 export type AnalysisConversationShellProps = {
@@ -75,6 +93,8 @@ export function AnalysisConversationShell({
     type: Exclude<DetailDrawerType, null>;
   } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [editingTurnKey, setEditingTurnKey] = useState<string | null>(null);
+  const [structuredError, setStructuredError] = useState<string | null>(null);
   const [isSending, startSendTransition] = useTransition();
   // 乐观轮次随 transition 生命周期存在：真实轮次经 RSC 提交后自动回收，
   // 不会残留重影；失败时 transition 结束同样回退。
@@ -100,6 +120,10 @@ export function AnalysisConversationShell({
     }
   }, [timelineLength, answerLength, streamLength, liveStatus, isSending]);
 
+  // 首轮未完成时后端没有可引用的完成态执行：发送改为创建新会话重新分析
+  const rootTurn = turns.find((turn) => turn.kind === 'initial') ?? null;
+  const hasCompletedRoot = rootTurn?.status === 'completed';
+
   const sendMessage = useCallback(
     (question: string) => {
       const text = question.trim();
@@ -113,7 +137,15 @@ export function AnalysisConversationShell({
       startSendTransition(async () => {
         addOptimisticQuestion(text);
         try {
-          const url = await createFollowUpAndExecute(sessionId, text);
+          const target = resolveComposerTarget({
+            hasCompletedRoot,
+            rootQuestion: rootTurn?.questionText ?? null,
+            rootClarification: rootTurn?.clarification ?? null,
+            text,
+          });
+          const url = target.mode === 'follow-up'
+            ? await createFollowUpAndExecute(sessionId, target.question)
+            : await createSessionWithQuestion(target.question);
           // 客户端导航：RSC 增量刷新，避免整页重载闪烁与滚动归零；
           // 导航提交随本 transition 结束，乐观轮次届时自动回收
           router.push(url, { scroll: false });
@@ -128,6 +160,68 @@ export function AnalysisConversationShell({
         }
       });
     },
+    [sessionId, router, isSending, addOptimisticQuestion, hasCompletedRoot, rootTurn],
+  );
+
+  const answerClarification = useCallback(
+    (turn: ChatTurn) => (option: string) => {
+      const question = composeClarificationQuestion(turn.questionText, option);
+      if (turn.kind === 'initial') {
+        // 根轮次澄清：以新会话重跑首轮（其 autoExecute 门自动启动执行）
+        setSendError(null);
+        void createSessionWithQuestion(question)
+          .then((url) => router.push(url, { scroll: false }))
+          .catch((error: unknown) => {
+            setSendError(
+              error instanceof Error && error.message
+                ? error.message
+                : '发送失败，请稍后重试。',
+            );
+          });
+        return;
+      }
+      sendMessage(question);
+    },
+    [router, sendMessage],
+  );
+
+  const submitStructuredAdjustment = useCallback(
+    (turn: ChatTurn) =>
+      (payload: {
+        question: string;
+        queries: { id: string; intent: Record<string, unknown> }[];
+      }) => {
+        if (sendingRef.current || isSending) return;
+        sendingRef.current = true;
+        setSendError(null);
+        setStructuredError(null);
+        lastTurnRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'end',
+        });
+        startSendTransition(async () => {
+          addOptimisticQuestion(payload.question);
+          try {
+            const url = await createStructuredFollowUpAndExecute(sessionId, {
+              question: payload.question,
+              parentFollowUpId:
+                turn.kind === 'follow-up' ? (turn.followUpId ?? '') : '',
+              queries: payload.queries,
+            });
+            setEditingTurnKey(null);
+            router.push(url, { scroll: false });
+          } catch (error) {
+            // 结构化创建失败（含后端本体校验）展示在抽屉内，轮次不产生乐观残留
+            setStructuredError(
+              error instanceof Error && error.message
+                ? error.message
+                : '结构化调整提交失败，请稍后重试。',
+            );
+          } finally {
+            sendingRef.current = false;
+          }
+        });
+      },
     [sessionId, router, isSending, addOptimisticQuestion],
   );
 
@@ -154,6 +248,9 @@ export function AnalysisConversationShell({
     key: turn.key,
     label: `第 ${index + 1} 轮对话`,
   }));
+  const editingTurn = editingTurnKey
+    ? (turns.find((turn) => turn.key === editingTurnKey) ?? null)
+    : null;
 
   return (
     <div className="relative">
@@ -168,6 +265,11 @@ export function AnalysisConversationShell({
             const availableDetails = (
               Object.keys(details) as Exclude<DetailDrawerType, null>[]
             ).filter((key) => details[key] != null);
+            const canEditUnderstanding =
+              Boolean(turn.editorCatalog)
+              && Boolean(turn.resolvedQueries?.length)
+              && !composerDisabled
+              && !sending;
             return (
               <div
                 className="space-y-4"
@@ -179,10 +281,20 @@ export function AnalysisConversationShell({
                 {turn.live && viewModel ? (
                   <AnalysisAssistantMessage
                     availableDetails={availableDetails}
+                    clarification={turn.clarification}
                     diagnostics={viewModel.assistantMessage.diagnostics}
                     errorSummary={viewModel.assistantMessage.errorSummary}
                     headline={viewModel.assistantMessage.headline}
                     metricCards={viewModel.assistantMessage.metricCards}
+                    onClarificationOption={answerClarification(turn)}
+                    onEditUnderstanding={
+                      canEditUnderstanding
+                        ? () => {
+                            setStructuredError(null);
+                            setEditingTurnKey(turn.key);
+                          }
+                        : undefined
+                    }
                     onOpenDetail={openDetail(turn.key)}
                     onSuggestionClick={sendMessage}
                     primaryAnswer={viewModel.assistantMessage.primaryAnswer}
@@ -196,6 +308,7 @@ export function AnalysisConversationShell({
                     suggestions={isLast ? suggestions : undefined}
                     toolActivities={viewModel.assistantMessage.toolActivities}
                     toolTimeline={viewModel.assistantMessage.toolTimeline}
+                    understanding={turn.understanding}
                     visualizations={viewModel.assistantMessage.visualizations}
                   />
                 ) : turn.status === 'completed' || turn.status === 'failed' ? (
@@ -204,7 +317,18 @@ export function AnalysisConversationShell({
                      避免图表闪烁重绘 */
                   <AnalysisAssistantMessage
                     availableDetails={availableDetails}
+                    clarification={turn.clarification}
+                    onClarificationOption={answerClarification(turn)}
+                    onEditUnderstanding={
+                      canEditUnderstanding
+                        ? () => {
+                            setStructuredError(null);
+                            setEditingTurnKey(turn.key);
+                          }
+                        : undefined
+                    }
                     onOpenDetail={openDetail(turn.key)}
+                    understanding={turn.understanding}
                     {...buildStaticAssistantProps(turn)}
                   />
                 ) : (
@@ -254,6 +378,11 @@ export function AnalysisConversationShell({
 
         {/* 输入框：对话窗口底部，下方无任何内容 */}
         <div className="sticky bottom-0 bg-gradient-to-t from-background via-background to-transparent pb-4 pt-3">
+          {!hasCompletedRoot ? (
+            <p className="pb-2 text-xs text-muted-foreground">
+              首轮分析未完成，发送将以新会话重新分析
+            </p>
+          ) : null}
           <AnalysisChatComposer
             disabled={composerDisabled}
             onSend={(question) => void sendMessage(question)}
@@ -268,6 +397,26 @@ export function AnalysisConversationShell({
           content={drawerContent}
           drawerType={activeDrawer.type}
           onClose={() => setActiveDrawer(null)}
+        />
+      ) : null}
+
+      {/* 我的理解结构化调整抽屉 */}
+      {editingTurn
+      && editingTurn.understanding
+      && editingTurn.editorCatalog ? (
+        <AnalysisUnderstandingEditor
+          catalog={editingTurn.editorCatalog}
+          key={editingTurn.key}
+          onClose={() => {
+            setStructuredError(null);
+            setEditingTurnKey(null);
+          }}
+          onSubmit={submitStructuredAdjustment(editingTurn)}
+          open
+          resolvedQueries={editingTurn.resolvedQueries ?? []}
+          serverError={structuredError}
+          submitting={sending}
+          understanding={editingTurn.understanding}
         />
       ) : null}
     </div>

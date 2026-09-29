@@ -1,4 +1,11 @@
 import type { JavaAnalysisSession } from '@/infrastructure/java-backend';
+import {
+  resolvedQueryIntents,
+  type ResolvedQueryIntent,
+  type SemanticClarification,
+  type SemanticEditorCatalog,
+  type SemanticQueryUnderstanding,
+} from '@/application/analysis-message-projection/semantic-understanding';
 import type { ChatTurn } from './analysis-conversation-shell';
 
 type JavaHistoryRound = JavaAnalysisSession['history'][number];
@@ -15,6 +22,21 @@ function normalizeTurnStatus(
   return 'pending';
 }
 
+function roundMetadata(round: JavaHistoryRound): {
+  understanding: SemanticQueryUnderstanding[] | null;
+  editorCatalog: SemanticEditorCatalog | null;
+  clarification: SemanticClarification | null;
+  resolvedQueries: ResolvedQueryIntent[];
+} {
+  const plan = round.planSnapshot;
+  return {
+    understanding: plan?._understanding ?? null,
+    editorCatalog: plan?._editorCatalog ?? null,
+    clarification: plan?._clarification ?? null,
+    resolvedQueries: resolvedQueryIntents(plan?._resolvedContext),
+  };
+}
+
 /**
  * 会话页轮次构建：历史轮按执行事实静态渲染；当前执行轮标记 live 由实时投影接管；
  * 已创建但尚未产生执行的新消息作为 pending 轮追加（进入页面即自动接力执行）。
@@ -25,12 +47,14 @@ export function buildChatTurns(
 ): ChatTurn[] {
   const turns: ChatTurn[] = aggregate.history.map((round) => ({
     key: round.id,
+    kind: round.kind,
     questionText: round.questionText,
     status: normalizeTurnStatus(round.status),
     live:
       round.executionId !== null && round.executionId === resolvedExecutionId,
     followUpId: round.followUpId,
     conclusionState: round.conclusionState ?? null,
+    ...roundMetadata(round),
   }));
 
   const knownFollowUpRoundIds = new Set(
@@ -42,11 +66,16 @@ export function buildChatTurns(
     }
     turns.push({
       key: `pending-${followUp.id}`,
+      kind: 'follow-up',
       questionText: followUp.questionText,
       status: 'pending',
       live: false,
       followUpId: followUp.id,
       conclusionState: null,
+      understanding: null,
+      editorCatalog: null,
+      clarification: null,
+      resolvedQueries: [],
     });
   }
 
