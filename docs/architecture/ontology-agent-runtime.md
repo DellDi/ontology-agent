@@ -113,7 +113,7 @@ order[], limit  limit ≤ 5000；达到上限视为截断失败
 
 每项完成标准：测试先行、Java 全量与 Web 门禁通过、契约同步；涉及部署的项需记录真实环境验证。
 
-**A 语义问数**（A0 已完成，见 §9；1–7 已完成，结果见 §10）
+**A 语义问数**（A0 已完成，见 §9；1–8 已完成，结果见 §10）
 
 1. 本体补齐原型任务、流水线节点、反馈对象与关系；生成器支持派生指标（成功率等）与反馈双时间口径（操作时间 / 应用创建时间）。
 2. Java Cube 适配器：签发含冻结 `productVersions` 的 JWT；识别 `SEMANTIC_VERSION_*`；`/meta` 校验本体成员；Cube 部署从 Property profile 拆出，数据库来源统一为 `JAVA_DATABASE_URL`，使用 facts 只读角色。
@@ -203,3 +203,10 @@ A 阶段需处理的发现：
 - 判分：状态一致；查询按对象、指标（期望⊆产出）、维度/过滤集合、粒度、时间属性、解析区间、对比区间逐项命中；等价写法以 anyOf/alternatives 显式列出。门禁：整体 ≥ 90%，time 标签题时间正确率 100%。
 - 过程：首轮基线 69/80（86.3%）、时间 54/55。失败归因为规划提示词缺陷（单值问题附加粒度、“昨天”误用 relative、time.expression 嵌套错误、追问对比丢失 compare）与校验反馈不可纠正，已在提示词与 `QueryIntentCodec` 违规信息中修复根因；未以放宽判分规则换取通过（仅补充语义等价写法：失败数指标带冗余状态过滤、P50 指标带冗余主链过滤、两个月份拆成两条查询）。
 - 最终（模型 `deepseek-flash`，同一代码连续 3 轮）：80/80 时间 55/55、80/80 时间 55/55、79/80 时间 54/55。未通过的 1 题为“上周末有多少生成任务？”模型选择澄清（未给出错误数字）；门禁按单轮判定，3 轮中 2 轮通过，模型输出存在波动，发布前应重跑评测。
+
+easyv-dev 部署与真实账号验收（§6.1 A 8，2026-09-29）：
+
+- 发布：`91c71f5`（web）+ `636ca0c`（backend / release-worker），发布目录 `/opt/ontology-agent-releases/<rev>`，旧目录 `/opt/ontology-agent` 与 `session-delete` 镜像保留用于回滚；发布前备份目录与平台库（`/opt/ontology-agent-backups`）。Flyway V18 → V20，facts 只读角色 `ontology_facts_reader`（DBA 权限账号创建，LOGIN、无 SUPERUSER/CREATEDB/CREATEROLE），migrate 授权成功；Cube/Cube Store 首次随 EasyV 启动，easyv 健康组（含 cube）UP。
+- 验收（经 Web BFF，冻结集 `ed9b4650`，锚点 2026-09-29）10/10 通过：“最近30天每天”解析为 08-31~09-29 按日并提示部分覆盖（数据 09-07~09-23）；“上个月成功率与失败原因”不再受反馈口径门禁影响，区间完全无数据时明确告知；反馈默认按操作时间；“成功率是多少”返回结构化澄清与三个口径候选；自然语言追问“改成按周”；结构化调整（最近7天按日，跳过模型规划）与非法意图创建即拒绝；绑定 EasyV 用户 8 的账号只见本人数据（37 个应用，与平台库直查一致）；未绑定账号 `EASYV_USER_BINDING_REQUIRED` 拒绝。
+- 验收中发现并修复：区间内无数据时比率指标 0/0 返回单行 null 被视为可引用证据导致 `EASYV_ANSWER_UNGROUNDED`（`636ca0c`）。
+- 验收账号 `acceptance-admin` / `acceptance-scoped`（绑定 EasyV 用户 8）/ `acceptance-unbound`，凭据仅存于服务器 `/root/.ontology-acceptance`（600）。
