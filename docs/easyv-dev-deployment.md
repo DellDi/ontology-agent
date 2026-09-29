@@ -12,7 +12,7 @@ Cube 与 Neo4j 作为 Property 投影运行。
 | `web` | 是 | 否 | 页面和 Java BFF 透明代理 |
 | `backend` | 是 | 否 | EasyV/Property 问数、LLM、API、Worker、Graph Sync；只读 canonical facts |
 | `valkey` | 是 | 否 | Worker 唤醒和 Chat Memory；任务事实仍在 PostgreSQL |
-| `cube` / Cube Store | 是 | 否 | Property 指标查询，只读 `facts.property_*` |
+| `cube` / Cube Store | 是 | 否 | EasyV/Property 语义指标查询，只读 `facts.*`；backend `depends_on` 等待其 healthy |
 | `neo4j` | 是 | 否 | Property 关系投影，可从冻结 Dataset Version Set 重建 |
 | `migrate` | 否 | 否 | Flyway 独立迁移共享平台库，成功后退出 |
 | `ingest` | 否 | 是，只读 | EasyV 全量/增量抽取、物化、冻结 Dataset Version Set，成功后退出 |
@@ -20,8 +20,32 @@ Cube 与 Neo4j 作为 Property 投影运行。
 
 EasyV 源凭据不得进入 `.env.easyv-dev` 或长期运行的 backend。Property ingestion 使用平台
 DataSource，不引入外部 ERP 账号；外部 ERP 到 `erp_staging` 的 source contract 仍未纳入
-本部署。`easyv` health group 包含 DB、Valkey、Cube、Neo4j、LLM 与 readiness，依赖失败时
-诚实报告，不配置假成功。
+本部署。`easyv` health group 为 `readinessState,db,redis,llmProvider,cube`，依赖失败时
+诚实报告，不配置假成功。Cube 是 EasyV 问数的运行时依赖：backend `depends_on` 等待
+`cube` healthy，`backend` 缺失 `CUBE_API_URL` 或 Cube 未就绪时 health 直接 DOWN。
+
+## Cube 与 facts 只读账号
+
+EasyV 问数经 Java 语义层编译为 Cube 查询，Cube 以平台库中独立的只读角色直连 `facts`
+schema。应用账号（`JAVA_DATABASE_USERNAME`）没有 CREATEROLE/超级用户权限，角色须由
+DBA 一次性创建：
+
+```bash
+# 打印带参 psql 命令与 SQL（脚本不执行）
+scripts/easyv-dev facts-reader-sql
+# 由 DBA/CREATEROLE 账号执行一次，例如：
+psql '<DBA 连接串>' -v role="$CUBE_DATABASE_USERNAME" -v password='<新密码>' \
+  -v database='<平台库名>' -f scripts/sql/create-facts-reader-role.sql
+```
+
+之后每次 `scripts/easyv-dev migrate`（compose `migrate` 服务）在 Flyway 成功后自动
+对 `FACTS_READER_ROLE`（即 `CUBE_DATABASE_USERNAME`）幂等执行 facts 授权；角色缺失、
+名字非法或带有 SUPERUSER/CREATEDB/CREATEROLE 时 migrate 直接失败。Cube 的库地址由
+脚本从 `JAVA_DATABASE_URL` 派生注入（`CUBE_DB_HOST/PORT/NAME`），无需另行配置。
+
+`CUBEJS_DEFAULT_TIMEZONE` 固定 `Asia/Shanghai`，与 EasyV 语义层业务时区一致。
+Cube queryRewrite 拒绝会以 Cube HTTP 500 返回；Java 适配器将 `SEMANTIC_*` 错误码
+fail loud 映射（保持现状，不做 Cube UserError 包装），健康与日志均可定位。
 
 ## 一次构建
 
@@ -175,7 +199,8 @@ scripts/easyv-dev backup [输出目录]        # 默认 ./backups，文件 ontol
 scripts/easyv-dev restore backups/ontology-agent-<db>-<时间戳>.dump
 ```
 
-平台库地址从 `JAVA_DATABASE_URL` 解析（与 backend 同源）；`PLATFORM_POSTGRES_*` 仅供 Cube，两者可能不一致，不作为备份目标。
+平台库地址从 `JAVA_DATABASE_URL` 解析（与 backend 同源），备份/恢复与 Cube 连接参数
+（`CUBE_DB_HOST/PORT/NAME`）都由 `scripts/easyv-dev` 统一派生，不存在第二份可能漂移的地址配置。
 
 注意：`JAVA_DATABASE_USERNAME` 应用账号通常无 `CREATEDB`——恢复到**全新库**需 DBA 先建库；
 同库回写可直接执行（`--clean --if-exists`）。恢复属破坏性操作，脚本要求输入库名二次确认。
@@ -186,6 +211,7 @@ scripts/easyv-dev restore backups/ontology-agent-<db>-<时间戳>.dump
 | 凭据 | 存放位置 | 使用方 | 轮换方式 |
 |---|---|---|---|
 | 平台库账号 `JAVA_DATABASE_*` | `.env.easyv-dev`（部署机） | backend/migrate/backup | 改库密码后同步 env 并重启 |
+| Cube facts 只读账号 `CUBE_DATABASE_*` | `.env.easyv-dev` | cube / migrate（授权校验） | DBA 建角色后写入；改密后同步 env 并重建 cube |
 | EasyV 源只读账号 `EASYV_POSTGRES_*` | `source-reader.env`（私有，不进仓库） | ingest / release-worker | 源侧改密后更新私有 env |
 | `SESSION_SECRET` | `.env.easyv-dev` | backend 签名会话 Cookie | 更换后全量会话失效需重登 |
 | `GRAPH_SYNC_OPS_SECRET` | `.env.easyv-dev` | graph-sync 运维端点 | 更换后同步调用方 |

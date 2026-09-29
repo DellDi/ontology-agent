@@ -42,6 +42,9 @@ management:
     health:
       show-details: when_authorized
 dip3:
+  database:
+    # Cube 语义查询使用的 facts 只读角色（DBA 预创建）；空表示本机/开发环境用应用账号直连。
+    facts-reader-role: ${FACTS_READER_ROLE:}
   easyv:
     # Domain runtime reads only platform-owned canonical facts.
     enabled: ${EASYV_DOMAIN_ENABLED:false}

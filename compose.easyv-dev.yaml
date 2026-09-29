@@ -8,13 +8,15 @@ x-platform-database: &platform-database
   JAVA_DATABASE_USERNAME: ${JAVA_DATABASE_USERNAME:?JAVA_DATABASE_USERNAME is required}
   JAVA_DATABASE_PASSWORD: ${JAVA_DATABASE_PASSWORD:?JAVA_DATABASE_PASSWORD is required}
 
+# Cube 只读账号是平台库中由 DBA 预创建的最小权限角色；库地址由 scripts/easyv-dev
+# 从 JAVA_DATABASE_URL 派生为 CUBE_DB_HOST/CUBE_DB_PORT/CUBE_DB_NAME 后注入。
 x-cube-platform-database: &cube-platform-database
   CUBEJS_DB_TYPE: postgres
-  CUBEJS_DB_HOST: ${PLATFORM_POSTGRES_HOST:?PLATFORM_POSTGRES_HOST is required}
-  CUBEJS_DB_PORT: ${PLATFORM_POSTGRES_PORT:?PLATFORM_POSTGRES_PORT is required}
-  CUBEJS_DB_NAME: ${PLATFORM_POSTGRES_DB:?PLATFORM_POSTGRES_DB is required}
-  CUBEJS_DB_USER: ${JAVA_DATABASE_USERNAME:?JAVA_DATABASE_USERNAME is required}
-  CUBEJS_DB_PASS: ${JAVA_DATABASE_PASSWORD:?JAVA_DATABASE_PASSWORD is required}
+  CUBEJS_DB_HOST: ${CUBE_DB_HOST:?CUBE_DB_HOST is required}
+  CUBEJS_DB_PORT: ${CUBE_DB_PORT:?CUBE_DB_PORT is required}
+  CUBEJS_DB_NAME: ${CUBE_DB_NAME:?CUBE_DB_NAME is required}
+  CUBEJS_DB_USER: ${CUBE_DATABASE_USERNAME:?CUBE_DATABASE_USERNAME is required}
+  CUBEJS_DB_PASS: ${CUBE_DATABASE_PASSWORD:?CUBE_DATABASE_PASSWORD is required}
 
 services:
   valkey:
@@ -34,6 +36,7 @@ services:
     <<: *java-image
     environment:
       <<: *platform-database
+      FACTS_READER_ROLE: ${CUBE_DATABASE_USERNAME:?CUBE_DATABASE_USERNAME is required}
     command: ["--spring.profiles.active=migrate"]
     restart: "no"
 
@@ -43,6 +46,8 @@ services:
       migrate:
         condition: service_completed_successfully
       valkey:
+        condition: service_healthy
+      cube:
         condition: service_healthy
     environment:
       <<: *platform-database
@@ -72,7 +77,7 @@ services:
       JAVA_GRAPH_SYNC_ENABLED: "false"
       JAVA_GRAPH_SYNC_POLL_DELAY: ${JAVA_GRAPH_SYNC_POLL_DELAY:-5m}
       GRAPH_SYNC_OPS_SECRET: ${GRAPH_SYNC_OPS_SECRET:?GRAPH_SYNC_OPS_SECRET is required}
-      MANAGEMENT_ENDPOINT_HEALTH_GROUP_EASYV_INCLUDE: readinessState,db,redis,llmProvider
+      MANAGEMENT_ENDPOINT_HEALTH_GROUP_EASYV_INCLUDE: readinessState,db,redis,llmProvider,cube
     ports:
       - "127.0.0.1:${JAVA_BACKEND_PORT:-8080}:8080"
     healthcheck:
@@ -104,7 +109,6 @@ services:
 
   cube:
     image: ${CUBE_IMAGE:-cubejs/cube:v1.6.31}
-    profiles: ["property"]
     depends_on:
       cubestore-router:
         condition: service_healthy
@@ -115,7 +119,7 @@ services:
       CUBEJS_API_SECRET: ${CUBE_API_SECRET:?CUBE_API_SECRET is required}
       CUBEJS_DEV_MODE: "false"
       CUBEJS_TELEMETRY: "false"
-      CUBEJS_DEFAULT_TIMEZONE: Asia/Taipei
+      CUBEJS_DEFAULT_TIMEZONE: Asia/Shanghai
       CUBEJS_CUBESTORE_HOST: cubestore-router
       CUBEJS_CUBESTORE_PORT: "3030"
     volumes:
@@ -130,7 +134,6 @@ services:
 
   cubestore-router:
     image: ${CUBESTORE_IMAGE:-cubejs/cubestore:v1.6.31}
-    profiles: ["property"]
     environment:
       CUBESTORE_SERVER_NAME: cubestore-router:9999
       CUBESTORE_META_PORT: "9999"
@@ -149,7 +152,6 @@ services:
 
   cubestore-worker:
     image: ${CUBESTORE_IMAGE:-cubejs/cubestore:v1.6.31}
-    profiles: ["property"]
     depends_on:
       cubestore-router:
         condition: service_healthy

@@ -5,18 +5,38 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 ENV_FILE=${EASYV_DEV_ENV_FILE:-"$ROOT_DIR/.env.easyv-dev"}
 COMPOSE_FILE="$ROOT_DIR/compose.easyv-dev.yaml"
 
-compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
-  else
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
-  fi
-}
-
 require_env_file() {
   if [[ ! -r "$ENV_FILE" ]]; then
     echo "Missing deployment environment file: $ENV_FILE" >&2
     exit 1
+  fi
+}
+
+# Cube 只认识拆开的连接参数；平台库地址以 backend 实际使用的 JAVA_DATABASE_URL 为唯一来源，
+# 统一解析为 CUBE_DB_HOST/CUBE_DB_PORT/CUBE_DB_NAME 供 compose 与备份/恢复复用。
+derive_cube_db_env() {
+  require_env_file
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+  : "${JAVA_DATABASE_URL:?missing JAVA_DATABASE_URL}"
+  if [[ ! "$JAVA_DATABASE_URL" =~ ^jdbc:postgresql://([A-Za-z0-9._-]+)(:([0-9]+))?/([^/?]+) ]]; then
+    echo "JAVA_DATABASE_URL must be jdbc:postgresql://host[:port]/database: $JAVA_DATABASE_URL" >&2
+    exit 1
+  fi
+  CUBE_DB_HOST=${BASH_REMATCH[1]}
+  CUBE_DB_PORT=${BASH_REMATCH[3]:-5432}
+  CUBE_DB_NAME=${BASH_REMATCH[4]}
+  export CUBE_DB_HOST CUBE_DB_PORT CUBE_DB_NAME
+}
+
+compose() {
+  derive_cube_db_env
+  if docker compose version >/dev/null 2>&1; then
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+  else
+    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
   fi
 }
 
@@ -51,7 +71,7 @@ build_images() {
 }
 
 wait_for_health() {
-  local attempt backend web
+  local attempt backend web cube
   for attempt in $(seq 1 24); do
     backend=$(docker inspect ontology-agent-easyv-dev-backend-1 \
       --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
@@ -59,7 +79,10 @@ wait_for_health() {
     web=$(docker inspect ontology-agent-easyv-dev-web-1 \
       --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
       2>/dev/null || true)
-    if [[ "$backend" == "healthy" && "$web" == "healthy" ]]; then
+    cube=$(docker inspect ontology-agent-easyv-dev-cube-1 \
+      --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      2>/dev/null || true)
+    if [[ "$backend" == "healthy" && "$web" == "healthy" && "$cube" == "healthy" ]]; then
       curl --fail --silent http://127.0.0.1:8080/actuator/health/easyv
       echo
       return
@@ -91,22 +114,9 @@ run_ingestion() {
 }
 
 pg_credentials() {
-  require_env_file
-  set -a
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-  set +a
-  : "${JAVA_DATABASE_URL:?missing JAVA_DATABASE_URL}"
+  derive_cube_db_env
   : "${JAVA_DATABASE_USERNAME:?missing JAVA_DATABASE_USERNAME}"
   : "${JAVA_DATABASE_PASSWORD:?missing JAVA_DATABASE_PASSWORD}"
-  # 平台库地址以 backend 实际使用的 JAVA_DATABASE_URL 为唯一来源；PLATFORM_POSTGRES_* 仅供 Cube。
-  if [[ ! "$JAVA_DATABASE_URL" =~ ^jdbc:postgresql://([^/:?]+):([0-9]+)/([^/?]+) ]]; then
-    echo "JAVA_DATABASE_URL must be jdbc:postgresql://host:port/database: $JAVA_DATABASE_URL" >&2
-    exit 1
-  fi
-  PLATFORM_POSTGRES_HOST=${BASH_REMATCH[1]}
-  PLATFORM_POSTGRES_PORT=${BASH_REMATCH[2]}
-  PLATFORM_POSTGRES_DB=${BASH_REMATCH[3]}
 }
 
 run_backup() {
@@ -115,15 +125,15 @@ run_backup() {
   mkdir -p "$out_dir"
   local stamp file
   stamp=$(date +%Y%m%d%H%M%S)
-  file="$out_dir/ontology-agent-${PLATFORM_POSTGRES_DB}-${stamp}.dump"
+  file="$out_dir/ontology-agent-${CUBE_DB_NAME}-${stamp}.dump"
   # 平台库全量：platform/facts/ingestion/identity + public(flyway history)。
   # EasyV 源库为只读外部依赖，不在备份范围。
   PGPASSWORD="$JAVA_DATABASE_PASSWORD" docker run --rm \
     -e PGPASSWORD \
     -v "$out_dir:/backups" \
     postgres:15.4-bookworm \
-    pg_dump -Fc -h "$PLATFORM_POSTGRES_HOST" -p "$PLATFORM_POSTGRES_PORT" \
-      -U "$JAVA_DATABASE_USERNAME" -d "$PLATFORM_POSTGRES_DB" \
+    pg_dump -Fc -h "$CUBE_DB_HOST" -p "$CUBE_DB_PORT" \
+      -U "$JAVA_DATABASE_USERNAME" -d "$CUBE_DB_NAME" \
       -n platform -n facts -n ingestion -n identity -n public \
       -f "/backups/$(basename "$file")"
   ls -lh "$file"
@@ -137,10 +147,10 @@ run_restore() {
     echo "usage: scripts/easyv-dev restore <backup.dump>" >&2
     exit 2
   fi
-  echo "RESTORE into ${PLATFORM_POSTGRES_HOST}:${PLATFORM_POSTGRES_PORT}/${PLATFORM_POSTGRES_DB}"
+  echo "RESTORE into ${CUBE_DB_HOST}:${CUBE_DB_PORT}/${CUBE_DB_NAME}"
   echo "this overwrites platform/facts/ingestion/identity/public objects in the dump."
   read -r -p "type the database name to confirm: " confirm
-  if [[ "$confirm" != "$PLATFORM_POSTGRES_DB" ]]; then
+  if [[ "$confirm" != "$CUBE_DB_NAME" ]]; then
     echo "aborted." >&2
     exit 1
   fi
@@ -150,8 +160,8 @@ run_restore() {
     -v "$(cd "$(dirname "$file")" && pwd):/backups" \
     postgres:15.4-bookworm \
     pg_restore --clean --if-exists --no-owner --no-privileges \
-      -h "$PLATFORM_POSTGRES_HOST" -p "$PLATFORM_POSTGRES_PORT" \
-      -U "$JAVA_DATABASE_USERNAME" -d "$PLATFORM_POSTGRES_DB" \
+      -h "$CUBE_DB_HOST" -p "$CUBE_DB_PORT" \
+      -U "$JAVA_DATABASE_USERNAME" -d "$CUBE_DB_NAME" \
       "/backups/$(basename "$file")"
   compose up -d
   wait_for_health
@@ -184,6 +194,17 @@ run_graph_bootstrap() {
         http://127.0.0.1:8080/api/system/graph-sync/bootstrap'
   fi
   echo
+}
+
+print_facts_reader_sql() {
+  derive_cube_db_env
+  : "${CUBE_DATABASE_USERNAME:?missing CUBE_DATABASE_USERNAME}"
+  local sql_file="$ROOT_DIR/scripts/sql/create-facts-reader-role.sql"
+  echo "# facts 只读角色须由 DBA/CREATEROLE 账号创建一次（应用账号无建角色权限）："
+  echo "psql '<DBA 连接串>' -v role='$CUBE_DATABASE_USERNAME' -v password='<新密码>' \\"
+  echo "  -v database='$CUBE_DB_NAME' -f '$sql_file'"
+  echo "# SQL 内容："
+  cat "$sql_file"
 }
 
 run_infrastructure_smoke() {
@@ -265,6 +286,9 @@ case "$command" in
     require_env_file
     run_graph_bootstrap "${2:-}"
     ;;
+  facts-reader-sql)
+    print_facts_reader_sql
+    ;;
   infrastructure-smoke)
     require_env_file
     run_infrastructure_smoke
@@ -289,7 +313,7 @@ case "$command" in
     wait_for_health
     ;;
   *)
-    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|facts-reader-sql|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
     exit 2
     ;;
 esac

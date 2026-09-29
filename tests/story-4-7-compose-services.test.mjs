@@ -137,7 +137,11 @@ test('easyv-dev 使用共享平台 PostgreSQL，并提供独立 Cube Store 与 N
     assert.match(compose, new RegExp(`^  ${service}$`, 'm'));
   }
   assert.doesNotMatch(compose, /^  postgres:/m, 'easyv-dev 不得启动本地 PostgreSQL');
-  assert.match(compose, /CUBEJS_DB_HOST: \$\{PLATFORM_POSTGRES_HOST:\?PLATFORM_POSTGRES_HOST is required\}/);
+  // Cube 库地址由脚本从 JAVA_DATABASE_URL 派生注入，账号是独立只读角色
+  assert.match(compose, /CUBEJS_DB_HOST: \$\{CUBE_DB_HOST:\?CUBE_DB_HOST is required\}/);
+  assert.match(compose, /CUBEJS_DB_USER: \$\{CUBE_DATABASE_USERNAME:\?CUBE_DATABASE_USERNAME is required\}/);
+  assert.match(compose, /CUBEJS_DB_PASS: \$\{CUBE_DATABASE_PASSWORD:\?CUBE_DATABASE_PASSWORD is required\}/);
+  assert.doesNotMatch(compose, /PLATFORM_POSTGRES_/);
   assert.match(compose, /CUBEJS_CUBESTORE_HOST: cubestore-router/);
   assert.match(compose, /CUBESTORE_META_ADDR: cubestore-router:9999/);
   assert.match(compose, /NEO4J_URI: bolt:\/\/neo4j:7687/);
@@ -148,6 +152,16 @@ test('easyv-dev 使用共享平台 PostgreSQL，并提供独立 Cube Store 与 N
   assert.doesNotMatch(backendBlock, /EASYV_POSTGRES_(JDBC_URL|USERNAME|PASSWORD)/,
     'backend 不得持有 EasyV source credentials');
   assert.match(compose, /condition: service_healthy/);
+  // Cube 是 EasyV 运行时依赖：不再挂在 property profile，backend 依赖其健康
+  const cubeBlock = compose.match(/^  cube:\r?\n[\s\S]*?(?=^  cubestore-router:)/m)?.[0];
+  assert.ok(cubeBlock, '应能定位 cube service');
+  assert.doesNotMatch(cubeBlock, /profiles:/, 'cube 必须常驻，不属于 property profile');
+  assert.match(backendBlock, /cube:\r?\n\s+condition: service_healthy/,
+    'backend 须等待 cube healthy');
+  assert.match(compose, /FACTS_READER_ROLE: \$\{CUBE_DATABASE_USERNAME/);
+  assert.match(compose,
+    /MANAGEMENT_ENDPOINT_HEALTH_GROUP_EASYV_INCLUDE: readinessState,db,redis,llmProvider,cube/);
+  assert.match(compose, /CUBEJS_DEFAULT_TIMEZONE: Asia\/Shanghai/);
 });
 
 test('easyv-dev 运维入口覆盖 Property ingestion、graph bootstrap 与基础设施 smoke', async () => {
@@ -165,7 +179,11 @@ test('easyv-dev 运维入口覆盖 Property ingestion、graph bootstrap 与基�
   assert.match(script, /actuator\/health\/easyv/);
   assert.match(script, /actuator\/health\/neo4j/);
   assert.match(script, /readyz/);
-  assert.match(envExample, /^PLATFORM_POSTGRES_HOST=/m);
+  assert.match(script, /facts-reader-sql/);
+  assert.match(script, /CUBE_DB_HOST/);
+  assert.doesNotMatch(envExample, /^PLATFORM_POSTGRES_/m);
+  assert.match(envExample, /^CUBE_DATABASE_USERNAME=/m);
+  assert.match(envExample, /^CUBE_DATABASE_PASSWORD=/m);
   assert.match(envExample, /^CUBE_API_SECRET=/m);
   assert.match(envExample, /^NEO4J_PASSWORD=/m);
   assert.match(envExample, /^GRAPH_SYNC_OPS_SECRET=/m);
