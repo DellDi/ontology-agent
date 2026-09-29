@@ -28,15 +28,19 @@ DataSource，不引入外部 ERP 账号；外部 ERP 到 `erp_staging` 的 sourc
 
 EasyV 问数经 Java 语义层编译为 Cube 查询，Cube 以平台库中独立的只读角色直连 `facts`
 schema。应用账号（`JAVA_DATABASE_USERNAME`）没有 CREATEROLE/超级用户权限，角色须由
-DBA 一次性创建：
+发布流程以 DBA 权限创建，不需要产品用户维护数据库账号：
 
 ```bash
-# 打印带参 psql 命令与 SQL（脚本不执行）
-scripts/easyv-dev facts-reader-sql
-# 由 DBA/CREATEROLE 账号执行一次，例如：
-psql '<DBA 连接串>' -v role="$CUBE_DATABASE_USERNAME" -v password='<新密码>' \
-  -v database='<平台库名>' -f scripts/sql/create-facts-reader-role.sql
+# 发布进程从私有凭据注入 FACTS_READER_DBA_USERNAME / FACTS_READER_DBA_PASSWORD。
+# 发布主机需有 psql 15+；Cube 账号和口令读取已有 .env.easyv-dev。
+scripts/easyv-dev facts-reader-seed
+# 也可在注入上述 DBA 变量后执行 migrate，自动先跑账号种子再迁移。
+scripts/easyv-dev migrate
 ```
+
+种子仅在角色缺失时创建，重复执行不修改既有口令，不将 DBA 凭据写入应用配置或镜像。
+初始登录管理员继续使用 `admin-seed`，已有账号升级时不重置密码。`acceptance-*` 是验收账号，
+不属于安装种子，也不要求产品用户日常维护。
 
 之后每次 `scripts/easyv-dev migrate`（compose `migrate` 服务）在 Flyway 成功后自动
 对 `FACTS_READER_ROLE`（即 `CUBE_DATABASE_USERNAME`）幂等执行 facts 授权；角色缺失、
@@ -223,10 +227,28 @@ scripts/easyv-dev restore backups/ontology-agent-<db>-<时间戳>.dump
 
 ### 密码轮换
 
-当前只有管理员 API，无 Web 改密页面，也无用户自助改密。平台管理员登录后调用
+管理员登录后进入 **账号管理**（`/admin/accounts`），选择账号，输入并确认新密码后保存。
+页面复用已有管理员 API，普通用户不能列出账号或修改他人密码；暂不提供普通用户自助改密。
+管理员 API 为
 `PATCH /api/admin/identity/accounts/{id}`（body `{"password":"..."}`，8-1024 位；管理员账号建议 ≥16 位）；
 可修改包括自身在内的任意本地账号，操作限 `PLATFORM_ADMIN`。改密不会使既有会话失效；需要立即踢出时
 同时更换 `SESSION_SECRET`（影响全部用户）。初始管理员口令轮换后，删除部署机私有 `admin-seed.env`。
+
+### 2026-09-29 账号与物业模块核查
+
+- easyv-dev 的 `18668184122` 是本工作台登录账号，源库 `easyv_saas.dt_easyv_user`
+  在部署实际连接的源库（`172.16.124.100:32408/easyv`）通过手机号匹配为用户 3；
+  已通过管理员绑定 API 写入 `easyv/userId=3`。验收用户 8 是另一账号。
+  数据库连接器默认指向另一环境，同手机号在该库对应用户 16，不能跨环境套用绑定。
+- Property 是物业收缴率分析模块。历史提交 `447c4d4` 与 `d5132fb` 记录了 9 月 14 日的封存决定；
+  V15 同时停用接入目录。此次查库，物业账单、项目和用户表均为 0 条，Neo4j 未运行。
+  当前不具备启用条件；恢复需要落实真实 ERP 数据接入、恢复目录、启用领域与 Neo4j，再完成物化、图投影与收缴率验收。
+  这是产品集成待办，不是要求用户维护某个账号。
+- 账号管理页面已发布至 `ontology-agent-web:account-passwords-20260929`，发布目录
+  `/opt/ontology-agent-releases/49e561e-account-passwords-20260929`；backend/release-worker 继续使用原镜像。
+  Web 健康检查与 EasyV health 均通过。真实浏览器验证了密码确认、保存、旧密码拒绝、新密码登录、
+  非管理员读取/改密返回 403，以及 390px 无横向溢出；验收后恢复测试账号原密码。
+  本地 tsc、lint、构建通过，Web 测试 85 通过、5 跳过；角色种子在事务中验证首次创建、重复执行保留口令后回滚。
 
 ## release-worker 看守
 

@@ -1,5 +1,7 @@
 # Multi-domain Runtime Architecture
 
+> 当前排期以 [Ontology Agent Runtime §6 与 §11](./ontology-agent-runtime.md) 为准：下一交付为 EasyV 原型设计分析（A 扩展 + B1），逐步建立可声明接入与呈现能力。本文保留历史实施基线；Property 恢复依赖真实 ERP 数据接入，不是本轮前置任务。
+
 > 状态：Baseline（2026-08-31）
 > 适用范围：Ontology Agent 的分析运行时、Domain Pack 与未来 Action Runtime
 > 实施状态：M3-M6 已落地并完成源码与契约验收；Property 与 EasyV 已成为两个真实可执行 capability。EasyV 已通过真实 OpenAI-compatible 模型与 test PostgreSQL 联合门禁。EasyV 使用 `accessMode=all` 全量 scope、只读 facts adapter，并由 `dip3.easyv.enabled` 显式开关控制，默认关闭；Ontology v2 已发布。test/开发环境观测不代表生产部署或生产数据结论。

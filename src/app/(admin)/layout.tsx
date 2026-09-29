@@ -30,7 +30,9 @@ export default async function AdminLayout({
       menuItems={ADMIN_MENU.filter(
         (item) =>
           item.href === '/workspace' ||
-          (item.href === '/admin/ingestion'
+          (item.href === '/admin/accounts'
+            ? state.viewer.scope.roleCodes.includes('PLATFORM_ADMIN')
+            : item.href === '/admin/ingestion'
             ? access.canView
             : state.capabilities.canView),
       )}

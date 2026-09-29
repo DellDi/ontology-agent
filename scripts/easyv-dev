@@ -207,6 +207,18 @@ print_facts_reader_sql() {
   cat "$sql_file"
 }
 
+seed_facts_reader() {
+  derive_cube_db_env
+  : "${FACTS_READER_DBA_USERNAME:?missing FACTS_READER_DBA_USERNAME}"
+  : "${FACTS_READER_DBA_PASSWORD:?missing FACTS_READER_DBA_PASSWORD}"
+  : "${CUBE_DATABASE_USERNAME:?missing CUBE_DATABASE_USERNAME}"
+  : "${CUBE_DATABASE_PASSWORD:?missing CUBE_DATABASE_PASSWORD}"
+  PGPASSWORD="$FACTS_READER_DBA_PASSWORD" psql -X --no-password --set=ON_ERROR_STOP=1 \
+    -h "$CUBE_DB_HOST" -p "$CUBE_DB_PORT" -U "$FACTS_READER_DBA_USERNAME" -d "$CUBE_DB_NAME" \
+    -v role="$CUBE_DATABASE_USERNAME" -v database="$CUBE_DB_NAME" \
+    -f "$ROOT_DIR/scripts/sql/create-facts-reader-role.sql"
+}
+
 run_infrastructure_smoke() {
   wait_for_health
   compose exec -T backend sh -c \
@@ -241,6 +253,8 @@ case "$command" in
     ;;
   migrate)
     require_env_file
+    # 首次安装由发布进程注入 DBA 凭据；日常升级仅以应用账号校验并授予 facts 读取权限。
+    if [[ -n ${FACTS_READER_DBA_USERNAME:-} ]]; then seed_facts_reader; fi
     compose run --rm migrate
     ;;
   deploy)
@@ -289,6 +303,9 @@ case "$command" in
   facts-reader-sql)
     print_facts_reader_sql
     ;;
+  facts-reader-seed)
+    seed_facts_reader
+    ;;
   infrastructure-smoke)
     require_env_file
     run_infrastructure_smoke
@@ -313,7 +330,7 @@ case "$command" in
     wait_for_health
     ;;
   *)
-    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|facts-reader-sql|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|facts-reader-seed|facts-reader-sql|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
     exit 2
     ;;
 esac

@@ -10,5 +10,14 @@
 -- Flyway 成功后幂等执行（dip3.database.facts-reader-role / FACTS_READER_ROLE），
 -- 不在本脚本中重复。
 
-CREATE ROLE :"role" LOGIN PASSWORD :'password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;
+\set ON_ERROR_STOP on
+-- 发布种子通过进程环境传入口令，避免出现在命令参数中。
+\if :{?password}
+\else
+\getenv password CUBE_DATABASE_PASSWORD
+\endif
+-- 重复发布保留既有角色与口令；角色属性由 migrate 校验，不静默修正过大权限。
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION', :'role', :'password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role')
+\gexec
 GRANT CONNECT ON DATABASE :"database" TO :"role";
