@@ -10,6 +10,11 @@ import type {
   Visualization,
 } from '@/application/analysis-message-projection/conversation-view-model';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
+import {
+  describeSemanticQuery,
+  type SemanticClarification,
+  type SemanticQueryUnderstanding,
+} from '@/application/analysis-message-projection/semantic-understanding';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
 import { AnalysisStepTimeline } from './analysis-step-timeline';
 import { AnalysisToolActivityStrip } from './analysis-tool-activity-strip';
@@ -85,6 +90,12 @@ export function AssistantAvatar() {
   );
 }
 
+const COVERAGE_TONE_STYLES = {
+  muted: 'text-muted-foreground',
+  amber: 'text-amber-700',
+  rose: 'text-rose-700',
+} as const;
+
 export function AnalysisAssistantMessage({
   status,
   headline,
@@ -103,6 +114,10 @@ export function AnalysisAssistantMessage({
   availableDetails = [],
   suggestions,
   onSuggestionClick,
+  understanding,
+  onEditUnderstanding,
+  clarification,
+  onClarificationOption,
 }: {
   status: ConversationAssistantStatus;
   headline: string;
@@ -121,6 +136,13 @@ export function AnalysisAssistantMessage({
   availableDetails?: Exclude<DetailDrawerType, null>[];
   suggestions?: string[];
   onSuggestionClick?: (question: string) => void;
+  /** EasyV 语义查询的「我的理解」：完成态快照中的逐查询解读 */
+  understanding?: SemanticQueryUnderstanding[] | null;
+  /** 提供编辑器目录且不忙时由上层传入，点击打开结构化调整抽屉 */
+  onEditUnderstanding?: () => void;
+  /** 失败轮次的结构化澄清：question + 候选选项 */
+  clarification?: SemanticClarification | null;
+  onClarificationOption?: (option: string) => void;
 }) {
   const hasDiagnostics =
     diagnostics.timelineBlocks.length > 0 ||
@@ -229,16 +251,41 @@ export function AnalysisAssistantMessage({
             </div>
           ) : null}
 
-          {/* 失败状态 */}
+          {/* 失败状态：带结构化澄清时替换通用错误，给出可点选的候选项 */}
           {status === 'failed' ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
-              <p className="text-sm font-medium text-rose-900">
-                分析过程中遇到问题
-              </p>
-              <p className="mt-1 text-sm leading-6 text-rose-800">
-                {errorSummary ?? '系统暂时没有返回可展示的失败原因。'}
-              </p>
-            </div>
+            clarification ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-medium text-amber-900">
+                  需要先确认：{clarification.question}
+                </p>
+                {clarification.options.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {clarification.options.map((option) => (
+                      <button
+                        className="rounded-full border border-amber-300 bg-card px-3 py-1.5 text-xs text-amber-900 transition-colors hover:border-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        key={option}
+                        onClick={() => onClarificationOption?.(option)}
+                        type="button"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="mt-2 text-xs text-amber-800/80">
+                  也可以直接在下方输入补充说明
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
+                <p className="text-sm font-medium text-rose-900">
+                  分析过程中遇到问题
+                </p>
+                <p className="mt-1 text-sm leading-6 text-rose-800">
+                  {errorSummary ?? '系统暂时没有返回可展示的失败原因。'}
+                </p>
+              </div>
+            )
           ) : null}
 
           {/* 断流状态 */}
@@ -275,6 +322,60 @@ export function AnalysisAssistantMessage({
             </div>
           ) : null}
         </div>
+
+        {/* 我的理解：完成态语义查询轮的逐查询解读 + 覆盖度 + 结构化调整入口 */}
+        {status === 'completed' && understanding && understanding.length > 0 ? (
+          <div
+            className="mt-2 rounded-xl border border-border bg-muted/30 px-4 py-3"
+            data-testid="analysis-understanding"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                我的理解
+              </p>
+              {onEditUnderstanding ? (
+                <button
+                  className="rounded-md px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={onEditUnderstanding}
+                  type="button"
+                >
+                  修改
+                </button>
+              ) : null}
+            </div>
+            <ul className="mt-2 space-y-3">
+              {understanding.map((entry) => {
+                const description = describeSemanticQuery(entry);
+                return (
+                  <li className="space-y-0.5 text-xs leading-5" key={entry.id}>
+                    <p className="font-medium text-foreground">
+                      {description.subject}
+                    </p>
+                    <p className="text-muted-foreground">
+                      时间：{description.time}
+                    </p>
+                    {description.compare ? (
+                      <p className="text-muted-foreground">
+                        {description.compare}
+                      </p>
+                    ) : null}
+                    {description.filters.map((filter, index) => (
+                      <p className="text-muted-foreground" key={`${entry.id}-filter-${index}`}>
+                        {filter}
+                      </p>
+                    ))}
+                    {description.limit ? (
+                      <p className="text-muted-foreground">{description.limit}</p>
+                    ) : null}
+                    <p className={COVERAGE_TONE_STYLES[description.coverage.tone]}>
+                      {description.coverage.text}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
 
         {/* 上下文相关追问建议：作为对话内容的一部分，点击即发送 */}
         {status === 'completed' && suggestions && suggestions.length > 0 && onSuggestionClick ? (

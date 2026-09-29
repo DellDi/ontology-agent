@@ -107,6 +107,50 @@ export async function executePendingFollowUp(
   return `${target.pathname}${target.search}`;
 }
 
+/** 创建新会话（与首页提问同一调用）：返回 303 落地页 URL，由会话页 autoExecute 门接力执行。 */
+export async function createSessionWithQuestion(
+  question: string,
+): Promise<string> {
+  const createResp = await fetchStep('/api/analysis/sessions', {
+    method: 'POST',
+    body: new URLSearchParams({ question }),
+  });
+  const createError = redirectError(createResp.url, ['error']);
+  if (createError) throw new Error(createError);
+  const target = new URL(createResp.url, window.location.origin);
+  if (!target.pathname.startsWith('/workspace/analysis/')) {
+    throw new Error('创建会话失败，请稍后重试。');
+  }
+  return `${target.pathname}${target.search}`;
+}
+
+/** 发送一条结构化调整消息：structured 创建轮次 → 自动接力执行 → 返回落地 URL。 */
+export async function createStructuredFollowUpAndExecute(
+  sessionId: string,
+  input: {
+    question: string;
+    parentFollowUpId?: string;
+    queries: { id: string; intent: Record<string, unknown> }[];
+  },
+): Promise<string> {
+  const createResp = await fetchStep(
+    `/api/analysis/sessions/${sessionId}/follow-ups/structured`,
+    {
+      method: 'POST',
+      body: new URLSearchParams({
+        question: input.question,
+        parentFollowUpId: input.parentFollowUpId ?? '',
+        queries: JSON.stringify(input.queries),
+      }),
+    },
+  );
+  const createError = redirectError(createResp.url, ['followUpError']);
+  if (createError) throw new Error(createError);
+  const followUpId = redirectParam(createResp.url, 'followUpId');
+  if (!followUpId) throw new Error('发送失败，请稍后重试。');
+  return executePendingFollowUp(sessionId, followUpId);
+}
+
 /** 发送一条新消息：创建轮次 → 自动接力执行 → 返回落地 URL。 */
 export async function createFollowUpAndExecute(
   sessionId: string,
