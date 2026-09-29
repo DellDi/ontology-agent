@@ -13,6 +13,7 @@ import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVInvocationContract;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.semantic.api.SemanticModel;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryCompiler;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import java.util.Set;
@@ -41,10 +42,11 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
   private final EasyVScopeResolver scopes;
   private final FollowUpPolicy followUpPolicy;
 
-  public EasyVCapabilityRegistration(EasyVMainAgent mainAgent, EasyVScopeResolver scopes, SemanticModel semantic) {
+  public EasyVCapabilityRegistration(EasyVMainAgent mainAgent, EasyVScopeResolver scopes,
+                                     SemanticModel semantic, SemanticQueryCompiler compiler) {
     this.mainAgent = mainAgent;
     this.scopes = scopes;
-    this.followUpPolicy = new EasyVFollowUpPolicy(semantic);
+    this.followUpPolicy = new EasyVFollowUpPolicy(semantic, compiler);
   }
 
   @Override

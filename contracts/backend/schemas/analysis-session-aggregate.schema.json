@@ -251,6 +251,18 @@
                 "_resolvedContext": {
                   "type": "object"
                 },
+                "_clarification": {
+                  "$ref": "easyv-semantic-plan.schema.json#/$defs/clarification"
+                },
+                "_understanding": {
+                  "$ref": "easyv-semantic-plan.schema.json#/$defs/understanding"
+                },
+                "_editorCatalog": {
+                  "$ref": "easyv-semantic-plan.schema.json#/$defs/editorCatalog"
+                },
+                "_queryOverride": {
+                  "$ref": "easyv-semantic-plan.schema.json#/$defs/queryOverride"
+                },
                 "_suggestedQuestions": {
                   "type": "array",
                   "items": {
@@ -1501,6 +1513,18 @@
             },
             "_resolvedContext": {
               "type": "object"
+            },
+            "_clarification": {
+              "$ref": "easyv-semantic-plan.schema.json#/$defs/clarification"
+            },
+            "_understanding": {
+              "$ref": "easyv-semantic-plan.schema.json#/$defs/understanding"
+            },
+            "_editorCatalog": {
+              "$ref": "easyv-semantic-plan.schema.json#/$defs/editorCatalog"
+            },
+            "_queryOverride": {
+              "$ref": "easyv-semantic-plan.schema.json#/$defs/queryOverride"
             },
             "_evidenceTypes": {
               "type": "array",

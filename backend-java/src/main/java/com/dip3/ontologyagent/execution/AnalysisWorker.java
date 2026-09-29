@@ -148,7 +148,8 @@ public final class AnalysisWorker {
             try {
                 executions.renewLease(job.executionId(), job.workerId(), ExecutionRepository.EXECUTION_LEASE);
                 persistFailure(job, code,
-                        error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
+                        error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage(),
+                        error);
             } catch (BackendException persistenceError) {
                 if (!"JOB_LEASE_LOST".equals(persistenceError.code())
                         && !"JOB_STATE_CONFLICT".equals(persistenceError.code())) throw persistenceError;
@@ -303,7 +304,7 @@ public final class AnalysisWorker {
         }
     }
 
-    private void persistFailure(ExecutionJob job, String code, String message) {
+    private void persistFailure(ExecutionJob job, String code, String message, RuntimeException error) {
         Instant now = Instant.now();
         ExecutionEvent terminal = event(job, "failed", message, code);
         Map<String, Object> failedPlan = new java.util.LinkedHashMap<>();
@@ -312,6 +313,11 @@ public final class AnalysisWorker {
         failedPlan.put("steps", List.of());
         failedPlan.put("_executionContract", job.contract());
         failedPlan.put("_resolvedContext", job.effectiveContext());
+        // 需要用户澄清的失败把结构化问题与候选项一并落库，供前端渲染可选项
+        if (error instanceof BackendException known) {
+            known.clarification().ifPresent(clarification -> failedPlan.put("_clarification",
+                    Map.of("question", clarification.question(), "options", clarification.options())));
+        }
         if (job.followUpId() != null) failedPlan.put("_followUpId", job.followUpId());
         if (job.referencedExecutionId() != null) {
             failedPlan.put("_referencedExecutionId", job.referencedExecutionId());

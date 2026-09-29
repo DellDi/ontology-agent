@@ -54,6 +54,12 @@ public interface FollowUpPolicy {
           Map<String, Object> sourcePlan, Map<String, Object> currentPlan, Map<String, Object> mergedContext) {
         throw unavailable();
       }
+
+      @Override
+      public Map<String, Object> structuredPlan(
+          Map<String, Object> sourcePlan, List<Map<String, Object>> queries) {
+        throw unavailable();
+      }
     };
   }
 
@@ -77,6 +83,15 @@ public interface FollowUpPolicy {
       AuthSession principal,
       String followUpId,
       String referencedExecutionId);
+
+  /**
+   * 结构化调整：把用户编辑后的查询意图直接编译为新的执行计划，不经模型规划。
+   * 默认不支持；支持结构化调整的能力覆盖此方法。
+   */
+  default Map<String, Object> structuredPlan(
+      Map<String, Object> sourcePlan, List<Map<String, Object>> queries) {
+    throw new BackendException("FOLLOW_UP_STRUCTURED_UNSUPPORTED", "该分析能力不支持结构化调整。");
+  }
 
   /**
    * @param sourcePlan 被追问的已完成执行的计划快照

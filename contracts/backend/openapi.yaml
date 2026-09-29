@@ -353,6 +353,43 @@ paths:
         '409': { description: The referenced execution has no persisted completed conclusion, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
         '422': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/follow-ups/structured:
+    post:
+      summary: Create a structured-adjustment follow-up that re-runs edited query intents without model planning
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [question, queries]
+              properties:
+                question: { type: string, minLength: 1, maxLength: 300 }
+                parentFollowUpId: { type: string, maxLength: 200 }
+                queries:
+                  type: string
+                  description: "JSON array of { \"id\": non-blank string, \"intent\": query intent object } entries"
+          multipart/form-data:
+            schema:
+              type: object
+              required: [question, queries]
+              properties:
+                question: { type: string, minLength: 1, maxLength: 300 }
+                parentFollowUpId: { type: string, maxLength: 200 }
+                queries:
+                  type: string
+                  description: "JSON array of { \"id\": non-blank string, \"intent\": query intent object } entries"
+      responses:
+        '303': { description: Created structured follow-up redirect with followUpId or a recoverable followUpError, headers: { Location: { schema: { type: string } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/analysis/sessions/{sessionId}/follow-ups/{followUpId}:
     get:
       summary: Return one authenticated session follow-up

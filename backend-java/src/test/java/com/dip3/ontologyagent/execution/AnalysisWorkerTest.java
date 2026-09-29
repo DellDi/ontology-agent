@@ -263,8 +263,32 @@ class AnalysisWorkerTest {
         assertEquals("trace-1", terminal.getValue().traceId());
         assertEquals(binding.snapshot(), terminal.getValue().metadata().get("capabilityBinding"));
         assertEquals(binding.snapshot(), snapshot.getValue().capabilityBinding());
+        assertTrue(!snapshot.getValue().planSnapshot().containsKey("_clarification"));
         assertTrue(terminal.getValue().renderBlocks().stream()
                 .anyMatch(block -> "失败诊断".equals(block.get("title"))));
+    }
+
+    @Test
+    void clarificationFailureIsPersistedAsStructuredSnapshotData() {
+        doThrow(BackendException.clarification("EASYV_CLARIFICATION_REQUIRED",
+                "需要先确认：「前阵子」指哪段时间？ 可选：最近 7 天 / 最近 30 天。 请补充后重新提问。",
+                "「前阵子」指哪段时间？", List.of("最近 7 天", "最近 30 天")))
+                .when(capabilities).execute(any(), any());
+
+        assertTrue(worker.runOne("worker-1"));
+
+        verify(executions, never()).completeAtomically(anyString(), anyString(), any(), any(), anyMap());
+        ArgumentCaptor<ExecutionSnapshot> snapshot = ArgumentCaptor.forClass(ExecutionSnapshot.class);
+        verify(executions).failAtomically(anyString(), anyString(), any(), snapshot.capture(),
+                org.mockito.ArgumentMatchers.eq("EASYV_CLARIFICATION_REQUIRED"), anyString(),
+                org.mockito.ArgumentMatchers.eq("trace-1"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> clarification =
+                (Map<String, Object>) snapshot.getValue().planSnapshot().get("_clarification");
+        assertEquals("「前阵子」指哪段时间？", clarification.get("question"));
+        assertEquals(List.of("最近 7 天", "最近 30 天"), clarification.get("options"));
+        assertEquals("failed", snapshot.getValue().status());
+        assertEquals("EASYV_CLARIFICATION_REQUIRED", snapshot.getValue().errorCode());
     }
 
     @Test

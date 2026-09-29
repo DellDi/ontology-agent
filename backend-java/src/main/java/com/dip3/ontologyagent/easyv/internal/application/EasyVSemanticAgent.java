@@ -16,14 +16,19 @@ import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.semantic.api.CompiledSemanticQuery;
+import com.dip3.ontologyagent.semantic.api.OntologyMetric;
+import com.dip3.ontologyagent.semantic.api.OntologyObjectType;
+import com.dip3.ontologyagent.semantic.api.OntologyProperty;
 import com.dip3.ontologyagent.semantic.api.QueryIntent;
 import com.dip3.ontologyagent.semantic.api.QueryIntentCodec;
+import com.dip3.ontologyagent.semantic.api.ResolvedTimeRange;
 import com.dip3.ontologyagent.semantic.api.SemanticModel;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryCompiler;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.AccessContext;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.DataCoverage;
 import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.SemanticQueryResult;
+import com.dip3.ontologyagent.semantic.api.TimeCoverage;
 import com.dip3.ontologyagent.semantic.api.TimeExpression;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
@@ -35,6 +40,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -145,7 +151,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
   private WorkflowResult analyse(AgentTurn turn, OntologyCatalog ontology, String datasetVersionSetId,
                                  ResolvedScopeSnapshot scope, DatasetVersionSet versionSet, AccessContext access,
                                  String dataScope, ExecutionProgress progress) {
-    Map<String, Object> planStep = step("plan-queries", 1, "理解问题并规划查询", "running");
+    Map<String, Object> planStep = step("plan-queries", 1,
+        structuredOverride(turn) ? "应用结构化调整" : "理解问题并规划查询", "running");
     progress.emit("step-started", planStep, null);
     long planStarted = System.nanoTime();
     List<CompiledSemanticQuery> compiled;
@@ -217,19 +224,33 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
   }
 
   private List<CompiledSemanticQuery> plan(AgentTurn turn) {
+    List<?> override = overrideIntents(turn);
+    if (override != null) {
+      return compileOverride(override, turn.anchoredAt());
+    }
+    return planQueries(turn.questionText(), turn.anchoredAt(), turn.referencedConclusion(),
+        turn.followUp() ? previousQueries(turn) : List.of());
+  }
+
+  /**
+   * 模型规划轮次：把问题翻译为本体查询意图，违规时单轮回传纠正；
+   * 澄清、不支持与两次校验失败一律 fail loud。
+   */
+  List<CompiledSemanticQuery> planQueries(String question, Instant anchoredAt,
+                                          Map<String, Object> referencedConclusion,
+                                          List<Map<String, Object>> previousQueries) {
     ZoneId zone = semantic.contributions().stream()
         .filter(item -> EasyVGenerationOntology.DOMAIN_KEY.equals(item.domainKey()))
         .findFirst()
         .orElseThrow(() -> new BackendException("EASYV_SEMANTIC_MODEL_MISSING", "语义层未注册 EasyV 本体。"))
         .businessZone();
     List<Map<String, Object>> catalog = QueryIntentCodec.catalog(semantic, EasyVGenerationOntology.DOMAIN_KEY);
-    List<Map<String, Object>> previousQueries = turn.followUp() ? previousQueries(turn) : List.of();
     List<String> violations = List.of();
     for (int attempt = 1; attempt <= 2; attempt += 1) {
       PlanDecision decision;
       try {
-        decision = model.plan(new PlanRequest(turn.questionText(), catalog,
-            turn.anchoredAt().atZone(zone).toLocalDate().toString(), zone.getId(), turn.referencedConclusion(),
+        decision = model.plan(new PlanRequest(question, catalog,
+            anchoredAt.atZone(zone).toLocalDate().toString(), zone.getId(), referencedConclusion,
             previousQueries, violations));
       } catch (BackendException error) {
         if (!"EASYV_PLAN_INVALID".equals(error.code())) throw error;
@@ -246,7 +267,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
             "当前数据无法回答该问题：" + nonBlank(decision.message(), "模型未说明原因") + "。");
         case READY -> {
           List<String> found = new ArrayList<>();
-          List<CompiledSemanticQuery> compiled = compile(decision.queries(), turn.anchoredAt(), found);
+          List<CompiledSemanticQuery> compiled = compile(decision.queries(), anchoredAt, found);
           if (found.isEmpty()) return compiled;
           violations = found;
         }
@@ -254,6 +275,52 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     }
     throw new BackendException("EASYV_PLAN_INVALID",
         "EasyV 查询规划两次均未通过本体校验：" + String.join("；", violations) + "。");
+  }
+
+  /** 结构化调整轮次：不调用模型，直接编译用户编辑后的查询意图；任何违规都 fail loud，不回退模型规划。 */
+  private List<CompiledSemanticQuery> compileOverride(List<?> override, Instant anchoredAt) {
+    List<String> violations = new ArrayList<>();
+    List<CompiledSemanticQuery> compiled = new ArrayList<>();
+    if (override.size() > MAX_QUERIES) {
+      violations.add("override 最多 " + MAX_QUERIES + " 个查询意图");
+    }
+    for (int index = 0; index < override.size(); index += 1) {
+      Object entry = override.get(index);
+      String id = entry instanceof Map<?, ?> map && map.get("id") instanceof String text && !text.isBlank()
+          ? text : "q" + (index + 1);
+      String prefix = "查询 " + id + "：";
+      QueryIntentCodec.Parsed parsed =
+          QueryIntentCodec.read(entry instanceof Map<?, ?> map ? map.get("intent") : null);
+      if (!parsed.accepted()) {
+        parsed.violations().forEach(item -> violations.add(prefix + item));
+        continue;
+      }
+      QueryIntent intent = parsed.intent();
+      if (semantic.find(intent.objectKey()).isPresent()
+          && !EasyVGenerationOntology.DOMAIN_KEY.equals(semantic.domainKey(intent.objectKey()))) {
+        violations.add(prefix + "对象 " + intent.objectKey() + " 不属于 EasyV 领域");
+        continue;
+      }
+      SemanticQueryCompiler.Result result = compiler.compile(intent, anchoredAt);
+      if (result.accepted()) {
+        compiled.add(result.query());
+      } else {
+        result.violations().forEach(item -> violations.add(prefix + item));
+      }
+    }
+    if (!violations.isEmpty()) {
+      throw new BackendException("EASYV_OVERRIDE_INVALID",
+          "结构化调整的查询意图未通过本体校验：" + String.join("；", violations) + "。");
+    }
+    return compiled;
+  }
+
+  private static List<?> overrideIntents(AgentTurn turn) {
+    return turn.effectiveContext().get("override") instanceof List<?> list && !list.isEmpty() ? list : null;
+  }
+
+  private static boolean structuredOverride(AgentTurn turn) {
+    return overrideIntents(turn) != null;
   }
 
   private List<CompiledSemanticQuery> compile(List<Object> raw, Instant anchoredAt, List<String> violations) {
@@ -296,9 +363,17 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
 
   private static BackendException clarification(String message, List<String> options) {
     String question = nonBlank(message, "问题需要进一步明确");
-    String choices = options == null || options.isEmpty() ? "" : "可选：" + String.join(" / ", options) + "。";
-    return new BackendException("EASYV_CLARIFICATION_REQUIRED",
-        "需要先确认：" + question + (choices.isEmpty() ? "" : " " + choices) + " 请补充后重新提问。");
+    // 契约上限 6 个非空选项：模型给出更多或空白项时收敛到契约内，保证失败快照可解析
+    List<String> normalized = options == null ? List.of() : options.stream()
+        .map(option -> option == null ? "" : option.trim())
+        .filter(option -> !option.isEmpty())
+        .distinct()
+        .limit(6)
+        .toList();
+    String choices = normalized.isEmpty() ? "" : "可选：" + String.join(" / ", normalized) + "。";
+    return BackendException.clarification("EASYV_CLARIFICATION_REQUIRED",
+        "需要先确认：" + question + (choices.isEmpty() ? "" : " " + choices) + " 请补充后重新提问。",
+        question, normalized);
   }
 
   @SuppressWarnings("unchecked")
@@ -415,26 +490,35 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     evidence.forEach(item -> bySource.put(item.source(), item));
     List<Map<String, Object>> out = new ArrayList<>();
     for (ExecutedQuery query : executed) {
-      out.add(projection(query.id(), query.label(), query.compiled().range().description(), query,
-          query.result().rows(), bySource.get(QUERY_EVIDENCE_PREFIX + query.id())));
+      out.add(projection(query.id(), query.label(), query.compiled().range().description(),
+          query.compiled().range(), query, query.result().rows(),
+          bySource.get(QUERY_EVIDENCE_PREFIX + query.id())));
       if (query.compiled().compareRange() != null) {
         out.add(projection(query.id() + COMPARE_SUFFIX, query.label() + "（对比期）",
-            query.compiled().compareRange().description(), query, query.result().compareRows(),
+            query.compiled().compareRange().description(), query.compiled().compareRange(), query,
+            query.result().compareRows(),
             bySource.get(QUERY_EVIDENCE_PREFIX + query.id() + COMPARE_SUFFIX)));
       }
     }
     return out;
   }
 
-  private static Map<String, Object> projection(String id, String label, String range, ExecutedQuery query,
+  private static Map<String, Object> projection(String id, String label, String range,
+                                                ResolvedTimeRange coverageRange, ExecutedQuery query,
                                                 List<Map<String, Object>> rows, Evidence evidence) {
     Map<String, Object> out = new LinkedHashMap<>();
     out.put("id", id);
     out.put("label", label);
     out.put("range", range);
-    DataCoverage coverage = query.coverage();
-    out.put("dataCoverage", coverage == null || coverage.empty() ? "无数据"
-        : coverage.from() + " 至 " + coverage.to());
+    DataCoverage dataCoverage = query.coverage();
+    out.put("dataCoverage", dataCoverage == null || dataCoverage.empty() ? "无数据"
+        : dataCoverage.from() + " 至 " + dataCoverage.to());
+    TimeCoverage coverage = dataCoverage == null
+        ? null : coverageRange.coverage(dataCoverage.from(), dataCoverage.to());
+    out.put("coverageStatus", coverage == null ? "none" : lower(coverage.status()));
+    if (coverage != null && coverage.status() == TimeCoverage.Status.PARTIAL) {
+      out.put("effectiveRange", coverage.effectiveFrom() + " 至 " + coverage.effectiveTo());
+    }
     out.put("columns", query.compiled().columns().stream()
         .map(column -> Map.of("key", column.key(), "label", column.label())).toList());
     out.put("totalRows", rows.size());
@@ -481,9 +565,113 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     return references;
   }
 
-  private static Map<String, Object> planSnapshot(AgentTurn turn, ResolvedScopeSnapshot scope, String dataScope,
-                                                  List<ExecutedQuery> executed, List<Evidence> evidence,
-                                                  ComposedAnswer answer) {
+  /** “我的理解”投影：每条已执行查询的对象、指标、维度、过滤、解析后时间与数据覆盖。 */
+  private Map<String, Object> understanding(ExecutedQuery query) {
+    CompiledSemanticQuery compiled = query.compiled();
+    QueryIntent intent = compiled.intent();
+    OntologyObjectType object = semantic.require(compiled.objectKey());
+    Map<String, Object> item = new LinkedHashMap<>();
+    item.put("id", query.id());
+    item.put("label", query.label());
+    item.put("object", Map.of("key", object.key(), "label", object.label()));
+    item.put("measures", compiled.columns().stream()
+        .filter(column -> column.kind() == CompiledSemanticQuery.ColumnKind.MEASURE)
+        .map(column -> Map.of("key", column.key(), "label", column.label())).toList());
+    item.put("dimensions", compiled.columns().stream()
+        .filter(column -> column.kind() == CompiledSemanticQuery.ColumnKind.DIMENSION)
+        .map(column -> Map.of("key", column.key(), "label", memberLabel(object, column.key()))).toList());
+    item.put("filters", intent.filters().stream().map(filter -> {
+      Map<String, Object> entry = new LinkedHashMap<>();
+      entry.put("member", filter.member());
+      entry.put("label", filterLabel(object, filter.member()));
+      entry.put("operator", lower(filter.operator()));
+      entry.put("values", filter.values());
+      return (Map<String, Object>) entry;
+    }).toList());
+    String timePath = intent.time().dimension() == null || intent.time().dimension().isBlank()
+        ? object.defaultTimeProperty() : intent.time().dimension();
+    ResolvedTimeRange range = compiled.range();
+    Map<String, Object> time = new LinkedHashMap<>();
+    time.put("dimension", timePath);
+    time.put("label", memberLabel(object, timePath));
+    time.put("sourceText", intent.time().expression().sourceText());
+    time.put("kind", lower(intent.time().expression().kind()));
+    time.put("from", range.from() == null ? null : range.from().toString());
+    time.put("to", range.to().toString());
+    time.put("allData", range.allData());
+    time.put("granularity", compiled.granularity());
+    item.put("time", time);
+    ResolvedTimeRange compare = compiled.compareRange();
+    item.put("compare", compare == null ? null : Map.of("sourceText", compare.sourceText(),
+        "from", compare.from().toString(), "to", compare.to().toString()));
+    item.put("limit", intent.limit());
+    DataCoverage dataCoverage = query.coverage();
+    TimeCoverage coverage = dataCoverage == null
+        ? null : range.coverage(dataCoverage.from(), dataCoverage.to());
+    Map<String, Object> coverageMap = new LinkedHashMap<>();
+    coverageMap.put("status", coverage == null ? "none" : lower(coverage.status()));
+    coverageMap.put("dataFrom", dataCoverage == null || dataCoverage.from() == null
+        ? null : dataCoverage.from().toString());
+    coverageMap.put("dataTo", dataCoverage == null || dataCoverage.to() == null
+        ? null : dataCoverage.to().toString());
+    coverageMap.put("effectiveFrom", coverage == null || coverage.effectiveFrom() == null
+        ? null : coverage.effectiveFrom().toString());
+    coverageMap.put("effectiveTo", coverage == null || coverage.effectiveTo() == null
+        ? null : coverage.effectiveTo().toString());
+    item.put("coverage", coverageMap);
+    return item;
+  }
+
+  /** 结构化调整编辑器目录：本轮执行涉及的每个根对象的可选指标与成员路径（与编译器接受的路径一致）。 */
+  private Map<String, Object> editorCatalog(List<ExecutedQuery> executed) {
+    List<Map<String, Object>> objects = new ArrayList<>();
+    Set<String> seen = new LinkedHashSet<>();
+    for (ExecutedQuery query : executed) {
+      String key = query.compiled().objectKey();
+      if (!seen.add(key)) continue;
+      OntologyObjectType object = semantic.require(key);
+      List<Map<String, Object>> dimensions = new ArrayList<>();
+      List<Map<String, Object>> timeDimensions = new ArrayList<>();
+      for (SemanticModel.ResolvedMember member : semantic.members(key)) {
+        Map<String, Object> item = Map.of("key", member.path(), "label", memberLabel(member));
+        (member.property().type() == OntologyProperty.Type.TIME ? timeDimensions : dimensions).add(item);
+      }
+      Map<String, Object> entry = new LinkedHashMap<>();
+      entry.put("key", object.key());
+      entry.put("label", object.label());
+      entry.put("defaultTime", object.defaultTimeProperty());
+      entry.put("measures", object.metrics().stream()
+          .map(metric -> Map.of("key", metric.key(), "label", metric.label())).toList());
+      entry.put("dimensions", List.copyOf(dimensions));
+      entry.put("timeDimensions", List.copyOf(timeDimensions));
+      objects.add(entry);
+    }
+    return Map.of("objects", List.copyOf(objects));
+  }
+
+  /** 成员路径展示标签：一跳关联路径以“目标对象·属性”组合，标注数据来源对象。 */
+  private String memberLabel(OntologyObjectType root, String path) {
+    return memberLabel(semantic.resolve(root.key(), path));
+  }
+
+  private static String memberLabel(SemanticModel.ResolvedMember member) {
+    return member.path().contains(".")
+        ? member.owner().label() + "·" + member.property().label()
+        : member.property().label();
+  }
+
+  /** 过滤成员标签：指标 key 取指标标签（HAVING），属性路径走成员解析。 */
+  private String filterLabel(OntologyObjectType root, String member) {
+    return root.findMetric(member).map(OntologyMetric::label).orElseGet(() -> memberLabel(root, member));
+  }
+
+  private static String lower(Enum<?> value) {
+    return value.name().toLowerCase(Locale.ROOT).replace('_', '-');
+  }
+
+  private Map<String, Object> planSnapshot(AgentTurn turn, ResolvedScopeSnapshot scope, String dataScope,
+                                           List<ExecutedQuery> executed, List<Evidence> evidence,
+                                           ComposedAnswer answer) {
     Map<String, Object> resolved = new LinkedHashMap<>(scope.values());
     resolved.put("dataScope", dataScope);
     resolved.put("queries", executed.stream().map(query -> {
@@ -500,7 +688,9 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       return (Map<String, Object>) item;
     }).toList());
     List<Map<String, Object>> steps = new ArrayList<>();
-    steps.add(planStep("plan-queries", 1, "llm-plan", "理解问题并规划查询"));
+    steps.add(structuredOverride(turn)
+        ? planStep("plan-queries", 1, "structured-adjustment", "应用结构化调整")
+        : planStep("plan-queries", 1, "llm-plan", "理解问题并规划查询"));
     for (int index = 0; index < executed.size(); index += 1) {
       steps.add(planStep("query-" + executed.get(index).id(), index + 2, "semantic-query",
           executed.get(index).label()));
@@ -509,6 +699,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     Map<String, Object> plan = new LinkedHashMap<>();
     plan.put("_executionContract", turn.contract());
     plan.put("_resolvedContext", Map.copyOf(resolved));
+    plan.put("_understanding", executed.stream().map(this::understanding).toList());
+    plan.put("_editorCatalog", editorCatalog(executed));
     plan.put("_evidenceTypes", evidence.stream().map(Evidence::source).toList());
     plan.put("summary", "EasyV 数据问答");
     plan.put("mode", MODE);

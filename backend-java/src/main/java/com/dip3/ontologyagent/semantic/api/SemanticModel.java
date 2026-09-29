@@ -119,6 +119,22 @@ public final class SemanticModel {
     throw SemanticNames.invalid("对象 " + objectKey + " 的成员路径最多一跳关系：" + path);
   }
 
+  /** 对象上可作为成员路径的全部已解析成员：本对象属性加一跳关联属性，与 {@link #resolve} 可接受的路径一致。 */
+  public List<ResolvedMember> members(String objectKey) {
+    OntologyObjectType object = require(objectKey);
+    List<ResolvedMember> members = new ArrayList<>();
+    for (OntologyProperty property : object.properties()) {
+      members.add(new ResolvedMember(property.key(), object, property));
+    }
+    for (OntologyLink link : object.links()) {
+      OntologyObjectType target = require(link.targetObjectKey());
+      for (OntologyProperty property : target.properties()) {
+        members.add(new ResolvedMember(link.key() + "." + property.key(), target, property));
+      }
+    }
+    return List.copyOf(members);
+  }
+
   /** 关系目标对象的主键 Cube 成员：成员资格关系以“目标主键非空”强制内联。 */
   public String requiredLinkMember(OntologyObjectType object, String linkKey) {
     OntologyObjectType target = require(object.requireLink(linkKey).targetObjectKey());

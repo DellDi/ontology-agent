@@ -12,6 +12,7 @@ import com.dip3.ontologyagent.easyv.internal.application.EasyVCapabilityRegistra
 import com.dip3.ontologyagent.easyv.internal.application.EasyVMainAgent;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVScopeResolver;
 import com.dip3.ontologyagent.semantic.api.SemanticModel;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryCompiler;
 import com.dip3.ontologyagent.workspace.WorkspaceHomeMapper;
 import com.dip3.ontologyagent.workspace.WorkspaceHomeService;
 import java.time.Instant;
@@ -41,6 +42,8 @@ class WorkspaceCapabilityAvailabilityTest {
         return accounts;
       })
       .withBean(SemanticModel.class, SemanticModel::discover)
+      .withBean(SemanticQueryCompiler.class,
+          () -> new SemanticQueryCompiler(SemanticModel.discover()))
       .withBean(WorkspaceHomeMapper.class, () -> mock(WorkspaceHomeMapper.class));
 
   private AuthSession viewer(String userId, boolean property, boolean easyv) {

@@ -26,6 +26,7 @@ const schemaNames = [
   'analysis-follow-up.schema.json',
   'analysis-session-aggregate.schema.json',
   'conclusion-state.schema.json',
+  'easyv-semantic-plan.schema.json',
   'error.schema.json',
   'execution-event.schema.json',
   'execution-snapshot.schema.json',
@@ -181,6 +182,38 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
   delete semanticView.datasetVersionSetId;
   assertZod(javaExecutionSnapshotSchema, semanticView, 'snapshot-semantic(view,derived)');
 
+  // 语义查询完成态 fixture：_understanding 覆盖 full/partial，_editorCatalog 暴露可编辑成员目录。
+  const semanticQuery = await jsonFixture('snapshot-semantic-query.json');
+  assertJsonSchema(ajv, 'execution-snapshot.schema.json', semanticQuery, 'snapshot-semantic-query.json');
+  const semanticQueryView = { ...semanticQuery };
+  semanticQueryView.ontologyVersionBindingSource = semanticQuery.ontologyVersionBinding.source;
+  delete semanticQueryView.ownerUserId;
+  delete semanticQueryView.ontologyVersionBinding;
+  delete semanticQueryView.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema, semanticQueryView, 'snapshot-semantic-query(view).json');
+  assert.deepEqual(
+    semanticQuery.planSnapshot._understanding.map((item) => item.coverage.status),
+    ['full', 'partial'],
+  );
+  assert.deepEqual(
+    semanticQuery.planSnapshot._editorCatalog.objects.map((item) => item.key),
+    ['easyv-forge-task', 'easyv-generation-feedback'],
+  );
+  for (const [label, mutate] of [
+    ['understanding 缺 coverage', (value) => { delete value.planSnapshot._understanding[0].coverage; }],
+    ['understanding 混入未发布字段', (value) => { value.planSnapshot._understanding[0].extra = 1; }],
+    ['editorCatalog 维度缺 label', (value) => { delete value.planSnapshot._editorCatalog.objects[0].dimensions[0].label; }],
+    ['editorCatalog 混入未发布字段', (value) => { value.planSnapshot._editorCatalog.objects[0].sql = 'x'; }],
+  ]) {
+    const invalid = structuredClone(semanticQuery);
+    mutate(invalid);
+    assert.equal(
+      ajv.getSchema('execution-snapshot.schema.json')(invalid),
+      false,
+      `语义查询完成态必须拒绝：${label}`,
+    );
+  }
+
   for (const [label, mutate] of [
     ['数据范围证据缺失', (value) => { value.conclusionState.evidence.shift(); }],
     ['历史快照证据混入', (value) => { value.conclusionState.evidence[1].source = 'easyv-forge-task'; }],
@@ -216,6 +249,53 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
     false,
     'Next 读取契约必须同样拒绝已有结果的 legacy/unknown 追问',
   );
+
+  // 结构化调整追问：currentPlanSnapshot 携带 _queryOverride，previousPlanSnapshot 保留 _understanding/_editorCatalog。
+  const structuredFollowUp = structuredClone(followUp);
+  structuredFollowUp.ontologyVersionId = semanticQuery.ontologyVersionId;
+  structuredFollowUp.ontologyVersionBinding = {
+    ontologyVersionId: semanticQuery.ontologyVersionId,
+    source: 'inherited',
+  };
+  structuredFollowUp.capabilityBinding = structuredClone(semanticQuery.capabilityBinding);
+  structuredFollowUp.currentPlanSnapshot = {
+    mode: 'semantic-query-read-only',
+    summary: '按结构化调整执行',
+    steps: [
+      { id: 'query-q1', order: 1, kind: 'semantic-query', title: '应用生成任务 查询' },
+    ],
+    _executionContract: 'java-follow-up-v1',
+    _resolvedContext: structuredClone(semanticQuery.planSnapshot._resolvedContext),
+    _queryOverride: [{ id: 'q1', intent: { object: 'easyv-forge-task', measures: ['count'] } }],
+    _followUpId: followUp.id,
+    _referencedExecutionId: followUp.referencedExecutionId,
+  };
+  structuredFollowUp.previousPlanSnapshot = structuredClone(semanticQuery.planSnapshot);
+  assertJsonSchema(
+    ajv,
+    'analysis-follow-up.schema.json',
+    structuredFollowUp,
+    'structured follow-up(derived)',
+  );
+  assertZod(javaAnalysisFollowUpSchema, structuredFollowUp, 'structured follow-up(derived)');
+  for (const [label, mutate] of [
+    ['override 混入未发布字段', (value) => { value.currentPlanSnapshot._queryOverride[0].extra = 1; }],
+    ['override 缺 intent', (value) => { delete value.currentPlanSnapshot._queryOverride[0].intent; }],
+    ['override 数组为空', (value) => { value.currentPlanSnapshot._queryOverride = []; }],
+  ]) {
+    const invalid = structuredClone(structuredFollowUp);
+    mutate(invalid);
+    assert.equal(
+      ajv.getSchema('analysis-follow-up.schema.json')(invalid),
+      false,
+      `结构化追问必须拒绝：${label}`,
+    );
+    assert.equal(
+      javaAnalysisFollowUpSchema.safeParse(invalid).success,
+      false,
+      `Next 读取契约必须拒绝：${label}`,
+    );
+  }
 
   const error = await jsonFixture('provider-error.json');
   assertJsonSchema(ajv, 'error.schema.json', error, 'provider-error.json');
@@ -365,6 +445,36 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
     failedSnapshotFixture,
     'snapshot-failed.json',
   );
+
+  // 澄清失败态：_clarification 结构化落库，前端据此渲染问题与可选项。
+  const clarificationSnapshot = await jsonFixture('snapshot-failed-clarification.json');
+  assertJsonSchema(
+    ajv,
+    'execution-snapshot.schema.json',
+    clarificationSnapshot,
+    'snapshot-failed-clarification.json',
+  );
+  const clarificationView = { ...clarificationSnapshot };
+  clarificationView.ontologyVersionBindingSource = clarificationSnapshot.ontologyVersionBinding.source;
+  delete clarificationView.ownerUserId;
+  delete clarificationView.ontologyVersionBinding;
+  delete clarificationView.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema, clarificationView, 'snapshot-failed-clarification(view).json');
+  assert.equal(clarificationSnapshot.errorCode, 'EASYV_CLARIFICATION_REQUIRED');
+  assert.deepEqual(clarificationSnapshot.planSnapshot._clarification.options, ['最近 7 天', '最近 30 天']);
+  for (const [label, mutate] of [
+    ['clarification 缺 question', (value) => { delete value.planSnapshot._clarification.question; }],
+    ['clarification 混入未发布字段', (value) => { value.planSnapshot._clarification.extra = 1; }],
+    ['clarification options 超上限', (value) => { value.planSnapshot._clarification.options = Array(7).fill('x'); }],
+  ]) {
+    const invalid = structuredClone(clarificationSnapshot);
+    mutate(invalid);
+    assert.equal(
+      ajv.getSchema('execution-snapshot.schema.json')(invalid),
+      false,
+      `澄清失败态必须拒绝：${label}`,
+    );
+  }
 
   const failedAggregate = structuredClone(aggregate);
   failedAggregate.job.status = 'failed';
@@ -536,6 +646,7 @@ test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures',
     '/api/workspace/home:',
     '/api/analysis/sessions/{sessionId}:',
     '/api/analysis/sessions/{sessionId}/follow-ups:',
+    '/api/analysis/sessions/{sessionId}/follow-ups/structured:',
     '/api/analysis/sessions/{sessionId}/follow-ups/{followUpId}:',
     '/api/analysis/sessions/{sessionId}/follow-ups/{followUpId}/context:',
     '/api/analysis/sessions/{sessionId}/follow-ups/{followUpId}/replan:',
@@ -565,6 +676,7 @@ test('首次完成态直接从 canonical plan 投影第一轮追问上下文', a
 test('Next follow-up routes remain transparent Java adapters', async () => {
   for (const path of [
     'src/app/api/analysis/sessions/[sessionId]/follow-ups/route.ts',
+    'src/app/api/analysis/sessions/[sessionId]/follow-ups/structured/route.ts',
     'src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/route.ts',
     'src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/context/route.ts',
     'src/app/api/analysis/sessions/[sessionId]/follow-ups/[followUpId]/replan/route.ts',

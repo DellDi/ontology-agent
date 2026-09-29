@@ -192,6 +192,118 @@ class AnalysisFollowUpServiceTest {
   }
 
   @Test
+  void createStructuredPersistsStructuredPlanAndSubmitRunsWithoutReplan() {
+    ExecutionRepository executions = mock(ExecutionRepository.class);
+    WakeupPublisher wakeups = mock(WakeupPublisher.class);
+    service = new AnalysisFollowUpService(analyses, repository, ontologies, executions, wakeups);
+
+    AuthSession easyvOwner =
+        new AuthSession(
+            "auth-easyv",
+            "123",
+            "用户",
+            new AccessScope("org-1", List.of(), List.of(), List.of("EASYV_ANALYST")),
+            Instant.MAX);
+    AnalysisSession easyvSession =
+        new AnalysisSession(
+            "easyv-session",
+            "123",
+            easyvOwner.scope(),
+            "分析大屏生成质量",
+            Map.of(),
+            "completed",
+            Instant.parse("2026-08-01T00:00:00Z"),
+            Instant.parse("2026-08-01T00:00:00Z"));
+    CapabilityBinding easyv = easyvBinding(easyvOwner, "ontology-v2");
+    Map<String, Object> resolvedContext =
+        Map.of(
+            "userId", "123", "accessMode", "all", "dataScope", "全部数据",
+            "queries", List.of(Map.of("id", "q1", "label", "生成任务 · 生成任务数",
+                "intent", Map.of("object", "easyv-forge-task"), "range", "最近 7 天")));
+    ExecutionSnapshotEntity source = snapshot();
+    source.executionId = "easyv-execution";
+    source.sessionId = "easyv-session";
+    source.ownerUserId = "123";
+    source.ontologyVersionId = "ontology-v2";
+    source.capabilityBinding = easyv.snapshot();
+    source.datasetVersionSetId = "easyv-set-1";
+    source.planSnapshot =
+        Map.of(
+            "mode", "semantic-query-read-only",
+            "summary", "EasyV 数据问答",
+            "steps", List.of(Map.of("id", "query-q1", "order", 2, "kind", "semantic-query",
+                "title", "应用生成任务 · 生成任务数")),
+            "_executionContract", "java-initial-v1",
+            "_resolvedContext", resolvedContext);
+    List<Map<String, Object>> edits =
+        List.of(Map.of("id", "q1", "intent", Map.of("object", "easyv-forge-task")));
+    FollowUpPolicy policy = mock(FollowUpPolicy.class);
+    Map<String, Object> context =
+        Map.of("targetMetric", Map.of("label", "目标指标", "value", "生成任务数", "state", "confirmed"));
+    when(analyses.ownedSession("easyv-session", easyvOwner)).thenReturn(easyvSession);
+    when(repository.latestCompletedRootSnapshot("easyv-session", "123")).thenReturn(Optional.of(source));
+    when(analyses.followUpPolicy(easyvOwner, easyv)).thenReturn(policy);
+    when(analyses.resolveExecutionDatasetVersionSet(easyvOwner, easyv)).thenReturn("easyv-set-2");
+    when(policy.inheritedContext(source.planSnapshot)).thenReturn(context);
+    when(policy.structuredPlan(source.planSnapshot, edits))
+        .thenReturn(
+            Map.of(
+                "mode", "semantic-query-read-only",
+                "summary", "按结构化调整执行",
+                "steps", List.of(Map.of("id", "query-q1", "order", 1, "kind", "semantic-query",
+                    "title", "应用生成任务 查询")),
+                "_executionContract", "java-follow-up-v1",
+                "_resolvedContext", resolvedContext,
+                "_queryOverride", edits));
+
+    AnalysisFollowUp result =
+        service.createStructured("easyv-session", easyvOwner, "调整时间", "", edits);
+
+    assertEquals(2, result.planVersion());
+    assertEquals(result.id(), result.currentPlanSnapshot().get("_followUpId"));
+    assertEquals("easyv-execution", result.currentPlanSnapshot().get("_referencedExecutionId"));
+    assertEquals(edits, result.currentPlanSnapshot().get("_queryOverride"));
+    assertEquals(source.planSnapshot, result.previousPlanSnapshot());
+    assertEquals(result.inheritedContext(), result.mergedContext());
+    assertEquals(1, ((List<?>) result.currentPlanDiff().get("invalidatedSteps")).size());
+    verify(policy, never()).applyQuestionContext(any(), any(), any());
+
+    when(repository.lockOwned(result.id(), "easyv-session", "123")).thenReturn(Optional.of(result));
+    when(repository.completedSourceSnapshot(result)).thenReturn(Optional.of(source));
+    when(ontologies.published("ontology-v2"))
+        .thenReturn(new OntologyCatalog("ontology-v2", "2.0.0", List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of()));
+    when(policy.executableContext(any(), any(), any())).thenReturn(Map.of("override", edits));
+    when(executions.submitFollowUp(any(), any(), any(), any(), any(), any(), any(), any(), eq(easyv),
+            eq("easyv-set-2")))
+        .thenReturn(new ExecutionSubmission("execution-follow", true));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      assertEquals(
+          "execution-follow",
+          service.submit("easyv-session", result.id(), easyvOwner, "idem", "trace-1"));
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+    verify(policy).executableContext(source.planSnapshot, result.currentPlanSnapshot(), context);
+  }
+
+  @Test
+  void createStructuredPropagatesPolicyViolations() {
+    when(repository.latestCompletedRootSnapshot("session-1", "user-1"))
+        .thenReturn(Optional.of(snapshot()));
+
+    BackendException error =
+        assertThrows(
+            BackendException.class,
+            () -> service.createStructured("session-1", owner, "调整时间", "", List.of()));
+
+    assertEquals("FOLLOW_UP_STRUCTURED_UNSUPPORTED", error.code());
+    verify(repository, never()).create(any());
+  }
+
+  @Test
   void createRejectsExplicitCapabilitySwitchesAndAppliesNaturalLanguageScope() {
     when(repository.latestCompletedRootSnapshot("session-1", "user-1"))
         .thenReturn(Optional.of(snapshot()));

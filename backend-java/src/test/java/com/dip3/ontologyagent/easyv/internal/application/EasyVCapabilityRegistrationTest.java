@@ -17,6 +17,7 @@ import com.dip3.ontologyagent.capability.api.InitialCapabilityCandidate;
 import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.semantic.api.SemanticModel;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryCompiler;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVInvocationContract;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.support.BackendException;
@@ -32,8 +33,9 @@ class EasyVCapabilityRegistrationTest {
   private final EasyVMainAgent mainAgent = mock(EasyVMainAgent.class);
   private final IdentityAccountService accounts = mock(IdentityAccountService.class);
   private final EasyVScopeResolver scopes = new EasyVScopeResolver(accounts);
+  private final SemanticModel semantic = SemanticModel.discover();
   private final EasyVCapabilityRegistration registration =
-      new EasyVCapabilityRegistration(mainAgent, scopes, SemanticModel.discover());
+      new EasyVCapabilityRegistration(mainAgent, scopes, semantic, new SemanticQueryCompiler(semantic));
   private final AuthSession owner =
       new AuthSession(
           "auth-1",

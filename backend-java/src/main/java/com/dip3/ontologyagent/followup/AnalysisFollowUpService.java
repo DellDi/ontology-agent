@@ -59,6 +59,40 @@ public class AnalysisFollowUpService {
   @Transactional
   public AnalysisFollowUp create(
       String sessionId, AuthSession owner, String rawQuestion, String parentFollowUpId) {
+    Prepared prepared = prepare(sessionId, owner, rawQuestion, parentFollowUpId);
+    FollowUpPolicy policy = analyses.followUpPolicy(owner, prepared.sourceBinding());
+    policy.validateQuestion(prepared.question());
+    Map<String, Object> context = policy.inheritedContext(prepared.source().planSnapshot);
+    Map<String, Object> mergedContext = policy.applyQuestionContext(prepared.question(), context, owner);
+    return persist(prepared, owner, UUID.randomUUID().toString(), context, mergedContext,
+        null, null, null);
+  }
+
+  /**
+   * 结构化调整追问：上下文继承来源执行，计划由 policy.structuredPlan 直接生成（不经模型），
+   * mergedContext 与继承上下文一致，因此 submit 可直接执行。
+   */
+  @Transactional
+  public AnalysisFollowUp createStructured(
+      String sessionId, AuthSession owner, String rawQuestion, String parentFollowUpId,
+      List<Map<String, Object>> queries) {
+    Prepared prepared = prepare(sessionId, owner, rawQuestion, parentFollowUpId);
+    FollowUpPolicy policy = analyses.followUpPolicy(owner, prepared.sourceBinding());
+    policy.validateQuestion(prepared.question());
+    Map<String, Object> context = policy.inheritedContext(prepared.source().planSnapshot);
+    Map<String, Object> plan = new java.util.LinkedHashMap<>(
+        policy.structuredPlan(prepared.source().planSnapshot, queries));
+    String followUpId = UUID.randomUUID().toString();
+    plan.put("_followUpId", followUpId);
+    plan.put("_referencedExecutionId", prepared.source().executionId);
+    Map<String, Object> currentPlan = Map.copyOf(plan);
+    return persist(prepared, owner, followUpId, context, context, 2, currentPlan,
+        planDiff(prepared.source().planSnapshot, currentPlan));
+  }
+
+  /** 追问创建共用的来源校验：会话归属、问题规范化、父轮次、来源快照、能力绑定与冻结数据集。 */
+  private Prepared prepare(
+      String sessionId, AuthSession owner, String rawQuestion, String parentFollowUpId) {
     AnalysisSession session = analyses.ownedSession(sessionId, owner);
     String question = normalize(rawQuestion);
     if (question.isEmpty()) throw new BackendException("INVALID_FOLLOW_UP_QUESTION", "请输入追问内容。");
@@ -85,36 +119,44 @@ public class AnalysisFollowUpService {
     // 继承来源执行的旧集合会让会话在新鲜度窗口外永久无法续聊。
     String datasetVersionSetId =
         analyses.resolveExecutionDatasetVersionSet(owner, sourceBinding);
-    FollowUpPolicy policy = analyses.followUpPolicy(owner, sourceBinding);
-    policy.validateQuestion(question);
-    Map<String, Object> context = policy.inheritedContext(source.planSnapshot);
-    Map<String, Object> mergedContext = policy.applyQuestionContext(question, context, owner);
-    Conclusion conclusion = conclusion(source);
+    return new Prepared(session, question, parent, source, sourceBinding, ontologyVersionId,
+        datasetVersionSetId);
+  }
+
+  private AnalysisFollowUp persist(
+      Prepared prepared, AuthSession owner, String followUpId, Map<String, Object> inheritedContext,
+      Map<String, Object> mergedContext, Integer planVersion, Map<String, Object> currentPlan,
+      Map<String, Object> planDiff) {
+    Conclusion conclusion = conclusion(prepared.source());
     Instant now = Instant.now();
     return followUps.create(
         new AnalysisFollowUp(
-            UUID.randomUUID().toString(),
-            session.id(),
+            followUpId,
+            prepared.session().id(),
             owner.userId(),
-            question,
-            parent == null ? null : parent.id(),
-            source.executionId,
+            prepared.question(),
+            prepared.parent() == null ? null : prepared.parent().id(),
+            prepared.source().executionId,
             conclusion.title(),
             conclusion.summary(),
             null,
-            ontologyVersionId,
-            binding(ontologyVersionId, "inherited"),
-            sourceBinding.snapshot(),
-            datasetVersionSetId,
-            context,
+            prepared.ontologyVersionId(),
+            binding(prepared.ontologyVersionId(), "inherited"),
+            prepared.sourceBinding().snapshot(),
+            prepared.datasetVersionSetId(),
+            inheritedContext,
             mergedContext,
-            null,
-            null,
-            null,
-            null,
+            planVersion,
+            currentPlan,
+            planVersion == null ? null : prepared.source().planSnapshot,
+            planDiff,
             now,
             now));
   }
+
+  private record Prepared(AnalysisSession session, String question, AnalysisFollowUp parent,
+                          ExecutionSnapshotEntity source, CapabilityBinding sourceBinding,
+                          String ontologyVersionId, String datasetVersionSetId) {}
 
   public List<AnalysisFollowUp> list(String sessionId, AuthSession owner) {
     analyses.ownedSession(sessionId, owner);
