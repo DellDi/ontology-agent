@@ -32,7 +32,9 @@ derive_cube_db_env() {
 }
 
 compose() {
+  local requested_ingest_mode=${INGEST_MODE:-}
   derive_cube_db_env
+  if [[ -n "$requested_ingest_mode" ]]; then export INGEST_MODE="$requested_ingest_mode"; fi
   if docker compose version >/dev/null 2>&1; then
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
   else
@@ -96,7 +98,7 @@ wait_for_health() {
 
 run_ingestion() {
   local mode=${1:-INCREMENTAL}
-  mode=${mode^^}
+  mode=$(printf '%s' "$mode" | tr '[:lower:]' '[:upper:]')
   if [[ "$mode" != "FULL" && "$mode" != "INCREMENTAL" && "$mode" != "RECONCILE" ]]; then
     echo "ingest mode must be FULL, INCREMENTAL or RECONCILE" >&2
     exit 1

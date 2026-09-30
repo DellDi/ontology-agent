@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, writeFile, chmod, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,6 +13,27 @@ const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../');
 const PROJECT = 'ontology-agent-7-3-test';
 const COMPOSE_ARGS = ['-f', 'compose.prod.yaml', '--env-file', '.env.prod.example', '-p', PROJECT];
+
+test('显式 FULL/RECONCILE 接入不被部署文件的 INCREMENTAL 默认值覆盖', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'easyv-ingest-mode-'));
+  try {
+    const envFile = path.join(dir, 'deployment.env');
+    const docker = path.join(dir, 'docker');
+    await writeFile(envFile, 'JAVA_DATABASE_URL=jdbc:postgresql://127.0.0.1:5432/platform\nINGEST_MODE=INCREMENTAL\n');
+    await writeFile(docker, '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then exit 0; fi\nprintf "%s\\n" "$INGEST_MODE"\n');
+    await chmod(docker, 0o755);
+    for (const [argument, expected] of [['full', 'FULL'], ['RECONCILE', 'RECONCILE'], ['INCREMENTAL', 'INCREMENTAL']]) {
+      const { stdout } = await execFileAsync('bash', [path.join(ROOT, 'scripts/easyv-dev'), 'ingest', argument], {
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, EASYV_DEV_ENV_FILE: envFile,
+          EASYV_POSTGRES_JDBC_URL: 'jdbc:postgresql://source:5432/easyv',
+          EASYV_POSTGRES_USERNAME: 'test', EASYV_POSTGRES_PASSWORD: 'test' },
+      });
+      assert.equal(stdout.trim(), expected);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('EasyV 接入入口覆盖本体声明的所有数据产品', async () => {
   const compose = await readFile(path.join(ROOT, 'compose.easyv-dev.yaml'), 'utf8');
