@@ -133,7 +133,7 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 
 `scripts/easyv-dev ingest FULL|INCREMENTAL|RECONCILE` 的显式参数优先于部署环境文件中的 `INGEST_MODE` 默认值。2026-09-30 修复了加载 `.env` 后覆盖 FULL 的问题，并以实际执行脚本的测试覆盖三种模式；升级时核对日志/源任务中的真实 mode，不能只依据输入命令。
 
-2026-09-30 已完成本地实现及真实源到一次性 Testcontainers 平台库验证，尚未部署。新的 ingest 命令发布 8 个产品：原 5 产品加 `easyv-prototype-layout`、`easyv-prototype-block`、`easyv-prototype-component`。三者共用 `easyv-prototype-task`，源列契约由 v1 升为 v2，首次升级不能直接做 INCREMENTAL。旧冻结集中的 facts 保留；含 v1 源版本的链不能按当前 v2 契约重新物化，须重新 FULL。
+2026-09-30 已部署到 easyv-dev，平台库已升至 V21。新的 ingest 命令发布 8 个产品：原 5 产品加 `easyv-prototype-layout`、`easyv-prototype-block`、`easyv-prototype-component`。三者共用 `easyv-prototype-task`，源列契约由 v1 升为 v2，首次升级不能直接做 INCREMENTAL。旧冻结集中的 facts 保留；含 v1 源版本的链不能按当前 v2 契约重新物化，须重新 FULL。
 
 确认发布后按以下顺序执行，使用本次代码构建的 Java 镜像与配套生成的 Cube 配置：
 
@@ -144,6 +144,12 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 5. 执行 `scripts/easyv-dev ingest INCREMENTAL` 并对账；源更新不能污染旧版本，删除通过 RECONCILE 清除当前集合，历史冻结结果仍可回看。最后执行浏览器与原 A 能力评测门禁。
 
 本地真实源门禁使用部署机当前只读源配置：120 个原型全部解析成功，777 个区域、1617 个图表组件，与独立源 JSON 展开 SQL 对账一致。FULL、INCREMENTAL、RECONCILE 的 8 产品行数与内容哈希一致；源记录计数及既有状态分布在验证前后不变。该验证不写部署平台库，也不代表部署后的 Cube/浏览器验收通过。
+
+本次部署证据：备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20260930142026.dump`；发布目录 `/opt/ontology-agent-releases/f8f555a`，backend/release-worker 镜像 `ontology-agent-java:f8f555a`。前端源码无改动，新 Web 镜像依赖拉取超时，保留已验证的 `ontology-agent-web:account-passwords-20260929`；未绕过依赖供应链校验。迁移、部署和接入日志位于 `/opt/ontology-agent-release-private/`，不将配置凭据提交仓库。
+
+部署平台库 FULL 集合为 `ingest-947f5eb3-8ece-404e-8144-ba912d9ce1f5`，INCREMENTAL 集合为 `ingest-c1678964-0ed2-475b-b1d1-6ef377b3d021`；8 产品全部 published，行数/内容哈希逐项一致。原型源 FULL v2 为 `b85290a5-121b-38fe-b89e-61b5ff6f3ff8`，零变更增量 v2 正确引用该父版本。布局 120/区域 777/组件 1617，与源独立查询一致。L1–L4 签名组数为 39/118/118/120。
+
+真实提问“统计所有可访问原型的布局类型分布，并给出原型数、区域总数和图表组件总数。”已完成模型、Cube、答案和图表落库。管理员示例会话为 `d56abd13-bd66-4c7b-a018-14d4eee68892`，执行为 `193e6d98-e846-3adb-bf0e-9ce96460d8d3`。父应用 active 范围返回 119 原型、770 区域、1601 组件，5 类布局逐行与独立 SQL 一致；1 个已删除父应用对应的原型被排除。Web 本机端口为 3100，当前维护机 SSH 转发为 `http://127.0.0.1:33100`，该链接只在维护机可用，不是对外公网入口。浏览器登录页已检查；完整登录后交互、非管理员真实账号负向权限与原 A 模型评测仍待验收。
 
 ## Property 物化与图投影
 
