@@ -24,6 +24,7 @@ import { getStatusIcon } from './analysis-status-icon';
 import { MarkdownContent } from '@/app/_components/markdown-content';
 import { MetricCardsGrid, VisualizationBlock, PrimaryAnswerBlock } from './analysis-business-views';
 import { WorkbenchSheet } from '@/app/_components/workbench/workbench-sheet';
+import { Spinner } from '@/app/_components/workbench/loading';
 import type { DetailDrawerType } from './analysis-detail-drawer';
 
 const ASSISTANT_DRAWER_LABELS: Record<string, string> = {
@@ -173,6 +174,12 @@ export function AnalysisAssistantMessage({
     (detail) => detail === 'attribution' || detail === 'actions'
       || (detail === 'diagnostics' && hasDiagnostics && status === 'failed'),
   );
+  const waitingForProgress =
+    (status === 'queued' || status === 'running') &&
+    !primaryAnswer && !streamingAnswer &&
+    metricCards.length === 0 && visualizations.length === 0 &&
+    toolTimeline.length === 0 && toolActivities.length === 0 &&
+    primaryBlocks.length === 0 && detailItemCount === 0 && businessDetails.length === 0;
 
   return (
     <div className="flex justify-start gap-2.5">
@@ -180,7 +187,7 @@ export function AnalysisAssistantMessage({
       <div className="min-w-0 w-full max-w-[86%]">
         <div className="flex items-center gap-2.5">
           <p className="text-xs font-semibold text-foreground">智能员工</p>
-          {getStatusIcon(status)}
+          {!waitingForProgress ? getStatusIcon(status) : null}
           <p className="text-xs text-muted-foreground">
             {headline}
           </p>
@@ -194,7 +201,24 @@ export function AnalysisAssistantMessage({
           ) : null}
         </div>
 
-        <div className="mt-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 shadow-sm">
+        <div
+          className={waitingForProgress
+            ? 'mt-2 flex items-center gap-2 text-sm leading-6 text-muted-foreground'
+            : 'mt-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 shadow-sm'}
+          role={waitingForProgress ? 'status' : undefined}
+          aria-live={waitingForProgress ? 'polite' : undefined}
+          aria-busy={waitingForProgress || undefined}
+        >
+          {waitingForProgress ? (
+            <>
+              <Spinner size="sm" aria-hidden className="shrink-0 motion-reduce:animate-none" />
+              <span>
+                {status === 'queued'
+                  ? '问题已提交，等待分析进度…'
+                  : '正在处理，结果会逐步显示…'}
+              </span>
+            </>
+          ) : null}
           {/* 流式回答：生成中随 LLM 输出逐段渲染，完成后由正式结论替换 */}
           {status === 'running' && streamingAnswer ? (
             <div className="streaming-answer">
@@ -236,7 +260,7 @@ export function AnalysisAssistantMessage({
           ) : null}
 
           {/* 结果区域（结论详情 / 证据 / 推理 / 假设） */}
-          {result ? (
+          {primaryBlocks.length > 0 ? (
             <div className="mt-3">
               {/* 主结果块：只展示 primary（回答与相关图表）；supporting 明细收进侧滑抽屉 */}
               {primaryBlocks.map((block, index) => (
