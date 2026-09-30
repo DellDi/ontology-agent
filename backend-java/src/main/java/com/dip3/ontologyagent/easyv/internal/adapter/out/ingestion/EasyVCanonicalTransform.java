@@ -1,5 +1,9 @@
 package com.dip3.ontologyagent.easyv.internal.adapter.out.ingestion;
 
+import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser;
+import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Block;
+import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Component;
+import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Parsed;
 import com.dip3.ontologyagent.ingestion.api.CanonicalProductTransform;
 import com.dip3.ontologyagent.ingestion.api.SourceRow;
 import com.dip3.ontologyagent.support.JsonCodec;
@@ -58,8 +62,10 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
 
         Columns columns = new Columns(input);
         List<List<Object>> rows = input.rows().stream()
-                .map(row -> map(context.productVersionId(), input.sourceVersionId(), columns, row))
-                .sorted(Comparator.comparing(row -> (Comparable<Object>) row.get(3)))
+                .flatMap(row -> map(context.productVersionId(), input.sourceVersionId(), columns, row).stream())
+                .sorted(Comparator.<List<Object>, Comparable<Object>>comparing(row -> (Comparable<Object>) row.get(3))
+                        .thenComparing(row -> kind == Kind.PROTOTYPE_BLOCK ? (String) row.get(5)
+                                : kind == Kind.PROTOTYPE_COMPONENT ? (String) row.get(6) : ""))
                 .toList();
         String contentHash = contentHash(rows);
         return new PreparedProduct(
@@ -78,26 +84,26 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
         }
     }
 
-    private List<Object> map(String productVersionId, String sourceVersionId,
-                             Columns values, SourceRow row) {
+    private List<List<Object>> map(String productVersionId, String sourceVersionId,
+                                   Columns values, SourceRow row) {
         List<Object> prefix = List.of(productVersionId, kind.datasetKey, sourceVersionId);
         return switch (kind) {
-            case APPLICATION -> joined(prefix,
+            case APPLICATION -> List.of(joined(prefix,
                     values.longValue(row, "id"), values.text(row, "app_id"),
                     values.nullableText(row, "generation_task_id"),
                     values.longValue(row, "user_id"), values.longValue(row, "space_id"),
                     values.longValue(row, "team_id"), values.text(row, "scope_type"),
                     values.instant(row, "create_time"), values.instant(row, "update_time"),
-                    deleted(values.nullableText(row, "is_delete")));
-            case PROTOTYPE -> joined(prefix,
+                    deleted(values.nullableText(row, "is_delete"))));
+            case PROTOTYPE -> List.of(joined(prefix,
                     values.longValue(row, "id"), values.text(row, "app_id"),
-                    values.instant(row, "create_time"), values.instant(row, "update_time"));
-            case PIPELINE -> joined(prefix,
+                    values.instant(row, "create_time"), values.instant(row, "update_time")));
+            case PIPELINE -> List.of(joined(prefix,
                     values.longValue(row, "id"), values.text(row, "task_id"),
                     values.text(row, "step_name"), values.text(row, "branch"),
                     values.text(row, "status"), values.nullableLong(row, "duration_ms"),
-                    values.instant(row, "create_time"));
-            case FORGE -> joined(prefix,
+                    values.instant(row, "create_time")));
+            case FORGE -> List.of(joined(prefix,
                     values.uuid(row, "id"), values.text(row, "task_id"),
                     values.text(row, "app_id"),
                     values.text(row, "status").toLowerCase(Locale.ROOT),
@@ -105,7 +111,7 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                     failureReasonText(values.value(row, "failure_reason")),
                     values.nullableInstant(row, "started_at"),
                     values.nullableInstant(row, "finished_at"),
-                    values.instant(row, "create_time"), values.instant(row, "update_time"));
+                    values.instant(row, "create_time"), values.instant(row, "update_time")));
             case FEEDBACK -> {
                 int result = values.integer(row, "execute_result");
                 if (result != 0 && result != 1) {
@@ -115,15 +121,56 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                 if (rating != null && (rating < 1 || rating > 5)) {
                     throw new IllegalArgumentException("EasyV rating must be between 1 and 5");
                 }
-                yield joined(prefix,
+                yield List.of(joined(prefix,
                         values.longValue(row, "id"), values.longValue(row, "space_id"),
                         values.longValue(row, "user_id"), values.instant(row, "operate_time"),
                         values.text(row, "ai_action_type"), result, rating,
                         values.nullableText(row, "app_id"),
                         values.nullableText(row, "task_id"),
-                        values.nullableBoolean(row, "is_save_as_edit"));
+                        values.nullableBoolean(row, "is_save_as_edit")));
             }
+            case PROTOTYPE_LAYOUT, PROTOTYPE_BLOCK, PROTOTYPE_COMPONENT ->
+                    structureRows(prefix, values, row);
         };
+    }
+
+    /** 一条原型源记录按产品展开为 1（版式）或 N（区域、组件）行；解析失败的原型只产出版式行。 */
+    private List<List<Object>> structureRows(List<Object> prefix, Columns values, SourceRow row) {
+        long sourceId = values.longValue(row, "id");
+        String appId = values.text(row, "app_id");
+        Timestamp createdAt = values.instant(row, "create_time");
+        Parsed parsed = PrototypeStructureParser.parse(
+                values.nullableText(row, "screen_structure_xml"), values.value(row, "screen_prototype_json"));
+        boolean ok = parsed.status() == PrototypeStructureParser.Status.OK;
+        List<List<Object>> result = new ArrayList<>();
+        switch (kind) {
+            case PROTOTYPE_LAYOUT -> result.add(joined(prefix, sourceId, appId, parsed.status().code(),
+                    parsed.errorCode(), parsed.errorDetail(), parsed.layoutType(),
+                    ok ? parsed.blocks().size() : null, ok ? parsed.componentCount() : null,
+                    parsed.layoutSignature(), parsed.schemeSignature(), parsed.countSignature(),
+                    parsed.chartSignature(), createdAt, values.instant(row, "update_time")));
+            case PROTOTYPE_BLOCK -> {
+                for (Block block : parsed.blocks()) {
+                    result.add(joined(prefix, sourceId, appId, block.blockId(), block.containerTag(),
+                            block.containerId(), block.gridDirection(), block.blockTypeId(),
+                            block.blockSize(), block.span(), block.weight(), block.schemeId(),
+                            block.components().size(), createdAt));
+                }
+            }
+            case PROTOTYPE_COMPONENT -> {
+                for (Block block : parsed.blocks()) {
+                    for (Component component : block.components()) {
+                        result.add(joined(prefix, sourceId, appId, block.blockId(),
+                                component.componentId(), component.chartFamily(),
+                                component.libraryComponentId(), component.sceneType(),
+                                component.sourceType(), component.gridCol(), component.gridRow(),
+                                component.gridColSpan(), component.gridRowSpan(), createdAt));
+                    }
+                }
+            }
+            default -> throw new IllegalStateException("not a prototype structure kind: " + kind);
+        }
+        return result;
     }
 
     private static boolean deleted(String value) {
@@ -224,6 +271,30 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    space_id,user_id,operated_at,ai_action_type,execute_result,rating,app_id,task_id,
                    is_save_as_edit) values (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """),
+        PROTOTYPE_LAYOUT("easyv-prototype-layout", "easyv-prototype-task", "easyv_prototype_layout",
+                "easyv-prototype-layout-v1", """
+                insert into facts.easyv_prototype_layout
+                  (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
+                   app_id,parse_status,parse_error_code,parse_error_detail,layout_type,block_count,
+                   component_count,layout_signature,scheme_signature,count_signature,chart_signature,
+                   created_at,updated_at) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """),
+        PROTOTYPE_BLOCK("easyv-prototype-block", "easyv-prototype-task", "easyv_prototype_block",
+                "easyv-prototype-block-v1", """
+                insert into facts.easyv_prototype_block
+                  (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
+                   app_id,block_id,container_tag,container_id,grid_direction,block_type_id,block_size,
+                   span,weight,scheme_id,component_count,created_at)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """),
+        PROTOTYPE_COMPONENT("easyv-prototype-component", "easyv-prototype-task",
+                "easyv_prototype_component", "easyv-prototype-component-v1", """
+                insert into facts.easyv_prototype_component
+                  (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
+                   app_id,block_id,component_id,chart_family,library_component_id,scene_type,
+                   source_type,grid_col,grid_row,grid_col_span,grid_row_span,created_at)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """);
 
         private final String productKey;
@@ -233,11 +304,19 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
         private final String insertSql;
 
         Kind(String key, String relation, String transformRef, String insertSql) {
-            this.productKey = key;
-            this.datasetKey = key;
+            this(key, key, relation, transformRef, insertSql);
+        }
+
+        Kind(String productKey, String datasetKey, String relation, String transformRef, String insertSql) {
+            this.productKey = productKey;
+            this.datasetKey = datasetKey;
             this.relation = relation;
             this.transformRef = transformRef;
             this.insertSql = insertSql;
+        }
+
+        public String transformRef() {
+            return transformRef;
         }
     }
 

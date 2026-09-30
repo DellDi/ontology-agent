@@ -1,8 +1,7 @@
 package com.dip3.ontologyagent.integration;
 
 import com.dip3.ontologyagent.easyv.internal.adapter.out.ingestion.EasyVCanonicalTransform;
-import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
-import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import com.dip3.ontologyagent.ingestion.api.CanonicalProductTransform;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersion;
 import com.dip3.ontologyagent.ingestion.api.IngestionRun;
@@ -37,8 +36,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.time.Instant;
-import java.time.LocalDate;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -54,6 +53,9 @@ class LiveEasyVIngestionIT {
             "easyv-pipeline-node",
             "easyv-forge-task",
             "easyv-generation-feedback");
+
+    private static final Set<String> PRODUCT_KEYS = EasyVOntologyModel.OBJECTS.stream()
+            .map(object -> object.productKey()).collect(Collectors.toSet());
 
     private static final Map<String, String> SOURCE_RELATIONS = Map.of(
             "easyv-ai-application", "easyv_saas.ai_screen_app",
@@ -81,7 +83,7 @@ class LiveEasyVIngestionIT {
     }
 
     @Test
-    void ingestsAndMaterializesAllFiveRealEasyVDatasetsWithoutChangingTheSource() {
+    void ingestsFiveSourcesAndEightProductsWithStableIncrementalAndReconcileResults() {
         DataSource sourceDataSource = new DriverManagerDataSource(
                 required("EASYV_POSTGRES_JDBC_URL"),
                 required("EASYV_POSTGRES_USERNAME"),
@@ -129,13 +131,14 @@ class LiveEasyVIngestionIT {
                 codec,
                 persistence);
         String setId = "live-easyv-set-" + execution;
-        DatasetReleasePublisher.Result release = new DatasetReleasePublisher(
+        DatasetReleasePublisher publisher = new DatasetReleasePublisher(
                 orchestrator,
                 sourceCatalog,
                 new ProductCatalogPostgresAdapter(targetJdbc, json, sourceCatalog),
                 materializer,
-                persistence).publish(new DatasetReleasePublisher.Command(
-                setId, "easyv", EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS,
+                persistence);
+        DatasetReleasePublisher.Result release = publisher.publish(new DatasetReleasePublisher.Command(
+                setId, "easyv", PRODUCT_KEYS,
                 IngestionRun.Mode.FULL, IngestionRun.TriggerType.MANUAL,
                 "live-integration", "live-easyv-" + execution, 2_000));
         Map<String, DatasetVersion> versions = release.sourceVersions();
@@ -147,7 +150,7 @@ class LiveEasyVIngestionIT {
         DatasetVersionSetPostgresAdapter versionSets = new DatasetVersionSetPostgresAdapter(
                 targetJdbc, json);
         assertEquals(setId, versionSets.latestFrozen(
-                EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS).orElseThrow().publicationId());
+                PRODUCT_KEYS).orElseThrow().publicationId());
 
         for (String datasetKey : DATASET_KEYS) {
             assertEquals(sourceCountsBefore.get(datasetKey),
@@ -156,14 +159,40 @@ class LiveEasyVIngestionIT {
                     "canonical fact row count for " + datasetKey);
         }
         assertEquals(sourceDistributionsBefore, targetDistributions(targetJdbc));
-        assertEquals(5L, targetJdbc.queryForObject(
+        assertEquals((long) PRODUCT_KEYS.size(), targetJdbc.queryForObject(
                 "select count(*) from ingestion.data_product_versions where status='published'",
                 Long.class));
-        assertEquals(5L, targetJdbc.queryForObject(
+        assertEquals((long) PRODUCT_KEYS.size(), targetJdbc.queryForObject(
                 "select count(*) from ingestion.data_product_version_lineage", Long.class));
         assertEquals(1L, targetJdbc.queryForObject(
                 "select count(*) from ingestion.dataset_version_sets where status='frozen'",
                 Long.class));
+        assertEquals(sourceCountsBefore.get("easyv-prototype-task"), targetJdbc.queryForObject(
+                "select count(*) from facts.easyv_prototype_layout", Long.class));
+        List<Long> parsedIds = targetJdbc.queryForList(
+                "select source_id from facts.easyv_prototype_layout where parse_status='ok'", Long.class);
+        Map<String, Long> structure = readOnly(sourceTransactions,
+                () -> sourceStructureCounts(sourceJdbc, parsedIds));
+        assertEquals(structure.get("blocks"), targetJdbc.queryForObject(
+                "select count(*) from facts.easyv_prototype_block", Long.class));
+        assertEquals(structure.get("components"), targetJdbc.queryForObject(
+                "select count(*) from facts.easyv_prototype_component", Long.class));
+        System.out.println("LIVE_EASYV_STRUCTURE source=" + sourceCountsBefore.get("easyv-prototype-task")
+                + " parsed=" + parsedIds.size() + " structure=" + structure
+                + " statuses=" + targetJdbc.queryForList(
+                    "select parse_status,parse_error_code,count(*) from facts.easyv_prototype_layout group by 1,2"));
+
+        for (IngestionRun.Mode mode : List.of(IngestionRun.Mode.INCREMENTAL, IngestionRun.Mode.RECONCILE)) {
+            DatasetReleasePublisher.Result next = publisher.publish(new DatasetReleasePublisher.Command(
+                    setId + "-" + mode, "easyv", PRODUCT_KEYS, mode, IngestionRun.TriggerType.MANUAL,
+                    "live-integration", "live-easyv-" + execution + "-" + mode, 2_000));
+            for (String product : PRODUCT_KEYS) {
+                assertEquals(release.productVersions().get(product).contentHash(),
+                        next.productVersions().get(product).contentHash(), mode + " content for " + product);
+                assertEquals(release.productVersions().get(product).rowCount(),
+                        next.productVersions().get(product).rowCount(), mode + " count for " + product);
+            }
+        }
 
         Map<String, Long> sourceCountsAfter = readOnly(sourceTransactions,
                 () -> sourceCounts(sourceJdbc));
@@ -173,6 +202,22 @@ class LiveEasyVIngestionIT {
                 "EasyV source changed during the live snapshot; rerun against a stable interval");
         assertEquals(sourceDistributionsBefore, sourceDistributionsAfter,
                 "EasyV source distributions changed during the live snapshot; rerun against a stable interval");
+    }
+
+    // 独立 SQL 只从源 JSON 展开统计；不调用生产解析器。解析失败的源记录不应产出子事实。
+    private static Map<String, Long> sourceStructureCounts(JdbcTemplate jdbc, List<Long> parsedIds) {
+        if (parsedIds.isEmpty()) return Map.of("blocks", 0L, "components", 0L);
+        String placeholders = String.join(",", java.util.Collections.nCopies(parsedIds.size(), "?"));
+        Map<String, Object> counts = jdbc.queryForMap("""
+                select count(*) as blocks,
+                  coalesce(sum(jsonb_array_length(coalesce(block.value->'components','[]'::jsonb))),0) as components
+                from easyv_saas.ai_screen_prototype p
+                cross join lateral jsonb_each(p.screen_prototype_json) page
+                cross join lateral jsonb_each(page.value->'blocks') block
+                where page.key like 'page-%%' and p.id in (%s)
+                """.formatted(placeholders), parsedIds.toArray());
+        return Map.of("blocks", ((Number) counts.get("blocks")).longValue(),
+                "components", ((Number) counts.get("components")).longValue());
     }
 
     private static Map<String, Long> sourceCounts(JdbcTemplate jdbc) {

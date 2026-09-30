@@ -187,7 +187,7 @@ class EasyVCanonicalTransformTest {
         return switch (datasetKey) {
             case "easyv-ai-application" -> row(1L, "app-1", "pipeline-task-1",
                     11L, 22L, 33L, "user", created, updated, "0");
-            case "easyv-prototype-task" -> row(2L, "app-1", created, updated);
+            case "easyv-prototype-task" -> row(2L, "app-1", null, null, created, updated);
             case "easyv-pipeline-node" -> row(3L, "pipeline-task-1",
                     "PipelineCompleted", "MAIN", "SUCCESS", 120L, created);
             case "easyv-forge-task" -> row(UUID.fromString(

@@ -60,6 +60,100 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
       List.of(new OntologyMetric("count", "原型数", "去重原型数", Aggregation.COUNT_DISTINCT, "{CUBE}.app_id", null)),
       "createdAt", List.of("application"), Map.of(SCOPE_USER, "application.userId"));
 
+  private static final String PARSED = "{CUBE}.parse_status = 'ok'";
+
+  public static final OntologyObjectType PROTOTYPE_LAYOUT = new OntologyObjectType(
+      "easyv-prototype-layout", "原型版式", "原型的版式与结构签名（每个原型一条；无法解析的原型保留并标注原因）",
+      "EasyvPrototypeLayout", "easyv-prototype-layout", "facts.easyv_prototype_layout", null,
+      List.of(
+          OntologyProperty.key("appId", "应用 ID", "app_id"),
+          OntologyProperty.column("parseStatus", "解析状态",
+              "ok / invalid_xml / invalid_json / inconsistent；非 ok 的原型没有区域、组件与签名",
+              Type.STRING, "parse_status"),
+          OntologyProperty.column("parseErrorCode", "解析错误码", "解析失败时的可定位错误码", Type.STRING, "parse_error_code"),
+          OntologyProperty.column("layoutType", "布局类型", "凹形 / 左中右 / dashboard_02 等模板版式", Type.STRING, "layout_type"),
+          OntologyProperty.column("blockCount", "区域数", "原型包含的区域（Block）数量", Type.NUMBER, "block_count"),
+          OntologyProperty.column("componentCount", "图表组件数", "原型包含的图表组件数量", Type.NUMBER, "component_count"),
+          OntologyProperty.column("layoutSignature", "版式签名（L1）",
+              "布局类型 + 各区域位置/区域类型/尺寸/跨度相同则签名相同", Type.STRING, "layout_signature"),
+          OntologyProperty.column("schemeSignature", "方案签名（L2）",
+              "在版式签名基础上加上各区域所用图表方案", Type.STRING, "scheme_signature"),
+          OntologyProperty.column("countSignature", "图表数签名（L3）",
+              "在方案签名基础上加上各区域图表数量", Type.STRING, "count_signature"),
+          OntologyProperty.column("chartSignature", "图表族签名（L4）",
+              "在图表数签名基础上加上各区域图表族组合，最严格", Type.STRING, "chart_signature"),
+          OntologyProperty.column("createdAt", "原型创建时间", "原型创建时间", Type.TIME, "created_at"),
+          OntologyProperty.column("updatedAt", "原型更新时间", "原型最近更新时间", Type.TIME, "updated_at")),
+      List.of(new OntologyLink("application", APPLICATION.key(), "appId", "appId", Cardinality.ONE_TO_ONE)),
+      List.of(
+          new OntologyMetric("count", "原型数", "含无法解析在内的去重原型数", Aggregation.COUNT_DISTINCT, "{CUBE}.app_id", null),
+          new OntologyMetric("parsedCount", "已解析原型数", "结构可解析的去重原型数（重复分析的分母）",
+              Aggregation.COUNT_DISTINCT, "{CUBE}.app_id", PARSED),
+          new OntologyMetric("unparsedCount", "无法解析原型数", "结构无法解析的去重原型数",
+              Aggregation.COUNT_DISTINCT, "{CUBE}.app_id", "{CUBE}.parse_status <> 'ok'"),
+          new OntologyMetric("blockTotal", "区域总数", "已解析原型的区域实例总数", Aggregation.SUM, "{CUBE}.block_count", PARSED),
+          new OntologyMetric("componentTotal", "图表组件总数", "已解析原型的图表组件实例总数",
+              Aggregation.SUM, "{CUBE}.component_count", PARSED),
+          new OntologyMetric("layoutSignatureCount", "不同版式数（L1）", "去重版式签名数；已解析原型数减去它为每组保留一个后的额外原型数，不等于参与重复组的原型数",
+              Aggregation.COUNT_DISTINCT, "{CUBE}.layout_signature", PARSED),
+          new OntologyMetric("schemeSignatureCount", "不同方案组合数（L2）", "去重方案签名数",
+              Aggregation.COUNT_DISTINCT, "{CUBE}.scheme_signature", PARSED),
+          new OntologyMetric("countSignatureCount", "不同图表数组合数（L3）", "去重图表数签名数",
+              Aggregation.COUNT_DISTINCT, "{CUBE}.count_signature", PARSED),
+          new OntologyMetric("chartSignatureCount", "不同图表族组合数（L4）", "去重图表族签名数",
+              Aggregation.COUNT_DISTINCT, "{CUBE}.chart_signature", PARSED)),
+      "createdAt", List.of("application"), Map.of(SCOPE_USER, "application.userId"));
+
+  public static final OntologyObjectType PROTOTYPE_BLOCK = new OntologyObjectType(
+      "easyv-prototype-block", "原型区域", "原型版式中的区域（Block），含所用图表方案与尺寸类别",
+      "EasyvPrototypeBlock", "easyv-prototype-block", "facts.easyv_prototype_block", null,
+      List.of(
+          new OntologyProperty("blockKey", "区域记录 ID", null, Type.STRING,
+              "{CUBE}.source_id::text || ':' || {CUBE}.block_id", true),
+          OntologyProperty.column("appId", "应用 ID", "区域所属应用", Type.STRING, "app_id"),
+          new OntologyProperty("position", "区域位置", "区域在版式中的位置标识（如 left_1）", Type.STRING,
+              "regexp_replace({CUBE}.block_id, '^.*?__', '')", false),
+          OntologyProperty.column("containerTag", "所在容器", "Sider / Header / Footer 等容器类型", Type.STRING, "container_tag"),
+          OntologyProperty.column("gridDirection", "容器排布方向", "horizontal / vertical", Type.STRING, "grid_direction"),
+          OntologyProperty.column("blockTypeId", "区域类型", "区域规格类型（决定可用图表方案集合）", Type.STRING, "block_type_id"),
+          new OntologyProperty("blockSize", "区域尺寸", "small / medium / large；页眉页脚等区域源端未标注时为“未标注”",
+              Type.STRING, "coalesce({CUBE}.block_size, '未标注')", false),
+          OntologyProperty.column("span", "跨度", "区域在父容器排布方向上的占比", Type.STRING, "span"),
+          OntologyProperty.column("schemeId", "图表方案", "区域采用的图表方案 ID", Type.STRING, "scheme_id"),
+          OntologyProperty.column("componentCount", "图表数", "区域内的图表组件数量", Type.NUMBER, "component_count"),
+          OntologyProperty.column("createdAt", "原型创建时间", "所属原型创建时间", Type.TIME, "created_at")),
+      List.of(new OntologyLink("application", APPLICATION.key(), "appId", "appId", Cardinality.MANY_TO_ONE)),
+      List.of(
+          new OntologyMetric("count", "区域数", "区域实例数", Aggregation.COUNT, null, null),
+          new OntologyMetric("appCount", "涉及原型数", "含这些区域的去重原型数", Aggregation.COUNT_DISTINCT, "{CUBE}.app_id", null),
+          new OntologyMetric("componentTotal", "图表组件总数", "这些区域内的图表组件实例总数",
+              Aggregation.SUM, "{CUBE}.component_count", null)),
+      "createdAt", List.of("application"), Map.of(SCOPE_USER, "application.userId"));
+
+  public static final OntologyObjectType PROTOTYPE_COMPONENT = new OntologyObjectType(
+      "easyv-prototype-component", "原型图表组件", "原型区域内的图表组件实例（结构信息，不含标题与指标名称）",
+      "EasyvPrototypeComponent", "easyv-prototype-component", "facts.easyv_prototype_component", null,
+      List.of(
+          new OntologyProperty("componentKey", "组件记录 ID", null, Type.STRING,
+              "{CUBE}.source_id::text || ':' || {CUBE}.component_id", true),
+          OntologyProperty.column("appId", "应用 ID", "组件所属应用", Type.STRING, "app_id"),
+          OntologyProperty.column("blockId", "区域 ID", "组件所在区域", Type.STRING, "block_id"),
+          OntologyProperty.column("chartFamily", "图表族", "line / donut / horizontal-bar / single-value-metric 等",
+              Type.STRING, "chart_family"),
+          OntologyProperty.column("libraryComponentId", "组件库 ID", "EasyV 组件库中的组件标识", Type.STRING, "library_component_id"),
+          OntologyProperty.column("sceneType", "分析场景", "总览指标 / 趋势分析 / 对比排行 / 占比结构 等", Type.STRING, "scene_type"),
+          OntologyProperty.column("sourceType", "数据来源类型", "AI 生成 / CSV 文件", Type.STRING, "source_type"),
+          OntologyProperty.column("gridColSpan", "网格列跨度", "组件在区域网格中的列跨度", Type.NUMBER, "grid_col_span"),
+          OntologyProperty.column("gridRowSpan", "网格行跨度", "组件在区域网格中的行跨度", Type.NUMBER, "grid_row_span"),
+          OntologyProperty.column("createdAt", "原型创建时间", "所属原型创建时间", Type.TIME, "created_at")),
+      List.of(new OntologyLink("application", APPLICATION.key(), "appId", "appId", Cardinality.MANY_TO_ONE)),
+      List.of(
+          new OntologyMetric("count", "图表组件数", "图表组件实例数", Aggregation.COUNT, null, null),
+          new OntologyMetric("appCount", "涉及原型数", "含这些组件的去重原型数", Aggregation.COUNT_DISTINCT, "{CUBE}.app_id", null),
+          new OntologyMetric("blockCount", "涉及区域数", "含这些组件的去重区域数",
+              Aggregation.COUNT_DISTINCT, "{CUBE}.source_id::text || ':' || {CUBE}.block_id", null)),
+      "createdAt", List.of("application"), Map.of(SCOPE_USER, "application.userId"));
+
   public static final OntologyObjectType PIPELINE_NODE = new OntologyObjectType(
       "easyv-pipeline-node", "流水线节点", "原型流水线各阶段的节点执行记录",
       "EasyvPipelineNode", "easyv-pipeline-node", "facts.easyv_pipeline_node", null,
@@ -175,7 +269,8 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
       "operatedAt", List.of("application"), Map.of(SCOPE_USER, "userId"));
 
   public static final List<OntologyObjectType> OBJECTS =
-      List.of(APPLICATION, PROTOTYPE, PIPELINE_NODE, PIPELINE_TASK, FORGE_TASK, FEEDBACK);
+      List.of(APPLICATION, PROTOTYPE, PROTOTYPE_LAYOUT, PROTOTYPE_BLOCK, PROTOTYPE_COMPONENT,
+          PIPELINE_NODE, PIPELINE_TASK, FORGE_TASK, FEEDBACK);
 
   @Override
   public String domainKey() {

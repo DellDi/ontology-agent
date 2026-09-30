@@ -13,6 +13,15 @@ const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../');
 const PROJECT = 'ontology-agent-7-3-test';
 const COMPOSE_ARGS = ['-f', 'compose.prod.yaml', '--env-file', '.env.prod.example', '-p', PROJECT];
 
+test('EasyV 接入入口覆盖本体声明的所有数据产品', async () => {
+  const compose = await readFile(path.join(ROOT, 'compose.easyv-dev.yaml'), 'utf8');
+  const policy = JSON.parse(await readFile(path.join(ROOT, 'cube/conf/semantic-access-policy.json'), 'utf8'));
+  const configured = compose.match(/--dip3\.ingestion\.product-keys=(easyv-[^\r\n]+)/)?.[1].split(',').sort();
+  const declared = [...new Set(Object.values(policy).map(item => item.productKey)
+    .filter(key => key.startsWith('easyv-')))].sort();
+  assert.deepEqual(configured, declared);
+});
+
 async function dc(...args) {
   return execFileAsync('docker', ['compose', ...COMPOSE_ARGS, ...args], { cwd: ROOT });
 }

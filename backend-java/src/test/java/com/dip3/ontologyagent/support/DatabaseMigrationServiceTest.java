@@ -53,7 +53,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(20, applied, "新库应执行到 V20 账号主体绑定");
+        assertEquals(21, applied, "新库应执行到 V21 原型结构 facts");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -434,6 +434,27 @@ class DatabaseMigrationServiceTest {
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject(
                 "select to_regclass('identity.subject_bindings') is not null", Boolean.class)),
                 "V20 应创建账号主体绑定表");
+        assertEquals(3, jdbc.queryForObject("""
+                select count(*) from ingestion.data_product_definitions
+                where domain_key='easyv' and product_key in
+                  ('easyv-prototype-layout','easyv-prototype-block','easyv-prototype-component')
+                """, Integer.class), "V21 应注册三个原型结构 data product");
+        assertEquals(3, jdbc.queryForObject("""
+                select count(*) from ingestion.data_product_inputs
+                where dataset_key='easyv-prototype-task' and input_key='source' and is_required
+                  and product_key in
+                  ('easyv-prototype-layout','easyv-prototype-block','easyv-prototype-component')
+                """, Integer.class), "三个原型结构产品应共用 easyv-prototype-task 数据集");
+        assertEquals(2, jdbc.queryForObject("""
+                select schema_version from ingestion.dataset_definitions
+                where dataset_key='easyv-prototype-task'
+                  and column_contract @> '[{"name":"screen_structure_xml"},{"name":"screen_prototype_json"}]'::jsonb
+                """, Integer.class), "V21 应把 easyv-prototype-task 列契约升级为 v2");
+        assertEquals(3, jdbc.queryForObject("""
+                select count(*) from pg_trigger
+                where tgname in ('easyv_prototype_layout_immutable_trg','easyv_prototype_block_immutable_trg',
+                                 'easyv_prototype_component_immutable_trg')
+                """, Integer.class), "原型结构 facts 应不可变");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject(
                 "select to_regclass('public.spring_ai_chat_memory') is not null", Boolean.class)));
         assertEquals(0, service().pendingMigrations().length);
@@ -446,7 +467,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(20, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(21, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -463,7 +484,7 @@ class DatabaseMigrationServiceTest {
         assertTrue(platformTables >= 20, "重复执行后表结构应保持不变");
         Integer foreignKeys = jdbc.queryForObject(
                 "select count(*) from pg_constraint where contype = 'f'", Integer.class);
-        assertEquals(53, foreignKeys, "重复执行不应产生重复外键约束");
+        assertEquals(59, foreignKeys, "重复执行不应产生重复外键约束");
     }
 
     @Test
@@ -478,7 +499,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(20, applied, "旧库补全应记录 V1-V20（baseline 0 标记不计入）");
+        assertEquals(21, applied, "旧库补全应记录 V1-V21（baseline 0 标记不计入）");
     }
 
     @Test
