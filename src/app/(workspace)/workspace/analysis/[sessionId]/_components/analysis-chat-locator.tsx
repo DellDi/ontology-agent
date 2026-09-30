@@ -46,7 +46,7 @@ export function AnalysisChatLocator({ marks }: { marks: ChatLocatorMark[] }) {
   return (
     <nav
       aria-label="对话定位"
-      className="chat-locator fixed right-3 top-1/2 z-30 hidden -translate-y-1/2 md:flex"
+      className="chat-locator absolute right-3 top-1/2 z-30 hidden -translate-y-1/2 xl:flex"
       data-testid="analysis-chat-locator"
     >
       <ul className="flex flex-col items-end gap-1.5">

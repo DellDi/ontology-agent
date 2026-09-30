@@ -198,7 +198,7 @@ export default async function AnalysisSessionPage({
     && aggregate.runtime.autoExecute;
 
   return (
-    <section className="w-full">
+    <section className="flex min-h-0 w-full flex-1 flex-col">
       <AnalysisAutoExecuteGate
         enabled={initialPending}
         sessionId={sessionId}

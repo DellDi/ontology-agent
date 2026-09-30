@@ -4,7 +4,7 @@ import {
   getGovernanceVersions,
   requireJavaOntologyAdminSession,
 } from '@/infrastructure/java-backend';
-import { Button } from '@/app/_components/button';
+import { Button } from '@/components/ui/button';
 
 import {
   AdminCard,
@@ -28,7 +28,7 @@ export default async function NewChangeRequestPage() {
           <p className="text-sm text-muted-foreground">
             请联系管理员获取变更申请的创建权限。
           </p>
-          <Button variant="secondary" asChild className="mt-4">
+          <Button variant="outline" asChild className="mt-4">
             <Link href="/admin/ontology/change-requests">
               返回变更申请列表
             </Link>
@@ -48,7 +48,7 @@ export default async function NewChangeRequestPage() {
           title="无法创建"
           description="当前没有可用的目标版本，请先通过 bootstrap 流程创建首个版本。"
         />
-        <Button variant="secondary" asChild>
+        <Button variant="outline" asChild>
           <Link href="/admin/ontology/change-requests">
             返回变更申请列表
           </Link>

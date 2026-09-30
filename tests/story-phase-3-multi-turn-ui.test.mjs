@@ -79,8 +79,13 @@ test('Chat UI | shell 提供右侧定位条与底部聊天输入框', () => {
     '应渲染聊天输入框',
   );
   assert.ok(
-    shellSource.includes('sticky bottom-0'),
-    '输入框应固定在对话窗口底部',
+    shellSource.includes('<Conversation') &&
+      shellSource.includes('ConversationScrollButton'),
+    '消息流应使用 AI Elements Conversation 内嵌滚动并提供回到底部按钮',
+  );
+  assert.ok(
+    !shellSource.includes('sticky bottom-0'),
+    '输入框不再依赖文档级 sticky 定位，由 Conversation 内嵌滚动布局承接',
   );
 });
 
@@ -89,7 +94,10 @@ test('Chat UI | 用户消息为气泡、AI 为智能员工身份', () => {
     'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-user-message.tsx',
     'utf-8',
   );
-  assert.ok(userMessage.includes('justify-end'), '用户消息应右对齐');
+  assert.ok(
+    userMessage.includes('from="user"'),
+    '用户消息应通过 AI Elements Message 右对齐（is-user）',
+  );
   assert.ok(userMessage.includes('rounded-2xl'), '用户消息应为气泡');
   const thinkingMessage = readFileSync(
     'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-thinking-message.tsx',

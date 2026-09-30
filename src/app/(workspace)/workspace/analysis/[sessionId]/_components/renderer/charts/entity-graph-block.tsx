@@ -2,8 +2,8 @@
 
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
-import { Badge } from '@/app/_components/workbench/badge';
-import { EmptyState } from '@/app/_components/workbench/empty-state';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/app/_components/empty-state';
 
 import { asItemArray } from './recharts-shared';
 
@@ -64,7 +64,7 @@ export function EntityGraphBlock({ block, flat = false }: EntityGraphBlockProps)
                   ? node.label
                   : String(node.id ?? `节点 ${index + 1}`);
               return (
-                <Badge tone="info" key={`${label}-${index}`}>
+                <Badge variant="info" key={`${label}-${index}`}>
                   {label}
                 </Badge>
               );

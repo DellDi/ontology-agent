@@ -1,8 +1,8 @@
 'use client';
 
-import { EvidenceCard, type EvidenceItem } from '@/app/_components/workbench/evidence-card';
-import { Timeline, type TimelineStatus } from '@/app/_components/workbench/timeline';
-import { Badge } from '@/app/_components/workbench/badge';
+import { EvidenceCard, type EvidenceItem } from '@/app/_components/evidence-card';
+import { Timeline, type TimelineStatus } from '@/app/_components/timeline';
+import { Badge } from '@/components/ui/badge';
 
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
 
@@ -130,7 +130,7 @@ export function renderSkillsStateBlock({
                 className="flex flex-wrap items-center gap-2"
               >
                 <span className="font-medium">{getString(item.skillName)}</span>
-                <Badge tone={tone}>{getString(item.status)}</Badge>
+                <Badge variant={tone}>{getString(item.status)}</Badge>
                 {item.summary ? (
                   <span className="text-sm text-muted-foreground">
                     · {String(item.summary)}

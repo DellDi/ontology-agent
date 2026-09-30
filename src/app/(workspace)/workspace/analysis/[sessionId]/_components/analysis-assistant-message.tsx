@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import type {
   AnalysisConversationViewModel,
@@ -23,8 +23,8 @@ import { CollapsibleSection } from './collapsible-section';
 import { getStatusIcon } from './analysis-status-icon';
 import { MarkdownContent } from '@/app/_components/markdown-content';
 import { MetricCardsGrid, VisualizationBlock, PrimaryAnswerBlock } from './analysis-business-views';
-import { WorkbenchSheet } from '@/app/_components/workbench/workbench-sheet';
-import { Spinner } from '@/app/_components/workbench/loading';
+import { Loader } from '@/components/ai-elements/loader';
+import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
 import type { DetailDrawerType } from './analysis-detail-drawer';
 
 const ASSISTANT_DRAWER_LABELS: Record<string, string> = {
@@ -112,6 +112,7 @@ export function AnalysisAssistantMessage({
   visualizations,
   toolTimeline,
   onOpenDetail,
+  onOpenSidePanel,
   availableDetails = [],
   suggestions,
   onSuggestionClick,
@@ -134,6 +135,12 @@ export function AnalysisAssistantMessage({
   visualizations: Visualization[];
   toolTimeline: AnalysisConversationViewModel['assistantMessage']['toolTimeline'];
   onOpenDetail: (drawer: DetailDrawerType) => void;
+  /** 打开会话页右侧内联面板（数据明细与依据等支撑材料） */
+  onOpenSidePanel?: (panel: {
+    title: string;
+    content: ReactNode;
+    testId?: string;
+  }) => void;
   availableDetails?: Exclude<DetailDrawerType, null>[];
   suggestions?: string[];
   onSuggestionClick?: (question: string) => void;
@@ -150,8 +157,6 @@ export function AnalysisAssistantMessage({
     diagnostics.processBoardBlocks.length > 0 ||
     diagnostics.renderErrors.length > 0 ||
     diagnostics.otherBlocks.length > 0;
-
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
 
@@ -180,6 +185,45 @@ export function AnalysisAssistantMessage({
     metricCards.length === 0 && visualizations.length === 0 &&
     toolTimeline.length === 0 && toolActivities.length === 0 &&
     primaryBlocks.length === 0 && detailItemCount === 0 && businessDetails.length === 0;
+
+  // 支撑材料内容：点击"数据明细与依据"时交给会话页右侧内联面板渲染
+  const detailsContent = (
+    <div className="space-y-4">
+      {supportingBlocks.map((block, index) => (
+        <AnalysisResultBlockRenderer
+          key={`supporting-${block.kind}-${index}`}
+          block={block}
+        />
+      ))}
+      {result?.evidenceBlocks.length ? (
+        <CollapsibleSection title="证据摘要">
+          {result.evidenceBlocks.map((block, index) => (
+            <div key={`evidence-${index}`}>
+              {registry.render({ renderedBlock: block })}
+            </div>
+          ))}
+        </CollapsibleSection>
+      ) : null}
+      {result?.reasoningBlocks.length ? (
+        <CollapsibleSection title="分析依据">
+          {result.reasoningBlocks.map((block, index) => (
+            <div key={`reasoning-${index}`}>
+              {registry.render({ renderedBlock: block })}
+            </div>
+          ))}
+        </CollapsibleSection>
+      ) : null}
+      {result?.assumptionBlocks.length ? (
+        <CollapsibleSection title="假设与口径">
+          {result.assumptionBlocks.map((block, index) => (
+            <div key={`assumption-${index}`}>
+              {registry.render({ renderedBlock: block })}
+            </div>
+          ))}
+        </CollapsibleSection>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className="flex justify-start gap-2.5">
@@ -211,7 +255,7 @@ export function AnalysisAssistantMessage({
         >
           {waitingForProgress ? (
             <>
-              <Spinner size="sm" aria-hidden className="shrink-0 motion-reduce:animate-none" />
+              <Loader aria-hidden className="shrink-0 text-primary motion-reduce:animate-none" size={16} />
               <span>
                 {status === 'queued'
                   ? '问题已提交，等待分析进度…'
@@ -222,13 +266,12 @@ export function AnalysisAssistantMessage({
           {/* 流式回答：生成中随 LLM 输出逐段渲染，完成后由正式结论替换 */}
           {status === 'running' && streamingAnswer ? (
             <div className="streaming-answer">
-              <MarkdownContent className="text-base leading-7 text-foreground">
+              <MarkdownContent
+                className="text-sm leading-7 text-foreground"
+                streaming
+              >
                 {streamingAnswer}
               </MarkdownContent>
-              <span
-                aria-hidden
-                className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-primary align-text-bottom"
-              />
             </div>
           ) : null}
 
@@ -327,7 +370,13 @@ export function AnalysisAssistantMessage({
               {detailItemCount > 0 ? (
                 <button
                   className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => setDetailsOpen(true)}
+                  onClick={() =>
+                    onOpenSidePanel?.({
+                      title: '数据明细与依据',
+                      testId: 'analysis-supporting-drawer',
+                      content: detailsContent,
+                    })
+                  }
                   type="button"
                 >
                   数据明细与依据（{detailItemCount}）
@@ -403,65 +452,18 @@ export function AnalysisAssistantMessage({
 
         {/* 上下文相关追问建议：作为对话内容的一部分，点击即发送 */}
         {status === 'completed' && suggestions && suggestions.length > 0 && onSuggestionClick ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <Suggestions className="mt-2">
             {suggestions.map((question) => (
-              <button
+              <Suggestion
                 key={question}
-                className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => onSuggestionClick(question)}
-                type="button"
-              >
-                {question}
-              </button>
+                onClick={onSuggestionClick}
+                suggestion={question}
+              />
             ))}
-          </div>
+          </Suggestions>
         ) : null}
 
-        {/* 侧滑抽屉：数据明细 + 证据 + 依据 + 口径 */}
-        {detailsOpen ? (
-          <WorkbenchSheet
-            open
-            onClose={() => setDetailsOpen(false)}
-            title="数据明细与依据"
-            testId="analysis-supporting-drawer"
-          >
-            <div className="space-y-4">
-              {supportingBlocks.map((block, index) => (
-                <AnalysisResultBlockRenderer
-                  key={`supporting-${block.kind}-${index}`}
-                  block={block}
-                />
-              ))}
-              {result?.evidenceBlocks.length ? (
-                <CollapsibleSection title="证据摘要">
-                  {result.evidenceBlocks.map((block, index) => (
-                    <div key={`evidence-${index}`}>
-                      {registry.render({ renderedBlock: block })}
-                    </div>
-                  ))}
-                </CollapsibleSection>
-              ) : null}
-              {result?.reasoningBlocks.length ? (
-                <CollapsibleSection title="分析依据">
-                  {result.reasoningBlocks.map((block, index) => (
-                    <div key={`reasoning-${index}`}>
-                      {registry.render({ renderedBlock: block })}
-                    </div>
-                  ))}
-                </CollapsibleSection>
-              ) : null}
-              {result?.assumptionBlocks.length ? (
-                <CollapsibleSection title="假设与口径">
-                  {result.assumptionBlocks.map((block, index) => (
-                    <div key={`assumption-${index}`}>
-                      {registry.render({ renderedBlock: block })}
-                    </div>
-                  ))}
-                </CollapsibleSection>
-              ) : null}
-            </div>
-          </WorkbenchSheet>
-        ) : null}
+        {/* 支撑材料由会话页右侧内联面板渲染（onOpenSidePanel） */}
       </div>
     </div>
   );

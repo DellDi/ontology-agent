@@ -17,8 +17,8 @@ import {
   type SemanticQueryUnderstanding,
   type ResolvedQueryIntent,
 } from '@/application/analysis-message-projection/semantic-understanding';
-import { WorkbenchSheet } from '@/app/_components/workbench/workbench-sheet';
-import { Button } from '@/app/_components/workbench/button';
+import { AnalysisSidePanel } from './analysis-side-panel';
+import { Button } from '@/components/ui/button';
 
 const SELECT_STYLES =
   'rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60';
@@ -365,7 +365,6 @@ export function AnalysisUnderstandingEditor({
   catalog,
   onClose,
   onSubmit,
-  open,
   resolvedQueries,
   serverError,
   submitting,
@@ -374,7 +373,6 @@ export function AnalysisUnderstandingEditor({
   understanding: SemanticQueryUnderstanding[];
   resolvedQueries: ResolvedQueryIntent[];
   catalog: SemanticEditorCatalog;
-  open: boolean;
   submitting: boolean;
   serverError: string | null;
   onSubmit: (payload: {
@@ -416,12 +414,12 @@ export function AnalysisUnderstandingEditor({
   };
 
   return (
-    <WorkbenchSheet
+    <AnalysisSidePanel
       description="修改查询的对象成员、时间与对比方式；提交后按调整重新分析。"
       onClose={onClose}
-      open={open}
       testId="analysis-understanding-editor"
       title="调整我的理解"
+      wide
     >
       <div className="space-y-6">
         {drafts.map((draft, index) => {
@@ -470,7 +468,7 @@ export function AnalysisUnderstandingEditor({
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button onClick={onClose} type="button" variant="secondary">
+          <Button onClick={onClose} type="button" variant="outline">
             取消
           </Button>
           <Button disabled={submitting} onClick={handleSubmit} type="button">
@@ -478,6 +476,6 @@ export function AnalysisUnderstandingEditor({
           </Button>
         </div>
       </div>
-    </WorkbenchSheet>
+    </AnalysisSidePanel>
   );
 }

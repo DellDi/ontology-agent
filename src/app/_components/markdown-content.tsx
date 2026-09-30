@@ -1,7 +1,6 @@
 'use client';
 
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Streamdown } from 'streamdown';
 import {
   Children,
   cloneElement,
@@ -16,6 +15,8 @@ import {
 export type MarkdownContentProps = {
   children: string;
   className?: string;
+  /** 流式渲染中：启用增量 markdown 解析与动画光标。 */
+  streaming?: boolean;
 };
 
 /** 提取 React 子节点的纯文本（用于表格单元格的数值对齐判断）。 */
@@ -112,40 +113,42 @@ function MdTd({ children, columnIndex }: TableCellProps) {
   );
 }
 
+type MdElementProps = { children?: ReactNode; className?: string };
+
 const markdownComponents = {
-  h1: ({ children }: { children?: React.ReactNode }) => (
-    <h1 className="mb-4 mt-6 text-2xl font-semibold tracking-tight text-foreground first:mt-0">
+  h1: ({ children }: MdElementProps) => (
+    <h1 className="mb-4 mt-6 text-xl font-semibold tracking-tight text-foreground first:mt-0">
       {children}
     </h1>
   ),
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="mb-3 mt-5 text-xl font-semibold tracking-tight text-foreground">
+  h2: ({ children }: MdElementProps) => (
+    <h2 className="mb-3 mt-5 text-lg font-semibold tracking-tight text-foreground">
       {children}
     </h2>
   ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="mb-2 mt-4 text-lg font-semibold text-foreground">{children}</h3>
+  h3: ({ children }: MdElementProps) => (
+    <h3 className="mb-2 mt-4 text-base font-semibold text-foreground">{children}</h3>
   ),
-  h4: ({ children }: { children?: React.ReactNode }) => (
-    <h4 className="mb-2 mt-3 text-base font-semibold text-foreground">{children}</h4>
+  h4: ({ children }: MdElementProps) => (
+    <h4 className="mb-2 mt-3 text-sm font-semibold text-foreground">{children}</h4>
   ),
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-3 leading-7 text-foreground/90 last:mb-0">{children}</p>
+  p: ({ children }: MdElementProps) => (
+    <p className="mb-3 text-sm leading-7 text-foreground/90 last:mb-0">{children}</p>
   ),
-  ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="mb-3 list-disc space-y-1 pl-5 text-foreground/90 last:mb-0">
+  ul: ({ children }: MdElementProps) => (
+    <ul className="mb-3 list-disc space-y-1 pl-5 text-sm text-foreground/90 last:mb-0">
       {children}
     </ul>
   ),
-  ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="mb-3 list-decimal space-y-1 pl-5 text-foreground/90 last:mb-0">
+  ol: ({ children }: MdElementProps) => (
+    <ol className="mb-3 list-decimal space-y-1 pl-5 text-sm text-foreground/90 last:mb-0">
       {children}
     </ol>
   ),
-  li: ({ children }: { children?: React.ReactNode }) => (
+  li: ({ children }: MdElementProps) => (
     <li className="leading-7">{children}</li>
   ),
-  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+  a: ({ href, children }: { href?: string; children?: ReactNode }) => (
     <a
       href={href}
       className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
@@ -155,13 +158,13 @@ const markdownComponents = {
       {children}
     </a>
   ),
-  strong: ({ children }: { children?: React.ReactNode }) => (
+  strong: ({ children }: MdElementProps) => (
     <strong className="font-semibold text-foreground">{children}</strong>
   ),
-  em: ({ children }: { children?: React.ReactNode }) => (
+  em: ({ children }: MdElementProps) => (
     <em className="italic text-foreground/90">{children}</em>
   ),
-  code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+  code: ({ children, className }: MdElementProps) => {
     const isInline = !className?.includes('language-');
     if (isInline) {
       return (
@@ -174,19 +177,19 @@ const markdownComponents = {
       <code className="font-mono text-sm text-foreground/90">{children}</code>
     );
   },
-  pre: ({ children }: { children?: React.ReactNode }) => (
+  pre: ({ children }: MdElementProps) => (
     <pre className="mb-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-sm last:mb-0">
       {children}
     </pre>
   ),
-  blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="mb-3 border-l-4 border-primary/30 pl-4 italic text-muted-foreground last:mb-0">
+  blockquote: ({ children }: MdElementProps) => (
+    <blockquote className="mb-3 border-l-4 border-primary/30 pl-4 text-sm italic text-muted-foreground last:mb-0">
       {children}
     </blockquote>
   ),
   hr: () => <hr className="my-6 border-border" />,
   table: MdTable,
-  thead: ({ children }: { children?: React.ReactNode }) => (
+  thead: ({ children }: MdElementProps) => (
     <thead className="border-b border-border bg-muted">{children}</thead>
   ),
   tbody: MdTbody,
@@ -195,16 +198,17 @@ const markdownComponents = {
   tr: MdTr,
 };
 
-export function MarkdownContent({ children, className = '' }: MarkdownContentProps) {
+export function MarkdownContent({ children, className = '', streaming = false }: MarkdownContentProps) {
   return (
     <div className={className}>
-      <ReactMarkdown
+      <Streamdown
+        caret={streaming ? 'block' : undefined}
         components={markdownComponents}
-        remarkPlugins={[remarkGfm]}
-        skipHtml
+        isAnimating={streaming}
+        mode={streaming ? 'streaming' : 'static'}
       >
         {children}
-      </ReactMarkdown>
+      </Streamdown>
     </div>
   );
 }

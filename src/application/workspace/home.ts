@@ -28,6 +28,34 @@ export type WorkspaceHomeSessionSummary = Pick<
   savedContext: Record<string, unknown>;
 };
 
+type LatestExecutionLike = {
+  executionId: string;
+  status: JobStatus;
+  conclusionState: { causes: { title: string }[] } | null;
+  failurePoint: Record<string, unknown> | null;
+  capabilityBinding?:
+    | { domainKey: string; capabilityKey: string }
+    | { source: 'legacy/unknown' }
+    | null;
+};
+
+/** 会话最近一次执行 → 侧边栏/首页状态快照。结构化入参，不依赖基础设施类型。 */
+export function latestExecutionSnapshot(
+  execution: LatestExecutionLike | null | undefined,
+): WorkspaceHomeSnapshotSummary | null {
+  if (!execution) return null;
+  return {
+    executionId: execution.executionId,
+    status: execution.status,
+    capabilityBinding: execution.capabilityBinding ?? undefined,
+    conclusionState: execution.conclusionState,
+    failurePoint:
+      execution.failurePoint && typeof execution.failurePoint.title === 'string'
+        ? { title: execution.failurePoint.title }
+        : null,
+  };
+}
+
 export type WorkspaceHomeAction = {
   label: string;
   description: string;
@@ -65,6 +93,8 @@ export type WorkspaceHomeCapability = {
 export type WorkspaceHomeModel = {
   capabilities: Array<WorkspaceHomeCapability & { scopeDescription: string }>;
   greeting: string;
+  /** 登录人显示名：空会话首页 hero 问候语使用 */
+  viewerName: string;
   analysisActions: WorkspaceHomeAction[];
   metrics: WorkspaceHomeMetric[];
   failedItems: WorkspaceHomeModel['historyItems'];
@@ -321,6 +351,7 @@ export function createWorkspaceHomeModel(
       scopeDescription: describeCapabilityScope(capability),
     })),
     greeting: `${session.displayName}，从你有权限的范围开始今天的分析`,
+    viewerName: session.displayName,
     analysisActions: [
       {
         label: '新建分析',

@@ -8,7 +8,7 @@ import {
   type IngestionOverview,
   type IngestionReleaseTask,
 } from '@/infrastructure/java-backend/ingestion-schema';
-import { InlineError } from '@/app/_components/workbench/inline-error';
+import { InlineError } from '@/app/_components/inline-error';
 import { StatusBadge, formatTimestamp } from '../../_components/admin-shell';
 
 const errorSchema = z.object({

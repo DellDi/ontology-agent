@@ -3,7 +3,7 @@
 import { formatShanghaiDateTime } from '@/lib/format-datetime';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
-import { EmptyState } from '@/app/_components/workbench/empty-state';
+import { EmptyState } from '@/app/_components/empty-state';
 import { cn } from '@/app/_lib/cn';
 
 type DataTableBlockProps = {

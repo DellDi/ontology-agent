@@ -2,8 +2,10 @@
 
 import { useFormStatus } from 'react-dom';
 
-import { Button } from '@/app/_components/workbench/button';
-import { Field, FieldInput, FieldLabel } from '@/app/_components/workbench/field';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 
 type AccountLoginFormProps = {
   nextPath: string;
@@ -31,32 +33,37 @@ function AccountLoginControls({
 
   return (
     <>
-      <Field required disabled={pending}>
-        <FieldLabel>账号</FieldLabel>
-        <FieldInput
-          type="text"
+      <div className="space-y-1.5">
+        <Label htmlFor="login-account">账号</Label>
+        <Input
+          autoComplete="username"
+          defaultValue={prefillAccount}
+          disabled={pending}
+          id="login-account"
+          maxLength={100}
           name="account"
           placeholder="登录账号"
-          defaultValue={prefillAccount}
-          autoComplete="username"
           required
-          maxLength={100}
+          type="text"
         />
-      </Field>
+      </div>
 
-      <Field required disabled={pending}>
-        <FieldLabel>密码</FieldLabel>
-        <FieldInput
-          type="password"
+      <div className="space-y-1.5">
+        <Label htmlFor="login-password">密码</Label>
+        <Input
+          autoComplete="current-password"
+          disabled={pending}
+          id="login-password"
+          maxLength={1024}
           name="password"
           placeholder="登录密码"
-          autoComplete="current-password"
           required
-          maxLength={1024}
+          type="password"
         />
-      </Field>
+      </div>
 
-      <Button className="mt-2 w-full" type="submit" loading={pending}>
+      <Button className="mt-2 w-full" disabled={pending} type="submit">
+        {pending ? <Spinner aria-hidden="true" /> : null}
         {pending ? '正在登录' : '登录'}
       </Button>
     </>

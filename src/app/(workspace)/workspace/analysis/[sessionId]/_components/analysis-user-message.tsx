@@ -1,5 +1,7 @@
 'use client';
 
+import { Message, MessageContent } from '@/components/ai-elements/message';
+
 export function AnalysisUserMessage({
   questionText,
   pending = false,
@@ -8,18 +10,12 @@ export function AnalysisUserMessage({
   pending?: boolean;
 }) {
   return (
-    <div className="flex justify-end">
-      <div className="max-w-[78%] min-w-0">
-        <div
-          className={`rounded-2xl rounded-br-md bg-primary px-4 py-3 text-primary-foreground shadow-sm ${
-            pending ? 'opacity-70' : ''
-          }`}
-        >
-          <p className="whitespace-pre-wrap break-words text-sm leading-6">
-            {questionText}
-          </p>
-        </div>
-      </div>
-    </div>
+    <Message className={pending ? 'opacity-70' : undefined} from="user">
+      <MessageContent className="group-[.is-user]:rounded-2xl group-[.is-user]:rounded-br-md group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground group-[.is-user]:shadow-sm">
+        <p className="whitespace-pre-wrap break-words text-sm leading-6">
+          {questionText}
+        </p>
+      </MessageContent>
+    </Message>
   );
 }

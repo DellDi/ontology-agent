@@ -24,7 +24,7 @@ test('dark mode | root layout installs ThemeProvider safely', () => {
 
 test('dark mode | ThemeProvider and ThemeToggle use data-theme semantics', () => {
   const provider = readFileSync('src/app/_components/theme-provider.tsx', 'utf-8');
-  const toggle = readFileSync('src/app/_components/workbench/theme-toggle.tsx', 'utf-8');
+  const toggle = readFileSync('src/app/_components/theme-toggle.tsx', 'utf-8');
   assert.ok(provider.includes('attribute="data-theme"'), 'ThemeProvider should write data-theme attribute');
   assert.ok(provider.includes('enableSystem'), 'ThemeProvider should support system theme');
   assert.ok(provider.includes('disableTransitionOnChange'), 'ThemeProvider should avoid transition flicker');

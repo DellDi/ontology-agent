@@ -2,7 +2,7 @@
 
 import { useId, useRef } from 'react';
 
-import { Button } from '@/app/_components/workbench/button';
+import { Button } from '@/components/ui/button';
 
 type ProjectScopeDialogProps = {
   summary: string;
@@ -29,7 +29,7 @@ export function ProjectScopeDialog({
       </p>
       <Button
         type="button"
-        variant="secondary"
+        variant="outline"
         size="sm"
         onClick={() => dialogRef.current?.showModal()}
       >

@@ -1,43 +1,84 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, globSync } from 'node:fs';
 
-const indexSource = readFileSync('src/app/_components/workbench/index.ts', 'utf-8');
+test('workbench foundation | legacy workbench primitives are fully removed', () => {
+  assert.ok(
+    !existsSync('src/app/_components/workbench'),
+    'src/app/_components/workbench should be removed after shadcn convergence',
+  );
 
-test('workbench foundation | exports core components', () => {
-  for (const symbol of [
-    'Button',
-    'Field',
-    'StatusBanner',
-    'EmptyState',
-    'MetricCard',
-    'EvidenceCard',
-    'Timeline',
-    'WorkbenchSheet',
-    'InlineError',
-    'Spinner',
-    'Surface',
-    'Badge',
-    'ThemeToggle',
+  const sources = globSync('src/**/*.{ts,tsx}');
+  const offenders = sources.filter((file) =>
+    readFileSync(file, 'utf-8').includes('@/app/_components/workbench/'),
+  );
+  assert.deepEqual(offenders, [], 'no imports may reference the removed workbench primitives');
+});
+
+test('workbench foundation | shadcn primitives cover migrated controls', () => {
+  for (const primitive of [
+    'button',
+    'badge',
+    'sheet',
+    'spinner',
+    'skeleton',
+    'label',
+    'input',
+    'textarea',
+    'dialog',
+    'dropdown-menu',
+    'collapsible',
+    'scroll-area',
+    'tooltip',
   ]) {
-    assert.ok(indexSource.includes(symbol), `Expected ${symbol} to be exported`);
+    assert.ok(
+      existsSync(`src/components/ui/${primitive}.tsx`),
+      `Expected shadcn primitive src/components/ui/${primitive}.tsx`,
+    );
   }
 });
 
-test('workbench foundation | button supports product variants and loading', () => {
-  const source = readFileSync('src/app/_components/workbench/button.tsx', 'utf-8');
-  assert.ok(source.includes('primary'), 'Button should support primary variant');
-  assert.ok(source.includes('secondary'), 'Button should support secondary variant');
-  assert.ok(source.includes('danger'), 'Button should support danger variant');
-  assert.ok(source.includes('loading'), 'Button should support loading state');
-  assert.ok(source.includes('aria-busy'), 'Loading button should expose aria-busy');
+test('workbench foundation | semantic composites live under app _components', () => {
+  for (const composite of [
+    'empty-state',
+    'evidence-card',
+    'inline-error',
+    'status-banner',
+    'timeline',
+    'theme-toggle',
+    'workbench-sheet',
+  ]) {
+    assert.ok(
+      existsSync(`src/app/_components/${composite}.tsx`),
+      `Expected semantic composite src/app/_components/${composite}.tsx`,
+    );
+  }
 });
 
-test('workbench foundation | field exposes accessible error semantics', () => {
-  const source = readFileSync('src/app/_components/workbench/field.tsx', 'utf-8');
-  assert.ok(source.includes('aria-invalid'), 'Field controls should expose aria-invalid');
-  assert.ok(source.includes('aria-describedby'), 'Field controls should connect helper/error text');
-  assert.ok(source.includes('role="alert"'), 'Field error should be announced');
+test('workbench foundation | ai-elements conversation components are vendored', () => {
+  for (const component of [
+    'conversation',
+    'message',
+    'prompt-input',
+    'tool',
+    'suggestion',
+    'loader',
+    'code-block',
+  ]) {
+    assert.ok(
+      existsSync(`src/components/ai-elements/${component}.tsx`),
+      `Expected ai-elements component src/components/ai-elements/${component}.tsx`,
+    );
+  }
+});
+
+test('workbench foundation | ai package stays out of runtime dependencies', () => {
+  const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
+  assert.equal(
+    pkg.dependencies.ai,
+    undefined,
+    'ai must remain a devDependency (type-only usage in ai-elements)',
+  );
 });
 
 test('workbench foundation | legacy global classes are removed from globals.css', () => {

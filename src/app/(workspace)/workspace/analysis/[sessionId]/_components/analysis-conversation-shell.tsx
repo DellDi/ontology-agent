@@ -24,6 +24,11 @@ import type { JavaAnalysisSession } from '@/infrastructure/java-backend';
 import { AnalysisUserMessage } from './analysis-user-message';
 import { AnalysisAssistantMessage } from './analysis-assistant-message';
 import { AnalysisThinkingMessage } from './analysis-thinking-message';
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
 import { buildStaticAssistantProps } from './analysis-static-assistant-props';
 import {
   AnalysisDetailDrawer,
@@ -31,6 +36,7 @@ import {
 } from './analysis-detail-drawer';
 import { AnalysisChatComposer } from './analysis-chat-composer';
 import { AnalysisChatLocator } from './analysis-chat-locator';
+import { AnalysisSidePanel } from './analysis-side-panel';
 import {
   createFollowUpAndExecute,
   createSessionWithQuestion,
@@ -91,6 +97,11 @@ export function AnalysisConversationShell({
   } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [editingTurnKey, setEditingTurnKey] = useState<string | null>(null);
+  const [sidePanel, setSidePanel] = useState<{
+    title: string;
+    content: ReactNode;
+    testId?: string;
+  } | null>(null);
   const [structuredError, setStructuredError] = useState<string | null>(null);
   const [isSending, startSendTransition] = useTransition();
   // 乐观轮次随 transition 生命周期存在：真实轮次经 RSC 提交后自动回收，
@@ -99,23 +110,11 @@ export function AnalysisConversationShell({
     useOptimistic<string | null>(null);
   const sendingRef = useRef(false);
   const lastTurnRef = useRef<HTMLDivElement | null>(null);
-  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // 运行中自动延展：新事件/新内容到达时，若用户仍停留在接近底部则跟随滚动
+  // 自动跟随滚动由 AI Elements Conversation（use-stick-to-bottom）托管：
+  // 用户停留在底部附近时新内容自动跟随，向上翻阅后停止跟随，
+  // 并出现"回到底部"按钮。
   const liveStatus = viewModel?.assistantMessage.status;
-  const timelineLength = viewModel?.assistantMessage.toolTimeline.length ?? 0;
-  const answerLength = viewModel?.assistantMessage.primaryAnswer.length ?? 0;
-  const streamLength = viewModel?.assistantMessage.streamingAnswer.length ?? 0;
-  useEffect(() => {
-    if (liveStatus !== 'running' && liveStatus !== 'queued' && !isSending) {
-      return;
-    }
-    const distanceToBottom =
-      document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
-    if (distanceToBottom < 320) {
-      bottomSentinelRef.current?.scrollIntoView({ block: 'end' });
-    }
-  }, [timelineLength, answerLength, streamLength, liveStatus, isSending]);
 
   // 首轮未完成时后端没有可引用的完成态执行：发送改为创建新会话重新分析
   const rootTurn = turns.find((turn) => turn.kind === 'initial') ?? null;
@@ -225,7 +224,18 @@ export function AnalysisConversationShell({
   const openDetail = useCallback(
     (turnKey: string) => (drawer: DetailDrawerType) => {
       if (!drawer) return;
+      setSidePanel(null);
+      setEditingTurnKey(null);
       setActiveDrawer({ turnKey, type: drawer });
+    },
+    [],
+  );
+
+  const openSidePanel = useCallback(
+    (panel: { title: string; content: ReactNode; testId?: string }) => {
+      setActiveDrawer(null);
+      setEditingTurnKey(null);
+      setSidePanel(panel);
     },
     [],
   );
@@ -250,108 +260,119 @@ export function AnalysisConversationShell({
     : null;
 
   return (
-    <div className="relative">
-      <AnalysisChatLocator marks={locatorMarks} />
+    // fill-viewport 标记：通知 WorkspaceShell 本页使用视口固定布局，
+    // 侧栏不滚动、内容区锁高，只有消息流在内部滚动。
+    // 右侧面板（详情/支撑材料/理解编辑器）为内联挤压式，非弹窗。
+    <div className="fill-viewport relative flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <AnalysisChatLocator marks={locatorMarks} />
 
-      <div className="mx-auto flex min-h-[calc(100vh-120px)] w-full max-w-[860px] flex-col px-4">
-        {/* 消息流：全部轮次连续滚动 */}
-        <div className="flex-1 space-y-6 pb-6 pt-2">
-          {turns.map((turn, index) => {
-            const isLast = index === turns.length - 1;
-            const details = turnDrawerContents[turn.key] ?? {};
-            const availableDetails = (
-              Object.keys(details) as Exclude<DetailDrawerType, null>[]
-            ).filter((key) => details[key] != null);
-            const canEditUnderstanding =
-              Boolean(turn.editorCatalog)
-              && Boolean(turn.resolvedQueries?.length)
-              && !composerDisabled
-              && !sending;
-            return (
-              <div
-                className="space-y-4"
-                data-chat-turn={turn.key}
-                key={turn.key}
-                ref={isLast ? lastTurnRef : undefined}
-              >
-                <AnalysisUserMessage questionText={turn.questionText} />
-                {turn.live && viewModel ? (
-                  <AnalysisAssistantMessage
-                    availableDetails={availableDetails}
-                    clarification={turn.clarification}
-                    diagnostics={viewModel.assistantMessage.diagnostics}
-                    errorSummary={viewModel.assistantMessage.errorSummary}
-                    headline={viewModel.assistantMessage.headline}
-                    metricCards={viewModel.assistantMessage.metricCards}
-                    onClarificationOption={answerClarification(turn)}
-                    onEditUnderstanding={
-                      canEditUnderstanding
-                        ? () => {
-                            setStructuredError(null);
-                            setEditingTurnKey(turn.key);
-                          }
-                        : undefined
-                    }
-                    onOpenDetail={openDetail(turn.key)}
-                    onSuggestionClick={sendMessage}
-                    primaryAnswer={viewModel.assistantMessage.primaryAnswer}
-                    progressLabel={viewModel.assistantMessage.progressLabel}
-                    result={viewModel.assistantMessage.result}
-                    runningSinceIso={
-                      viewModel.assistantMessage.runningSinceIso
-                    }
-                    status={viewModel.assistantMessage.status}
-                    streamingAnswer={viewModel.assistantMessage.streamingAnswer}
-                    suggestions={isLast ? suggestions : undefined}
-                    toolActivities={viewModel.assistantMessage.toolActivities}
-                    toolTimeline={viewModel.assistantMessage.toolTimeline}
-                    understanding={turn.understanding}
-                    visualizations={viewModel.assistantMessage.visualizations}
-                  />
-                ) : turn.status === 'completed' || turn.status === 'failed' ? (
-                  /* 完成/失败历史轮与 live 轮共用组件树：推送新执行时
-                     live→static 仅 props 变化，React reconcile 不重挂载，
-                     避免图表闪烁重绘 */
-                  <AnalysisAssistantMessage
-                    availableDetails={availableDetails}
-                    clarification={turn.clarification}
-                    onClarificationOption={answerClarification(turn)}
-                    onEditUnderstanding={
-                      canEditUnderstanding
-                        ? () => {
-                            setStructuredError(null);
-                            setEditingTurnKey(turn.key);
-                          }
-                        : undefined
-                    }
-                    onOpenDetail={openDetail(turn.key)}
-                    understanding={turn.understanding}
-                    {...buildStaticAssistantProps(turn)}
-                  />
-                ) : (
-                  <AnalysisThinkingMessage />
-                )}
-                {/* 待执行新消息轮：进入页面即自动接力执行 */}
-                {turn.status === 'pending' && turn.followUpId ? (
-                  <PendingFollowUpAutoRun
-                    followUpId={turn.followUpId}
-                    sessionId={sessionId}
-                  />
-                ) : null}
+        <div className="mx-auto flex min-h-0 w-full max-w-[860px] flex-1 flex-col px-4">
+        {/* 消息流：全部轮次，Conversation 内嵌滚动 + 自动跟随 */}
+        <Conversation className="min-h-0 flex-1">
+          <ConversationContent className="gap-6 px-0 pb-6 pt-2">
+            {turns.map((turn, index) => {
+              const isLast = index === turns.length - 1;
+              const details = turnDrawerContents[turn.key] ?? {};
+              const availableDetails = (
+                Object.keys(details) as Exclude<DetailDrawerType, null>[]
+              ).filter((key) => details[key] != null);
+              const canEditUnderstanding =
+                Boolean(turn.editorCatalog)
+                && Boolean(turn.resolvedQueries?.length)
+                && !composerDisabled
+                && !sending;
+              return (
+                <div
+                  className="space-y-4"
+                  data-chat-turn={turn.key}
+                  key={turn.key}
+                  ref={isLast ? lastTurnRef : undefined}
+                >
+                  <AnalysisUserMessage questionText={turn.questionText} />
+                  {turn.live && viewModel ? (
+                    <AnalysisAssistantMessage
+                      availableDetails={availableDetails}
+                      clarification={turn.clarification}
+                      diagnostics={viewModel.assistantMessage.diagnostics}
+                      errorSummary={viewModel.assistantMessage.errorSummary}
+                      headline={viewModel.assistantMessage.headline}
+                      metricCards={viewModel.assistantMessage.metricCards}
+                      onClarificationOption={answerClarification(turn)}
+                      onEditUnderstanding={
+                        canEditUnderstanding
+                          ? () => {
+                              setStructuredError(null);
+                              setActiveDrawer(null);
+                              setSidePanel(null);
+                              setEditingTurnKey(turn.key);
+                            }
+                          : undefined
+                      }
+                      onOpenDetail={openDetail(turn.key)}
+                      onOpenSidePanel={openSidePanel}
+                      onSuggestionClick={sendMessage}
+                      primaryAnswer={viewModel.assistantMessage.primaryAnswer}
+                      progressLabel={viewModel.assistantMessage.progressLabel}
+                      result={viewModel.assistantMessage.result}
+                      runningSinceIso={
+                        viewModel.assistantMessage.runningSinceIso
+                      }
+                      status={viewModel.assistantMessage.status}
+                      streamingAnswer={viewModel.assistantMessage.streamingAnswer}
+                      suggestions={isLast ? suggestions : undefined}
+                      toolActivities={viewModel.assistantMessage.toolActivities}
+                      toolTimeline={viewModel.assistantMessage.toolTimeline}
+                      understanding={turn.understanding}
+                      visualizations={viewModel.assistantMessage.visualizations}
+                    />
+                  ) : turn.status === 'completed' || turn.status === 'failed' ? (
+                    /* 完成/失败历史轮与 live 轮共用组件树：推送新执行时
+                       live→static 仅 props 变化，React reconcile 不重挂载，
+                       避免图表闪烁重绘 */
+                    <AnalysisAssistantMessage
+                      availableDetails={availableDetails}
+                      clarification={turn.clarification}
+                      onClarificationOption={answerClarification(turn)}
+                      onEditUnderstanding={
+                        canEditUnderstanding
+                          ? () => {
+                              setStructuredError(null);
+                              setActiveDrawer(null);
+                              setSidePanel(null);
+                              setEditingTurnKey(turn.key);
+                            }
+                          : undefined
+                      }
+                      onOpenDetail={openDetail(turn.key)}
+                      onOpenSidePanel={openSidePanel}
+                      understanding={turn.understanding}
+                      {...buildStaticAssistantProps(turn)}
+                    />
+                  ) : (
+                    <AnalysisThinkingMessage />
+                  )}
+                  {/* 待执行新消息轮：进入页面即自动接力执行 */}
+                  {turn.status === 'pending' && turn.followUpId ? (
+                    <PendingFollowUpAutoRun
+                      followUpId={turn.followUpId}
+                      sessionId={sessionId}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+
+            {/* 发送中乐观轮次 */}
+            {optimisticQuestion !== null ? (
+              <div className="space-y-4" data-testid="chat-sending-turn">
+                <AnalysisUserMessage pending questionText={optimisticQuestion} />
+                <AnalysisThinkingMessage />
               </div>
-            );
-          })}
-
-          {/* 发送中乐观轮次 */}
-          {optimisticQuestion !== null ? (
-            <div className="space-y-4" data-testid="chat-sending-turn">
-              <AnalysisUserMessage pending questionText={optimisticQuestion} />
-              <AnalysisThinkingMessage />
-            </div>
-          ) : null}
-
-          <div ref={bottomSentinelRef} />
-        </div>
+            ) : null}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
         {/* 发送失败提示 */}
         {sendError ? (
@@ -361,7 +382,7 @@ export function AnalysisConversationShell({
         ) : null}
 
         {/* 输入框：对话窗口底部，下方无任何内容 */}
-        <div className="sticky bottom-0 bg-gradient-to-t from-background via-background to-transparent pb-4 pt-3">
+        <div className="pb-4 pt-3">
           {!hasCompletedRoot ? (
             <p className="pb-2 text-xs text-muted-foreground">
               首轮分析未完成，发送将以新会话重新分析
@@ -371,11 +392,13 @@ export function AnalysisConversationShell({
             disabled={composerDisabled}
             onSend={(question) => void sendMessage(question)}
             sending={sending}
+            status={liveStatus}
           />
+        </div>
         </div>
       </div>
 
-      {/* 详情抽屉 */}
+      {/* 右侧内联面板：详情 / 支撑材料 / 结构化理解编辑（挤压内容区，非弹窗） */}
       {activeDrawer ? (
         <AnalysisDetailDrawer
           content={drawerContent}
@@ -383,8 +406,15 @@ export function AnalysisConversationShell({
           onClose={() => setActiveDrawer(null)}
         />
       ) : null}
-
-      {/* 我的理解结构化调整抽屉 */}
+      {sidePanel ? (
+        <AnalysisSidePanel
+          onClose={() => setSidePanel(null)}
+          testId={sidePanel.testId}
+          title={sidePanel.title}
+        >
+          {sidePanel.content}
+        </AnalysisSidePanel>
+      ) : null}
       {editingTurn
       && editingTurn.understanding
       && editingTurn.editorCatalog ? (
@@ -396,7 +426,6 @@ export function AnalysisConversationShell({
             setEditingTurnKey(null);
           }}
           onSubmit={submitStructuredAdjustment(editingTurn)}
-          open
           resolvedQueries={editingTurn.resolvedQueries ?? []}
           serverError={structuredError}
           submitting={sending}

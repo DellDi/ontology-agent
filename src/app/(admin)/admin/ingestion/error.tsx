@@ -1,6 +1,6 @@
 'use client';
 
-import { InlineError } from '@/app/_components/workbench/inline-error';
+import { InlineError } from '@/app/_components/inline-error';
 
 export default function IngestionError({
   error,

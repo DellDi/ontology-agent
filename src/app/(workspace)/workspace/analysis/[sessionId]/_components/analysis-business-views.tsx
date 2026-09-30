@@ -101,7 +101,7 @@ export function PrimaryAnswerBlock({ answer }: { answer: string }) {
 
   return (
     <div className="analysis-block-enter mt-1">
-      <MarkdownContent className="text-base leading-7 text-foreground">
+      <MarkdownContent className="text-sm leading-7 text-foreground">
         {answer}
       </MarkdownContent>
     </div>

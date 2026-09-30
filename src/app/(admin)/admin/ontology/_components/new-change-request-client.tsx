@@ -12,14 +12,9 @@ import {
   TARGET_OBJECT_TYPES,
 } from '@/domain/ontology/governance';
 import type { OntologyVersion } from '@/domain/ontology/models';
-import { Button } from '@/app/_components/button';
-import {
-  Field,
-  FieldHelper,
-  FieldInput,
-  FieldLabel,
-  FieldTextarea,
-} from '@/app/_components/field';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { AdminCard, AdminPageHeader } from '../../../_components/admin-shell';
 import {
   CHANGE_TYPE_LABELS,
@@ -93,7 +88,7 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
         title="新建变更申请"
         description="填写变更信息后可保存为草稿，也可以一次性保存并提交审批。"
         trailing={
-          <Button variant="secondary" asChild>
+          <Button variant="outline" asChild>
             <Link href="/admin/ontology/change-requests">
               返回列表
             </Link>
@@ -106,17 +101,17 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
         description="变更申请的核心标识与说明"
       >
         <form ref={formRef} className="space-y-6" onSubmit={(event) => event.preventDefault()}>
-          <Field required>
-            <FieldLabel>标题</FieldLabel>
-            <FieldInput name="title" required maxLength={200} placeholder="简要描述本次变更的内容" />
-            <FieldHelper>变更申请的标题，用于在列表中快速识别</FieldHelper>
-          </Field>
+          <label className="block">
+            <span className="block text-sm font-semibold text-foreground">标题 <span className="text-destructive">*</span></span>
+            <Input name="title" required maxLength={200} placeholder="简要描述本次变更的内容" />
+            <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更申请的标题，用于在列表中快速识别</span>
+          </label>
 
-          <Field>
-            <FieldLabel>描述</FieldLabel>
-            <FieldTextarea name="description" placeholder="详细说明变更的背景、目的和预期效果" className="min-h-[100px]" />
-            <FieldHelper>可选。提供更详细的变更说明，帮助审批人理解变更意图</FieldHelper>
-          </Field>
+          <label className="block">
+            <span className="block text-sm font-semibold text-foreground">描述</span>
+            <Textarea name="description" placeholder="详细说明变更的背景、目的和预期效果" className="min-h-[100px]" />
+            <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">可选。提供更详细的变更说明，帮助审批人理解变更意图</span>
+          </label>
 
           <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">变更目标</div>
 
@@ -147,7 +142,7 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
 
             <label className="block">
               <span className="block text-sm font-semibold text-foreground">业务键 <span className="text-destructive">*</span></span>
-              <FieldInput name="targetObjectKey" required placeholder="如：metrics.revenue" />
+              <Input name="targetObjectKey" required placeholder="如：metrics.revenue" />
               <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更对象的唯一业务标识符</span>
             </label>
 
@@ -189,23 +184,23 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
 
             <label className="block">
               <span className="block text-sm font-semibold text-foreground">影响范围</span>
-              <FieldInput name="impactScope" placeholder="metrics.x, factors.y" />
+              <Input name="impactScope" placeholder="metrics.x, factors.y" />
               <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">受本次变更影响的其他对象，多个用逗号或换行分隔</span>
             </label>
           </div>
 
-          <Field>
-            <FieldLabel>兼容说明</FieldLabel>
-            <FieldTextarea name="compatibilityNote" placeholder="说明兼容性评估的依据和注意事项" className="min-h-[80px]" />
-            <FieldHelper>可选。对兼容性选择的补充说明</FieldHelper>
-          </Field>
+          <label className="block">
+            <span className="block text-sm font-semibold text-foreground">兼容说明</span>
+            <Textarea name="compatibilityNote" placeholder="说明兼容性评估的依据和注意事项" className="min-h-[80px]" />
+            <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">可选。对兼容性选择的补充说明</span>
+          </label>
 
           <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">变更内容</div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="block text-sm font-semibold text-foreground">变更前摘要</span>
-              <FieldTextarea
+              <Textarea
                 name="beforeSummary"
                 placeholder='{"calculation":"by_amount"}'
                 className="min-h-[120px] font-mono text-xs"
@@ -215,7 +210,7 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
 
             <label className="block">
               <span className="block text-sm font-semibold text-foreground">变更后摘要</span>
-              <FieldTextarea
+              <Textarea
                 name="afterSummary"
                 placeholder='{"calculation":"by_count"}'
                 className="min-h-[120px] font-mono text-xs"
@@ -225,14 +220,14 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-6">
-            <Button variant="secondary" asChild>
+            <Button variant="outline" asChild>
               <Link href="/admin/ontology/change-requests">
                 取消
               </Link>
             </Button>
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               disabled={isSubmitting}
               onClick={() => submit('draft')}
             >

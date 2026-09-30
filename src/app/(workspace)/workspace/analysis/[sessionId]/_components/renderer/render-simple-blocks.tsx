@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge } from '@/app/_components/workbench/badge';
+import { Badge } from '@/components/ui/badge';
 import { MarkdownContent } from '@/app/_components/markdown-content';
 
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
@@ -104,7 +104,7 @@ export function renderToolListBlock({
                 <span className="text-muted-foreground">
                   {getString(item.objective)}
                 </span>
-                <Badge tone={tone}>{getToolStatusLabel(status)}</Badge>
+                <Badge variant={tone}>{getToolStatusLabel(status)}</Badge>
               </li>
             );
           })}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Button } from '@/app/_components/workbench/button';
+import { Button } from '@/components/ui/button';
 
 import { ProjectScopeDialog } from './project-scope-dialog';
 
@@ -68,7 +68,7 @@ export function ScopePopover({
     <div className="relative" ref={containerRef}>
       <Button
         type="button"
-        variant="secondary"
+        variant="outline"
         size="sm"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}

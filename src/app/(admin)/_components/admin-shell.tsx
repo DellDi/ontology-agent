@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/app/_components/button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/app/_lib/cn';
 
 type AdminPageHeaderProps = {

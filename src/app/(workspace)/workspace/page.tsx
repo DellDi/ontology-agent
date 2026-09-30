@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 
 import {
   createWorkspaceHomeModel,
-  type WorkspaceHomeSnapshotSummary,
+  latestExecutionSnapshot,
 } from '@/application/workspace/home';
 import {
   getWorkspaceHome,
@@ -19,12 +19,6 @@ function readSearchParam(value: string | string[] | undefined) {
   return typeof value === 'string' ? value : '';
 }
 
-function failurePoint(value: Record<string, unknown> | null) {
-  return value && typeof value.title === 'string'
-    ? { title: value.title }
-    : null;
-}
-
 export default async function WorkspacePage({
   searchParams,
 }: WorkspacePageProps) {
@@ -38,22 +32,11 @@ export default async function WorkspacePage({
     throw error;
   }
 
-  const latestSnapshots = new Map<string, WorkspaceHomeSnapshotSummary | null>(
-    home.sessions.map((session) => {
-      const execution = session.latestExecution;
-      return [
-        session.id,
-        execution
-          ? {
-              executionId: execution.executionId,
-              status: execution.status,
-              capabilityBinding: execution.capabilityBinding,
-              conclusionState: execution.conclusionState,
-              failurePoint: failurePoint(execution.failurePoint),
-            }
-          : null,
-      ];
-    }),
+  const latestSnapshots = new Map(
+    home.sessions.map((session) => [
+      session.id,
+      latestExecutionSnapshot(session.latestExecution),
+    ]),
   );
   const model = createWorkspaceHomeModel(
     home.viewer,

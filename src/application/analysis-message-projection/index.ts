@@ -1,3 +1,4 @@
+export * from './ai-elements-mapping';
 export * from './ports';
 export * from './use-cases';
 
