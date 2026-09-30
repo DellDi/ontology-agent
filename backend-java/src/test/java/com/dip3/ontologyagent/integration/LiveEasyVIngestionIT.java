@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.integration;
 
 import com.dip3.ontologyagent.easyv.internal.adapter.out.ingestion.EasyVCanonicalTransform;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import com.dip3.ontologyagent.ingestion.api.CanonicalProductTransform;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersion;
@@ -151,6 +152,10 @@ class LiveEasyVIngestionIT {
                 targetJdbc, json);
         assertEquals(setId, versionSets.latestFrozen(
                 PRODUCT_KEYS).orElseThrow().publicationId());
+        assertEquals(release.versionSet(), versionSets.latestFrozen(
+                EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS).orElseThrow());
+        assertEquals(release.versionSet(), versionSets.requireFrozen(
+                setId, EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS));
 
         for (String datasetKey : DATASET_KEYS) {
             assertEquals(sourceCountsBefore.get(datasetKey),

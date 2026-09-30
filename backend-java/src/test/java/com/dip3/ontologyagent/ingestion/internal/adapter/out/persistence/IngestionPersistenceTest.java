@@ -368,7 +368,7 @@ class IngestionPersistenceTest {
     }
 
     @Test
-    void resolvesOnlyTheLatestExactFrozenManifest() {
+    void resolvesTheLatestFrozenManifestContainingAllRequiredProducts() {
         publishSource("source-run-a");
         DataProductVersion productA = publishProduct("product-run-a", "product-a", "product-version-a",
                 Map.of("input-a", "version-a-1", "input-b", "version-b-1"));
@@ -387,6 +387,8 @@ class IngestionPersistenceTest {
         assertEquals("set-complete", selected.publicationId());
         assertEquals(Map.of("product-a", productA.id(), "product-b", productB.id()),
                 selected.productVersionIds());
+        assertEquals(selected, versionSets.latestFrozen(java.util.Set.of("product-a")).orElseThrow());
+        assertEquals(selected, versionSets.requireFrozen("set-complete", java.util.Set.of("product-a")));
         BackendException incomplete = assertThrows(BackendException.class,
                 () -> versionSets.requireFrozen("set-partial",
                         java.util.Set.of("product-a", "product-b")));
