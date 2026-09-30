@@ -316,7 +316,7 @@ easyv-dev 部署与真实账号验收（§6.1 A 8，2026-09-29）：
 
 ### 11.6 下一交付的顺序与退出门禁
 
-2026-09-30 续接核查：第 1 步已完成，第 2 步的 ingestion/本体/Cube 本地实现和真实源到一次性平台库验证已通过，部署后验收仍待完成，第 3–4 步待实施。开发环境仍运行旧版 `636ca0c`，尚未发布本次结构扩展；不改变 §9–10 的历史验收结论。
+2026-09-30 续接交付：第 1 步已完成，第 2 步的 ingestion/本体/Cube 实现、真实源验证和 easyv-dev 全量/增量发布已完成，Java 镜像为 `ontology-agent-java:f8f555a`。第 3–4 步待实施；原型画布与区域高亮未实现。不改变 §9–10 的历史验收结论。
 
 | 顺序 | 交付内容 | 退出门禁 |
 |---|---|---|
@@ -333,17 +333,19 @@ easyv-dev 部署与真实账号验收（§6.1 A 8，2026-09-29）：
 
 部署实测补齐 Worker 证据边界：能力的 required 产品是集合选取条件，证据可以引用同一冻结集中的新增产品。完成态校验复用执行前已校验的 manifest，逐项检查证据的 product key 与 version ID；未知产品、其他版本、其他冻结集或本体仍拒绝。避免 Cube 已返回结构统计却在最终落库时被原五产品列表误拒绝。
 
-接入产品列表的唯一运维配置是 `compose.easyv-dev.yaml` 的 ingest 命令（8 产品），`scripts/easyv-dev ingest` 复用该配置，无单独列表。Cube 模型与访问策略由本体生成，漂移门禁保留。后续退出门禁仍包含部署后的真实冻结集查询、父应用授权/删除范围与浏览器验收；本地 Testcontainers 通过不等于这些验收已经完成。部署顺序见 `docs/easyv-dev-deployment.md` 的 V21 章节。
+接入产品列表的唯一运维配置是 `compose.easyv-dev.yaml` 的 ingest 命令（8 产品），`scripts/easyv-dev ingest` 复用该配置，无单独列表。Cube 模型与访问策略由本体生成，漂移门禁保留。部署后的真实冻结集查询与父应用删除范围已对账；真实非管理员账号权限、浏览器完整交互验收仍待完成。部署顺序见 `docs/easyv-dev-deployment.md` 的 V21 章节。
 
 2026-09-30 验证证据：
 
 | 门禁 | 本次结果 |
 |---|---|
-| Java 全量单元/Testcontainers 测试（Java 21，清理历史编译与报告产物后） | Surefire 525 项，0 失败、0 错误、0 跳过；覆盖 V21 新库/旧库迁移和重复执行、八转换器装配、解析错误事实、增量替换子组件、RECONCILE 删除、旧 v1 链拒绝、重跑/顺序无关哈希与 Cube 漂移 |
-| Web `pnpm test:web` | 87 通过，5 个可选容器测试跳过；新增结构对象的父应用授权/版本约束与 compose 产品清单对齐门禁 |
+| Java 单元/Testcontainers 测试（Java 21） | Surefire 528 项，0 失败、0 错误、0 跳过；全量执行后修正新增测试缺失的计划契约，再定向重跑 Worker 18 项通过。覆盖 V21 新库/旧库迁移、八转换器装配、解析错误事实、增量替换子组件、RECONCILE 删除、旧 v1 链拒绝、重跑/顺序无关哈希、Cube 漂移及冻结集证据版本校验 |
+| Web `pnpm test:web` | 88 通过，5 个可选容器测试跳过；覆盖结构对象父应用授权/版本约束、compose 产品清单对齐和显式 ingest mode 优先级 |
 | TypeScript / ESLint / Web 与 Java 构建 | `pnpm exec tsc --noEmit`、`pnpm lint`、`pnpm build`、Java `mvn -DskipTests package` 通过 |
 | 真实源 `LiveEasyVIngestionIT` | 使用部署机当前只读源配置，经 5 源 → 8 产品 → 同一冻结集物化到一次性 PostgreSQL；120 原型全部 ok，777 区域、1617 图表组件，与独立源 JSON 展开 SQL 一致；FULL/INCREMENTAL/RECONCILE 内容哈希和行数一致，源计数及状态分布前后不变 |
 | 运维配置 | compose 配置解析、脚本语法、`git diff --check` 通过 |
+| easyv-dev 发布 | 平台库 V21、facts-reader 授权完成；FULL 冻结集 `ingest-947f5eb3-8ece-404e-8144-ba912d9ce1f5`，INCREMENTAL 冻结集 `ingest-c1678964-0ed2-475b-b1d1-6ef377b3d021`，8 产品行数/哈希全部相同。120 原型全部 ok，777 区域、1617 组件；v2 增量源版本正确继承 v2 FULL 父版本。backend/web/Cube healthy，release-worker 已更新 |
+| 部署后实际提问 | 管理员会话 `d56abd13-bd66-4c7b-a018-14d4eee68892`，执行 `193e6d98-e846-3adb-bf0e-9ce96460d8d3` 的 job/snapshot 均 completed；真实模型 → Cube → 回答/图表落库完成。查询使用最新 INCREMENTAL 冻结集，active cohort 为 119 原型/770 区域/1601 组件，5 类布局逐行与独立 facts SQL 一致；较原始 120 少 1 个已删除父应用对应的原型（7 区域、16 组件）。登录页浏览器可访问，完整登录后交互仍待人工验收 |
 
 Java 默认测试不包含真实模型调用。额外执行 `mvn clean verify` 时 Failsafe 触发四个 live IT，因未注入真实源/LLM 配置而失败；带当前源配置单独执行的 `LiveEasyVIngestionIT` 已通过，原 A 的模型规划/端到端 live 评测未在本次重跑，仍属于发布前门禁。测试门禁通过不能替代部署环境 Cube 查询、真实账号权限与浏览器验收。
 数据接入缺口优先解决，不为了视觉效果先接虚构结果。当前阶段完成分析与方案比较后停止，写回编辑进入 C 的动作设计；新增动作必须定义真实目标 API、参数、权限、前置条件和审计。
