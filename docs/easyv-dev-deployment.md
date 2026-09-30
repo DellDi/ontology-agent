@@ -145,11 +145,15 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 
 本地真实源门禁使用部署机当前只读源配置：120 个原型全部解析成功，777 个区域、1617 个图表组件，与独立源 JSON 展开 SQL 对账一致。FULL、INCREMENTAL、RECONCILE 的 8 产品行数与内容哈希一致；源记录计数及既有状态分布在验证前后不变。该验证不写部署平台库，也不代表部署后的 Cube/浏览器验收通过。
 
-本次部署证据：备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20260930142026.dump`；发布目录 `/opt/ontology-agent-releases/f8f555a`，backend/release-worker 镜像 `ontology-agent-java:f8f555a`。前端源码无改动，新 Web 镜像依赖拉取超时，保留已验证的 `ontology-agent-web:account-passwords-20260929`；未绕过依赖供应链校验。迁移、部署和接入日志位于 `/opt/ontology-agent-release-private/`，不将配置凭据提交仓库。
+结构事实发布证据：备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20260930142026.dump`；发布目录 `/opt/ontology-agent-releases/f8f555a`，backend/release-worker 镜像 `ontology-agent-java:f8f555a`。当时前端源码无改动，新 Web 镜像依赖拉取超时，保留过已验证的 `ontology-agent-web:account-passwords-20260929`；未绕过依赖供应链校验。后续工作台渲染修复已更新 Web，见下方记录。迁移、部署和接入日志位于 `/opt/ontology-agent-release-private/`，不将配置凭据提交仓库。
 
 部署平台库 FULL 集合为 `ingest-947f5eb3-8ece-404e-8144-ba912d9ce1f5`，INCREMENTAL 集合为 `ingest-c1678964-0ed2-475b-b1d1-6ef377b3d021`；8 产品全部 published，行数/内容哈希逐项一致。原型源 FULL v2 为 `b85290a5-121b-38fe-b89e-61b5ff6f3ff8`，零变更增量 v2 正确引用该父版本。布局 120/区域 777/组件 1617，与源独立查询一致。L1–L4 签名组数为 39/118/118/120。
 
 真实提问“统计所有可访问原型的布局类型分布，并给出原型数、区域总数和图表组件总数。”已完成模型、Cube、答案和图表落库。管理员示例会话为 `d56abd13-bd66-4c7b-a018-14d4eee68892`，执行为 `193e6d98-e846-3adb-bf0e-9ce96460d8d3`。父应用 active 范围返回 119 原型、770 区域、1601 组件，5 类布局逐行与独立 SQL 一致；1 个已删除父应用对应的原型被排除。Web 本机端口为 3100，当前维护机 SSH 转发为 `http://127.0.0.1:33100`，该链接只在维护机可用，不是对外公网入口。浏览器登录页已检查；完整登录后交互、非管理员真实账号负向权限与原 A 模型评测仍待验收。
+
+2026-09-30 工作台渲染修复：Web 已更新为 `ontology-agent-web:8ff43fd`（Linux amd64），配套发布目录 `/opt/ontology-agent-releases/8ff43fd`，仅重建 Web 容器，backend/release-worker 仍为 `f8f555a`。维护机转发已补为 `http://127.0.0.1:3100`。首页输入框移除 `px-0` 与无边框覆盖，复用 Field 控件样式；首页 loading 与当前输入/历史布局对齐并使用静态骨架，分析详情增加独立加载边界，发送与待执行占位共用消息组件。
+
+验证：Web 88 通过、5 个可选容器测试跳过，tsc、相关文件 ESLint、宿主与 Linux 镜像生产构建通过。使用当前 EasyV 用户 3 的真实浏览器会话检查：输入框内边距为 `10px 14px`、边框 1px；首页加载占位的 computed animation-name 全为 none；详情导航显示“正在加载分析记录”后恢复实际多轮结果，浏览器无 error 日志。未改数据契约和模型执行逻辑；本次没有完成原 A 全量模型评测。
 
 ## Property 物化与图投影
 
