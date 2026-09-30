@@ -5,3 +5,7 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
+
+patchedDependencies:
+  "streamdown@2.6.0": patches/streamdown@2.6.0.patch
+  "remend@1.3.1": patches/remend@1.3.1.patch
