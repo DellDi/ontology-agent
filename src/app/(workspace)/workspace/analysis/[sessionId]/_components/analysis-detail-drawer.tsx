@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 
-import { WorkbenchSheet } from '@/app/_components/workbench/workbench-sheet';
+import { AnalysisSidePanel } from './analysis-side-panel';
 
 export type DetailDrawerType =
   | 'execution-log'
@@ -37,13 +37,12 @@ export function AnalysisDetailDrawer({
 }) {
   if (!drawerType) return null;
   return (
-    <WorkbenchSheet
-      open
+    <AnalysisSidePanel
       onClose={onClose}
-      title={DRAWER_LABELS[drawerType] ?? '详情'}
       testId={`analysis-detail-drawer-${drawerType}`}
+      title={DRAWER_LABELS[drawerType] ?? '详情'}
     >
       {content}
-    </WorkbenchSheet>
+    </AnalysisSidePanel>
   );
 }

@@ -1,14 +1,23 @@
+import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 
 import {
   getCurrentViewer,
+  getWorkspaceHome,
   JavaBackendHttpError,
 } from '@/infrastructure/java-backend';
 
 import { ingestionAccessSchema } from '@/infrastructure/java-backend/ingestion-schema';
 import { readJavaBackend } from '@/infrastructure/java-backend/read-client';
 import { canViewOntologyGovernance } from '@/domain/ontology/governance';
-import { ShellLayout } from '../_components/shell-layout';
+import {
+  latestExecutionSnapshot,
+  sessionToHistoryItem,
+} from '@/application/workspace/home';
+import {
+  WorkspaceShell,
+  type WorkspaceSidebarSession,
+} from './_components/workspace-shell';
 import { WORKSPACE_MENU } from '../_components/shell-menu-config';
 
 type WorkspaceLayoutProps = {
@@ -62,29 +71,65 @@ export default async function WorkspaceLayout({
     );
   }
 
+  // 管理类入口：本体治理（按角色）与数据接入（按权限）收进用户菜单"管理"分组
+  const adminItems = [
+    ...WORKSPACE_MENU.filter(
+      (item) =>
+        item.href.startsWith('/admin') &&
+        canViewOntologyGovernance(viewer.scope.roleCodes),
+    ),
+    ...(access.canView
+      ? [
+          {
+            href: '/admin/ingestion',
+            label: '数据接入',
+            activePrefix: '/admin/ingestion',
+          },
+        ]
+      : []),
+  ];
+
+  // 侧栏会话历史：独立取数，失败时侧栏显示失败提示而不是伪装为空
+  let sidebarSessions: WorkspaceSidebarSession[] = [];
+  let sessionsLoadFailed = false;
+  try {
+    const home = await getWorkspaceHome();
+    sidebarSessions = home.sessions.map((session) => {
+      const item = sessionToHistoryItem(
+        session,
+        latestExecutionSnapshot(session.latestExecution),
+      );
+      return {
+        id: item.id,
+        title: item.title,
+        href: item.href,
+        derivedStatus: item.derivedStatus,
+      };
+    });
+  } catch {
+    sessionsLoadFailed = true;
+  }
+
+  // 侧栏折叠/宽度偏好：cookie 'c' 收起 | 'e.<px>' 展开宽（与 workspace-shell 写入逻辑一致）
+  const sidebarPref = (await cookies()).get('dip3-ws-sidebar')?.value ?? '';
+  const prefWidth = Number(sidebarPref.slice(2));
+  const sidebarCollapsed = sidebarPref.startsWith('c');
+  const sidebarWidth =
+    sidebarPref.startsWith('e.') && Number.isFinite(prefWidth)
+      ? Math.min(420, Math.max(200, Math.round(prefWidth)))
+      : undefined;
+
   return (
-    <ShellLayout
-      horizontalNavigation
-      menuItems={[
-        ...WORKSPACE_MENU.filter(
-          (item) =>
-            item.href.startsWith('/workspace') ||
-            canViewOntologyGovernance(viewer.scope.roleCodes),
-        ),
-        ...(access.canView
-          ? [
-              {
-                href: '/admin/ingestion',
-                label: '数据接入',
-                activePrefix: '/admin/ingestion',
-              },
-            ]
-          : []),
-      ]}
+    <WorkspaceShell
+      adminItems={adminItems}
+      initialCollapsed={sidebarCollapsed}
+      initialWidth={sidebarWidth}
+      sessions={sidebarSessions}
+      sessionsLoadFailed={sessionsLoadFailed}
       userDisplayName={viewer.displayName}
       userId={viewer.userId}
     >
       {children}
-    </ShellLayout>
+    </WorkspaceShell>
   );
 }

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { ShellMenu } from './shell-menu';
 import type { ShellMenuItem } from './shell-menu-config';
-import { ThemeToggle } from './workbench/theme-toggle';
+import { ThemeToggle } from './theme-toggle';
 
 type ShellLayoutProps = {
   menuItems: ShellMenuItem[];

@@ -8,8 +8,8 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ApprovalDecision } from '@/domain/ontology/governance';
-import { Button } from '@/app/_components/button';
-import { FieldTextarea } from '@/app/_components/field';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import {
   AdminCard,
   AdminPageHeader,
@@ -192,7 +192,7 @@ export function ChangeRequestDetailClient({
 
             {canReview ? (
               <div className="flex flex-col gap-2">
-                <FieldTextarea
+                <Textarea
                   name="comment"
                   placeholder="审批意见（必填）"
                   value={reviewComment}
@@ -209,7 +209,7 @@ export function ChangeRequestDetailClient({
                   </Button>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="outline"
                     disabled={isMutating}
                     onClick={() => reviewMutation.mutate('rejected')}
                   >
@@ -221,7 +221,7 @@ export function ChangeRequestDetailClient({
 
             {canPublish && version ? (
               <div className="inline-flex flex-col gap-2">
-                <FieldTextarea
+                <Textarea
                   name="publishNote"
                   placeholder="发布备注（可选）"
                   value={publishNote}
@@ -245,7 +245,7 @@ export function ChangeRequestDetailClient({
                       </AlertDialog.Description>
                       <div className="mt-6 flex justify-end gap-3">
                         <AlertDialog.Cancel asChild>
-                          <Button type="button" variant="secondary">
+                          <Button type="button" variant="outline">
                             取消
                           </Button>
                         </AlertDialog.Cancel>

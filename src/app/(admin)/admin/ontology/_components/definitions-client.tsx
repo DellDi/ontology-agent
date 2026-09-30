@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { Button } from '@/app/_components/button';
+import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
 import {
   AdminCard,
@@ -129,7 +129,7 @@ export function DefinitionsClient({
                   </option>
                 ))}
               </select>
-              <Button variant="secondary" type="submit" className="py-2 text-sm">
+              <Button variant="outline" type="submit" className="py-2 text-sm">
                 切换版本
               </Button>
             </form>

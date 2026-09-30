@@ -7,6 +7,17 @@ import type {
   ToolTimelineEntry,
 } from '@/application/analysis-message-projection/conversation-view-model';
 import { translateToolName } from '@/application/analysis-message-projection/conversation-view-model';
+import {
+  toToolPartState,
+  toToolType,
+} from '@/application/analysis-message-projection/ai-elements-mapping';
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool';
 
 // ---------------------------------------------------------------------------
 // 状态图标
@@ -40,105 +51,37 @@ function StepStatusIndicator({
   }
 }
 
-function SubStepStatusIndicator({ status }: { status: SubStepEntry['status'] }) {
-  switch (status) {
-    case 'running':
-      return (
-        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-      );
-    case 'completed':
-      return (
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-      );
-    case 'failed':
-      return (
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-rose-400" />
-      );
-  }
-}
-
 // ---------------------------------------------------------------------------
-// JSON 详情（工具输入/输出）
-// ---------------------------------------------------------------------------
-
-function JsonDetail({
-  label,
-  value,
-}: {
-  label: string;
-  value: Record<string, unknown>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const keys = Object.keys(value);
-  if (keys.length === 0) return null;
-
-  return (
-    <div className="mt-1">
-      <button
-        className="text-[10px] text-muted-foreground/60 hover:text-primary"
-        onClick={(e) => {
-          e.stopPropagation();
-          setExpanded((prev) => !prev);
-        }}
-        type="button"
-      >
-        {expanded ? '收起' : `查看${label}`}
-      </button>
-      {expanded ? (
-        <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted p-2 text-[10px] leading-4 text-muted-foreground">
-          {JSON.stringify(value, null, 2)}
-        </pre>
-      ) : null}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 子步骤（展开后可见）
+// 子步骤（AI Elements Tool 卡片：状态徽标 + 可展开输入/输出）
 // ---------------------------------------------------------------------------
 
 function SubStepRow({ subStep }: { subStep: SubStepEntry }) {
   const displayName = subStep.toolLabel || translateToolName(subStep.toolName);
+  const title =
+    subStep.objective && subStep.objective !== displayName
+      ? `${displayName} · ${subStep.objective}`
+      : displayName;
 
   return (
-    <li className="flex items-start gap-2 text-xs text-muted-foreground">
-      <span className="mt-1.5">
-        <SubStepStatusIndicator status={subStep.status} />
-      </span>
-      <div className="flex-1">
-        <p className="leading-6">
-          <span className="font-medium text-foreground">
-            {displayName}
-          </span>
-          {subStep.objective && subStep.objective !== displayName ? (
-            <>
-              <span className="mx-1 text-muted-foreground/60">·</span>
-              <span>{subStep.objective}</span>
-            </>
+    <li>
+      <Tool className="mb-1" defaultOpen={subStep.status === 'failed'}>
+        <ToolHeader
+          state={toToolPartState(subStep.status)}
+          title={
+            subStep.duration ? `${title} · ${subStep.duration}` : title
+          }
+          type={toToolType(subStep.toolName)}
+        />
+        <ToolContent>
+          {subStep.result ? (
+            <p className="px-4 pt-3 text-xs leading-5 text-muted-foreground/80">
+              {subStep.result}
+            </p>
           ) : null}
-          {subStep.duration ? (
-            <span className="ml-2 text-[11px] text-muted-foreground/70">
-              {subStep.duration}
-            </span>
-          ) : null}
-        </p>
-        {subStep.result ? (
-          <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground/80">
-            {subStep.result}
-          </p>
-        ) : null}
-        {subStep.error ? (
-          <p className="mt-0.5 text-[11px] leading-5 text-rose-500">
-            {subStep.error}
-          </p>
-        ) : null}
-        {subStep.input ? (
-          <JsonDetail label="输入" value={subStep.input} />
-        ) : null}
-        {subStep.output ? (
-          <JsonDetail label="输出" value={subStep.output} />
-        ) : null}
-      </div>
+          {subStep.input ? <ToolInput input={subStep.input} /> : null}
+          <ToolOutput errorText={subStep.error} output={subStep.output} />
+        </ToolContent>
+      </Tool>
     </li>
   );
 }
@@ -152,11 +95,11 @@ function TimelineStepRow({ entry }: { entry: ToolTimelineEntry }) {
   const hasSubSteps = entry.subSteps.length > 0;
 
   return (
-    <li className="relative pl-6 pb-4 last:pb-0">
+    <li className="relative pb-4 pl-6 last:pb-0">
       {/* 垂直连线 */}
       <span
         aria-hidden
-        className="absolute left-[5px] top-3 bottom-0 w-px bg-border last:hidden"
+        className="absolute bottom-0 left-[5px] top-3 w-px bg-border last:hidden"
       />
 
       {/* 状态点 */}

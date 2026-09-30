@@ -12,8 +12,8 @@ import type { AnalysisUiMessageProjectionStreamCursor } from '@/domain/analysis-
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
 import type { OntologyVersionBinding } from '@/domain/ontology/version-binding';
 
-import { Button } from '@/app/_components/workbench/button';
-import { StatusBanner } from '@/app/_components/workbench/status-banner';
+import { Button } from '@/components/ui/button';
+import { StatusBanner } from '@/app/_components/status-banner';
 
 import {
   makeAnalysisStreamEventMerger,
@@ -234,7 +234,7 @@ export function AnalysisExecutionLiveShell({
             action={
               <div className="flex flex-wrap gap-2">
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   size="sm"
                   onClick={reconnect}
                   type="button"

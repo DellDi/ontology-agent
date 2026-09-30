@@ -5,7 +5,7 @@ import {
   getGovernanceChangeRequests,
   requireJavaOntologyAdminSession,
 } from '@/infrastructure/java-backend';
-import { Button } from '@/app/_components/button';
+import { Button } from '@/components/ui/button';
 
 import {
   AdminPageHeader,

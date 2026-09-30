@@ -11,7 +11,7 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '@/app/_lib/cn';
-import { EmptyState } from '@/app/_components/workbench/empty-state';
+import { EmptyState } from '@/app/_components/empty-state';
 
 export const CHART_PALETTE = [
   'var(--primary)',

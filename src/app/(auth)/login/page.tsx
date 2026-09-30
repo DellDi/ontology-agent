@@ -6,8 +6,7 @@ import {
   JavaBackendHttpError,
 } from '@/infrastructure/java-backend';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
-import { StatusBanner } from '@/app/_components/workbench/status-banner';
-import { Surface, SurfaceBody } from '@/app/_components/workbench/surface';
+import { StatusBanner } from '@/app/_components/status-banner';
 import { AccountLoginForm } from './_components/account-login-form';
 
 type LoginPageProps = {
@@ -56,8 +55,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </h1>
         </div>
 
-        <Surface>
-          <SurfaceBody className="pt-6">
+        <div className="rounded-md border border-border bg-card shadow-[var(--shadow-panel)]">
+          <div className="px-6 pb-5 pt-6">
             <div className="space-y-3">
               {errorMessage ? (
                 <StatusBanner tone="error">{errorMessage}</StatusBanner>
@@ -78,8 +77,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 prefillAccount={prefillAccount}
               />
             ) : null}
-          </SurfaceBody>
-        </Surface>
+          </div>
+        </div>
       </div>
     </main>
   );

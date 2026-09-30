@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes';
 
 import { cn } from '@/app/_lib/cn';
 
-import { Button } from './button';
+import { Button } from '@/components/ui/button';
 
 type ThemeToggleProps = {
   className?: string;
