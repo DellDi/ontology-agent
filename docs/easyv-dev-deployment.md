@@ -155,6 +155,12 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 
 验证：Web 88 通过、5 个可选容器测试跳过，tsc、相关文件 ESLint、宿主与 Linux 镜像生产构建通过。使用当前 EasyV 用户 3 的真实浏览器会话检查：输入框内边距为 `10px 14px`、边框 1px；首页加载占位的 computed animation-name 全为 none；详情导航显示“正在加载分析记录”后恢复实际多轮结果，浏览器无 error 日志。未改数据契约和模型执行逻辑；本次没有完成原 A 全量模型评测。
 
+2026-09-30 首个执行进度前的空白气泡修复：Web 已更新为 `ontology-agent-web:ec5a84f`，发布目录 `/opt/ontology-agent-releases/ec5a84f`，Web/backend health 均为 healthy。根因是 queued/running 尚无回答或步骤时，消息外框仍渲染，而内部组件全部返回空；现改为不带回答外框的 Spinner 与等待说明，真实步骤/回答到达后使用原内容区。仅有 supporting blocks 时也不再输出空的主结果容器。未调整执行契约或增加虚假进度。
+
+验证：实际 React 组件渲染测试先复现空框，再覆盖 queued、running、流式回答、步骤、工具、完成、失败和断连；Web 门禁 89 通过、5 个可选容器测试跳过，tsc、相关 ESLint、宿主与 Linux amd64 镜像构建通过。真实账号独立会话 `c8434193-d8f1-425b-ac59-004f8c5cdcc4` 首轮返回授权范围的 5 个原型、30 个区域、63 个组件，以及表格、图表与真实步骤；后续均值问题因目录缺少均值指标明确失败，错误保持可见，不将它计为分析成功。首个事件前状态太短，未捕获实时截图，使用生产组件与生产 CSS 的独立预览检查等待状态。浏览器无 error，存在 Recharts 初始容器尺寸 warning，已记录，未在本次扩大修复范围。
+
+UI 审查范围限于分析对话状态和基础控件：项目已通过 `components.json` 接入 shadcn/ui，但 `src/components/ui` 与 `src/app/_components/workbench` 存在并行 Button/Field 实现。后续优先收敛基础控件与间距，再统一提交、等待、执行、完成、失败和断连的反馈，最后逐页替换；本次未实施整个前端重构。发送后底部输入框附近的可见空间和图表初始化尺寸需在后续对话布局审查中验证。
+
 ## Property 物化与图投影
 
 Property 不读取外部 ERP。确认平台库已有受控 `erp_staging` 后：
