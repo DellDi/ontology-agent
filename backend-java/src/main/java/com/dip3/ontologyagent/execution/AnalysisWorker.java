@@ -15,6 +15,7 @@ import com.dip3.ontologyagent.capability.api.CapabilityResult;
 import com.dip3.ontologyagent.capability.api.ExecutionProgress;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
@@ -82,7 +83,7 @@ public final class AnalysisWorker {
             }
             var ontology = ontologies.published(job.ontologyVersionId());
             CapabilityDescriptor capability = capabilities.require(job.capabilityBinding(), ontology, owner);
-            validateDatasetVersionSet(job, capability);
+            DatasetVersionSet versionSet = validateDatasetVersionSet(job, capability);
             CapabilityInvocationContract invocation = capability.invocationContract();
             if (job.attemptCount() > 1
                     && invocations.count(job.executionId(), invocation.invocationType(), invocation.toolName()) > 0) {
@@ -129,7 +130,7 @@ public final class AnalysisWorker {
                         invocation.contractViolationMessage(invocationCount));
             }
             validateResult(capability, job.capabilityBinding(), job.executionId(),
-                    job.datasetVersionSetId(), capabilityResult);
+                    versionSet, capabilityResult);
             recorder.succeedWhileLeased(agentRunId, Map.of(invocation.completionMetricKey(), invocationCount),
                     job.executionId(), job.workerId());
             agentRunId = null;
@@ -162,20 +163,20 @@ public final class AnalysisWorker {
         }
     }
 
-    private void validateDatasetVersionSet(ExecutionJob job, CapabilityDescriptor capability) {
+    private DatasetVersionSet validateDatasetVersionSet(ExecutionJob job, CapabilityDescriptor capability) {
         Set<String> required = capability.requiredDataProductKeys();
         if (required.isEmpty()) {
             if (job.datasetVersionSetId() != null) {
                 throw new BackendException("DATASET_VERSION_SET_UNEXPECTED",
                         "当前能力不声明 canonical 数据产品。");
             }
-            return;
+            return null;
         }
         if (job.datasetVersionSetId() == null) {
             throw new BackendException("DATASET_VERSION_SET_MISSING",
                     "执行任务缺少冻结的数据版本集合，拒绝调用模型。");
         }
-        datasetVersionSets.requireFrozen(job.datasetVersionSetId(), required);
+        return datasetVersionSets.requireFrozen(job.datasetVersionSetId(), required);
     }
 
     private void renewLease(ExecutionJob job, AtomicBoolean leaseLost) {
@@ -279,7 +280,7 @@ public final class AnalysisWorker {
     private static void validateResult(CapabilityDescriptor descriptor,
                                        CapabilityBinding expectedBinding,
                                        String executionId,
-                                       String datasetVersionSetId,
+                                       DatasetVersionSet versionSet,
                                        CapabilityResult<WorkflowResult, Evidence> envelope) {
         WorkflowResult result = envelope.result();
         Set<String> evidenceTypes = envelope.evidence().stream().map(CapabilityEvidence::evidenceType)
@@ -292,11 +293,11 @@ public final class AnalysisWorker {
                 || !evidenceTypes.containsAll(descriptor.requiredEvidenceTypes())
                 || result.evidence().stream().anyMatch(item -> item.rows().isEmpty()
                         || !expectedBinding.ontologyVersionId().equals(item.provenance().ontologyVersionId())
-                        || datasetVersionSetId == null
-                        || !datasetVersionSetId.equals(item.provenance().datasetVersionSetId())
+                        || versionSet == null
+                        || !versionSet.publicationId().equals(item.provenance().datasetVersionSetId())
                         || item.provenance().productVersionIds().isEmpty()
-                        || !descriptor.requiredDataProductKeys().containsAll(
-                                item.provenance().productVersionIds().keySet()))
+                        || !versionSet.productVersionIds().entrySet().containsAll(
+                                item.provenance().productVersionIds().entrySet()))
                 || !descriptor.allowedClaimKinds().containsAll(claimKinds)
                 || result.claims() == null || result.claims().isEmpty()
                 || result.claims().size() != claimKinds.size()) {
