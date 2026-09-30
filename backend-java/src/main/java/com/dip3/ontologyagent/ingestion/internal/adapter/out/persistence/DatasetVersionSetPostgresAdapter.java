@@ -46,7 +46,7 @@ public class DatasetVersionSetPostgresAdapter implements DatasetVersionSetRegist
                  and product_version.status='published'
                 where version_set.status='frozen'
                 group by version_set.set_id,version_set.captured_at
-                having jsonb_agg(item.product_key order by item.product_key)=cast(? as jsonb)
+                having jsonb_agg(item.product_key order by item.product_key) @> cast(? as jsonb)
                 order by version_set.captured_at desc,version_set.set_id desc
                 limit 1
                 """, String.class, json.write(required));
@@ -98,9 +98,9 @@ public class DatasetVersionSetPostgresAdapter implements DatasetVersionSetRegist
             }
             versions.put(row.productKey(), row.productVersionId());
         }
-        if (!versions.keySet().equals(Set.copyOf(required))) {
+        if (!versions.keySet().containsAll(required)) {
             throw new BackendException("DATASET_VERSION_SET_INCOMPLETE",
-                    "数据版本集合与能力所需的数据产品不一致：" + setId);
+                    "数据版本集合缺少能力所需的数据产品：" + setId);
         }
         return new DatasetVersionSet(first.setId(), versions, first.capturedAt(),
                 DatasetVersionSet.Status.FROZEN, first.frozenAt(), first.createdAt(),
