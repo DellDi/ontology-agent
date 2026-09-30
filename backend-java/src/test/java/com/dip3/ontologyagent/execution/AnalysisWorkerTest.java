@@ -16,6 +16,7 @@ import com.dip3.ontologyagent.capability.api.CapabilityResult;
 import com.dip3.ontologyagent.ontology.OntologyCatalog;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.tooling.Evidence;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
@@ -77,6 +78,11 @@ class AnalysisWorkerTest {
         when(recorder.startAgentRun(anyString(), anyString(), anyString(), anyMap(), anyString(), anyString()))
                 .thenReturn("agent-run-1");
         when(capabilities.require(any(), any(), any())).thenReturn(propertyDescriptor());
+        when(datasetVersionSets.requireFrozen(anyString(), any())).thenAnswer(invocation -> {
+            String id = invocation.getArgument(0);
+            return frozenSet(id, id.startsWith("easyv-")
+                    ? easyvProvenance().productVersionIds() : propertyProvenance().productVersionIds());
+        });
         when(capabilities.execute(any(), any())).thenAnswer(invocation -> {
             CapabilityBinding selected = invocation.getArgument(0);
             CapabilityExecutionContext context = invocation.getArgument(1);
@@ -126,6 +132,59 @@ class AnalysisWorkerTest {
         assertEquals(List.of("erp-staging", "cube", "neo4j"), result.getValue().get("evidenceSources"));
         assertEquals(binding.snapshot(), terminal.getValue().metadata().get("capabilityBinding"));
         assertEquals(binding.snapshot(), result.getValue().get("capabilityBinding"));
+    }
+
+    @Test
+    void acceptsEvidenceFromAnAdditionalProductInThePinnedFrozenSet() {
+        var versions = new java.util.LinkedHashMap<>(propertyProvenance().productVersionIds());
+        versions.put("additional-product", "additional-v1");
+        org.mockito.Mockito.doReturn(frozenSet("property-set-1", versions))
+                .when(datasetVersionSets).requireFrozen(anyString(), any());
+        resultWithProductEvidence("additional-product", "additional-v1");
+
+        assertTrue(worker.runOne("worker-1"));
+
+        verify(executions).completeAtomically(anyString(), anyString(), any(), any(), anyMap());
+    }
+
+    @Test
+    void rejectsEvidenceFromAnUnknownProduct() {
+        resultWithProductEvidence("unknown-product", "unknown-v1");
+
+        assertTrue(worker.runOne("worker-1"));
+
+        verify(executions, never()).completeAtomically(anyString(), anyString(), any(), any(), anyMap());
+        verify(executions).failAtomically(anyString(), anyString(), any(), any(),
+                org.mockito.ArgumentMatchers.eq("WORKFLOW_RESULT_INVALID"), anyString(),
+                org.mockito.ArgumentMatchers.eq("trace-1"));
+    }
+
+    @Test
+    void rejectsEvidenceFromAnotherVersionOfAPinnedProduct() {
+        String key = propertyProvenance().productVersionIds().keySet().iterator().next();
+        resultWithProductEvidence(key, "different-version");
+
+        assertTrue(worker.runOne("worker-1"));
+
+        verify(executions, never()).completeAtomically(anyString(), anyString(), any(), any(), anyMap());
+        verify(executions).failAtomically(anyString(), anyString(), any(), any(),
+                org.mockito.ArgumentMatchers.eq("WORKFLOW_RESULT_INVALID"), anyString(),
+                org.mockito.ArgumentMatchers.eq("trace-1"));
+    }
+
+    private void resultWithProductEvidence(String key, String version) {
+        var evidence = new java.util.ArrayList<>(requiredEvidence());
+        evidence.set(1, new Evidence("cube", "Cube", List.of(Map.of("value", 1)),
+                new Evidence.Provenance("ontology-1", "property-set-1", Instant.now(), Map.of(key, version))));
+        when(mainAgent.execute(any(), any(AgentTurn.class), anyString(), any(), anyString(), anyString()))
+                .thenReturn(new WorkflowResult(Map.of("_executionContract", ExecutionRepository.EXECUTION_CONTRACT,
+                        "_resolvedContext", Map.of()), evidence, "真实结论", claims(), List.of()));
+        when(invocations.count("execution-1", "workflow-tool", "analysis_workflow")).thenReturn(1L);
+    }
+
+    private static DatasetVersionSet frozenSet(String id, Map<String, String> versions) {
+        Instant now = Instant.now();
+        return new DatasetVersionSet(id, versions, now, DatasetVersionSet.Status.FROZEN, now, now, "test");
     }
 
     @Test

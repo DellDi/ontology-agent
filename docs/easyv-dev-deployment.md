@@ -131,6 +131,8 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 
 ## V21 原型结构扩展的部署顺序
 
+`scripts/easyv-dev ingest FULL|INCREMENTAL|RECONCILE` 的显式参数优先于部署环境文件中的 `INGEST_MODE` 默认值。2026-09-30 修复了加载 `.env` 后覆盖 FULL 的问题，并以实际执行脚本的测试覆盖三种模式；升级时核对日志/源任务中的真实 mode，不能只依据输入命令。
+
 2026-09-30 已完成本地实现及真实源到一次性 Testcontainers 平台库验证，尚未部署。新的 ingest 命令发布 8 个产品：原 5 产品加 `easyv-prototype-layout`、`easyv-prototype-block`、`easyv-prototype-component`。三者共用 `easyv-prototype-task`，源列契约由 v1 升为 v2，首次升级不能直接做 INCREMENTAL。旧冻结集中的 facts 保留；含 v1 源版本的链不能按当前 v2 契约重新物化，须重新 FULL。
 
 确认发布后按以下顺序执行，使用本次代码构建的 Java 镜像与配套生成的 Cube 配置：
