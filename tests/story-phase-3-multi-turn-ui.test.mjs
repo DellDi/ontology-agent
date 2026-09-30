@@ -46,9 +46,13 @@ test('Chat UI | 用户消息为气泡、AI 为智能员工身份', () => {
   );
   assert.ok(userMessage.includes('justify-end'), '用户消息应右对齐');
   assert.ok(userMessage.includes('rounded-2xl'), '用户消息应为气泡');
+  const thinkingMessage = readFileSync(
+    'src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-thinking-message.tsx',
+    'utf-8',
+  );
   assert.ok(
-    shellSource.includes('AssistantAvatar'),
-    'AI 消息应带智能员工头像',
+    shellSource.includes('<AnalysisThinkingMessage') && thinkingMessage.includes('<AssistantAvatar'),
+    '等待与发送占位共用带智能员工头像的消息组件',
   );
 });
 
