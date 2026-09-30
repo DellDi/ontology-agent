@@ -120,7 +120,7 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 等价的统一入口是 `scripts/easyv-dev ingest FULL` 和
 `scripts/easyv-dev ingest INCREMENTAL`；缺少源 JDBC、用户名或密码时脚本会直接失败。
 
-首次发布使用 `FULL`。日常运行使用 `INCREMENTAL`：有 cursor 的数据集抽取变更，没有新增行时
+首次发布使用 `FULL`。V21 升级的首次接入也必须使用 `FULL`（顺序见下节）。日常运行使用 `INCREMENTAL`：有 cursor 的数据集抽取变更，没有新增行时
 仍会基于已发布 head 物化完整 canonical 版本；当前无增量 cursor 的输入沿用已发布版本，不会
 把事实表清空。每次成功发布都会产生新的 frozen Dataset Version Set，分析任务绑定该 set，
 不会在执行中查询“最新版本”。
@@ -128,6 +128,20 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 `ai_screen_app.is_delete='1'` 会作为 Application tombstone 写入
 `facts.easyv_ai_application.is_deleted=true` 并随 product version 保留；EasyV 问数只统计
 `not is_deleted` 的 active Application cohort。不得为了演示清空 tombstone。
+
+## V21 原型结构扩展的部署顺序
+
+2026-09-30 已完成本地实现及真实源到一次性 Testcontainers 平台库验证，尚未部署。新的 ingest 命令发布 8 个产品：原 5 产品加 `easyv-prototype-layout`、`easyv-prototype-block`、`easyv-prototype-component`。三者共用 `easyv-prototype-task`，源列契约由 v1 升为 v2，首次升级不能直接做 INCREMENTAL。旧冻结集中的 facts 保留；含 v1 源版本的链不能按当前 v2 契约重新物化，须重新 FULL。
+
+确认发布后按以下顺序执行，使用本次代码构建的 Java 镜像与配套生成的 Cube 配置：
+
+1. `scripts/easyv-dev backup`，记录备份、当前镜像和冻结集；停止 `release-worker`，避免旧 Worker 在 schema 升级后接到新任务。
+2. 准备新镜像与配置，执行 `scripts/easyv-dev migrate` 到 V21。migrate 完成后既有 facts-reader 种子流程为 Cube 账号授予新 facts 表 SELECT 权限。
+3. 执行 `scripts/easyv-dev ingest FULL`，确认 8 个产品出现在同一 frozen Dataset Version Set。三个新增产品共用同一个 v2 原型源版本；不能只看任务 completed，应核对布局解析状态、区域/组件计数、产品血缘及源统计。
+4. 更新 Cube、backend/web 至本次镜像和配置，再启动新版 `release-worker`。确认 health 后用真实账号查询版式/区域/图表族分布与 L1–L4 签名；确认父应用授权与 `is_deleted` 范围，并核对本次 frozen set。
+5. 执行 `scripts/easyv-dev ingest INCREMENTAL` 并对账；源更新不能污染旧版本，删除通过 RECONCILE 清除当前集合，历史冻结结果仍可回看。最后执行浏览器与原 A 能力评测门禁。
+
+本地真实源门禁使用部署机当前只读源配置：120 个原型全部解析成功，777 个区域、1617 个图表组件，与独立源 JSON 展开 SQL 对账一致。FULL、INCREMENTAL、RECONCILE 的 8 产品行数与内容哈希一致；源记录计数及既有状态分布在验证前后不变。该验证不写部署平台库，也不代表部署后的 Cube/浏览器验收通过。
 
 ## Property 物化与图投影
 

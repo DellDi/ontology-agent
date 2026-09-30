@@ -9,9 +9,31 @@ const versions = {
   'easyv-ai-application': 'app-v1',
   'easyv-forge-task': 'forge-v1',
   'easyv-generation-feedback': 'feedback-v1',
+  'easyv-prototype-layout': 'layout-v1',
+  'easyv-prototype-block': 'block-v1',
+  'easyv-prototype-component': 'component-v1',
 };
 const all = { securityContext: { productVersions: versions, scope: { mode: 'all' } } };
 const scoped = (values) => ({ securityContext: { productVersions: versions, scope: { mode: 'scoped', values } } });
+
+test('原型结构对象强制绑定父应用授权与各自冻结版本', () => {
+  for (const [cube, version] of [
+    ['EasyvPrototypeLayout', 'layout-v1'],
+    ['EasyvPrototypeBlock', 'block-v1'],
+    ['EasyvPrototypeComponent', 'component-v1'],
+  ]) {
+    const query = queryRewrite({ measures: [`${cube}.count`] }, scoped({ userId: ['16'] }));
+    assert.deepEqual(query.filters, [
+      { member: 'EasyvApplication.appId', operator: 'set' },
+      { member: 'EasyvApplication.userId', operator: 'equals', values: ['16'] },
+      { member: 'EasyvApplication.productVersionId', operator: 'equals', values: ['app-v1'] },
+      { member: `${cube}.productVersionId`, operator: 'equals', values: [version] },
+    ]);
+    assert.throws(() => queryRewrite({ measures: [`${cube}.count`] },
+      { securityContext: { scope: { mode: 'all' }, productVersions: { 'easyv-ai-application': 'app-v1' } } }),
+      new RegExp(`SEMANTIC_VERSION_REQUIRED: ${cube}`));
+  }
+});
 
 test('本体生成的 Cube 强制注入成员资格关联与冻结版本过滤', () => {
   const query = queryRewrite({

@@ -40,5 +40,26 @@
     "scopeMembers": {
       "userId": "EasyvApplication.userId"
     }
+  },
+  "EasyvPrototypeBlock": {
+    "productKey": "easyv-prototype-block",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
+  },
+  "EasyvPrototypeComponent": {
+    "productKey": "easyv-prototype-component",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
+  },
+  "EasyvPrototypeLayout": {
+    "productKey": "easyv-prototype-layout",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
   }
 }
