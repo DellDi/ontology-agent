@@ -14,13 +14,13 @@ export function WorkspaceAnalysisComposer({ capabilities, draftQuestion }: {
   const input = useRef<HTMLTextAreaElement>(null);
   return (
     <form action="/api/analysis/sessions" method="post" className="rounded-lg border border-border bg-card p-5 sm:p-6">
-      <Field required>
+      <Field required className="space-y-2">
         <FieldLabel className="text-base">你想分析什么？</FieldLabel>
         <FieldTextarea ref={input} name="question" required placeholder="描述分析对象、时间范围，以及你关注的变化…"
           value={question} onChange={event => setQuestion(event.target.value)} maxLength={300} aria-describedby="question-hint"
-          className="min-h-[120px] border-0 bg-transparent px-0 shadow-none focus:ring-2" />
+          className="min-h-[120px]" />
       </Field>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
         <span className="text-muted-foreground">填入示例</span>
         {capabilities.filter(capability => capability.available).map(capability => (
           <button key={`${capability.domainKey}:${capability.capabilityKey}`} type="button"

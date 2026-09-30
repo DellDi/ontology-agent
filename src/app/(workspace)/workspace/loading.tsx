@@ -1,57 +1,27 @@
 import { Skeleton } from '@/app/_components/workbench/loading';
-import { Surface, SurfaceBody, SurfaceHeader } from '@/app/_components/workbench/surface';
 
 export default function WorkspaceLoading() {
   return (
     <section
-      className="space-y-6"
+      className="mx-auto max-w-4xl space-y-10"
       aria-busy="true"
-      aria-live="polite"
-      aria-label="正在加载工作台"
+      aria-label="正在加载你的工作台"
     >
-      <Surface variant="hero">
-        <SurfaceHeader
-          eyebrow="经营分析工作台"
-          title="正在加载你的工作台"
-          description="正在读取账号权限、项目范围、历史会话和最近执行状态。"
-        />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {['历史分析', '进行中', '失败待处理', '已完成'].map((label) => (
-          <Surface key={label}>
-            <SurfaceBody className="space-y-3">
-              <p className="text-xs font-medium tracking-[0.08em] text-muted-foreground">
-                {label}
-              </p>
-              <Skeleton className="h-7 w-16" />
-              <Skeleton className="h-4 w-32" />
-            </SurfaceBody>
-          </Surface>
-        ))}
+      <div className="rounded-lg border border-border bg-card p-5 sm:p-6">
+        <p className="text-base font-semibold">你想分析什么？</p>
+        <Skeleton className="mt-2 h-[120px] w-full animate-none border border-input" />
+        <Skeleton className="mt-3 h-6 w-48 animate-none" />
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-4">
+          <p className="text-xs text-muted-foreground" role="status">正在加载你的工作台…</p>
+          <Skeleton className="h-11 w-32 animate-none" />
+        </div>
       </div>
-
-      <Surface>
-        <SurfaceHeader
-          eyebrow="分析输入台"
-          title="准备分析入口"
-          description="工作台加载完成后即可发起新的经营分析。"
-        />
-        <SurfaceBody className="space-y-4">
-          <Skeleton className="h-32 w-full" />
-          <div className="flex justify-end">
-            <Skeleton className="h-11 w-32" />
-          </div>
-        </SurfaceBody>
-      </Surface>
-
-      <Surface>
-        <SurfaceHeader eyebrow="历史会话" title="正在恢复最近的问题上下文" />
-        <SurfaceBody className="space-y-3">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </SurfaceBody>
-      </Surface>
+      <section className="space-y-4" aria-label="正在加载分析记录">
+        <h2 className="text-base font-semibold">分析记录</h2>
+        <Skeleton className="h-11 w-full animate-none" />
+        <Skeleton className="h-20 w-full animate-none" />
+        <Skeleton className="h-20 w-full animate-none" />
+      </section>
     </section>
   );
 }
