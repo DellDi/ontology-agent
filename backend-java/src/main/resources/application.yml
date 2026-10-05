@@ -1,6 +1,10 @@
 spring:
   application:
     name: ontology-agent-backend
+  mvc:
+    async:
+      # StreamingResponseBody 必须使用分析流的时限，避免容器默认 30 秒提前截断完成事件。
+      request-timeout: ${dip3.stream.timeout}
   # 数据库迁移由独立 migrate 入口执行（--spring.profiles.active=migrate），
   # 应用常规启动不做自动迁移，避免对未 baseline 的老库直接重跑 V1~V6。
   flyway:
