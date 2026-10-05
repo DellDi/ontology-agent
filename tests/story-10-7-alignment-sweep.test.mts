@@ -60,18 +60,13 @@ async function loadUiBehaviorSubjects() {
       sessionId: string,
       followUpId?: string,
     ) => string;
-    buildAnalysisAutoExecuteAttemptStorageKey: (
-      executionScopeKey: string,
-    ) => string;
     resolveAnalysisAutoExecuteAttempt: (input: {
       enabled: boolean;
       lastSubmittedScope: string | null;
       executionScopeKey: string;
-      sessionAttemptedValue: string | null;
     }) =>
       | 'skip-disabled'
       | 'skip-memory-dedup'
-      | 'skip-session-dedup'
       | 'submit';
     submitAnalysisAutoExecuteForm: (formElement: {
       requestSubmit?: () => void;
@@ -219,7 +214,6 @@ test('Story 10.7 AC2 | 10.6 关键 UI 行为语义仍在源码中保留', async 
     shouldRestoreProcessBoardOpenState,
     shouldCloseProcessBoardOnKeydown,
     buildAnalysisAutoExecuteScopeKey,
-    buildAnalysisAutoExecuteAttemptStorageKey,
     resolveAnalysisAutoExecuteAttempt,
     submitAnalysisAutoExecuteForm,
   } = await loadUiBehaviorSubjects();
@@ -244,15 +238,10 @@ test('Story 10.7 AC2 | 10.6 关键 UI 行为语义仍在源码中保留', async 
     'session-10-7:follow-up-1',
   );
   assert.equal(
-    buildAnalysisAutoExecuteAttemptStorageKey('session-10-7:follow-up-1'),
-    'analysis-auto-execute-attempted:session-10-7:follow-up-1',
-  );
-  assert.equal(
     resolveAnalysisAutoExecuteAttempt({
       enabled: false,
       lastSubmittedScope: null,
       executionScopeKey: 'session-10-7:root',
-      sessionAttemptedValue: null,
     }),
     'skip-disabled',
   );
@@ -261,7 +250,6 @@ test('Story 10.7 AC2 | 10.6 关键 UI 行为语义仍在源码中保留', async 
       enabled: true,
       lastSubmittedScope: 'session-10-7:root',
       executionScopeKey: 'session-10-7:root',
-      sessionAttemptedValue: null,
     }),
     'skip-memory-dedup',
   );
@@ -270,16 +258,14 @@ test('Story 10.7 AC2 | 10.6 关键 UI 行为语义仍在源码中保留', async 
       enabled: true,
       lastSubmittedScope: null,
       executionScopeKey: 'session-10-7:root',
-      sessionAttemptedValue: '1',
     }),
-    'skip-session-dedup',
+    'submit',
   );
   assert.equal(
     resolveAnalysisAutoExecuteAttempt({
       enabled: true,
       lastSubmittedScope: null,
       executionScopeKey: 'session-10-7:root',
-      sessionAttemptedValue: null,
     }),
     'submit',
   );

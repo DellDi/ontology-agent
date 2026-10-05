@@ -2,6 +2,8 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 import { z } from 'zod';
+import { javaSchemeAssessmentResultSchema } from './scheme-assessment-contract';
+import { javaObjectSelectionSchema } from './object-read-contract';
 
 import {
   CORRELATION_HEADER,
@@ -9,6 +11,12 @@ import {
 } from '@/infrastructure/observability/correlation';
 
 const jsonObjectSchema = z.record(z.string(), z.unknown());
+const executionRenderBlockSchema = jsonObjectSchema.superRefine((block, context) => {
+  if (block.type !== 'scheme-comparison') return;
+  const parsed = z.strictObject({ type: z.literal('scheme-comparison'), title: z.string().min(1),
+    role: z.enum(['primary', 'supporting']).optional(), result: javaSchemeAssessmentResultSchema }).safeParse(block);
+  if (!parsed.success) context.addIssue({ code: 'custom', message: '区域方案比较块缺少有效的冻结评估结果。' });
+});
 const propertyCapabilityBindingSchema = z.strictObject({
   domainKey: z.literal('property'),
   capabilityKey: z.literal('collection-rate-analysis'),
@@ -135,7 +143,7 @@ const suggestedActionSchema = z.strictObject({
 
 const conclusionStateSchema = z.strictObject({
   causes: z.array(conclusionCauseSchema),
-  renderBlocks: z.array(jsonObjectSchema),
+  renderBlocks: z.array(executionRenderBlockSchema),
   evidence: z.array(evidenceProjectionSchema).optional(),
   claims: z.array(groundedClaimSchema).optional(),
   suggestedQuestions: z.array(z.string().min(1)).optional(),
@@ -155,6 +163,7 @@ const contextFieldSchema = z.strictObject({
 });
 
 const analysisContextSchema = z.strictObject({
+  objectSelection: javaObjectSelectionSchema.optional(),
   targetMetric: contextFieldSchema,
   entity: contextFieldSchema,
   timeRange: contextFieldSchema,
@@ -250,6 +259,8 @@ const planRuntimeFields = {
     question: z.string().min(1),
     options: z.array(z.string().min(1)).max(6),
   }).optional(),
+  _objectSelection: javaObjectSelectionSchema.optional(),
+  _objectSelectionLabel: z.string().min(1).optional(),
   _understanding: z.array(understandingEntrySchema).min(1).max(4).optional(),
   _editorCatalog: editorCatalogSchema.optional(),
   _queryOverride: z.array(z.strictObject({
@@ -295,6 +306,8 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
   _followUpId: z.string().min(1).optional(),
   _referencedExecutionId: z.string().min(1).optional(),
   _clarification: planRuntimeFields._clarification,
+  _objectSelection: planRuntimeFields._objectSelection,
+  _objectSelectionLabel: planRuntimeFields._objectSelectionLabel,
   _understanding: planRuntimeFields._understanding,
   _editorCatalog: planRuntimeFields._editorCatalog,
   _queryOverride: planRuntimeFields._queryOverride,
@@ -302,6 +315,16 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
   _suggestedQuestions: z.array(z.string()).optional(),
   _suggestedActions: z.array(suggestedActionSchema).optional(),
   _resolvedContext: jsonObjectSchema,
+}).superRefine((plan, context) => {
+  if (!plan._objectSelection) {
+    if (plan._objectSelectionLabel) context.addIssue({ code: 'custom', path: ['_objectSelectionLabel'], message: '对象标签必须对应真实选择。' });
+    return;
+  }
+  if (plan.mode !== 'semantic-query-read-only' || plan._executionContract !== 'java-follow-up-v1'
+    || !plan._followUpId || !plan._objectSelectionLabel
+    || plan._objectSelection.executionId !== plan._referencedExecutionId) {
+    context.addIssue({ code: 'custom', path: ['_objectSelection'], message: '对象选择必须绑定语义追问的真实来源执行。' });
+  }
 });
 
 const propertyResolvedContextSchema = z.strictObject({
@@ -341,15 +364,28 @@ const easyVSemanticQuerySchema = z.strictObject({
   compareRange: z.string().min(1).optional(),
 });
 
+const easyVToolCallSchema = z.strictObject({
+  id: z.string().regex(/^q[1-8]$/),
+  tool: z.enum(['query_metrics', 'query_objects', 'read_object', 'traverse_objects', 'assess_scheme']),
+  label: z.string().min(1), input: jsonObjectSchema,
+  references: z.array(javaObjectSelectionSchema.shape.reference).max(50),
+});
 const easyVSemanticResolvedContextSchema = z.strictObject({
   userId: positiveIdSchema,
   accessMode: z.enum(['all', 'scoped']),
   easyvUserId: positiveIdSchema.optional(),
   dataScope: z.string().min(1),
-  queries: z.array(easyVSemanticQuerySchema).min(1).max(4),
+  queries: z.array(easyVSemanticQuerySchema).max(4),
+  toolCalls: z.array(easyVToolCallSchema).min(1).max(8).optional(),
 }).refine(({ accessMode, easyvUserId }) => (accessMode === 'scoped') === (easyvUserId !== undefined), {
   message: '_resolvedContext.easyvUserId 必须且仅在 scoped 数据范围下出现。',
   path: ['easyvUserId'],
+}).superRefine(({ queries, toolCalls }, context) => {
+  if (!queries.length && !toolCalls?.length) context.addIssue({ code: 'custom', path: ['queries'], message: '完成计划必须保留真实查询或对象工具轨迹。' });
+  if (toolCalls && (toolCalls.some((call, index) => call.id !== `q${index + 1}`)
+    || JSON.stringify(toolCalls.filter((call) => call.tool === 'query_metrics').map((call) => call.id)) !== JSON.stringify(queries.map((query) => query.id)))) {
+    context.addIssue({ code: 'custom', path: ['toolCalls'], message: '工具轨迹顺序或指标查询 ID 不一致。' });
+  }
 });
 
 const easyVResolvedContextSchema = z.union([
@@ -489,6 +525,7 @@ function isSemanticEasyVState(state: z.infer<typeof conclusionStateSchema> | nul
 
 function validateCapabilityPayload(
   value: {
+    executionId: string;
     ontologyVersionId: string | null;
     capabilityBinding: z.infer<typeof capabilityBindingSchema>;
     planSnapshot: z.infer<typeof javaExecutionPlanEnvelopeSchema>;
@@ -542,6 +579,14 @@ function validateCapabilityPayload(
         context.addIssue({ code: 'custom', path: ['planSnapshot', '_resolvedContext'], message: 'EasyV 语义查询计划必须使用 v2 数据范围与查询上下文。' });
       }
       addSemanticEasyVIssues(value.conclusionState, context);
+      for (const block of value.conclusionState?.renderBlocks ?? []) {
+        if (block.type !== 'scheme-comparison') continue;
+        const parsed = javaSchemeAssessmentResultSchema.safeParse(block.result);
+        if (parsed.success && (parsed.data.selection.executionId !== value.executionId
+          || parsed.data.ontologyVersionId !== value.ontologyVersionId)) {
+          context.addIssue({ code: 'custom', path: ['conclusionState', 'renderBlocks'], message: '区域方案比较结果不属于本轮冻结执行。' });
+        }
+      }
     } else if (value.planSnapshot.mode === 'question-driven-read-only') {
       addQuestionDrivenEasyVIssues(value.conclusionState, context);
     } else {
@@ -598,6 +643,14 @@ export const javaAnalysisFollowUpSchema = z.strictObject({
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
 }).superRefine((value, context) => {
+  for (const key of ['inheritedContext', 'mergedContext'] as const) {
+    const selected = value[key].objectSelection;
+    if (selected && ('source' in value.capabilityBinding || value.capabilityBinding.domainKey !== 'easyv'
+      || selected.executionId !== value.referencedExecutionId || selected.datasetVersionSetId !== value.datasetVersionSetId)) {
+      context.addIssue({ code: 'custom', path: [key, 'objectSelection'], message: '对象选择必须与 EasyV 追问的来源执行和冻结集合一致。' });
+    }
+  }
+
   if (value.ontologyVersionId !== value.ontologyVersionBinding.ontologyVersionId) {
     context.addIssue({
       code: 'custom',
@@ -802,7 +855,7 @@ const eventSchema = z.strictObject({
   timestamp: z.string().min(1),
   status: jobStatusSchema.nullable(),
   message: z.string().nullable(),
-  renderBlocks: z.array(jsonObjectSchema),
+  renderBlocks: z.array(executionRenderBlockSchema),
   metadata: jsonObjectSchema,
   errorCode: z.string().nullable(),
   traceId: z.string().nullable(),

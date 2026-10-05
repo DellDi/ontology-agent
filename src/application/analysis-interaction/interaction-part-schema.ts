@@ -26,6 +26,8 @@ export const ANALYSIS_INTERACTION_PART_KINDS = [
   'assumption-card',
   'approval-state',
   'skills-state',
+  'object-browser',
+  'scheme-comparison',
 ] as const;
 export type AnalysisInteractionPartKind =
   (typeof ANALYSIS_INTERACTION_PART_KINDS)[number];
@@ -162,6 +164,11 @@ function buildPart(input: {
 
 function payloadFromRenderBlock(block: ExecutionRenderBlock) {
   switch (block.type) {
+    case 'scheme-comparison':
+      return stripUndefinedPayload({ result: block.result, role: block.role });
+    case 'object-browser':
+      return { datasetVersionSetId: block.datasetVersionSetId, objectKey: block.objectKey,
+        filters: block.filters, scopeDescription: block.scopeDescription, role: block.role };
     case 'status':
       return {
         value: block.value,

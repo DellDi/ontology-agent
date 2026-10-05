@@ -1,5 +1,6 @@
 'use client';
 
+import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { MarkdownContent } from '@/app/_components/markdown-content';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
@@ -70,10 +71,12 @@ function ConclusionSummaryBlock({
 export function AnalysisResultBlockRenderer({
   block,
   embedded = false,
+  onObjectSelect,
 }: {
   block: AnalysisRenderedBlock;
   /** 嵌套在对话气泡内：子块去卡片边框与阴影，避免大框套小框。 */
   embedded?: boolean;
+  onObjectSelect?: (selection: AnalysisObjectSelection, label: string) => void;
 }) {
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
 
@@ -83,7 +86,7 @@ export function AnalysisResultBlockRenderer({
 
   return (
     <div className="mt-4">
-      {registry.render({ renderedBlock: block, embedded })}
+      {registry.render({ renderedBlock: block, embedded, onObjectSelect })}
     </div>
   );
 }

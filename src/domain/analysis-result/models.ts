@@ -30,6 +30,8 @@ const CONCLUSION_RESULT_BLOCK_TYPES = new Set<ExecutionRenderBlock['type']>([
   'chart',
   'graph',
   'evidence-card',
+  'object-browser',
+  'scheme-comparison',
 ]);
 
 const NON_CONCLUSION_BLOCK_TITLES = new Set([

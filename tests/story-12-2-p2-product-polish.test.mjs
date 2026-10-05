@@ -5,7 +5,6 @@ const GATE_IMPORT = `
   import gateModule from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-auto-execute-gate.tsx';
   const {
     buildAnalysisAutoExecuteScopeKey,
-    buildAnalysisAutoExecuteAttemptStorageKey,
     resolveAnalysisAutoExecuteAttempt,
     submitAnalysisAutoExecuteForm,
   } = gateModule;
@@ -65,18 +64,6 @@ test('buildAnalysisAutoExecuteScopeKey — undefined followUpId uses root', asyn
 });
 
 // ---------------------------------------------------------------------------
-// buildAnalysisAutoExecuteAttemptStorageKey
-// ---------------------------------------------------------------------------
-
-test('buildAnalysisAutoExecuteAttemptStorageKey — correct format', async () => {
-  const result = await runTsSnippet(`
-    ${GATE_IMPORT}
-    console.log(JSON.stringify(buildAnalysisAutoExecuteAttemptStorageKey('session-1:root')));
-  `);
-  assert.equal(result, 'analysis-auto-execute-attempted:session-1:root');
-});
-
-// ---------------------------------------------------------------------------
 // resolveAnalysisAutoExecuteAttempt
 // ---------------------------------------------------------------------------
 
@@ -87,7 +74,6 @@ test('resolveAnalysisAutoExecuteAttempt — disabled returns skip-disabled', asy
       enabled: false,
       lastSubmittedScope: null,
       executionScopeKey: 'session-1:root',
-      sessionAttemptedValue: null,
     })));
   `);
   assert.equal(result, 'skip-disabled');
@@ -100,23 +86,21 @@ test('resolveAnalysisAutoExecuteAttempt — memory dedup returns skip-memory-ded
       enabled: true,
       lastSubmittedScope: 'session-1:root',
       executionScopeKey: 'session-1:root',
-      sessionAttemptedValue: null,
     })));
   `);
   assert.equal(result, 'skip-memory-dedup');
 });
 
-test('resolveAnalysisAutoExecuteAttempt — session dedup returns skip-session-dedup', async () => {
+test('resolveAnalysisAutoExecuteAttempt — reopening a session without an execution submits again', async () => {
   const result = await runTsSnippet(`
     ${GATE_IMPORT}
     console.log(JSON.stringify(resolveAnalysisAutoExecuteAttempt({
       enabled: true,
       lastSubmittedScope: null,
       executionScopeKey: 'session-1:root',
-      sessionAttemptedValue: '1',
     })));
   `);
-  assert.equal(result, 'skip-session-dedup');
+  assert.equal(result, 'submit');
 });
 
 test('resolveAnalysisAutoExecuteAttempt — enabled with no dedup returns submit', async () => {
@@ -126,7 +110,6 @@ test('resolveAnalysisAutoExecuteAttempt — enabled with no dedup returns submit
       enabled: true,
       lastSubmittedScope: null,
       executionScopeKey: 'session-1:root',
-      sessionAttemptedValue: null,
     })));
   `);
   assert.equal(result, 'submit');
@@ -139,7 +122,6 @@ test('resolveAnalysisAutoExecuteAttempt — different scope still submits', asyn
       enabled: true,
       lastSubmittedScope: 'session-1:root',
       executionScopeKey: 'session-1:followup-2',
-      sessionAttemptedValue: null,
     })));
   `);
   assert.equal(result, 'submit');
@@ -152,7 +134,6 @@ test('resolveAnalysisAutoExecuteAttempt — disabled takes precedence over dedup
       enabled: false,
       lastSubmittedScope: 'session-1:root',
       executionScopeKey: 'session-1:root',
-      sessionAttemptedValue: '1',
     })));
   `);
   assert.equal(result, 'skip-disabled');
@@ -198,11 +179,10 @@ test('auto-execute gate module exports all required functions', async () => {
     ${GATE_IMPORT}
     const fns = [
       typeof buildAnalysisAutoExecuteScopeKey,
-      typeof buildAnalysisAutoExecuteAttemptStorageKey,
       typeof resolveAnalysisAutoExecuteAttempt,
       typeof submitAnalysisAutoExecuteForm,
     ];
     console.log(JSON.stringify(fns));
   `);
-  assert.deepEqual(result, ['function', 'function', 'function', 'function']);
+  assert.deepEqual(result, ['function', 'function', 'function']);
 });

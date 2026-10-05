@@ -22,14 +22,20 @@ function normalizeTurnStatus(
   return 'pending';
 }
 
-function roundMetadata(round: JavaHistoryRound): {
+function roundMetadata(round: JavaHistoryRound, followUp?: JavaAnalysisSession["followUps"][number]): {
   understanding: SemanticQueryUnderstanding[] | null;
   editorCatalog: SemanticEditorCatalog | null;
   clarification: SemanticClarification | null;
   resolvedQueries: ResolvedQueryIntent[];
+  objectSelection?: ChatTurn["objectSelection"];
+  objectSelectionLabel?: string;
 } {
   const plan = round.planSnapshot;
+  const selection = plan?._objectSelection ?? followUp?.mergedContext?.objectSelection;
   return {
+    ...(selection ? { objectSelection: { ...selection,
+      executionId: round.status === 'completed' && round.executionId ? round.executionId : selection.executionId },
+      objectSelectionLabel: plan?._objectSelectionLabel ?? selection.reference.objectId } : {}),
     understanding: plan?._understanding ?? null,
     editorCatalog: plan?._editorCatalog ?? null,
     clarification: plan?._clarification ?? null,
@@ -47,6 +53,7 @@ export function buildChatTurns(
 ): ChatTurn[] {
   const turns: ChatTurn[] = aggregate.history.map((round) => ({
     key: round.id,
+    executionId: round.executionId,
     kind: round.kind,
     questionText: round.questionText,
     status: normalizeTurnStatus(round.status),
@@ -54,7 +61,7 @@ export function buildChatTurns(
       round.executionId !== null && round.executionId === resolvedExecutionId,
     followUpId: round.followUpId,
     conclusionState: round.conclusionState ?? null,
-    ...roundMetadata(round),
+    ...roundMetadata(round, aggregate.followUps.find((item) => item.id === round.followUpId)),
   }));
 
   const knownFollowUpRoundIds = new Set(
@@ -76,6 +83,8 @@ export function buildChatTurns(
       editorCatalog: null,
       clarification: null,
       resolvedQueries: [],
+      ...(followUp.mergedContext?.objectSelection ? {objectSelection: followUp.mergedContext.objectSelection,
+        objectSelectionLabel: followUp.mergedContext.objectSelection.reference.objectId} : {}),
     });
   }
 

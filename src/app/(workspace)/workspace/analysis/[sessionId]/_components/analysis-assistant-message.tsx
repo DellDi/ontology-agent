@@ -1,5 +1,7 @@
 'use client';
 
+import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
+
 import { useEffect, useState, type ReactNode } from 'react';
 
 import type {
@@ -113,6 +115,7 @@ export function AnalysisAssistantMessage({
   toolTimeline,
   onOpenDetail,
   onOpenSidePanel,
+  onObjectSelect,
   availableDetails = [],
   suggestions,
   onSuggestionClick,
@@ -141,6 +144,7 @@ export function AnalysisAssistantMessage({
     content: ReactNode;
     testId?: string;
   }) => void;
+  onObjectSelect?: (selection: AnalysisObjectSelection, label: string) => void;
   availableDetails?: Exclude<DetailDrawerType, null>[];
   suggestions?: string[];
   onSuggestionClick?: (question: string) => void;
@@ -163,11 +167,12 @@ export function AnalysisAssistantMessage({
   const visibleBlocks = (result?.blocks ?? []).filter(
     (block) => !isBlockAlreadyVisualized(block, metricCards, visualizations),
   );
+  const objectBlocks = visibleBlocks.filter((block) => block.kind === 'object-browser');
   const primaryBlocks = visibleBlocks.filter(
-    (block) => block.payload?.role !== 'supporting',
+    (block) => block.kind !== 'object-browser' && block.payload?.role !== 'supporting',
   );
   const supportingBlocks = visibleBlocks.filter(
-    (block) => block.payload?.role === 'supporting',
+    (block) => block.kind !== 'object-browser' && block.payload?.role === 'supporting',
   );
   const detailItemCount =
     supportingBlocks.length +
@@ -365,8 +370,16 @@ export function AnalysisAssistantMessage({
           ) : null}
 
           {/* 底部业务入口 */}
-          {detailItemCount > 0 || businessDetails.length > 0 || (suggestions?.length && status === 'completed') ? (
+          {objectBlocks.length > 0 || detailItemCount > 0 || businessDetails.length > 0 || (suggestions?.length && status === 'completed') ? (
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+              {objectBlocks.map((block, index) => (
+                <button key={`objects-${index}`} type="button"
+                  className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => onOpenSidePanel?.({ title: block.title ?? '查看原型', testId: 'analysis-object-drawer',
+                    content: <AnalysisResultBlockRenderer block={block} onObjectSelect={onObjectSelect} /> })}>
+                  查看原型{objectBlocks.length > 1 ? ` · ${block.title}` : ''}
+                </button>
+              ))}
               {detailItemCount > 0 ? (
                 <button
                   className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

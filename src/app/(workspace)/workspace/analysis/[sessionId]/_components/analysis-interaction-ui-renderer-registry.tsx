@@ -1,10 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
 
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
 import { renderTableBlock, renderChartBlock, renderGraphBlock } from './renderer/block-sub-renderers';
+import { renderSchemeComparisonBlock } from './renderer/render-scheme-comparison';
+import { renderObjectBrowserBlock } from './renderer/render-object-browser';
 import { renderProcessBoardBlock } from './renderer/render-process-board-block';
 import { renderStatusBlock, renderKvListBlock, renderToolListBlock, renderMarkdownBlock, renderReasoningSummaryBlock } from './renderer/render-simple-blocks';
 import { renderEvidenceCardBlock, renderTimelineBlock, renderApprovalStateBlock, renderSkillsStateBlock, renderAssumptionCardBlock } from './renderer/render-structured-blocks';
@@ -17,6 +20,7 @@ export type AnalysisInteractionUiRenderInput = {
   className?: string;
   /** 嵌套在对话气泡内渲染时置 true：块级卡片去边框/阴影/底色，避免大框套小框。 */
   embedded?: boolean;
+  onObjectSelect?: (selection: AnalysisObjectSelection, label: string) => void;
 };
 
 export type AnalysisInteractionUiRendererDescriptor = {
@@ -76,6 +80,8 @@ export function createAnalysisInteractionUiRendererRegistry(
 
 export function createDefaultAnalysisInteractionUiRendererRegistry() {
   return createAnalysisInteractionUiRendererRegistry([
+    { kind: 'scheme-comparison', render: renderSchemeComparisonBlock },
+    { kind: 'object-browser', render: renderObjectBrowserBlock },
     { kind: 'process-board', render: renderProcessBoardBlock },
     { kind: 'status', render: renderStatusBlock },
     { kind: 'kv-list', render: renderKvListBlock },
