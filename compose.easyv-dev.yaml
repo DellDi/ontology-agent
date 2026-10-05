@@ -206,7 +206,7 @@ services:
     command:
       - --spring.profiles.active=ingest
       - --dip3.ingestion.source-key=easyv
-      - --dip3.ingestion.product-keys=easyv-ai-application,easyv-prototype-task,easyv-prototype-layout,easyv-prototype-block,easyv-prototype-component,easyv-pipeline-node,easyv-forge-task,easyv-generation-feedback
+      - --dip3.ingestion.product-keys=easyv-ai-application,easyv-prototype-task,easyv-prototype-layout,easyv-prototype-block,easyv-prototype-component,easyv-scheme-library,easyv-pipeline-node,easyv-forge-task,easyv-generation-feedback
       - --dip3.ingestion.mode=${INGEST_MODE:-INCREMENTAL}
       - --dip3.ingestion.trigger=${INGEST_TRIGGER:-MANUAL}
       - --dip3.ingestion.requested-by=${INGEST_REQUESTED_BY:-easyv-dev}

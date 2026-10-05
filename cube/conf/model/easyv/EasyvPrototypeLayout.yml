@@ -11,6 +11,12 @@ cubes:
       - name: "EasyvApplication"
         relationship: "one_to_one"
         sql: "{CUBE}.app_id = {EasyvApplication}.app_id"
+      - name: "EasyvPrototypeBlock"
+        relationship: "one_to_many"
+        sql: "{CUBE}.app_id = {EasyvPrototypeBlock}.app_id"
+      - name: "EasyvPrototypeComponent"
+        relationship: "one_to_many"
+        sql: "{CUBE}.app_id = {EasyvPrototypeComponent}.app_id"
     dimensions:
       - name: "productVersionId"
         sql: "{CUBE}.product_version_id"

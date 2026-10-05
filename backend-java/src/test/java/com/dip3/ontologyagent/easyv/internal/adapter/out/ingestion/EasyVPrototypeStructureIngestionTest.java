@@ -21,6 +21,13 @@ import com.dip3.ontologyagent.ingestion.internal.application.ProductMaterializer
 import com.dip3.ontologyagent.ingestion.internal.application.SourceBatchManifest;
 import com.dip3.ontologyagent.ingestion.internal.application.SourceCatalogPort;
 import com.dip3.ontologyagent.support.JsonCodec;
+import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.semantic.api.ObjectQueryPort;
+import com.dip3.ontologyagent.semantic.api.QueryIntent;
+import com.dip3.ontologyagent.semantic.api.SemanticModel;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryPort;
+import com.dip3.ontologyagent.semantic.internal.adapter.out.postgres.PostgresObjectQueryAdapter;
+import com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.PrototypeStructurePostgresAdapter;
 import com.dip3.ontologyagent.support.MigrationTestSupport;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -92,6 +99,7 @@ class EasyVPrototypeStructureIngestionTest {
     codec = new RowPackV1Codec();
     sourceCatalog = new SourceCatalogPostgresAdapter(jdbc, json);
     List<CanonicalProductTransform> transforms = List.of(
+        new EasyVCanonicalTransform(EasyVCanonicalTransform.Kind.APPLICATION, jdbc, json),
         new EasyVCanonicalTransform(EasyVCanonicalTransform.Kind.PROTOTYPE_LAYOUT, jdbc, json),
         new EasyVCanonicalTransform(EasyVCanonicalTransform.Kind.PROTOTYPE_BLOCK, jdbc, json),
         new EasyVCanonicalTransform(EasyVCanonicalTransform.Kind.PROTOTYPE_COMPONENT, jdbc, json));
@@ -117,6 +125,17 @@ class EasyVPrototypeStructureIngestionTest {
         "select component_count from facts.easyv_prototype_layout where app_id='app-1'", Integer.class));
     assertEquals("凹形", jdbc.queryForObject(
         "select layout_type from facts.easyv_prototype_layout where app_id='app-1'", String.class));
+    assertEquals("page-1__left_2", jdbc.queryForObject("""
+        select layout_structure #>> '{children,0,children,0,children,0,children,1,attributes,id}'
+        from facts.easyv_prototype_layout where app_id='app-1'
+        """, String.class));
+    assertEquals(2, jdbc.queryForObject(
+        "select schema_version from ingestion.data_product_versions where id=?", Integer.class,
+        versions.get("easyv-prototype-layout")));
+    assertEquals(0L, jdbc.queryForObject("""
+        select count(*) from facts.easyv_prototype_layout
+        where parse_status <> 'ok' and layout_structure is not null
+        """, Long.class));
 
     Map<String, String> failures = new LinkedHashMap<>();
     jdbc.query("select app_id, parse_status || ':' || parse_error_code as v from facts.easyv_prototype_layout"
@@ -145,6 +164,117 @@ class EasyVPrototypeStructureIngestionTest {
         """, Long.class), "facts 不应有自由文本列");
     assertThrows(DataAccessException.class, () -> jdbc.update(
         "update facts.easyv_prototype_block set scheme_id='changed'"));
+  }
+
+  @Test
+  void metricBindingsAreWhitelistedAndVersionedWithoutChangingStatisticalSignatures() {
+    Map<String, Object> missing = validJson("4");
+    var old = materializeAll(publish("binding-missing", rows(missing)), "binding-missing");
+    Map<String, Object> bound = validJson("4");
+    Map<String, Object> blocks = (Map<String, Object>) ((Map<String, Object>) bound.get("page-1")).get("blocks");
+    Map<String, Object> left = new LinkedHashMap<>((Map<String, Object>) blocks.get("page-1__left_1"));
+    left.put("boundMetricIds", List.of("metric-a"));
+    left.put("boundMetrics", List.of(Map.of("metricId", "metric-a", "name", "不应保留的指标名称",
+        "sourceColumns", List.of("不应保留的源列"))));
+    blocks.put("page-1__left_1", left);
+    var first = materializeAll(publish("binding-first", rows(bound)), "binding-first");
+    String statusSql = "select metric_binding_status from facts.easyv_prototype_block "
+        + "where product_version_id=? and block_id='page-1__left_1'";
+    String bindingsSql = "select metric_bindings::text from facts.easyv_prototype_block "
+        + "where product_version_id=? and block_id='page-1__left_1'";
+    assertEquals("not_retained", jdbc.queryForObject(statusSql, String.class, old.get(PRODUCTS.get(1))));
+    assertNull(jdbc.queryForObject(bindingsSql, String.class, old.get(PRODUCTS.get(1))));
+    assertEquals("available", jdbc.queryForObject(statusSql, String.class, first.get(PRODUCTS.get(1))));
+    var bindings = new JsonCodec().list(jdbc.queryForObject(bindingsSql, String.class, first.get(PRODUCTS.get(1))));
+    assertEquals(List.of(Map.of("slotIndex", 0, "componentId", "c1", "metricId", "metric-a",
+        "chartFamily", "line", "sceneType", "总览指标", "sourceType", "AI")), bindings);
+    assertEquals(3, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",
+        Integer.class, first.get(PRODUCTS.get(1))));
+    left.put("boundMetricIds", List.of("metric-b"));
+    var changed = materializeAll(publish("binding-changed", rows(bound)), "binding-changed");
+    assertNotEquals(contentHash(first.get(PRODUCTS.get(1))), contentHash(changed.get(PRODUCTS.get(1))));
+    for (String product : List.of(PRODUCTS.get(0), PRODUCTS.get(2))) {
+      assertEquals(contentHash(first.get(product)), contentHash(changed.get(product)));
+    }
+    assertEquals("metric-a", jdbc.queryForObject("""
+        select metric_bindings #>> '{0,metricId}' from facts.easyv_prototype_block
+        where product_version_id=? and block_id='page-1__left_1'
+        """, String.class, first.get(PRODUCTS.get(1))));
+    assertThrows(DataAccessException.class, () -> jdbc.update(
+        "update facts.easyv_prototype_block set metric_bindings=null where product_version_id=?", first.get(PRODUCTS.get(1))));
+  }
+
+  @Test
+  void freezesSourcePercentageGeometryAndTitlePresenceAndReadsExactVersionsForAssessment() {
+    Map<String,Object> value=validJson("4");
+    Map<String,Object> blocks=(Map<String,Object>)((Map<String,Object>)value.get("page-1")).get("blocks");
+    Map<String,Object> left=new LinkedHashMap<>((Map<String,Object>)blocks.get("page-1__left_1"));
+    left.put("boundMetricIds",List.of("metric-a"));
+    Map<String,Object> component=new LinkedHashMap<>((Map<String,Object>)((List<?>)left.get("components")).getFirst());
+    component.put("config",Map.of("relativeX","0%","relativeY","0%","width","100%","height","100%"));
+    left.put("components",List.of(component));blocks.put("page-1__left_1",left);
+    var first=materializeAll(publish("component-geometry-old",rows(value)),"component-geometry-old");
+    var reader=new com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.SchemeAssessmentPostgresAdapter(jdbc,new JsonCodec());
+    var original=reader.block(first.get(PRODUCTS.get(1)),first.get(PRODUCTS.get(2)),"app-1","page-1__left_1");
+    assertEquals(true,original.titlePresent());assertEquals("available",original.components().getFirst().geometry().status());
+    assertEquals(100,original.components().getFirst().geometry().box().width());
+    component.put("config",Map.of("relativeX","0%","relativeY","0%","width","40%","height","100%"));
+    left.put("title","  ");
+    var changed=materializeAll(publish("component-geometry-new",rows(value)),"component-geometry-new");
+    var newer=reader.block(changed.get(PRODUCTS.get(1)),changed.get(PRODUCTS.get(2)),"app-1","page-1__left_1");
+    assertEquals(false,newer.titlePresent());assertEquals(40,newer.components().getFirst().geometry().box().width());
+    assertEquals(original,reader.block(first.get(PRODUCTS.get(1)),first.get(PRODUCTS.get(2)),"app-1","page-1__left_1"));
+    assertNotEquals(contentHash(first.get(PRODUCTS.get(1))),contentHash(changed.get(PRODUCTS.get(1))));
+    assertNotEquals(contentHash(first.get(PRODUCTS.get(2))),contentHash(changed.get(PRODUCTS.get(2))));
+    assertEquals(signatureOf(first.get(PRODUCTS.get(0)),"chart_signature"),signatureOf(changed.get(PRODUCTS.get(0)),"chart_signature"));
+    assertEquals(2,jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",Integer.class,changed.get(PRODUCTS.get(2))));
+    var viewer=new com.dip3.ontologyagent.auth.AuthSession("test","1","用户",new com.dip3.ontologyagent.auth.AccessScope("org",List.of(),List.of(),List.of("PLATFORM_ADMIN")),java.time.Instant.MAX);
+    reader.audit("assessment-evidence","session-test",viewer,Map.of("input",original,"ruleVersion","easyv-adaptation-v1"));
+    assertEquals("easyv-adaptation-v1",jdbc.queryForObject("select payload->>'ruleVersion' from platform.audit_events where id='assessment-evidence'",String.class));
+    assertEquals("1",jdbc.queryForObject("select user_id from platform.audit_events where id='assessment-evidence'",String.class));
+    assertEquals(180,jdbc.queryForObject("select extract(day from retention_until-created_at)::int from platform.audit_events where id='assessment-evidence'",Integer.class));
+  }
+
+  @Test
+  void malformedMetricBindingRemainsVisibleAlongsideValidStructure() {
+    Map<String, Object> value = validJson("4");
+    Map<String, Object> blocks = (Map<String, Object>) ((Map<String, Object>) value.get("page-1")).get("blocks");
+    Map<String, Object> left = new LinkedHashMap<>((Map<String, Object>) blocks.get("page-1__left_1"));
+    left.put("boundMetricIds", List.of("metric-a", "metric-b"));
+    blocks.put("page-1__left_1", left);
+    var versions = materializeAll(publish("binding-invalid", rows(value)), "binding-invalid");
+    assertEquals("invalid", jdbc.queryForObject("""
+        select metric_binding_status from facts.easyv_prototype_block
+        where product_version_id=? and block_id='page-1__left_1'
+        """, String.class, versions.get(PRODUCTS.get(1))));
+    assertNull(jdbc.queryForObject("""
+        select metric_bindings from facts.easyv_prototype_block
+        where product_version_id=? and block_id='page-1__left_1'
+        """, String.class, versions.get(PRODUCTS.get(1))));
+    assertEquals(3L, count("facts.easyv_prototype_component", versions.get(PRODUCTS.get(2))));
+    assertEquals("ok", jdbc.queryForObject("select parse_status from facts.easyv_prototype_layout "
+        + "where product_version_id=? and app_id='app-1'", String.class, versions.get(PRODUCTS.get(0))));
+  }
+
+  @Test
+  void geometryChangesAreVersionedWithoutRewritingOlderFactsOrStatisticalSignatures() {
+    List<SourceRow> originalRows = rows(validJson("4"));
+    Map<String, String> first = materializeAll(publish("geometry-1", originalRows), "geometry-1");
+    List<SourceRow> changedRows = new ArrayList<>(originalRows);
+    List<Object> changedValues = new ArrayList<>(originalRows.get(0).values());
+    changedValues.set(2, XML.replace("gap=\"24\"", "gap=\"32\""));
+    changedRows.set(0, new SourceRow(changedValues));
+    Map<String, String> second = materializeAll(publish("geometry-2", changedRows), "geometry-2");
+    assertNotEquals(contentHash(first.get("easyv-prototype-layout")), contentHash(second.get("easyv-prototype-layout")));
+    assertEquals(signatureOf(first.get("easyv-prototype-layout"), "layout_signature"),
+        signatureOf(second.get("easyv-prototype-layout"), "layout_signature"));
+    String gapSql = "select layout_structure #>> '{children,0,children,0,children,0,attributes,gap}' "
+        + "from facts.easyv_prototype_layout where app_id='app-1' and product_version_id=?";
+    assertEquals("24", jdbc.queryForObject(gapSql, String.class, first.get("easyv-prototype-layout")));
+    assertEquals("32", jdbc.queryForObject(gapSql, String.class, second.get("easyv-prototype-layout")));
+    assertThrows(DataAccessException.class, () -> jdbc.update(
+        "update facts.easyv_prototype_layout set layout_structure=null where product_version_id=?",
+        first.get("easyv-prototype-layout")));
   }
 
   @Test
@@ -221,6 +351,96 @@ class EasyVPrototypeStructureIngestionTest {
     assertEquals(3, materializeAll(publish("full-v2", rows(validJson("4"))), "valid").size());
   }
 
+  @Test
+  void objectReadsUseFrozenScopeStablePagesAndDeclaredRelations() {
+    var time = LocalDateTime.parse("2026-09-04T09:00:00");
+    var input = new ArrayList<>(rows(validJson("4")));
+    input.add(row(5L, "app-5", XML, validJson("4"), time, time));
+    var versions = materializeAll(publish("object-source", input), "objects");
+    versions.put("easyv-ai-application", applicationVersion("objects", false));
+    var reader = new PostgresObjectQueryAdapter(jdbc, SemanticModel.discover());
+    var all = new SemanticQueryPort.AccessContext(versions, SemanticQueryPort.Scope.everything());
+    var scoped = new SemanticQueryPort.AccessContext(versions,
+        SemanticQueryPort.Scope.restricted(Map.of("userId", List.of("16"))));
+    var first = reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(),
+        List.of(new QueryIntent.Order("createdAt", QueryIntent.Direction.ASC)), 2, 0), all);
+    assertEquals(List.of("app-1", "app-2"), first.rows().stream().map(r -> r.reference().objectId()).toList());
+    assertTrue(first.hasMore());
+    var next = reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(),
+        List.of(new QueryIntent.Order("createdAt", QueryIntent.Direction.ASC)), 2, 2), all);
+    assertEquals(List.of("app-4", "app-5"), next.rows().stream().map(r -> r.reference().objectId()).toList());
+    assertTrue(!next.hasMore()); // deleted app-3 excluded by required application membership
+    assertEquals(3, reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), null, null, 50, 0), scoped).rows().size());
+    assertEquals(2, reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(
+        new QueryIntent.Filter("blockCount", QueryIntent.Operator.GTE, List.of("3")),
+        new QueryIntent.Filter("createdAt", QueryIntent.Operator.GTE, List.of("2026-09-03T00:00:00Z"))), null, 50, 0), all).rows().size());
+    assertEquals(2, reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(
+        new QueryIntent.Filter("parseErrorCode", QueryIntent.Operator.SET, null)), null, 50, 0), all).rows().size());
+    assertEquals(0, reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(
+        new QueryIntent.Filter("appId", QueryIntent.Operator.CONTAINS, List.of("%"))), null, 50, 0), all).rows().size());
+    assertEquals(0, reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), null, null, 50, 10), all).rows().size());
+    assertEquals("OBJECT_NOT_FOUND", assertThrows(BackendException.class,
+        () -> reader.require(PRODUCTS.get(0), "app-5", scoped)).code());
+    var blocks = reader.related(PRODUCTS.get(0), "app-1", "blocks",
+        new ObjectQueryPort.Query(PRODUCTS.get(1), null, null, 50, 0), scoped);
+    assertEquals(3, blocks.rows().size());
+    assertTrue(blocks.rows().stream().allMatch(r -> "app-1".equals(r.properties().get("appId"))));
+    var components = reader.related(PRODUCTS.get(1), "1:page-1__left_1", "components",
+        new ObjectQueryPort.Query(PRODUCTS.get(2), null, null, 50, 0), all);
+    assertEquals(List.of("1:c1"), components.rows().stream().map(r -> r.reference().objectId()).toList());
+    assertEquals(1, components.rows().getFirst().properties().get("gridCol"));
+    assertEquals("1:page-1__left_1", reader.related(PRODUCTS.get(2), "1:c1", "block",
+        new ObjectQueryPort.Query(PRODUCTS.get(1), null, null, 50, 0), all).rows().getFirst().reference().objectId());
+    assertEquals(0, reader.related(PRODUCTS.get(0), "app-2", "blocks",
+        new ObjectQueryPort.Query(PRODUCTS.get(1), null, null, 50, 0), all).rows().size());
+    assertEquals("invalid_xml", reader.require(PRODUCTS.get(0), "app-2", all).properties().get("parseStatus"));
+    var structures = new PrototypeStructurePostgresAdapter(jdbc, new JsonCodec());
+    assertEquals("Pages", structures.structure(versions.get(PRODUCTS.get(0)), "app-1").get("tag"));
+    assertNull(structures.structure(versions.get(PRODUCTS.get(0)), "app-2"));
+  }
+
+  @Test
+  void objectReadsNeverSwitchVersionsAndRejectUntrustedQueryMembers() {
+    var first = materializeAll(publish("read-old", rows(validJson("4"))), "read-old");
+    first.put("easyv-ai-application", applicationVersion("read-old", false));
+    var second = new LinkedHashMap<>(first);
+    second.put("easyv-ai-application", applicationVersion("read-new", true));
+    var reader = new PostgresObjectQueryAdapter(jdbc, SemanticModel.discover());
+    var old = new SemanticQueryPort.AccessContext(first, SemanticQueryPort.Scope.everything());
+    var newer = new SemanticQueryPort.AccessContext(second, SemanticQueryPort.Scope.everything());
+    assertEquals("app-1", reader.require(PRODUCTS.get(0), "app-1", old).reference().objectId());
+    assertEquals("OBJECT_NOT_FOUND", assertThrows(BackendException.class,
+        () -> reader.require(PRODUCTS.get(0), "app-1", newer)).code());
+    assertEquals(0, reader.query(new ObjectQueryPort.Query(PRODUCTS.get(1), null, null, 50, 0), newer).rows().size());
+    assertEquals(0, reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(
+        new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS, List.of("app-1' OR TRUE --"))), null, 50, 0), old).rows().size());
+    assertThrows(BackendException.class, () -> reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(
+        new QueryIntent.Filter("app_id); DROP TABLE facts.easyv_prototype_layout; --", QueryIntent.Operator.SET, null)), null, 50, 0), old));
+    assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class,
+        () -> reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), null, null, 201, 0), old)).code());
+    assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class,
+        () -> reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), List.of(
+            new QueryIntent.Filter("blockCount", QueryIntent.Operator.GT, List.of("NaN"))), null, 50, 0), old)).code());
+    var missing = new LinkedHashMap<>(first); missing.remove("easyv-ai-application");
+    assertEquals("DATASET_VERSION_SET_INCOMPLETE", assertThrows(BackendException.class, () -> reader.require(
+        PRODUCTS.get(0), "app-1", new SemanticQueryPort.AccessContext(missing, SemanticQueryPort.Scope.everything()))).code());
+  }
+
+  private String applicationVersion(String suffix, boolean deleteFirst) {
+    var time = LocalDateTime.parse("2026-09-04T09:00:00");
+    List<SourceRow> rows = List.of(
+        row(1L, "app-1", null, 16L, 1L, 1L, "USER", time, time, deleteFirst ? "1" : "0"),
+        row(2L, "app-2", null, 16L, 1L, 1L, "USER", time, time, "0"),
+        row(3L, "app-3", null, 16L, 1L, 1L, "USER", time, time, "1"),
+        row(4L, "app-4", null, 16L, 1L, 1L, "USER", time, time, "0"),
+        row(5L, "app-5", null, 17L, 1L, 1L, "USER", time, time, "0"));
+    String source = publishDataset("app-" + suffix, rows, IngestionRun.Mode.FULL, null, 1, "easyv-ai-application");
+    return materializer.materialize(new ProductMaterializer.Command("app-product-run-" + suffix,
+        "easyv-ai-application", "app-product-version-" + suffix, ProductMaterializationRun.Mode.FULL,
+        ProductMaterializationRun.TriggerType.BOOTSTRAP, "test", "trace-app-" + suffix,
+        Map.of("source", source))).id();
+  }
+
   private Map<String, String> materializeAll(String sourceVersion, String suffix) {
     Map<String, String> versions = new LinkedHashMap<>();
     for (String product : PRODUCTS) {
@@ -239,8 +459,13 @@ class EasyVPrototypeStructureIngestionTest {
 
   private String publish(String runId, List<SourceRow> rows, IngestionRun.Mode mode,
       String parentVersion, int schemaVersion) {
+    return publishDataset(runId, rows, mode, parentVersion, schemaVersion, DATASET);
+  }
+
+  private String publishDataset(String runId, List<SourceRow> rows, IngestionRun.Mode mode,
+      String parentVersion, int schemaVersion, String datasetKey) {
     DatasetDefinition dataset = sourceCatalog.loadActiveSource("easyv").datasets().stream()
-        .filter(candidate -> DATASET.equals(candidate.datasetKey())).findFirst().orElseThrow();
+        .filter(candidate -> datasetKey.equals(candidate.datasetKey())).findFirst().orElseThrow();
     persistence.createSourceRun(new IngestionPersistencePort.SourceRunRequest(
         runId, "easyv", mode, IngestionRun.TriggerType.BOOTSTRAP, "test",
         "trace-" + runId, Map.of("connector", "test")));
@@ -248,12 +473,12 @@ class EasyVPrototypeStructureIngestionTest {
     String versionId = "source-version-" + runId;
     persistence.reserveSourceVersions(new IngestionPersistencePort.SourceVersionReservation(
         runId, List.of(new IngestionPersistencePort.SourceDatasetReservation(
-            versionId, DATASET, parentVersion, Map.of("snapshot", runId), schemaVersion))));
+            versionId, datasetKey, parentVersion, Map.of("snapshot", runId), schemaVersion))));
     var receipts = rows.isEmpty() ? List.<IngestionPersistencePort.SourceBatchReceipt>of()
         : List.of(persistence.appendSourceBatch(new IngestionPersistencePort.SourceBatchAppend(
             versionId, 1, rows.size(), codec.encode(dataset, rows))));
     persistence.publishSourceSnapshot(new IngestionPersistencePort.SourcePublication(runId, List.of(
-        new IngestionPersistencePort.SourceDatasetPublication(DATASET, receipts.size(), rows.size(),
+        new IngestionPersistencePort.SourceDatasetPublication(datasetKey, receipts.size(), rows.size(),
             SourceBatchManifest.aggregate(receipts).contentHash(), Map.of("complete", true)))));
     return versionId;
   }

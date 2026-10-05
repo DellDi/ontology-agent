@@ -4,10 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Block;
 import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Parsed;
 import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Status;
+import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.LayoutNode;
+import com.dip3.ontologyagent.support.JsonCodec;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +80,42 @@ class PrototypeStructureParserTest {
   }
 
   @Test
+  void bindsMetricsInSourceExportSlotOrderWithoutRetainingFreeText() {
+    Map<String, Object> value = validJson();
+    Map<String, Object> blocks = (Map<String, Object>) ((Map<String, Object>) value.get("page-1")).get("blocks");
+    Map<String, Object> left = (Map<String, Object>) blocks.get("page-1__left_1");
+    left.put("boundMetricIds", List.of("metric-b", "metric-a"));
+    left.put("boundMetrics", List.of(Map.of("metricId", "metric-b", "name", "不保存指标名称")));
+    Block parsed = PrototypeStructureParser.parse(XML, value).blocks().getFirst();
+    assertEquals("available", parsed.metricBindingStatus());
+    assertEquals(List.of("metric-b", "metric-a"), parsed.metricBindings().stream().map(b -> b.metricId()).toList());
+    assertEquals(List.of(0, 1), parsed.metricBindings().stream().map(b -> b.slotIndex()).toList());
+    assertEquals(List.of("c1", "c22"), parsed.metricBindings().stream().map(b -> b.componentId()).toList());
+    assertEquals("line", parsed.metricBindings().getFirst().chartFamily());
+    assertEquals("趋势分析", parsed.metricBindings().getFirst().sceneType());
+    assertThrows(UnsupportedOperationException.class, () -> parsed.metricBindings().clear());
+    assertTrue(!new JsonCodec().write(parsed.metricBindings()).contains("不保存"));
+  }
+
+  @Test
+  void missingAndMalformedMetricBindingsDoNotInventIdsOrHideStructure() {
+    Block absent = PrototypeStructureParser.parse(XML, validJson()).blocks().getFirst();
+    assertEquals("not_retained", absent.metricBindingStatus());
+    assertNull(absent.metricBindings());
+    for (Object ids : List.of("metric-a", List.of("metric-a"), List.of("metric-a", " "),
+        List.of("metric-a", 123), java.util.Arrays.asList("metric-a", null))) {
+      Map<String, Object> value = validJson();
+      Map<String, Object> blocks = (Map<String, Object>) ((Map<String, Object>) value.get("page-1")).get("blocks");
+      ((Map<String, Object>) blocks.get("page-1__left_1")).put("boundMetricIds", ids);
+      Parsed parsed = PrototypeStructureParser.parse(XML, value);
+      assertEquals(Status.OK, parsed.status(), "结构仍可查看，绑定失败单独呈现");
+      assertEquals("invalid", parsed.blocks().getFirst().metricBindingStatus());
+      assertNull(parsed.blocks().getFirst().metricBindings());
+      assertEquals(2, parsed.blocks().getFirst().components().size());
+    }
+  }
+
+  @Test
   void parsesBlocksComponentsAndContainerContext() {
     Parsed parsed = PrototypeStructureParser.parse(XML, validJson());
 
@@ -101,6 +140,43 @@ class PrototypeStructureParserTest {
     assertEquals("趋势分析", left.components().get(0).sceneType());
     assertEquals(1, left.components().get(0).gridCol());
     assertEquals(12, left.components().get(0).gridColSpan());
+  }
+
+  @Test
+  void retainsNestedLayoutGeometryAndReferencesWithoutFreeText() {
+    String xml = XML.replace("<Pages>", "<Pages title=\"不保存标题\">")
+        .replace("<Layout block-count", "<Layout x=\"16\" y=\"24\" padding=\"8 12\" block-count")
+        .replace("<Content id", "<Content name=\"不保存指标名称\" desc=\"不保存描述\" id");
+    Parsed parsed = PrototypeStructureParser.parse(xml, validJson());
+    LayoutNode root = parsed.layoutStructure();
+    assertEquals("Pages", root.tag());
+    assertTrue(root.attributes().isEmpty());
+    LayoutNode page = root.children().get(0);
+    assertEquals(Map.of("id", "page-1", "width", "1920", "height", "1080"), page.attributes());
+    LayoutNode layout = page.children().get(1);
+    assertEquals("horizontal", layout.attributes().get("grid-direction"));
+    assertEquals("8 12", layout.attributes().get("padding"));
+    assertEquals("16", layout.attributes().get("x"));
+    LayoutNode middle = layout.children().get(1);
+    assertEquals("Layout", middle.tag());
+    assertEquals("vertical", middle.attributes().get("grid-direction"));
+    assertEquals("6/12", middle.attributes().get("span"));
+    assertEquals("24", middle.attributes().get("gap"));
+    assertEquals("Content", middle.children().get(0).tag());
+    assertEquals("content-main", middle.children().get(0).attributes().get("ref"));
+    assertEquals("page-1__foot_1", middle.children().get(1).children().get(0).attributes().get("id"));
+    assertThrows(UnsupportedOperationException.class, () -> middle.children().clear());
+    assertThrows(UnsupportedOperationException.class, () -> middle.attributes().put("width", "100"));
+    assertTrue(!new JsonCodec().write(root).contains("不保存"));
+  }
+
+  @Test
+  void geometryAttributeOrderDoesNotChangeTheSerializedTree() {
+    Parsed first = PrototypeStructureParser.parse(XML, validJson());
+    Parsed reordered = PrototypeStructureParser.parse(XML.replace(
+        "height=\"1080\" id=\"page-1\" width=\"1920\"",
+        "width=\"1920\" height=\"1080\" id=\"page-1\""), validJson());
+    assertEquals(new JsonCodec().write(first.layoutStructure()), new JsonCodec().write(reordered.layoutStructure()));
   }
 
   @Test
@@ -155,6 +231,7 @@ class PrototypeStructureParserTest {
     assertEquals("XML_MALFORMED", malformed.errorCode());
     assertTrue(malformed.blocks().isEmpty());
     assertNull(malformed.layoutSignature());
+    assertNull(malformed.layoutStructure());
     assertEquals("XML_NO_LAYOUT",
         PrototypeStructureParser.parse("<Pages><Page/></Pages>", validJson()).errorCode());
   }
@@ -195,6 +272,7 @@ class PrototypeStructureParserTest {
     assertTrue(parsed.errorDetail().contains("page-1__ghost_9"));
     assertTrue(parsed.errorDetail().contains("page-1__left_2"));
     assertTrue(parsed.blocks().isEmpty());
+    assertNull(parsed.layoutStructure());
   }
 
   @Test

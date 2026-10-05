@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
@@ -32,6 +34,9 @@ import org.xml.sax.InputSource;
 public final class PrototypeStructureParser {
   private static final int MAX_DETAIL = 500;
   private static final int MAX_LISTED_IDS = 10;
+  private static final Set<String> LAYOUT_ATTRIBUTES = Set.of(
+      "id", "type", "width", "height", "x", "y", "grid-direction", "gridDirection",
+      "span", "gap", "padding", "ref", "block_type_id", "blockSize", "weight");
 
   private PrototypeStructureParser() {}
 
@@ -54,26 +59,36 @@ public final class PrototypeStructureParser {
 
   public record Component(
       String componentId, String chartFamily, String libraryComponentId, String sceneType,
-      String sourceType, Integer gridCol, Integer gridRow, Integer gridColSpan, Integer gridRowSpan) {}
+      String sourceType, Integer gridCol, Integer gridRow, Integer gridColSpan, Integer gridRowSpan,
+      PrototypeComponentGeometry.Parsed geometry) {}
+
+  /** Export 将 components 与 boundMetricIds 按 slotIndex 排序后同序输出；不保留指标自由文本。 */
+  public record MetricBinding(int slotIndex, String componentId, String metricId,
+      String chartFamily, String sceneType, String sourceType) {}
 
   public record Block(
       String blockId, String containerTag, String containerId, String gridDirection,
       String blockTypeId, String blockSize, String span, Integer weight, String schemeId,
-      List<Component> components) {}
+      List<Component> components, String metricBindingStatus, List<MetricBinding> metricBindings, Boolean titlePresent) {}
+
+  /** 画布所需的源结构；子节点顺序决定布局，不保留名称、描述或其他自由文本。 */
+  public record LayoutNode(String tag, Map<String, String> attributes, List<LayoutNode> children) {}
 
   public record Parsed(
       Status status, String errorCode, String errorDetail, String layoutType, List<Block> blocks,
-      String layoutSignature, String schemeSignature, String countSignature, String chartSignature) {
+      String layoutSignature, String schemeSignature, String countSignature, String chartSignature,
+      LayoutNode layoutStructure) {
     public int componentCount() {
       return blocks.stream().mapToInt(block -> block.components().size()).sum();
     }
   }
 
   public static Parsed parse(String xml, Object prototypeJson) {
+    Element root;
     Element layout;
     List<Element> xmlBlocks;
     try {
-      Element root = readXml(xml);
+      root = readXml(xml);
       layout = firstLayout(root);
       xmlBlocks = elements(root.getElementsByTagName("Block"));
     } catch (ParseFailure failure) {
@@ -120,11 +135,25 @@ public final class PrototypeStructureParser {
     String chartCanon = countCanon + "#" + lines(blocks, block -> position(block.blockId()) + "="
         + block.components().stream().map(Component::chartFamily).sorted().collect(Collectors.joining(",")));
     return new Parsed(Status.OK, null, null, layoutType, List.copyOf(blocks),
-        sha256(layoutCanon), sha256(schemeCanon), sha256(countCanon), sha256(chartCanon));
+        sha256(layoutCanon), sha256(schemeCanon), sha256(countCanon), sha256(chartCanon), layoutNode(root));
+  }
+
+  private static LayoutNode layoutNode(Element element) {
+    Map<String, String> attributes = new TreeMap<>();
+    for (String name : LAYOUT_ATTRIBUTES) {
+      String value = blankToNull(element.getAttribute(name));
+      if (value != null) attributes.put(name, value);
+    }
+    List<LayoutNode> children = new ArrayList<>();
+    NodeList nodes = element.getChildNodes();
+    for (int index = 0; index < nodes.getLength(); index++) {
+      if (nodes.item(index) instanceof Element child) children.add(layoutNode(child));
+    }
+    return new LayoutNode(element.getTagName(), Collections.unmodifiableMap(attributes), List.copyOf(children));
   }
 
   private static Parsed failed(Status status, String code, String detail, String layoutType) {
-    return new Parsed(status, code, truncate(detail), layoutType, List.of(), null, null, null, null);
+    return new Parsed(status, code, truncate(detail), layoutType, List.of(), null, null, null, null, null);
   }
 
   private static Element readXml(String xml) {
@@ -176,6 +205,20 @@ public final class PrototypeStructureParser {
     if (rawComponents instanceof List<?> list) {
       for (Object raw : list) components.add(component(id, raw, seenComponents));
     }
+    Object rawMetricIds = content.get("boundMetricIds");
+    String bindingStatus = rawMetricIds == null ? "not_retained" : "invalid";
+    List<MetricBinding> bindings = null;
+    if (rawMetricIds instanceof List<?> ids && ids.size() == components.size()
+        && ids.stream().allMatch(value -> value instanceof String s && !s.isBlank())) {
+      bindings = new ArrayList<>();
+      for (int index = 0; index < components.size(); index++) {
+        Component component = components.get(index);
+        bindings.add(new MetricBinding(index, component.componentId(), (String) ids.get(index),
+            component.chartFamily(), component.sceneType(), component.sourceType()));
+      }
+      bindings = List.copyOf(bindings);
+      bindingStatus = "available";
+    }
     return new Block(id,
         parent == null ? null : parent.getTagName(),
         parent == null ? null : blankToNull(parent.getAttribute("id")),
@@ -183,7 +226,8 @@ public final class PrototypeStructureParser {
         blankToNull(element.getAttribute("block_type_id")), blankToNull(element.getAttribute("blockSize")),
         blankToNull(element.getAttribute("span")), weight(id, element.getAttribute("weight")),
         content.get("schemeId") == null ? null : String.valueOf(content.get("schemeId")),
-        List.copyOf(components));
+        List.copyOf(components), bindingStatus, bindings, content.get("title") == null ? false
+            : content.get("title") instanceof String title ? !title.isBlank() : null);
   }
 
   private static Component component(String blockId, Object raw, Set<String> seen) {
@@ -198,7 +242,7 @@ public final class PrototypeStructureParser {
         ? g : Map.of();
     return new Component(id, family, text(map.get("componentId")), text(map.get("sceneType")),
         text(map.get("sourceType")), integer(grid.get("col")), integer(grid.get("row")),
-        integer(grid.get("colSpan")), integer(grid.get("rowSpan")));
+        integer(grid.get("colSpan")), integer(grid.get("rowSpan")), PrototypeComponentGeometry.parse(map.get("config")));
   }
 
   private static Integer weight(String blockId, String value) {

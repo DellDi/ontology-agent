@@ -47,13 +47,147 @@ class DatabaseMigrationServiceTest {
     }
 
     @Test
+    void upgradesV21StructureProductsAndRetainsGeometryCoverage() {
+        Flyway.configure().dataSource(jdbc.getDataSource()).locations("classpath:db/migration")
+                .target("21").load().migrate();
+        assertEquals("easyv-prototype-layout-v1", jdbc.queryForObject(
+                "select transform_ref from ingestion.data_product_definitions where product_key='easyv-prototype-layout'",
+                String.class));
+        assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, service().run());
+        assertEquals("jsonb", jdbc.queryForObject("""
+                select data_type from information_schema.columns
+                where table_schema='facts' and table_name='easyv_prototype_layout'
+                  and column_name='layout_structure' and is_nullable='YES'
+                """, String.class));
+        assertEquals("easyv-prototype-layout-v2", jdbc.queryForObject(
+                "select transform_ref from ingestion.data_product_definitions where product_key='easyv-prototype-layout'",
+                String.class));
+        assertEquals(2, jdbc.queryForObject(
+                "select schema_version from ingestion.data_product_definitions where product_key='easyv-prototype-layout'",
+                Integer.class));
+        assertEquals(1, jdbc.queryForObject("""
+                select count(*) from ingestion.data_product_definitions
+                where product_key in ('easyv-prototype-block', 'easyv-prototype-component') and schema_version=2
+                """, Integer.class));
+        assertEquals("easyv-prototype-block-v3", jdbc.queryForObject(
+                "select transform_ref from ingestion.data_product_definitions where product_key='easyv-prototype-block'",
+                String.class));
+        assertEquals(3, jdbc.queryForObject(
+                "select schema_version from ingestion.data_product_definitions where product_key='easyv-prototype-block'",
+                Integer.class));
+        assertEquals("jsonb", jdbc.queryForObject("""
+                select data_type from information_schema.columns
+                where table_schema='facts' and table_name='easyv_prototype_block'
+                  and column_name='metric_bindings' and is_nullable='YES'
+                """, String.class));
+    }
+
+    @Test
+    void v23PreservesPublishedV22BlocksWithoutInventingHistoricalMetricBindings() {
+        Flyway.configure().dataSource(jdbc.getDataSource()).locations("classpath:db/migration")
+                .target("22").load().migrate();
+        jdbc.update("""
+                insert into ingestion.source_ingestion_runs(id,source_key,mode,trigger_type)
+                values ('old-source-run','easyv','full','bootstrap')
+                """);
+        jdbc.update("""
+                insert into ingestion.source_dataset_versions
+                  (id,source_key,dataset_key,source_ingestion_run_id,version_number,schema_version,
+                   status,published_at,storage_ref,content_hash,source_watermark)
+                values ('old-source','easyv','easyv-prototype-task','old-source-run',1,2,
+                    'published',now(),'ingestion://source-dataset-version/old-source/row-pack-v1',
+                    repeat('a',64),'{"snapshot":"old"}'::jsonb)
+                """);
+        jdbc.update("""
+                insert into ingestion.product_materialization_runs(id,product_key,mode,trigger_type)
+                values ('old-block-run','easyv-prototype-block','full','bootstrap')
+                """);
+        jdbc.update("""
+                insert into ingestion.data_product_versions(id,product_key,materialization_run_id,version_number)
+                values ('old-block','easyv-prototype-block','old-block-run',1)
+                """);
+        jdbc.update("""
+                insert into facts.easyv_prototype_block
+                  (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
+                   app_id,block_id,scheme_id,component_count,created_at)
+                values ('old-block','easyv-prototype-task','old-source',1,'app-old','block-old','4',2,now())
+                """);
+        jdbc.update("""
+                update ingestion.data_product_versions
+                set status='published',published_at=now(),storage_ref='facts://easyv_prototype_block/old-block',
+                    content_hash=repeat('a',64),row_count=1 where id='old-block'
+                """);
+        service().run();
+        assertEquals(1, jdbc.queryForObject("""
+                select count(*) from facts.easyv_prototype_block
+                where product_version_id='old-block' and scheme_id='4' and component_count=2
+                  and metric_binding_status is null and metric_bindings is null and title_present is null
+                """, Integer.class));
+        assertEquals(1, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id='old-block'",
+                Integer.class));
+        assertEquals(3, jdbc.queryForObject("select schema_version from ingestion.data_product_definitions where product_key='easyv-prototype-block'",
+                Integer.class));
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataAccessException.class,
+                () -> jdbc.update("update facts.easyv_prototype_block set metric_binding_status='available' where product_version_id='old-block'"));
+    }
+
+    @Test
+    void v24RetainsOldPublishedPipelineFactsWithoutReconstructingMissingScoreInputs() {
+        Flyway.configure().dataSource(jdbc.getDataSource()).locations("classpath:db/migration")
+                .target("23").load().migrate();
+        jdbc.update("""
+                insert into ingestion.source_ingestion_runs(id,source_key,mode,trigger_type)
+                values ('old-pipeline-source-run','easyv','reconcile','bootstrap')
+                """);
+        jdbc.update("""
+                insert into ingestion.source_dataset_versions
+                  (id,source_key,dataset_key,source_ingestion_run_id,version_number,schema_version,
+                   status,published_at,storage_ref,content_hash,source_watermark)
+                values ('old-pipeline-source','easyv','easyv-pipeline-node','old-pipeline-source-run',1,1,
+                    'published',now(),'ingestion://source-dataset-version/old-pipeline-source/row-pack-v1',
+                    repeat('a',64),'{"snapshot":"old"}'::jsonb)
+                """);
+        jdbc.update("""
+                insert into ingestion.product_materialization_runs(id,product_key,mode,trigger_type)
+                values ('old-pipeline-run','easyv-pipeline-node','full','bootstrap')
+                """);
+        jdbc.update("""
+                insert into ingestion.data_product_versions(id,product_key,materialization_run_id,version_number)
+                values ('old-pipeline','easyv-pipeline-node','old-pipeline-run',1)
+                """);
+        jdbc.update("""
+                insert into facts.easyv_pipeline_node
+                  (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
+                   task_id,step_name,branch,status,duration_ms,created_at)
+                values ('old-pipeline','easyv-pipeline-node','old-pipeline-source',1,
+                    'task-old','PipelineCompleted','MAIN','SUCCESS',123,now())
+                """);
+        jdbc.update("""
+                update ingestion.data_product_versions
+                set status='published',published_at=now(),storage_ref='facts://easyv_pipeline_node/old-pipeline',
+                    content_hash=repeat('a',64),row_count=1 where id='old-pipeline'
+                """);
+        service().run();
+        assertEquals(1, jdbc.queryForObject("""
+                select count(*) from facts.easyv_pipeline_node where product_version_id='old-pipeline'
+                  and duration_ms=123 and score_snapshot_status is null
+                  and score_snapshot_error_code is null and score_snapshot is null
+                """, Integer.class));
+        assertEquals(1, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id='old-pipeline'", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select schema_version from ingestion.source_dataset_versions where id='old-pipeline-source'", Integer.class));
+        assertEquals(2, jdbc.queryForObject("select schema_version from ingestion.dataset_definitions where dataset_key='easyv-pipeline-node'", Integer.class));
+        assertEquals("RECONCILE", jdbc.queryForObject("select cursor_spec->>'strategy' from ingestion.dataset_definitions where dataset_key='easyv-pipeline-node'", String.class));
+        assertEquals("easyv-pipeline-node-v2", jdbc.queryForObject("select transform_ref from ingestion.data_product_definitions where product_key='easyv-pipeline-node'", String.class));
+    }
+
+    @Test
     void freshDatabaseRunsInitAndIncrementalScripts() {
         DatabaseMigrationService.Decision decision = service().run();
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(21, applied, "新库应执行到 V21 原型结构 facts");
+        assertEquals(26, applied, "新库应执行到 V26 组件几何");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -467,7 +601,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(21, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(26, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -484,7 +618,7 @@ class DatabaseMigrationServiceTest {
         assertTrue(platformTables >= 20, "重复执行后表结构应保持不变");
         Integer foreignKeys = jdbc.queryForObject(
                 "select count(*) from pg_constraint where contype = 'f'", Integer.class);
-        assertEquals(59, foreignKeys, "重复执行不应产生重复外键约束");
+        assertEquals(61, foreignKeys, "重复执行不应产生重复外键约束");
     }
 
     @Test
@@ -499,7 +633,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(21, applied, "旧库补全应记录 V1-V21（baseline 0 标记不计入）");
+        assertEquals(26, applied, "旧库补全应记录 V1-V26（baseline 0 标记不计入）");
     }
 
     @Test

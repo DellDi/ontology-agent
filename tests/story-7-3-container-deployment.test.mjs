@@ -41,7 +41,7 @@ test('EasyV 接入入口覆盖本体声明的所有数据产品', async () => {
   const configured = compose.match(/--dip3\.ingestion\.product-keys=(easyv-[^\r\n]+)/)?.[1].split(',').sort();
   const declared = [...new Set(Object.values(policy).map(item => item.productKey)
     .filter(key => key.startsWith('easyv-')))].sort();
-  assert.deepEqual(configured, declared);
+  assert.deepEqual(configured, [...declared, 'easyv-scheme-library'].sort());
 });
 
 async function dc(...args) {

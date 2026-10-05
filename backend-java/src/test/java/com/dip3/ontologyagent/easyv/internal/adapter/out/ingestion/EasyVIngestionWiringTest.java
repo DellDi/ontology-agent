@@ -35,7 +35,8 @@ class EasyVIngestionWiringTest {
 
             Arrays.stream(EasyVCanonicalTransform.Kind.values()).forEach(kind ->
                     assertEquals(kind.transformRef(), registry.require(kind.transformRef()).transformRef()));
-            assertEquals(EasyVCanonicalTransform.Kind.values().length, transforms.size());
+            assertEquals(EasyVSchemeCanonicalTransform.TRANSFORM_REF, registry.require(EasyVSchemeCanonicalTransform.TRANSFORM_REF).transformRef());
+            assertEquals(EasyVCanonicalTransform.Kind.values().length + 1, transforms.size());
         });
     }
 
