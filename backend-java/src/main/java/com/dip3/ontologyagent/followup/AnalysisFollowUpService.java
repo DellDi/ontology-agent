@@ -11,6 +11,7 @@ import com.dip3.ontologyagent.execution.ExecutionSubmission;
 import com.dip3.ontologyagent.execution.WakeupPublisher;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.semantic.api.ObjectSelection;
 import java.text.Normalizer;
 import java.time.Instant;
 import java.util.List;
@@ -68,6 +69,20 @@ public class AnalysisFollowUpService {
         null, null, null);
   }
 
+  /** 显式对象追问固定来源快照与集合；普通追问仍按最新完整集合执行。 */
+  @Transactional
+  public AnalysisFollowUp createSelected(String sessionId, AuthSession owner, String rawQuestion,
+                                         ObjectSelection selection) {
+    Prepared prepared = prepare(sessionId, owner, rawQuestion, "", selection);
+    FollowUpPolicy policy = analyses.followUpPolicy(owner, prepared.sourceBinding());
+    policy.validateQuestion(prepared.question());
+    prepared = bindSelection(prepared, owner, policy, selection);
+    Map<String, Object> context = selectionContext(policy.inheritedContext(prepared.source().planSnapshot), selection);
+    Map<String, Object> inherited = Map.copyOf(context);
+    Map<String, Object> merged = policy.applyQuestionContext(prepared.question(), inherited, owner);
+    return persist(prepared, owner, UUID.randomUUID().toString(), inherited, merged, null, null, null);
+  }
+
   /**
    * 结构化调整追问：上下文继承来源执行，计划由 policy.structuredPlan 直接生成（不经模型），
    * mergedContext 与继承上下文一致，因此 submit 可直接执行。
@@ -76,10 +91,17 @@ public class AnalysisFollowUpService {
   public AnalysisFollowUp createStructured(
       String sessionId, AuthSession owner, String rawQuestion, String parentFollowUpId,
       List<Map<String, Object>> queries) {
-    Prepared prepared = prepare(sessionId, owner, rawQuestion, parentFollowUpId);
+    return createStructured(sessionId, owner, rawQuestion, parentFollowUpId, queries, null);
+  }
+
+  @Transactional
+  public AnalysisFollowUp createStructured(String sessionId, AuthSession owner, String rawQuestion,
+      String parentFollowUpId, List<Map<String, Object>> queries, ObjectSelection selection) {
+    Prepared prepared = prepare(sessionId, owner, rawQuestion, parentFollowUpId, selection);
     FollowUpPolicy policy = analyses.followUpPolicy(owner, prepared.sourceBinding());
     policy.validateQuestion(prepared.question());
-    Map<String, Object> context = policy.inheritedContext(prepared.source().planSnapshot);
+    if (selection != null) prepared = bindSelection(prepared, owner, policy, selection);
+    Map<String, Object> context = selectionContext(policy.inheritedContext(prepared.source().planSnapshot), selection);
     Map<String, Object> plan = new java.util.LinkedHashMap<>(
         policy.structuredPlan(prepared.source().planSnapshot, queries));
     String followUpId = UUID.randomUUID().toString();
@@ -90,9 +112,29 @@ public class AnalysisFollowUpService {
         planDiff(prepared.source().planSnapshot, currentPlan));
   }
 
+  private Prepared bindSelection(Prepared prepared, AuthSession owner, FollowUpPolicy policy, ObjectSelection selection) {
+    var scope = policy.validateObjectSelection(owner, prepared.sourceBinding(), selection);
+    var binding = new CapabilityBinding(prepared.sourceBinding().id(), prepared.ontologyVersionId(), scope);
+    analyses.validateDatasetVersionSet(owner, binding, prepared.datasetVersionSetId());
+    return new Prepared(prepared.session(), prepared.question(), prepared.parent(), prepared.source(),
+        binding, prepared.ontologyVersionId(), prepared.datasetVersionSetId());
+  }
+
+  private static Map<String, Object> selectionContext(Map<String, Object> context, ObjectSelection selection) {
+    if (selection == null) return context;
+    var selected = new java.util.LinkedHashMap<>(context);
+    selected.put("objectSelection", selection.snapshot());
+    return Map.copyOf(selected);
+  }
+
   /** 追问创建共用的来源校验：会话归属、问题规范化、父轮次、来源快照、能力绑定与冻结数据集。 */
   private Prepared prepare(
       String sessionId, AuthSession owner, String rawQuestion, String parentFollowUpId) {
+    return prepare(sessionId, owner, rawQuestion, parentFollowUpId, null);
+  }
+
+  private Prepared prepare(String sessionId, AuthSession owner, String rawQuestion, String parentFollowUpId,
+                           ObjectSelection selection) {
     AnalysisSession session = analyses.ownedSession(sessionId, owner);
     String question = normalize(rawQuestion);
     if (question.isEmpty()) throw new BackendException("INVALID_FOLLOW_UP_QUESTION", "请输入追问内容。");
@@ -100,13 +142,23 @@ public class AnalysisFollowUpService {
       throw new BackendException("INVALID_FOLLOW_UP_QUESTION", "追问长度不能超过 300 个字符。");
     AnalysisFollowUp parent =
         blank(parentFollowUpId) ? null : owned(parentFollowUpId, sessionId, owner);
-    ExecutionSnapshotEntity source =
-        parent == null
-            ? followUps
-                .latestCompletedRootSnapshot(sessionId, owner.userId())
-                .orElseThrow(
-                    () -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND", "当前会话没有可承接的已完成根结论。"))
-            : parentResult(parent);
+    ExecutionSnapshotEntity source;
+    if (selection != null) {
+      source = followUps.completedJavaSnapshot(selection.executionId(), sessionId, owner.userId())
+          .orElseThrow(() -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND", "所选对象的来源执行未完成、已失效或无权访问。"));
+      if (!selection.datasetVersionSetId().equals(source.datasetVersionSetId)) {
+        throw new BackendException("OBJECT_VERSION_MISMATCH", "所选对象的冻结集合与来源执行不一致。");
+      }
+      parent = source.followUpId == null ? null : owned(source.followUpId, sessionId, owner);
+      if (parent != null && !source.executionId.equals(parent.resultExecutionId())) {
+        throw new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND", "所选执行与来源追问的完成结果不一致。");
+      }
+    } else {
+      source = parent == null
+          ? followUps.latestCompletedRootSnapshot(sessionId, owner.userId())
+              .orElseThrow(() -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND", "当前会话没有可承接的已完成根结论。"))
+          : parentResult(parent);
+    }
     CapabilityBinding sourceBinding = requiredBinding(source.capabilityBinding);
     String ontologyVersionId =
         required(source.ontologyVersionId, "FOLLOW_UP_ONTOLOGY_MISSING", "来源执行没有绑定本体版本，无法发起追问。");
@@ -117,8 +169,8 @@ public class AnalysisFollowUpService {
     analyses.validateDatasetVersionSet(owner, sourceBinding, source.datasetVersionSetId);
     // 新消息按提交时刻绑定最新完整冻结集：与根执行同一条规则，
     // 继承来源执行的旧集合会让会话在新鲜度窗口外永久无法续聊。
-    String datasetVersionSetId =
-        analyses.resolveExecutionDatasetVersionSet(owner, sourceBinding);
+    String datasetVersionSetId = selection == null
+        ? analyses.resolveExecutionDatasetVersionSet(owner, sourceBinding) : source.datasetVersionSetId;
     return new Prepared(session, question, parent, source, sourceBinding, ontologyVersionId,
         datasetVersionSetId);
   }
@@ -344,6 +396,14 @@ public class AnalysisFollowUpService {
                 () -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND",
                     "来源执行已失效或不再是已完成状态。"));
     analyses.validateDatasetVersionSet(owner, persistedBinding, followUp.datasetVersionSetId());
+    if (followUp.mergedContext().get("objectSelection") != null) {
+      ObjectSelection selection = ObjectSelection.read(followUp.mergedContext().get("objectSelection"));
+      if (!selection.executionId().equals(source.executionId) || !selection.datasetVersionSetId().equals(followUp.datasetVersionSetId())) {
+        throw new BackendException("OBJECT_VERSION_MISMATCH", "对象选择与追问来源执行或数据集合不一致。");
+      }
+      var scope = analyses.followUpPolicy(owner, persistedBinding).validateObjectSelection(owner, persistedBinding, selection);
+      persistedBinding = new CapabilityBinding(persistedBinding.id(), persistedBinding.ontologyVersionId(), scope);
+    }
     Map<String, Object> effectiveContext =
         analyses
             .followUpPolicy(owner, persistedBinding)

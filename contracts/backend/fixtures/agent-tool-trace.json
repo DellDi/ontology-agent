@@ -1,0 +1,50 @@
+{
+  "toolCalls": [
+    {
+      "id": "q1",
+      "tool": "query_objects",
+      "label": "原型版式 · 对象读取",
+      "input": {
+        "objectKey": "easyv-prototype-layout"
+      },
+      "references": [
+        {
+          "objectKey": "easyv-prototype-layout",
+          "objectId": "a",
+          "productVersionId": "v-easyv-prototype-layout"
+        }
+      ]
+    },
+    {
+      "id": "q2",
+      "tool": "traverse_objects",
+      "label": "原型区域 · 关联对象",
+      "input": {
+        "handle": "o1",
+        "relation": "blocks"
+      },
+      "references": [
+        {
+          "objectKey": "easyv-prototype-block",
+          "objectId": "a:b",
+          "productVersionId": "v-easyv-prototype-block"
+        }
+      ]
+    },
+    {
+      "id": "q3",
+      "tool": "assess_scheme",
+      "label": "区域方案适配评估",
+      "input": {
+        "handle": "o2"
+      },
+      "references": [
+        {
+          "objectKey": "easyv-prototype-block",
+          "objectId": "a:b",
+          "productVersionId": "v-easyv-prototype-block"
+        }
+      ]
+    }
+  ]
+}

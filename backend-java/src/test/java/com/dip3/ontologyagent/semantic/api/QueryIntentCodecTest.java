@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.semantic.api;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,32 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class QueryIntentCodecTest {
+
+  @Test
+  void misplacedComparisonCannotSilentlyBecomeASinglePeriodQuery() {
+    var period = Map.of("sourceText", "本月", "kind", "to-date", "unit", "month");
+    var comparison = Map.of("sourceText", "上个月", "kind", "calendar", "unit", "month", "offset", -1);
+    var raw = Map.of("object", "easyv-forge-task", "measures", List.of("count"),
+        "time", Map.of("expression", period, "compare", comparison));
+
+    var parsed = QueryIntentCodec.read(raw);
+
+    assertFalse(parsed.accepted());
+    assertNull(parsed.intent());
+    assertTrue(parsed.violations().stream().anyMatch(message -> message.contains("time.compare")));
+    var corrected = QueryIntentCodec.read(Map.of("object", "easyv-forge-task", "measures", List.of("count"),
+        "time", Map.of("expression", period), "compare", comparison));
+    assertTrue(corrected.accepted());
+    assertEquals(comparison, QueryIntentCodec.write(corrected.intent()).get("compare"));
+  }
+
+  @Test
+  void undeclaredTimeFieldIsRejectedInsteadOfIgnored() {
+    var parsed = QueryIntentCodec.read(Map.of("object", "easyv-forge-task", "measures", List.of("count"),
+        "time", Map.of("expression", Map.of("sourceText", "全部", "kind", "all"), "granulariy", "day")));
+    assertFalse(parsed.accepted());
+    assertTrue(parsed.violations().contains("time 不接受字段：granulariy"));
+  }
 
   @Test
   void flatTimeFieldsProduceMissingExpressionViolation() {

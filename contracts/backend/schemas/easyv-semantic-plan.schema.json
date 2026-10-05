@@ -365,6 +365,123 @@
       "items": {
         "$ref": "#/$defs/queryOverrideEntry"
       }
+    },
+    "objectSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executionId",
+        "datasetVersionSetId",
+        "reference"
+      ],
+      "properties": {
+        "executionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "datasetVersionSetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "reference": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "objectKey",
+            "objectId",
+            "productVersionId"
+          ],
+          "properties": {
+            "objectKey": {
+              "enum": [
+                "easyv-prototype-layout",
+                "easyv-prototype-block",
+                "easyv-prototype-component"
+              ]
+            },
+            "objectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "productVersionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        }
+      }
+    },
+    "toolCalls": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tool",
+          "label",
+          "input",
+          "references"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^q[1-8]$"
+          },
+          "tool": {
+            "enum": [
+              "query_metrics",
+              "query_objects",
+              "read_object",
+              "traverse_objects",
+              "assess_scheme"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "input": {
+            "type": "object"
+          },
+          "references": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "objectKey",
+                "objectId",
+                "productVersionId"
+              ],
+              "properties": {
+                "objectKey": {
+                  "enum": [
+                    "easyv-prototype-layout",
+                    "easyv-prototype-block",
+                    "easyv-prototype-component"
+                  ]
+                },
+                "objectId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "productVersionId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

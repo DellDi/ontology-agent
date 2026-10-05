@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import com.dip3.ontologyagent.semantic.api.*;
 
 /**
  * 查询结果 → 前端渲染块：按结果形状确定性选型（单行 → kv-list，时间序列 → 折线，单维度 → 柱状，
@@ -29,6 +31,35 @@ final class EasyVRenderBlocks {
       String viz = vizByQuery.get(query.id());
       boolean primary = vizByQuery.isEmpty() ? blocks.isEmpty() : viz != null && !"none".equals(viz);
       blocks.add(block(query, viz, primary ? "primary" : "supporting"));
+    }
+    return List.copyOf(blocks);
+  }
+
+  /** 聚合结果的对象范围入口：只在属性过滤可精确保留时生成，不把 HAVING/TopN 当作对象筛选。 */
+  static List<Map<String, Object>> objectBrowsers(List<ExecutedQuery> executed, SemanticModel model,
+                                                String datasetVersionSetId, Set<String> products) {
+    Set<String> prototypes = Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component");
+    if (!products.containsAll(prototypes) || !products.contains("easyv-ai-application")) return List.of();
+    List<Map<String, Object>> blocks = new ArrayList<>();
+    for (ExecutedQuery query : executed) {
+      var compiled = query.compiled();
+      if (!prototypes.contains(compiled.objectKey())) continue;
+      var object = model.require(compiled.objectKey());
+      if (compiled.intent().filters().stream().anyMatch(filter -> object.findProperty(filter.member()).isEmpty())) continue;
+      String time = compiled.intent().time().dimension();
+      if (time == null || time.isBlank()) time = object.defaultTimeProperty();
+      if (time != null && object.findProperty(time).isEmpty()) continue;
+      List<QueryIntent.Filter> filters = new ArrayList<>(compiled.intent().filters());
+      if (time != null && !compiled.range().allData()) {
+        filters.add(new QueryIntent.Filter(time, QueryIntent.Operator.GTE,
+            List.of(compiled.range().from().atStartOfDay(compiled.zone()).toOffsetDateTime().toString())));
+        filters.add(new QueryIntent.Filter(time, QueryIntent.Operator.LT,
+            List.of(compiled.range().to().plusDays(1).atStartOfDay(compiled.zone()).toOffsetDateTime().toString())));
+      }
+      if (filters.size() > 10) continue;
+      blocks.add(Map.of("type", "object-browser", "title", query.label() + " · 对象范围", "role", "supporting",
+          "datasetVersionSetId", datasetVersionSetId, "objectKey", object.key(), "filters", List.copyOf(filters),
+          "scopeDescription", "本次查询当前期的对象范围；不按聚合分组、排名或结果条数截取。"));
     }
     return List.copyOf(blocks);
   }

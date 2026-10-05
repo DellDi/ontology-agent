@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.capability.api;
 
 import com.dip3.ontologyagent.auth.AuthSession;
+import com.dip3.ontologyagent.semantic.api.ObjectSelection;
 import com.dip3.ontologyagent.support.BackendException;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +84,12 @@ public interface FollowUpPolicy {
       AuthSession principal,
       String followUpId,
       String referencedExecutionId);
+
+  /** 选择是能力自己的业务输入；返回只能收窄的执行范围。 */
+  default ResolvedScopeSnapshot validateObjectSelection(AuthSession principal, CapabilityBinding binding,
+                                                       ObjectSelection selection) {
+    throw new BackendException("OBJECT_SELECTION_UNSUPPORTED", "当前分析能力不支持对象选择追问。");
+  }
 
   /**
    * 结构化调整：把用户编辑后的查询意图直接编译为新的执行计划，不经模型规划。

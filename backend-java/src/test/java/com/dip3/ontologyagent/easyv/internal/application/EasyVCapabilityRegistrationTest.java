@@ -35,7 +35,7 @@ class EasyVCapabilityRegistrationTest {
   private final EasyVScopeResolver scopes = new EasyVScopeResolver(accounts);
   private final SemanticModel semantic = SemanticModel.discover();
   private final EasyVCapabilityRegistration registration =
-      new EasyVCapabilityRegistration(mainAgent, scopes, semantic, new SemanticQueryCompiler(semantic));
+      new EasyVCapabilityRegistration(mainAgent, scopes, semantic, new SemanticQueryCompiler(semantic), org.mockito.Mockito.mock(EasyVObjectSelectionService.class));
   private final AuthSession owner =
       new AuthSession(
           "auth-1",

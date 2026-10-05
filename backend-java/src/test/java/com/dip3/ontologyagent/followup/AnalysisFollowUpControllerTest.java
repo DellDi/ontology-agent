@@ -88,11 +88,43 @@ class AnalysisFollowUpControllerTest {
     }
 
     @Test
+    void selectedCreatePassesOnlyStrictReferenceAndNullUsesOrdinaryContract() throws Exception {
+        when(auth.authenticate(any())).thenReturn(Optional.of(owner));
+        var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-old", "set-old",
+            new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-block", "a:b", "blocks-old"));
+        when(service.createSelected("session-1", owner, "看这个", selection)).thenReturn(followUp());
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups").contentType("application/x-www-form-urlencoded")
+                .param("question", "看这个").param("objectSelection", new JsonCodec().write(selection.snapshot())))
+            .andExpect(status().isSeeOther()).andExpect(header().string("Location", "/workspace/analysis/session-1?followUpId=follow-1"));
+        org.mockito.Mockito.verify(service).createSelected("session-1", owner, "看这个", selection);
+        when(service.create("session-1", owner, "看全部", "")).thenReturn(followUp());
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups").contentType("application/x-www-form-urlencoded")
+                .param("question", "看全部").param("objectSelection", "null")).andExpect(status().isSeeOther());
+        org.mockito.Mockito.verify(service).create("session-1", owner, "看全部", "");
+    }
+
+    @Test
+    void selectedCreateRejectsForgedPropertiesAndReportsVersionMismatch() throws Exception {
+        when(auth.authenticate(any())).thenReturn(Optional.of(owner));
+        String raw = "{\"executionId\":\"old\",\"datasetVersionSetId\":\"set\",\"reference\":{\"objectKey\":\"easyv-prototype-layout\",\"objectId\":\"a\",\"productVersionId\":\"v\"}}";
+        var withProps = new java.util.HashMap<>(new JsonCodec().map(raw)); withProps.put("scope", Map.of("all", true));
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups").contentType("application/x-www-form-urlencoded")
+                .param("question", "看这个").param("objectSelection", new JsonCodec().write(withProps)))
+            .andExpect(status().isSeeOther()).andExpect(header().string("Location", org.hamcrest.Matchers.containsString("followUpError=")));
+        org.mockito.Mockito.verifyNoInteractions(service);
+        when(service.createSelected(anyString(), any(), anyString(), any()))
+            .thenThrow(new BackendException("OBJECT_VERSION_MISMATCH", "对象版本不一致。"));
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups").contentType("application/x-www-form-urlencoded")
+                .param("question", "看这个").param("objectSelection", raw)).andExpect(status().isConflict())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("OBJECT_VERSION_MISMATCH"));
+    }
+
+    @Test
     void structuredCreateRedirectsWithFollowUpId() throws Exception {
         when(auth.authenticate(any())).thenReturn(Optional.of(owner));
         when(service.createStructured(org.mockito.ArgumentMatchers.eq("session-1"),
                 org.mockito.ArgumentMatchers.eq(owner), org.mockito.ArgumentMatchers.eq("调整时间"),
-                org.mockito.ArgumentMatchers.eq(""), any()))
+                org.mockito.ArgumentMatchers.eq(""), any(), org.mockito.ArgumentMatchers.isNull()))
                 .thenReturn(followUp());
 
         mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")
@@ -114,7 +146,7 @@ class AnalysisFollowUpControllerTest {
                 .andExpect(status().isSeeOther())
                 .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("followUpError=")));
 
-        when(service.createStructured(anyString(), any(), anyString(), anyString(), any()))
+        when(service.createStructured(anyString(), any(), anyString(), anyString(), any(), org.mockito.ArgumentMatchers.isNull()))
                 .thenThrow(new BackendException("FOLLOW_UP_STRUCTURED_INVALID",
                         "结构化调整未通过本体校验：查询 q1：measures 至少一个根对象指标。"));
         mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")
@@ -127,7 +159,7 @@ class AnalysisFollowUpControllerTest {
     @Test
     void structuredCreatePropagatesUnknownErrors() throws Exception {
         when(auth.authenticate(any())).thenReturn(Optional.of(owner));
-        when(service.createStructured(anyString(), any(), anyString(), anyString(), any()))
+        when(service.createStructured(anyString(), any(), anyString(), anyString(), any(), org.mockito.ArgumentMatchers.isNull()))
                 .thenThrow(new IllegalStateException("unexpected"));
 
         mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")

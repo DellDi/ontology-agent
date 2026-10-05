@@ -20,28 +20,36 @@ public interface EasyVAnalysisModel {
    * @param previousConclusion 追问时上一轮结论（标题与摘要），首轮为空
    * @param previousQueries 追问时上一轮已执行的查询意图 JSON
    * @param violations 上一次规划的校验违规（纠正轮），首次为空
+   * @param observations 本轮真实结果，rows 最多 50 行，totalRows 保留完整行数
+   * @param remainingQueries 本轮剩余指标查询次数
+   * @param remainingMillis 本轮剩余执行预算，模型调用不能重新开始计时
    */
   record PlanRequest(String question, List<Map<String, Object>> catalog, String anchorDate, String zone,
                      Map<String, Object> previousConclusion, List<Map<String, Object>> previousQueries,
-                     List<String> violations) {
+                     List<String> violations, Map<String, Object> selectedObject,
+                     List<Map<String, Object>> observations, int remainingQueries, long remainingMillis, int remainingCalls,
+                     List<Map<String, Object>> tools, List<Map<String, Object>> knownObjects) {
     public PlanRequest {
+      selectedObject = selectedObject == null ? Map.of() : Map.copyOf(selectedObject);
       catalog = List.copyOf(catalog);
       previousConclusion = previousConclusion == null ? Map.of() : Map.copyOf(previousConclusion);
       previousQueries = previousQueries == null ? List.of() : List.copyOf(previousQueries);
       violations = violations == null ? List.of() : List.copyOf(violations);
+      observations = List.copyOf(observations);
+      tools = List.copyOf(tools); knownObjects = List.copyOf(knownObjects);
     }
   }
 
-  enum PlanStatus { READY, CLARIFY, UNSUPPORTED }
+  enum PlanStatus { READY, FINISHED, CLARIFY, UNSUPPORTED }
 
   /**
-   * @param queries READY 时的原始查询意图 JSON（由应用层解析与编译）
+   * @param calls READY 时的原始工具调用 JSON（由应用层解析与编译）
    * @param message CLARIFY 时的澄清问题，UNSUPPORTED 时的原因
    * @param options CLARIFY 时的候选项
    */
-  record PlanDecision(PlanStatus status, List<Object> queries, String message, List<String> options) {
+  record PlanDecision(PlanStatus status, List<Object> calls, String message, List<String> options) {
     public PlanDecision {
-      queries = queries == null ? List.of() : List.copyOf(queries);
+      calls = calls == null ? List.of() : List.copyOf(calls);
       options = options == null ? List.of() : List.copyOf(options);
     }
   }
@@ -49,9 +57,10 @@ public interface EasyVAnalysisModel {
   /**
    * @param results 已执行查询：id、标签、区间描述、列与结果行（行下标即引用下标）
    * @param violations 上一次回答的校验违规（纠正轮），首次为空
+   * @param remainingMillis 本轮剩余执行预算，与规划阶段共享
    */
   record ComposeRequest(String question, String dataScope, List<Map<String, Object>> results,
-                        List<String> violations) {
+                        List<String> violations, long remainingMillis) {
     public ComposeRequest {
       results = List.copyOf(results);
       violations = violations == null ? List.of() : List.copyOf(violations);

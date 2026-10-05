@@ -3,6 +3,7 @@ package com.dip3.ontologyagent.easyv.internal.application;
 import com.dip3.ontologyagent.agent.AgentTurn;
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.ExecutionProgress;
+import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
 import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.Citation;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.ComposeRequest;
@@ -20,6 +21,8 @@ import com.dip3.ontologyagent.semantic.api.OntologyMetric;
 import com.dip3.ontologyagent.semantic.api.OntologyObjectType;
 import com.dip3.ontologyagent.semantic.api.OntologyProperty;
 import com.dip3.ontologyagent.semantic.api.QueryIntent;
+import com.dip3.ontologyagent.semantic.api.ObjectSelection;
+import com.dip3.ontologyagent.semantic.api.ObjectQueryPort;
 import com.dip3.ontologyagent.semantic.api.QueryIntentCodec;
 import com.dip3.ontologyagent.semantic.api.ResolvedTimeRange;
 import com.dip3.ontologyagent.semantic.api.SemanticModel;
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 import java.util.function.Consumer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -60,7 +64,9 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
   public static final String CLAIM_KIND = "direct-answer";
   public static final String MODE = "semantic-query-read-only";
   static final int MAX_QUERIES = 4;
+  static final int MAX_TOOL_CALLS = 8;
   static final int EVIDENCE_ROW_CAP = 50;
+  static final long EXECUTION_TIMEOUT_MILLIS = 180_000;
   private static final String COMPARE_SUFFIX = ":compare";
   private static final String TOOL_LABEL = "执行 EasyV 语义分析";
 
@@ -70,21 +76,30 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
   private final SemanticQueryPort queries;
   private final DatasetVersionSetRegistry datasets;
   private final InvocationEventRecorder recorder;
+  private final EasyVObjectSelectionService selections;
+  private final EasyVAgentTools tools;
 
   public EasyVSemanticAgent(EasyVAnalysisModel model, SemanticModel semantic, SemanticQueryCompiler compiler,
                             SemanticQueryPort queries, DatasetVersionSetRegistry datasets,
-                            InvocationEventRecorder recorder) {
+                            InvocationEventRecorder recorder, EasyVObjectSelectionService selections, EasyVAgentTools tools) {
     this.model = model;
     this.semantic = semantic;
     this.compiler = compiler;
     this.queries = queries;
     this.datasets = datasets;
     this.recorder = recorder;
+    this.selections = selections;
+    this.tools = tools;
   }
 
   /** 一条已编译并执行的查询。 */
   record ExecutedQuery(String id, String label, CompiledSemanticQuery compiled, SemanticQueryResult result,
                        DataCoverage coverage) {}
+
+  private record ToolCall(String tool, Map<String, Object> input, CompiledSemanticQuery metric, EasyVAgentTools.Prepared object) {
+    Object identity() { return metric != null ? metric.cubeQuery() : object.request() != null ? object.request() : object.selection(); }
+  }
+  private record ExecutedTool(String id, EasyVAgentTools.Output output) {}
 
   @Override
   public WorkflowResult execute(AuthSession principal, AgentTurn turn, String executionId, OntologyCatalog ontology,
@@ -106,6 +121,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     auditInput.put("datasetVersionSetId", datasetVersionSetId);
     auditInput.put("dataScope", dataScope);
     auditInput.put("followUp", turn.followUp());
+    if (turn.effectiveContext().get("objectSelection") != null) auditInput.put("objectSelection", turn.effectiveContext().get("objectSelection"));
     String invocationId = recorder.start(turn.sessionId(), executionId, principal.userId(), "easyv-semantic-agent",
         EasyVInvocationContract.TOOL_NAME, EasyVInvocationContract.CONTRACT.invocationType(), null, auditInput,
         traceId, leaseOwner);
@@ -115,8 +131,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     progress.emit("tool-started", toolStep,
         Map.of("name", EasyVInvocationContract.TOOL_NAME, "label", TOOL_LABEL, "input", auditInput));
     try {
-      WorkflowResult result = analyse(turn, ontology, datasetVersionSetId, scope, versionSet, access, dataScope,
-          progress);
+      WorkflowResult result = analyse(principal, turn, ontology, datasetVersionSetId, scope, versionSet, access, dataScope,
+          executionId, invocationId, traceId, leaseOwner, started + EXECUTION_TIMEOUT_MILLIS * 1_000_000L, progress);
       progress.emit("tool-completed", toolStep, Map.of("name", EasyVInvocationContract.TOOL_NAME,
           "label", TOOL_LABEL, "durationMs", elapsed(started),
           "output", Map.of("evidenceCount", result.evidence().size(), "claimCount", result.claims().size())));
@@ -130,56 +146,123 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       progress.emit("tool-failed", toolStep, Map.of("name", EasyVInvocationContract.TOOL_NAME,
           "label", TOOL_LABEL, "durationMs", elapsed(started), "error", message));
       progress.emit("step-completed", done(toolStep, started, "failed"), null);
-      try {
-        recorder.failWhileLeased(invocationId,
-            error instanceof BackendException known ? known.code() : "WORKFLOW_FAILED", message,
-            executionId, leaseOwner);
-      } catch (RuntimeException auditError) {
-        if (auditError instanceof BackendException known && "JOB_LEASE_LOST".equals(known.code())) {
-          known.addSuppressed(error);
-          throw known;
-        }
-        BackendException failure =
-            new BackendException("INVOCATION_AUDIT_FAILURE", "EasyV 调用失败后审计写入失败。", auditError);
-        failure.addSuppressed(error);
-        throw failure;
-      }
+      failInvocation(invocationId, error, executionId, leaseOwner);
       throw error;
     }
   }
 
-  private WorkflowResult analyse(AgentTurn turn, OntologyCatalog ontology, String datasetVersionSetId,
+  private WorkflowResult analyse(AuthSession principal, AgentTurn turn, OntologyCatalog ontology, String datasetVersionSetId,
                                  ResolvedScopeSnapshot scope, DatasetVersionSet versionSet, AccessContext access,
-                                 String dataScope, ExecutionProgress progress) {
+                                 String dataScope, String executionId, String parentInvocationId, String traceId,
+                                 String leaseOwner, long deadline, ExecutionProgress progress) {
+    remainingMillis(deadline);
+    List<Map<String, Object>> performedSteps = new ArrayList<>();
+    performedSteps.add(structuredOverride(turn)
+        ? planStep("plan-queries", 1, "structured-adjustment", "应用结构化调整")
+        : planStep("plan-queries", 1, "llm-plan", "理解问题并规划查询"));
     Map<String, Object> planStep = step("plan-queries", 1,
         structuredOverride(turn) ? "应用结构化调整" : "理解问题并规划查询", "running");
     progress.emit("step-started", planStep, null);
     long planStarted = System.nanoTime();
-    List<CompiledSemanticQuery> compiled;
+    List<ToolCall> compiled;
+    EasyVAgentTools.Run objectRun;
+    ObjectQueryPort.Row selectedObject = null;
     try {
-      compiled = plan(turn);
+      if (turn.effectiveContext().get("objectSelection") != null) {
+        ObjectSelection selection = ObjectSelection.read(turn.effectiveContext().get("objectSelection"));
+        if (!turn.followUp() || !selection.executionId().equals(turn.referencedExecutionId())
+            || !selection.datasetVersionSetId().equals(datasetVersionSetId)) {
+          throw new BackendException("OBJECT_VERSION_MISMATCH", "执行中的对象选择与来源轮次或冻结集合不一致。");
+        }
+        progress.emit("tool-started", planStep, Map.of("name", "read_selected_object", "label", "读取所选对象", "input", selection.snapshot()));
+        String selectedInvocation = recorder.start(turn.sessionId(), executionId, principal.userId(),
+            "easyv-semantic-agent", "read_selected_object", "subtool", parentInvocationId, selection.snapshot(), traceId, leaseOwner);
+        try {
+          remainingMillis(deadline);
+          var selected = selections.requireDuringExecution(principal, scope, selection);
+          remainingMillis(deadline);
+          recorder.succeedWhileLeased(selectedInvocation, Map.of("reference", selected.object().reference(),
+              "properties", selected.object().properties(), "scope", selected.scope().values()), executionId, leaseOwner);
+          selectedObject = selected.object();
+          scope = selected.scope();
+          access = new AccessContext(versionSet.productVersionIds(), EasyVScopeResolver.dataScope(scope));
+          dataScope = EasyVScopeResolver.dataScopeLabel(scope);
+        } catch (RuntimeException error) {
+          progress.emit("tool-failed", planStep, Map.of("name", "read_selected_object", "label", "读取所选对象",
+              "error", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage()));
+          failInvocation(selectedInvocation, error, executionId, leaseOwner);
+          throw error;
+        }
+        progress.emit("tool-completed", planStep, Map.of("name", "read_selected_object", "label", "读取所选对象", "output", Map.of("reference", selection.snapshot().get("reference"))));
+      }
+      objectRun = tools.open(new CapabilityExecutionContext(principal, turn, executionId, ontology, datasetVersionSetId,
+          traceId, leaseOwner, progress), scope, versionSet.productVersionIds(), selectedObject, previousCalls(turn));
+      scope = objectRun.currentScope();
+      dataScope = EasyVScopeResolver.dataScopeLabel(scope);
+      compiled = plan(turn, selectedObject, List.of(), MAX_QUERIES, MAX_TOOL_CALLS, deadline, objectRun, versionSet);
     } catch (RuntimeException error) {
       progress.emit("step-completed", done(planStep, planStarted, "failed"), null);
       throw error;
     }
     progress.emit("step-completed", done(planStep, planStarted, "completed"), null);
 
-    Map<String, Object> runStep = step("run-queries", 2, "执行语义查询", "running");
-    progress.emit("step-started", runStep, null);
-    long runStarted = System.nanoTime();
     List<ExecutedQuery> executed = new ArrayList<>();
-    try {
-      for (int index = 0; index < compiled.size(); index += 1) {
-        executed.add(run("q" + (index + 1), compiled.get(index), access, progress));
+    List<ExecutedTool> objectResults = new ArrayList<>();
+    List<ToolCall> performedCalls = new ArrayList<>();
+    List<Map<String, Object>> callTrace = new ArrayList<>();
+    while (!compiled.isEmpty()) {
+      remainingMillis(deadline);
+      for (ToolCall call : compiled) {
+        String id = "q" + (performedCalls.size() + 1);
+        String label = call.metric() != null ? label(call.metric()) : toolLabel(call.tool());
+        performedSteps.add(planStep("query-" + id, performedSteps.size() + 1,
+            call.metric() != null ? "semantic-query" : "object-tool", label));
+        Map<String, Object> queryStep = step("query-" + id, performedSteps.size(), label, "running");
+        progress.emit("step-started", queryStep, null);
+        long queryStarted = System.nanoTime();
+        try {
+          List<ObjectQueryPort.Reference> refs;
+          if (call.metric() != null) {
+            executed.add(run(id, call.metric(), objectRun.access(), turn, principal, executionId, parentInvocationId, traceId,
+                leaseOwner, deadline, progress));
+            refs = call.input().containsKey("handle") ? List.of(objectRun.requireHandle(call.input().get("handle")).reference()) : List.of();
+          } else {
+            var output = runObject(id, call.object(), objectRun, turn, principal, executionId, parentInvocationId,
+                traceId, leaseOwner, deadline, progress);
+            objectResults.add(new ExecutedTool(id, output)); refs = output.references(); label = output.label();
+          }
+          performedCalls.add(call);
+          callTrace.add(Map.of("id", id, "tool", call.tool(), "label", label, "input", call.input(), "references", refs));
+          progress.emit("step-completed", done(queryStep, queryStarted, "completed"), null);
+        } catch (RuntimeException error) {
+          progress.emit("step-completed", done(queryStep, queryStarted, "failed"), null); throw error;
+        }
       }
-    } catch (RuntimeException error) {
-      progress.emit("step-completed", done(runStep, runStarted, "failed"), null);
-      throw error;
+      scope = objectRun.currentScope(); dataScope = EasyVScopeResolver.dataScopeLabel(scope);
+      if (structuredOverride(turn)) break;
+      String planningId = "plan-after-q" + performedCalls.size();
+      String title = "根据查询结果决定下一步";
+      performedSteps.add(planStep(planningId, performedSteps.size() + 1, "llm-plan", title));
+      Map<String, Object> nextStep = step(planningId, performedSteps.size(), title, "running");
+      progress.emit("step-started", nextStep, null);
+      long nextStarted = System.nanoTime();
+      try {
+        List<Evidence> currentEvidence = evidence(executed, objectResults, ontology, datasetVersionSetId, versionSet, dataScope);
+        List<Map<String, Object>> observations = projections(executed, objectResults, currentEvidence);
+        compiled = plan(turn, selectedObject, observations, MAX_QUERIES - executed.size(), MAX_TOOL_CALLS - performedCalls.size(), deadline, objectRun, versionSet);
+        for (ToolCall call : compiled) if (performedCalls.stream().anyMatch(previous -> previous.tool().equals(call.tool()) && previous.identity().equals(call.identity()))) {
+          throw new BackendException("AGENT_TOOL_REPEATED", "EasyV 规划重复了本轮已执行的调用，请明确新的分析范围。");
+        }
+        progress.emit("step-completed", done(nextStep, nextStarted, "completed"), null);
+      } catch (RuntimeException error) {
+        progress.emit("step-completed", done(nextStep, nextStarted, "failed"), null); throw error;
+      }
     }
-    progress.emit("step-completed", done(runStep, runStarted, "completed"), null);
+    objectRun.currentScope();
+    List<Evidence> evidence = evidence(executed, objectResults, ontology, datasetVersionSetId, versionSet, dataScope);
 
-    List<Evidence> evidence = evidence(executed, ontology, datasetVersionSetId, versionSet, dataScope);
-    Map<String, Object> composeStep = step("compose-answer", 3, "综合回答", "running");
+    performedSteps.add(planStep("compose-answer", performedSteps.size() + 1, "llm-compose", "综合回答"));
+    Map<String, Object> composeStep = step("compose-answer", performedSteps.size(), "综合回答", "running");
     progress.emit("step-started", composeStep, null);
     long composeStarted = System.nanoTime();
     ComposedAnswer answer;
@@ -192,7 +275,9 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       for (int attempt = 1; attempt <= 2 && references == null; attempt += 1) {
         try {
           answer = model.compose(new ComposeRequest(turn.questionText(), dataScope,
-              projections(executed, evidence), violations), sink);
+              projections(executed, objectResults, evidence), violations, remainingMillis(deadline)), sink);
+          remainingMillis(deadline);
+          objectRun.currentScope();
         } catch (BackendException error) {
           if (!"EASYV_ANSWER_INVALID".equals(error.code())) throw error;
           violations = List.of(error.getMessage());
@@ -218,27 +303,39 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
 
     List<GroundedConclusion.Claim> claims =
         List.of(new GroundedConclusion.Claim(CLAIM_KIND, answer.markdown(), references));
-    List<Map<String, Object>> blocks = EasyVRenderBlocks.build(executed, answer.highlights());
-    return new WorkflowResult(planSnapshot(turn, scope, dataScope, executed, evidence, answer), evidence,
+    List<Map<String, Object>> blocks = new ArrayList<>(EasyVRenderBlocks.build(executed, answer.highlights()));
+    blocks.addAll(EasyVRenderBlocks.objectBrowsers(executed, semantic, datasetVersionSetId,
+        versionSet.productVersionIds().keySet()));
+    blocks.addAll(objectResults.stream().map(tool -> tool.output().renderBlock()).toList());
+    return new WorkflowResult(planSnapshot(turn, scope, dataScope, executed, evidence, answer, performedSteps, callTrace), evidence,
         answer.markdown(), claims, blocks);
   }
 
-  private List<CompiledSemanticQuery> plan(AgentTurn turn) {
+  private List<ToolCall> plan(AgentTurn turn, ObjectQueryPort.Row selectedObject, List<Map<String, Object>> observations,
+      int remainingQueries, int remainingCalls, long deadline, EasyVAgentTools.Run objectRun, DatasetVersionSet versions) {
     List<?> override = overrideIntents(turn);
     if (override != null) {
-      return compileOverride(override, turn.anchoredAt());
+      List<CompiledSemanticQuery> compiled = compileOverride(override, turn.anchoredAt());
+      return compiled.stream().map(query -> {
+        var constrained = selectedObject == null ? query : compiler.compile(selections.constrain(query.intent(), selectedObject), turn.anchoredAt()).require();
+        return new ToolCall("query_metrics", Map.of("intent", QueryIntentCodec.write(constrained.intent())), constrained, null);
+      }).toList();
     }
-    return planQueries(turn.questionText(), turn.anchoredAt(), turn.referencedConclusion(),
-        turn.followUp() ? previousQueries(turn) : List.of());
+    return planCalls(turn.questionText(), turn.anchoredAt(), turn.referencedConclusion(),
+        turn.followUp() ? previousQueries(turn) : List.of(), selectedObject, observations, remainingQueries, remainingCalls,
+        deadline, objectRun, versions.productVersionIds().keySet().containsAll(Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component")));
   }
 
-  /**
-   * 模型规划轮次：把问题翻译为本体查询意图，违规时单轮回传纠正；
-   * 澄清、不支持与两次校验失败一律 fail loud。
-   */
-  List<CompiledSemanticQuery> planQueries(String question, Instant anchoredAt,
-                                          Map<String, Object> referencedConclusion,
-                                          List<Map<String, Object>> previousQueries) {
+  /** 真实 A 规划评测保留入口，只开放指标工具，不执行模型输出。 */
+  List<CompiledSemanticQuery> planQueries(String question, Instant anchoredAt, Map<String, Object> previousConclusion,
+      List<Map<String, Object>> previousQueries) {
+    return planCalls(question, anchoredAt, previousConclusion, previousQueries, null, List.of(), MAX_QUERIES, MAX_TOOL_CALLS,
+        System.nanoTime() + EXECUTION_TIMEOUT_MILLIS * 1_000_000L, null, false).stream().map(ToolCall::metric).toList();
+  }
+
+  private List<ToolCall> planCalls(String question, Instant anchoredAt, Map<String, Object> referencedConclusion,
+      List<Map<String, Object>> previousQueries, ObjectQueryPort.Row selectedObject, List<Map<String, Object>> observations,
+      int remainingQueries, int remainingCalls, long deadline, EasyVAgentTools.Run objectRun, boolean objectTools) {
     ZoneId zone = semantic.contributions().stream()
         .filter(item -> EasyVGenerationOntology.DOMAIN_KEY.equals(item.domainKey()))
         .findFirst()
@@ -251,7 +348,11 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       try {
         decision = model.plan(new PlanRequest(question, catalog,
             anchoredAt.atZone(zone).toLocalDate().toString(), zone.getId(), referencedConclusion,
-            previousQueries, violations));
+            previousQueries, violations, selectedObject == null ? Map.of() : Map.of(
+                "reference", selectedObject.reference(), "objectLabel", semantic.require(selectedObject.reference().objectKey()).label(),
+                "properties", selectedObject.properties()), observations, remainingQueries, remainingMillis(deadline), remainingCalls, EasyVAgentTools.catalog(objectTools),
+            objectRun == null ? List.of() : objectRun.knownObjects()));
+        remainingMillis(deadline);
       } catch (BackendException error) {
         if (!"EASYV_PLAN_INVALID".equals(error.code())) throw error;
         violations = List.of(error.getMessage());
@@ -265,16 +366,72 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
         case CLARIFY -> throw clarification(decision.message(), decision.options());
         case UNSUPPORTED -> throw new BackendException("EASYV_QUESTION_UNSUPPORTED",
             "当前数据无法回答该问题：" + nonBlank(decision.message(), "模型未说明原因") + "。");
+        case FINISHED -> {
+          if (!observations.isEmpty() && decision.calls().isEmpty()) return List.of();
+          violations = List.of("没有执行结果时不能 finished，finished 不接受 calls");
+        }
         case READY -> {
           List<String> found = new ArrayList<>();
-          List<CompiledSemanticQuery> compiled = compile(decision.queries(), anchoredAt, found);
-          if (found.isEmpty()) return compiled;
+          List<ToolCall> compiled = compileCalls(decision.calls(), anchoredAt, found, selectedObject, objectRun, objectTools);
+          if (found.isEmpty()) {
+            if (compiled.size() > remainingCalls || compiled.stream().filter(call -> call.metric() != null).count() > remainingQueries) {
+              throw new BackendException("AGENT_TOOL_LIMIT", "EasyV 分析最多执行 8 次工具调用，其中指标查询最多 4 次。");
+            }
+            if (compiled.stream().map(call -> List.of(call.tool(), call.identity())).distinct().count() != compiled.size()) found.add("同一批次不接受重复调用");
+            else return compiled;
+          }
           violations = found;
         }
       }
     }
     throw new BackendException("EASYV_PLAN_INVALID",
         "EasyV 查询规划两次均未通过本体校验：" + String.join("；", violations) + "。");
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<ToolCall> compileCalls(List<Object> raw, Instant anchor, List<String> violations, ObjectQueryPort.Row selected,
+      EasyVAgentTools.Run objectRun, boolean objectTools) {
+    if (raw.isEmpty() || raw.size() > MAX_TOOL_CALLS) { violations.add("calls 需要 1-8 个调用"); return List.of(); }
+    List<ToolCall> compiled = new ArrayList<>();
+    for (Object item : raw) {
+      if (!(item instanceof Map<?, ?> call) || !call.keySet().equals(Set.of("tool", "input")) || !(call.get("tool") instanceof String tool)
+          || !(call.get("input") instanceof Map<?, ?> rawInput) || rawInput.keySet().stream().anyMatch(k -> !(k instanceof String)) || rawInput.values().stream().anyMatch(Objects::isNull)) {
+        violations.add("调用必须且只能包含 tool 和非空 input 对象"); continue;
+      }
+      var input = (Map<String, Object>) rawInput;
+      try {
+        if (tool.equals("query_metrics")) {
+          if (!Set.of("intent", "handle").containsAll(input.keySet()) || !input.containsKey("intent")) throw new BackendException("EASYV_PLAN_INVALID", "query_metrics 需要 intent，可选 handle，禁止其他字段。");
+          var result = compile(List.of(input.get("intent")), anchor, violations, selected);
+          if (!result.isEmpty()) {
+            var query = result.getFirst();
+            if (input.containsKey("handle")) {
+              if (objectRun == null) throw new BackendException("EASYV_PLAN_INVALID", "当前规划入口没有对象句柄。");
+              var row = objectRun.requireHandle(input.get("handle"));
+              if (row.properties().isEmpty()) throw new BackendException("EASYV_PLAN_INVALID", "历史对象先 read_object，再按真实属性查询指标。");
+              query = compiler.compile(selections.constrain(query.intent(), row), anchor).require();
+            }
+            compiled.add(new ToolCall(tool, Map.copyOf(input), query, null));
+          }
+        } else {
+          if (!objectTools || objectRun == null) throw new BackendException("EASYV_PLAN_INVALID", "当前冻结集合或入口未提供对象工具。");
+          var prepared = objectRun.prepare(tool, input); compiled.add(new ToolCall(tool, Map.copyOf(input), null, prepared));
+        }
+      } catch (BackendException error) {
+        if (!Set.of("EASYV_PLAN_INVALID", "OBJECT_SELECTION_QUERY_UNSUPPORTED", "OBJECT_SELECTION_INVALID").contains(error.code())) throw error;
+        violations.add(error.getMessage());
+      }
+    }
+    return compiled;
+  }
+
+  private static String toolLabel(String tool) {
+    return switch (tool) { case "query_objects" -> "读取对象列表"; case "read_object" -> "读取对象详情";
+      case "traverse_objects" -> "穿透对象关系"; case "assess_scheme" -> "评估区域方案"; default -> "执行指标查询"; };
+  }
+
+  private static List<Map<String, Object>> previousCalls(AgentTurn turn) {
+    return EasyVAgentTools.readTrace(turn.effectiveContext().get("toolCalls"));
   }
 
   /** 结构化调整轮次：不调用模型，直接编译用户编辑后的查询意图；任何违规都 fail loud，不回退模型规划。 */
@@ -323,7 +480,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     return overrideIntents(turn) != null;
   }
 
-  private List<CompiledSemanticQuery> compile(List<Object> raw, Instant anchoredAt, List<String> violations) {
+  private List<CompiledSemanticQuery> compile(List<Object> raw, Instant anchoredAt, List<String> violations, ObjectQueryPort.Row selectedObject) {
     if (raw.isEmpty() || raw.size() > MAX_QUERIES) {
       violations.add("queries 需要 1-" + MAX_QUERIES + " 个查询意图");
       return List.of();
@@ -344,6 +501,13 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       }
       ambiguity(intent.time() == null ? null : intent.time().expression());
       ambiguity(intent.compare());
+      if (selectedObject != null && semantic.find(intent.objectKey()).isPresent()) {
+        try { intent = selections.constrain(intent, selectedObject); }
+        catch (BackendException error) {
+          if (!"OBJECT_SELECTION_QUERY_UNSUPPORTED".equals(error.code())) throw error;
+          violations.add(prefix + error.getMessage()); continue;
+        }
+      }
       SemanticQueryCompiler.Result result = compiler.compile(intent, anchoredAt);
       if (result.accepted()) {
         compiled.add(result.query());
@@ -379,7 +543,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
   @SuppressWarnings("unchecked")
   private static List<Map<String, Object>> previousQueries(AgentTurn turn) {
     Object raw = turn.effectiveContext().get("queries");
-    if (!(raw instanceof List<?> list) || list.isEmpty()
+    if (!(raw instanceof List<?> list) || (list.isEmpty() && previousCalls(turn).isEmpty())
         || list.stream().anyMatch(item -> !(item instanceof Map<?, ?>))) {
       throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "EasyV 追问缺少上一轮已执行的查询意图。");
     }
@@ -387,14 +551,41 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
   }
 
   private ExecutedQuery run(String id, CompiledSemanticQuery compiled, AccessContext access,
-                            ExecutionProgress progress) {
+                            AgentTurn turn, AuthSession principal, String executionId, String parentInvocationId,
+                            String traceId, String leaseOwner, long deadline, ExecutionProgress progress) {
+    remainingMillis(deadline);
     String label = label(compiled);
     long started = System.nanoTime();
     progress.emit("tool-started", null, Map.of("name", id, "label", label, "fact", compiled.objectKey(),
         "input", QueryIntentCodec.write(compiled.intent())));
+    Map<String, Object> input = new LinkedHashMap<>();
+    input.put("id", id);
+    input.put("intent", QueryIntentCodec.write(compiled.intent()));
+    input.put("productVersions", access.productVersions());
+    input.put("scope", access.scope());
+    input.put("from", compiled.range().from() == null ? null : compiled.range().from().toString());
+    input.put("to", compiled.range().to().toString());
+    input.put("compareRange", compiled.compareRange() == null ? null : Map.of("from", compiled.compareRange().from().toString(),
+        "to", compiled.compareRange().to().toString(), "description", compiled.compareRange().description()));
+    String invocationId = recorder.start(turn.sessionId(), executionId, principal.userId(), "easyv-semantic-agent",
+        "query_metrics", "subtool", parentInvocationId, input, traceId, leaseOwner);
     try {
+      remainingMillis(deadline);
       SemanticQueryResult result = queries.execute(compiled, access);
+      remainingMillis(deadline);
       DataCoverage coverage = queries.coverage(compiled, access);
+      remainingMillis(deadline);
+      Map<String, Object> output = new LinkedHashMap<>();
+      output.put("rows", result.rows());
+      output.put("compareRows", result.compareRows());
+      output.put("sql", result.sql());
+      if (coverage != null) {
+        Map<String, Object> coverageInput = new LinkedHashMap<>();
+        coverageInput.put("from", coverage.from() == null ? null : coverage.from().toString());
+        coverageInput.put("to", coverage.to() == null ? null : coverage.to().toString());
+        output.put("coverage", coverageInput);
+      } else output.put("coverage", null);
+      recorder.succeedWhileLeased(invocationId, output, executionId, leaseOwner);
       progress.emit("tool-completed", null, Map.of("name", id, "label", label, "fact", compiled.objectKey(),
           "sql", result.sql(), "durationMs", elapsed(started),
           "output", Map.of("rows", result.rows().size(), "compareRows", result.compareRows().size())));
@@ -403,9 +594,35 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       progress.emit("tool-failed", null, Map.of("name", id, "label", label, "fact", compiled.objectKey(),
           "durationMs", elapsed(started),
           "error", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage()));
+      failInvocation(invocationId, error, executionId, leaseOwner);
       throw error;
     }
   }
+
+  private EasyVAgentTools.Output runObject(String id, EasyVAgentTools.Prepared call, EasyVAgentTools.Run run,
+      AgentTurn turn, AuthSession principal, String executionId, String parent, String traceId, String leaseOwner,
+      long deadline, ExecutionProgress progress) {
+    String label = toolLabel(call.tool());
+    Map<String, Object> input = new LinkedHashMap<>(); input.put("id", id); input.put("toolInput", call.input());
+    input.put("executionId", executionId); input.put("datasetVersionSetId", runContextSet(call));
+    input.put("request", call.request()); input.put("selection", call.selection());
+    var access = run.access();
+    input.put("productVersions", access.productVersions()); input.put("scope", access.scope());
+    String invocation = recorder.start(turn.sessionId(), executionId, principal.userId(), "easyv-semantic-agent",
+        call.tool(), "subtool", parent, input, traceId, leaseOwner);
+    long started = System.nanoTime();
+    progress.emit("tool-started", null, Map.of("name", id, "label", label, "input", call.input()));
+    try {
+      remainingMillis(deadline); var result = run.execute(id, call); remainingMillis(deadline);
+      recorder.succeedWhileLeased(invocation, result.audit(), executionId, leaseOwner);
+      progress.emit("tool-completed", null, Map.of("name", id, "label", result.label(), "durationMs", elapsed(started), "output", Map.of("rows", result.rows().size())));
+      return result;
+    } catch (RuntimeException error) {
+      progress.emit("tool-failed", null, Map.of("name", id, "label", label, "durationMs", elapsed(started), "error", nonBlank(error.getMessage(), error.getClass().getSimpleName())));
+      failInvocation(invocation, error, executionId, leaseOwner); throw error;
+    }
+  }
+  private static String runContextSet(EasyVAgentTools.Prepared call) { return call.request() == null ? call.selection().datasetVersionSetId() : call.request().datasetVersionSetId(); }
 
   private String label(CompiledSemanticQuery compiled) {
     List<String> measures = new ArrayList<>();
@@ -435,7 +652,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     };
   }
 
-  private List<Evidence> evidence(List<ExecutedQuery> executed, OntologyCatalog ontology, String datasetVersionSetId,
+  private List<Evidence> evidence(List<ExecutedQuery> executed, List<ExecutedTool> objectResults, OntologyCatalog ontology, String datasetVersionSetId,
                                   DatasetVersionSet versionSet, String dataScope) {
     List<Evidence> evidence = new ArrayList<>();
     Set<String> allProducts = new LinkedHashSet<>();
@@ -453,10 +670,16 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
             evidenceRows(query.result().compareRows()), provenance));
       }
     }
+    for (ExecutedTool tool : objectResults) {
+      allProducts.addAll(tool.output().products());
+      if (!tool.output().rows().isEmpty()) evidence.add(new Evidence(QUERY_EVIDENCE_PREFIX + tool.id(), tool.output().label(),
+          evidenceRows(tool.output().rows()), provenance(tool.output().products(), ontology, datasetVersionSetId, versionSet)));
+    }
     Map<String, Object> scopeRow = new LinkedHashMap<>();
     scopeRow.put("dataScope", dataScope);
     scopeRow.put("queryCount", executed.size());
-    scopeRow.put("resultRows", executed.stream().mapToInt(query -> query.result().rows().size()).sum());
+    scopeRow.put("toolCount", executed.size() + objectResults.size());
+    scopeRow.put("resultRows", executed.stream().mapToInt(query -> query.result().rows().size()).sum() + objectResults.stream().mapToInt(tool -> tool.output().rows().size()).sum());
     scopeRow.put("freshnessAt", versionSet.capturedAt().toString());
     evidence.add(0, new Evidence(DATA_SCOPE_EVIDENCE, "数据范围与冻结版本", List.of(scopeRow),
         provenance(allProducts, ontology, datasetVersionSetId, versionSet)));
@@ -485,7 +708,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     return new Evidence.Provenance(ontology.versionId(), datasetVersionSetId, versionSet.capturedAt(), versions);
   }
 
-  private static List<Map<String, Object>> projections(List<ExecutedQuery> executed, List<Evidence> evidence) {
+  private static List<Map<String, Object>> projections(List<ExecutedQuery> executed, List<ExecutedTool> objectResults, List<Evidence> evidence) {
     Map<String, Evidence> bySource = new LinkedHashMap<>();
     evidence.forEach(item -> bySource.put(item.source(), item));
     List<Map<String, Object>> out = new ArrayList<>();
@@ -500,6 +723,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
             bySource.get(QUERY_EVIDENCE_PREFIX + query.id() + COMPARE_SUFFIX)));
       }
     }
+    out.addAll(objectResults.stream().map(tool -> tool.output().observation()).toList());
+    out.sort(java.util.Comparator.comparingInt(item -> Integer.parseInt(((String) item.get("id")).split(":")[0].substring(1))));
     return out;
   }
 
@@ -552,7 +777,9 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       }
       Object value = item.rows().get(citation.row()).get(citation.field());
       if (!citableValue(value)) {
-        violations.add("引用 " + citation.query() + " 第 " + citation.row() + " 行的字段无效或为空：" + citation.field());
+        violations.add("引用 " + citation.query() + " 第 " + citation.row() + " 行的字段无效或为空：" + citation.field()
+            + "；可引用字段：" + item.rows().get(citation.row()).entrySet().stream()
+                .filter(entry -> citableValue(entry.getValue())).map(Map.Entry::getKey).toList());
         continue;
       }
       references.add(new GroundedConclusion.EvidenceReference(item.source(), citation.row(), citation.field(), value));
@@ -679,7 +906,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
 
   private Map<String, Object> planSnapshot(AgentTurn turn, ResolvedScopeSnapshot scope, String dataScope,
                                            List<ExecutedQuery> executed, List<Evidence> evidence,
-                                           ComposedAnswer answer) {
+                                           ComposedAnswer answer, List<Map<String, Object>> performedSteps, List<Map<String, Object>> callTrace) {
     Map<String, Object> resolved = new LinkedHashMap<>(scope.values());
     resolved.put("dataScope", dataScope);
     resolved.put("queries", executed.stream().map(query -> {
@@ -695,24 +922,23 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       }
       return (Map<String, Object>) item;
     }).toList());
-    List<Map<String, Object>> steps = new ArrayList<>();
-    steps.add(structuredOverride(turn)
-        ? planStep("plan-queries", 1, "structured-adjustment", "应用结构化调整")
-        : planStep("plan-queries", 1, "llm-plan", "理解问题并规划查询"));
-    for (int index = 0; index < executed.size(); index += 1) {
-      steps.add(planStep("query-" + executed.get(index).id(), index + 2, "semantic-query",
-          executed.get(index).label()));
-    }
-    steps.add(planStep("compose-answer", executed.size() + 2, "llm-compose", "综合回答"));
     Map<String, Object> plan = new LinkedHashMap<>();
     plan.put("_executionContract", turn.contract());
+    if (turn.effectiveContext().get("objectSelection") != null) {
+      ObjectSelection selection = ObjectSelection.read(turn.effectiveContext().get("objectSelection"));
+      plan.put("_objectSelection", selection.snapshot());
+      plan.put("_objectSelectionLabel", semantic.require(selection.reference().objectKey()).label() + " · " + selection.reference().objectId());
+    }
+    resolved.put("toolCalls", List.copyOf(callTrace));
     plan.put("_resolvedContext", Map.copyOf(resolved));
-    plan.put("_understanding", executed.stream().map(this::understanding).toList());
-    plan.put("_editorCatalog", editorCatalog(executed));
+    if (!executed.isEmpty()) {
+      plan.put("_understanding", executed.stream().map(this::understanding).toList());
+      plan.put("_editorCatalog", editorCatalog(executed));
+    }
     plan.put("_evidenceTypes", evidence.stream().map(Evidence::source).toList());
     plan.put("summary", "EasyV 数据问答");
     plan.put("mode", MODE);
-    plan.put("steps", List.copyOf(steps));
+    plan.put("steps", List.copyOf(performedSteps));
     if (!answer.suggestions().isEmpty()) plan.put("_suggestedQuestions", answer.suggestions());
     if (!answer.actions().isEmpty()) {
       plan.put("_suggestedActions", answer.actions().stream()
@@ -750,6 +976,29 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     out.put("status", status);
     out.put("durationMs", elapsed(started));
     return out;
+  }
+
+  /** 模型等待可取消；同步工具沿用各自超时，在调用前后核验整个轮次预算。 */
+  static long remainingMillis(long deadline) {
+    long remaining = (deadline - System.nanoTime()) / 1_000_000L;
+    if (remaining <= 0) throw new BackendException("AGENT_EXECUTION_TIMEOUT", "EasyV 分析超过 180 秒执行时限。");
+    return remaining;
+  }
+
+  private void failInvocation(String invocationId, RuntimeException error, String executionId, String leaseOwner) {
+    String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+    try {
+      recorder.failWhileLeased(invocationId,
+          error instanceof BackendException known ? known.code() : "WORKFLOW_FAILED", message, executionId, leaseOwner);
+    } catch (RuntimeException auditError) {
+      if (auditError instanceof BackendException known && "JOB_LEASE_LOST".equals(known.code())) {
+        known.addSuppressed(error);
+        throw known;
+      }
+      BackendException failure = new BackendException("INVOCATION_AUDIT_FAILURE", "EasyV 调用失败后审计写入失败。", auditError);
+      failure.addSuppressed(error);
+      throw failure;
+    }
   }
 
   private static long elapsed(long started) {

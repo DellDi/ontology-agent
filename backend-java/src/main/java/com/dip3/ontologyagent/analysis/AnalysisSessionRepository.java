@@ -36,6 +36,11 @@ public class AnalysisSessionRepository {
         return new AnalysisSession(id, owner.userId(), owner.scope(), questionText, savedContext, "pending", now, now);
     }
 
+    public AnalysisSession requireOwned(String sessionId, AuthSession viewer) {
+        return findOwned(sessionId, viewer).orElseThrow(() ->
+                new com.dip3.ontologyagent.support.BackendException("SESSION_NOT_FOUND", "会话不存在或无权访问。"));
+    }
+
     public Optional<AnalysisSession> findOwned(String sessionId, AuthSession viewer) {
         return Optional.ofNullable(mapper.selectById(sessionId)).map(row -> new AnalysisSession(row.id,
                         row.ownerUserId, new AccessScope(row.organizationId, Arrays.asList(row.projectIds),

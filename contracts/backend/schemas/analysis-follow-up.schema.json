@@ -362,6 +362,9 @@
               }
             }
           }
+        },
+        "objectSelection": {
+          "$ref": "easyv-semantic-plan.schema.json#/$defs/objectSelection"
         }
       }
     },
@@ -498,7 +501,7 @@
             },
             "queries": {
               "type": "array",
-              "minItems": 1,
+              "minItems": 0,
               "maxItems": 4,
               "items": {
                 "type": "object",
@@ -549,8 +552,35 @@
                   }
                 }
               }
+            },
+            "toolCalls": {
+              "$ref": "easyv-semantic-plan.schema.json#/$defs/toolCalls"
             }
-          }
+          },
+          "allOf": [
+            {
+              "anyOf": [
+                {
+                  "properties": {
+                    "queries": {
+                      "type": "array",
+                      "minItems": 1
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "toolCalls"
+                  ],
+                  "properties": {
+                    "toolCalls": {
+                      "type": "array"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -743,8 +773,49 @@
               }
             }
           }
+        },
+        "_objectSelection": {
+          "$ref": "easyv-semantic-plan.schema.json#/$defs/objectSelection"
+        },
+        "_objectSelectionLabel": {
+          "type": "string",
+          "minLength": 1
         }
-      }
+      },
+      "dependentRequired": {
+        "_objectSelection": [
+          "_objectSelectionLabel",
+          "_referencedExecutionId",
+          "_followUpId"
+        ],
+        "_objectSelectionLabel": [
+          "_objectSelection"
+        ]
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "_objectSelection": {}
+            },
+            "required": [
+              "_objectSelection"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "const": "semantic-query-read-only"
+              },
+              "_executionContract": {
+                "const": "java-follow-up-v1"
+              }
+            }
+          }
+        }
+      ]
     },
     "planDiffStep": {
       "type": "object",
@@ -1294,6 +1365,45 @@
           },
           "currentPlanDiff": {
             "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "mergedContext": {
+            "type": "object",
+            "properties": {
+              "objectSelection": {}
+            },
+            "required": [
+              "objectSelection"
+            ]
+          }
+        },
+        "required": [
+          "mergedContext"
+        ]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "capabilityBinding": {
+            "type": "object",
+            "properties": {
+              "domainKey": {
+                "const": "easyv"
+              }
+            },
+            "required": [
+              "domainKey"
+            ]
+          },
+          "datasetVersionSetId": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }

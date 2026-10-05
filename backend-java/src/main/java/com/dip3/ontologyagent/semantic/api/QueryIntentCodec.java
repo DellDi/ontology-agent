@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 查询意图的 JSON 契约：模型输出（camelCase 键、小写枚举）与 {@link QueryIntent} 互转，
@@ -66,6 +67,11 @@ public final class QueryIntentCodec {
     if (!(map.get("time") instanceof Map<?, ?> timeMap)) {
       violations.add("time 必填；用户未指定时间时 expression.kind=all");
     } else {
+      if (timeMap.containsKey("compare")) {
+        violations.add("compare 必须与 time 同级，不能写在 time.compare；请将对比时间表达式写入查询意图的 compare");
+      }
+      timeMap.keySet().stream().filter(key -> !Set.of("dimension", "expression", "granularity", "compare").contains(key))
+          .forEach(key -> violations.add("time 不接受字段：" + key));
       if (timeMap.get("expression") == null && timeMap.get("kind") != null) {
         violations.add("time 下缺少 expression：sourceText/kind/unit/n/offset/from/to 必须嵌套写在 time.expression 中，"
             + "不能直接写在 time 下；收到 time=" + timeMap);

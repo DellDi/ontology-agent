@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 /**
  * EasyV 授权：PLATFORM_ADMIN 或 EASYV_ANALYST 可发起分析；userId 为执行者审计归属。
  * 数据范围在提交时冻结进能力快照：PLATFORM_ADMIN 为全部数据（all），其余账号限定为其绑定的
- * EasyV user_id（scoped）；Worker 只按冻结快照执行，不重新解析账号权限。
+ * EasyV user_id（scoped）；运行时工具重新核验当前权限，最多收窄冻结范围。
  */
 @Component
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
@@ -32,6 +32,20 @@ public final class EasyVScopeResolver {
 
   public EasyVScopeResolver(IdentityAccountService accounts) {
     this.accounts = accounts;
+  }
+
+  /** Worker 不携带登录角色；运行时工具从平台身份库核验当前账号，再收窄冻结范围。 */
+  public AuthSession executionPrincipal(AuthSession principal) {
+    String id = validUserId(principal);
+    var account = accounts.findById(Long.parseLong(id))
+        .orElseThrow(() -> new BackendException("AUTH_REQUIRED", "执行账号不存在。"));
+    if (account.disabled()) throw new BackendException("ACCOUNT_DISABLED", "执行账号已停用。");
+    var current = new AuthSession(principal.sessionId(), id, account.displayName(), accounts.scope(account), principal.expiresAt());
+    if (!principal.scope().organizationId().equals(current.scope().organizationId())) {
+      throw new BackendException("OBJECT_SCOPE_FORBIDDEN", "执行期间账号组织已变化，请重新发起分析。");
+    }
+    requireRole(current);
+    return current;
   }
 
   public ResolvedScopeSnapshot resolveScope(AuthSession principal) {
@@ -70,6 +84,17 @@ public final class EasyVScopeResolver {
     return ACCESS_ALL.equals(snapshot.values().get("accessMode"))
         ? Scope.everything()
         : Scope.restricted(Map.of(BINDING_SUBJECT, List.of((String) snapshot.values().get("easyvUserId"))));
+  }
+
+  /** 当前权限只能收窄冻结范围；EasyV 当前只有一个用户绑定维度。 */
+  public static ResolvedScopeSnapshot narrowScope(ResolvedScopeSnapshot frozen, ResolvedScopeSnapshot current) {
+    Scope oldScope = dataScope(frozen); Scope nowScope = dataScope(current);
+    if (nowScope.all()) return frozen;
+    if (oldScope.all()) return current;
+    if (!oldScope.values().equals(nowScope.values())) {
+      throw new BackendException("OBJECT_SCOPE_FORBIDDEN", "当前账号绑定已变化，无法读取原执行的数据范围。");
+    }
+    return frozen;
   }
 
   /** 面向用户的数据范围描述。 */

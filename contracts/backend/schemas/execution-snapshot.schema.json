@@ -332,8 +332,49 @@
               }
             }
           }
+        },
+        "_objectSelection": {
+          "$ref": "easyv-semantic-plan.schema.json#/$defs/objectSelection"
+        },
+        "_objectSelectionLabel": {
+          "type": "string",
+          "minLength": 1
         }
-      }
+      },
+      "dependentRequired": {
+        "_objectSelection": [
+          "_objectSelectionLabel",
+          "_referencedExecutionId",
+          "_followUpId"
+        ],
+        "_objectSelectionLabel": [
+          "_objectSelection"
+        ]
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "_objectSelection": {}
+            },
+            "required": [
+              "_objectSelection"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "const": "semantic-query-read-only"
+              },
+              "_executionContract": {
+                "const": "java-follow-up-v1"
+              }
+            }
+          }
+        }
+      ]
     },
     "stepResults": {
       "type": "array",
@@ -1278,7 +1319,7 @@
                       },
                       "queries": {
                         "type": "array",
-                        "minItems": 1,
+                        "minItems": 0,
                         "maxItems": 4,
                         "items": {
                           "type": "object",
@@ -1329,8 +1370,35 @@
                             }
                           }
                         }
+                      },
+                      "toolCalls": {
+                        "$ref": "easyv-semantic-plan.schema.json#/$defs/toolCalls"
                       }
-                    }
+                    },
+                    "allOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "queries": {
+                                "minItems": 1,
+                                "type": "array"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "toolCalls"
+                            ],
+                            "properties": {
+                              "toolCalls": {
+                                "type": "array"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ]
               },
@@ -1614,7 +1682,7 @@
                           },
                           "queries": {
                             "type": "array",
-                            "minItems": 1,
+                            "minItems": 0,
                             "maxItems": 4,
                             "items": {
                               "type": "object",
@@ -1665,8 +1733,35 @@
                                 }
                               }
                             }
+                          },
+                          "toolCalls": {
+                            "$ref": "easyv-semantic-plan.schema.json#/$defs/toolCalls"
                           }
-                        }
+                        },
+                        "allOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "properties": {
+                                  "queries": {
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                }
+                              },
+                              {
+                                "required": [
+                                  "toolCalls"
+                                ],
+                                "properties": {
+                                  "toolCalls": {
+                                    "type": "array"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
                       }
                     }
                   }
