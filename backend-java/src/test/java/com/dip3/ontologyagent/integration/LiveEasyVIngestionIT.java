@@ -53,17 +53,19 @@ class LiveEasyVIngestionIT {
             "easyv-prototype-task",
             "easyv-pipeline-node",
             "easyv-forge-task",
-            "easyv-generation-feedback");
+            "easyv-generation-feedback", "easyv-block-scheme", "easyv-slot-type");
 
-    private static final Set<String> PRODUCT_KEYS = EasyVOntologyModel.OBJECTS.stream()
-            .map(object -> object.productKey()).collect(Collectors.toSet());
+    private static final Set<String> PRODUCT_KEYS = java.util.stream.Stream.concat(EasyVOntologyModel.OBJECTS.stream()
+            .map(object -> object.productKey()), java.util.stream.Stream.of("easyv-scheme-library")).collect(Collectors.toSet());
 
     private static final Map<String, String> SOURCE_RELATIONS = Map.of(
             "easyv-ai-application", "easyv_saas.ai_screen_app",
             "easyv-prototype-task", "easyv_saas.ai_screen_prototype",
             "easyv-pipeline-node", "easyv_saas.ai_pipeline_node_record",
             "easyv-forge-task", "easyv_saas.generation_tasks",
-            "easyv-generation-feedback", "easyv_saas.dt_ai_operation_log");
+            "easyv-generation-feedback", "easyv_saas.dt_ai_operation_log",
+            "easyv-block-scheme", "easyv_saas.ai_block_data",
+            "easyv-slot-type", "easyv_saas.ai_block_internal_data");
 
     private static final Map<String, String> FACT_RELATIONS = Map.of(
             "easyv-ai-application", "facts.easyv_ai_application",
@@ -121,11 +123,12 @@ class LiveEasyVIngestionIT {
                 persistence);
 
         String execution = UUID.randomUUID().toString();
-        List<CanonicalProductTransform> transforms = Arrays.stream(
+        List<CanonicalProductTransform> transforms = new java.util.ArrayList<>(Arrays.stream(
                         EasyVCanonicalTransform.Kind.values())
                 .map(kind -> (CanonicalProductTransform) new EasyVCanonicalTransform(
                         kind, targetJdbc, json))
-                .toList();
+                .toList());
+        transforms.add(new com.dip3.ontologyagent.easyv.internal.adapter.out.ingestion.EasyVSchemeCanonicalTransform(targetJdbc, json));
         ProductMaterializer materializer = new ProductMaterializer(
                 new ProductCatalogPostgresAdapter(targetJdbc, json, sourceCatalog),
                 new CanonicalProductTransformRegistry(transforms),
@@ -157,17 +160,21 @@ class LiveEasyVIngestionIT {
         assertEquals(release.versionSet(), versionSets.requireFrozen(
                 setId, EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS));
 
-        for (String datasetKey : DATASET_KEYS) {
+        for (String datasetKey : FACT_RELATIONS.keySet()) {
             assertEquals(sourceCountsBefore.get(datasetKey),
                     targetJdbc.queryForObject(
                             "select count(*) from " + FACT_RELATIONS.get(datasetKey), Long.class),
                     "canonical fact row count for " + datasetKey);
         }
+        assertEquals(sourceCountsBefore.get("easyv-block-scheme"), targetJdbc.queryForObject(
+                "select count(*) from facts.easyv_scheme_library", Long.class));
+        System.out.println("LIVE_EASYV_SCHEME statuses=" + targetJdbc.queryForList(
+                "select parse_status,parse_error_code,count(*) from facts.easyv_scheme_library group by 1,2"));
         assertEquals(sourceDistributionsBefore, targetDistributions(targetJdbc));
         assertEquals((long) PRODUCT_KEYS.size(), targetJdbc.queryForObject(
                 "select count(*) from ingestion.data_product_versions where status='published'",
                 Long.class));
-        assertEquals((long) PRODUCT_KEYS.size(), targetJdbc.queryForObject(
+        assertEquals((long) PRODUCT_KEYS.size() + 1, targetJdbc.queryForObject(
                 "select count(*) from ingestion.data_product_version_lineage", Long.class));
         assertEquals(1L, targetJdbc.queryForObject(
                 "select count(*) from ingestion.dataset_version_sets where status='frozen'",

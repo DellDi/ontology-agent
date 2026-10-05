@@ -12,6 +12,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public class EasyVIngestionConfiguration {
     @Bean
+    CanonicalProductTransform easyVSchemeLibraryTransform(JdbcTemplate jdbc, JsonCodec json) {
+        return new EasyVSchemeCanonicalTransform(jdbc, json);
+    }
+
+    @Bean
     CanonicalProductTransform easyVApplicationTransform(JdbcTemplate jdbc, JsonCodec json) {
         return new EasyVCanonicalTransform(EasyVCanonicalTransform.Kind.APPLICATION, jdbc, json);
     }
