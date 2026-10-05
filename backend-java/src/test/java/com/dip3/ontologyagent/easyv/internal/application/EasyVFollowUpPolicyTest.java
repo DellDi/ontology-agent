@@ -28,9 +28,21 @@ class EasyVFollowUpPolicyTest {
 
   private final SemanticModel semantic = SemanticModel.discover();
   private final EasyVFollowUpPolicy policy =
-      new EasyVFollowUpPolicy(semantic, new SemanticQueryCompiler(semantic));
+      new EasyVFollowUpPolicy(semantic, new SemanticQueryCompiler(semantic), org.mockito.Mockito.mock(EasyVObjectSelectionService.class));
   private final AuthSession principal = new AuthSession("auth-1", "7", "用户",
       new AccessScope("org-1", List.of(), List.of(), List.of()), Instant.MAX);
+
+  @Test
+  void objectOnlyFollowUpKeepsFrozenReferencesWithoutInventingMetricIntents() {
+    var trace = List.of(Map.of("id", "q1", "tool", "assess_scheme", "label", "区域方案适配评估", "input", Map.of("handle", "o1"),
+        "references", List.of(Map.of("objectKey", "easyv-prototype-block", "objectId", "1:b", "productVersionId", "blocks-old"))));
+    var plan = Map.<String, Object>of("_resolvedContext", Map.of("userId", "7", "accessMode", "all", "dataScope", "全部数据", "queries", List.of(), "toolCalls", trace));
+    assertEquals(trace, policy.executableContext(plan, Map.of(), Map.of()).get("toolCalls"));
+    assertEquals(List.of(), policy.executableContext(plan, Map.of(), Map.of()).get("queries"));
+    assertEquals("区域方案适配评估", value(policy.inheritedContext(plan), "targetMetric"));
+    var bad = new java.util.LinkedHashMap<>(trace.getFirst()); bad.put("id", "q2");
+    assertCode("FOLLOW_UP_CONTEXT_INVALID", () -> policy.inheritedContext(Map.of("_resolvedContext", Map.of("dataScope", "全部数据", "queries", List.of(), "toolCalls", List.of(bad)))));
+  }
 
   @Test
   void questionValidationRejectsBlankAndOtherDomains() {

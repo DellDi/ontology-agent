@@ -1,0 +1,265 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "executionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "datasetVersionSetId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ontologyVersionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectKey": {
+          "enum": [
+            "easyv-prototype-layout",
+            "easyv-prototype-block",
+            "easyv-prototype-component"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reference": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "objectKey": {
+                    "enum": [
+                      "easyv-prototype-layout",
+                      "easyv-prototype-block",
+                      "easyv-prototype-component"
+                    ]
+                  },
+                  "objectId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "productVersionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "objectKey",
+                  "objectId",
+                  "productVersionId"
+                ]
+              },
+              "properties": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "reference",
+              "properties"
+            ]
+          },
+          "maxItems": 200
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "objectKey",
+        "rows",
+        "limit",
+        "offset",
+        "hasMore"
+      ]
+    },
+    "structure": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "available"
+            },
+            "layout": {
+              "$ref": "#/$defs/layoutNode"
+            }
+          },
+          "required": [
+            "status",
+            "layout"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "not_retained",
+                "parse_failed"
+              ]
+            },
+            "layout": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "layout"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "objectType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "label",
+        "properties",
+        "links"
+      ],
+      "properties": {
+        "key": {
+          "enum": [
+            "easyv-prototype-layout",
+            "easyv-prototype-block",
+            "easyv-prototype-component"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "label",
+              "type"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "enum": [
+                  "STRING",
+                  "NUMBER",
+                  "BOOLEAN",
+                  "TIME"
+                ]
+              }
+            }
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "targetObjectKey",
+              "targetLabel"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "targetObjectKey": {
+                "enum": [
+                  "easyv-prototype-layout",
+                  "easyv-prototype-block",
+                  "easyv-prototype-component"
+                ]
+              },
+              "targetLabel": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "executionId",
+    "datasetVersionSetId",
+    "ontologyVersionId",
+    "page",
+    "structure",
+    "objectType"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "object-read-result.schema.json",
+  "$defs": {
+    "layoutNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layoutNode"
+          }
+        }
+      },
+      "required": [
+        "tag",
+        "attributes",
+        "children"
+      ]
+    }
+  }
+}

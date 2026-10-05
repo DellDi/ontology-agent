@@ -4,6 +4,7 @@ import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.auth.CookieSessionAuthenticator;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
+import com.dip3.ontologyagent.semantic.api.ObjectSelection;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -49,17 +50,20 @@ public class AnalysisFollowUpController {
     public ResponseEntity<Void> create(@PathVariable String sessionId,
                                        @RequestParam(name = "question", defaultValue = "") String question,
                                        @RequestParam(name = "parentFollowUpId", defaultValue = "") String parentId,
+                                       @RequestParam(name = "objectSelection", required = false) String selectionJson,
                                        HttpServletRequest request) {
         AuthSession owner = auth.authenticate(request).orElse(null);
         if (owner == null) return redirect("/login?next=/workspace/analysis/" + sessionId);
         try {
-            AnalysisFollowUp followUp = followUps.create(sessionId, owner, question, parentId);
+            ObjectSelection selection = parseSelection(selectionJson);
+            AnalysisFollowUp followUp = selection == null ? followUps.create(sessionId, owner, question, parentId)
+                : followUps.createSelected(sessionId, owner, question, selection);
             return sessionRedirect(sessionId, Map.of("followUpId", followUp.id()));
         } catch (BackendException error) {
             if (!List.of("INVALID_FOLLOW_UP_QUESTION", "FOLLOW_UP_SOURCE_NOT_FOUND",
                     "FOLLOW_UP_PARENT_NOT_COMPLETED", "FOLLOW_UP_CONTEXT_MISSING", "FOLLOW_UP_CONTEXT_INVALID",
                     "FOLLOW_UP_CONCLUSION_MISSING", "FOLLOW_UP_ONTOLOGY_MISSING", "FOLLOW_UP_NOT_FOUND",
-                    "FOLLOW_UP_CAPABILITY_UNSUPPORTED", "FOLLOW_UP_SCOPE_INVALID",
+                    "FOLLOW_UP_CAPABILITY_UNSUPPORTED", "FOLLOW_UP_SCOPE_INVALID", "OBJECT_SELECTION_INVALID", "OBJECT_SELECTION_UNSUPPORTED",
                     "FOLLOW_UP_SCOPE_RESOLVER_UNAVAILABLE", "FOLLOW_UP_TIME_RANGE_INVALID",
                     "ONTOLOGY_PIN_RETIRED", "ONTOLOGY_PIN_NOT_PUBLISHED", "ONTOLOGY_PIN_NOT_FOUND")
                     .contains(error.code())) throw error;
@@ -74,12 +78,13 @@ public class AnalysisFollowUpController {
             @RequestParam(name = "question", defaultValue = "") String question,
             @RequestParam(name = "parentFollowUpId", defaultValue = "") String parentId,
             @RequestParam(name = "queries", defaultValue = "") String queriesJson,
+            @RequestParam(name = "objectSelection", required = false) String selectionJson,
             HttpServletRequest request) {
         AuthSession owner = auth.authenticate(request).orElse(null);
         if (owner == null) return redirect("/login?next=/workspace/analysis/" + sessionId);
         try {
             AnalysisFollowUp followUp = followUps.createStructured(sessionId, owner, question, parentId,
-                    parseQueries(queriesJson));
+                    parseQueries(queriesJson), parseSelection(selectionJson));
             return sessionRedirect(sessionId, Map.of("followUpId", followUp.id()));
         } catch (BackendException error) {
             if (!List.of("INVALID_FOLLOW_UP_QUESTION", "FOLLOW_UP_SOURCE_NOT_FOUND",
@@ -89,8 +94,16 @@ public class AnalysisFollowUpController {
                     "FOLLOW_UP_SCOPE_RESOLVER_UNAVAILABLE", "FOLLOW_UP_TIME_RANGE_INVALID",
                     "ONTOLOGY_PIN_RETIRED", "ONTOLOGY_PIN_NOT_PUBLISHED", "ONTOLOGY_PIN_NOT_FOUND",
                     "FOLLOW_UP_STRUCTURED_INVALID", "FOLLOW_UP_STRUCTURED_UNSUPPORTED",
-                    "FOLLOW_UP_LEGACY_EXECUTION").contains(error.code())) throw error;
+                    "FOLLOW_UP_LEGACY_EXECUTION", "OBJECT_SELECTION_INVALID", "OBJECT_SELECTION_UNSUPPORTED").contains(error.code())) throw error;
             return sessionRedirect(sessionId, Map.of("followUpError", error.getMessage()));
+        }
+    }
+
+    private ObjectSelection parseSelection(String raw) {
+        if (raw == null || raw.equals("null")) return null;
+        try { return ObjectSelection.read(json.map(raw)); }
+        catch (BackendException error) {
+            throw new BackendException("OBJECT_SELECTION_INVALID", "对象选择格式无效，请重新选择对象。", error);
         }
     }
 

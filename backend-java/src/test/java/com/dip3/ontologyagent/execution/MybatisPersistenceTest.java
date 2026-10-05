@@ -1,6 +1,30 @@
 package com.dip3.ontologyagent.execution;
 
 import com.dip3.ontologyagent.analysis.AnalysisSessionRepository;
+import com.dip3.ontologyagent.agent.AgentTurn;
+import com.dip3.ontologyagent.capability.api.ExecutionProgress;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.PlanDecision;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.PlanStatus;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.ComposedAnswer;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.Citation;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectSelectionService;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVAgentTools;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVSchemeAssessmentService;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVScopeResolver;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVSemanticAgent;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
+import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
+import com.dip3.ontologyagent.semantic.api.ObjectQueryPort;
+import com.dip3.ontologyagent.semantic.api.SemanticModel;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryCompiler;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.SemanticQueryResult;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryPort.DataCoverage;
+import com.dip3.ontologyagent.semantic.api.SemanticQueryPort;
+import com.dip3.ontologyagent.ontology.OntologyCatalog;
+import com.dip3.ontologyagent.support.JsonCodec;
 import com.dip3.ontologyagent.analysis.AnalysisService;
 import com.dip3.ontologyagent.auth.AccessScope;
 import com.dip3.ontologyagent.auth.AuthSession;
@@ -48,6 +72,9 @@ import static com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvBinding
 import static com.dip3.ontologyagent.support.CapabilityTestFixtures.EASYV_ID;
 import static com.dip3.ontologyagent.support.CapabilityTestFixtures.PROPERTY_ID;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 @Testcontainers
 @SpringBootTest(properties = {
@@ -92,6 +119,7 @@ class MybatisPersistenceTest {
         MigrationTestSupport.migrate(POSTGRES);
     }
 
+    @Autowired EasyVScopeResolver easyvScopes;
     @Autowired AnalysisSessionRepository sessions;
     @Autowired ExecutionRepository executions;
     @Autowired AgentInvocationRepository invocations;
@@ -102,6 +130,7 @@ class MybatisPersistenceTest {
     @Autowired ErpEvidenceMapper erpEvidence;
     @Autowired ChatMemory chatMemory;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired EasyVAgentTools easyvTools;
 
     @Test
     void mybatisMappingsPreserveScopeIdempotencyLeaseEventsSnapshotAndAudit() {
@@ -234,6 +263,126 @@ class MybatisPersistenceTest {
 
         executions.fail(reloaded.executionId(), reloaded.workerId(), "TEST_END", "test cleanup",
                 reloaded.traceId());
+    }
+
+    @Test
+    void easyVMultiStepQueriesPersistFullChildAuditWithFrozenScopeAndParent() {
+        String suffix = UUID.randomUUID().toString();
+        long accountId = jdbc.queryForObject("insert into identity.accounts(account,display_name,organization_id) values (?,?,?) returning id", Long.class, "multi-" + suffix, "测试用户", "easyv-test-" + suffix);
+        jdbc.update("insert into identity.role_grants(account_id,role_code) values (?,'PLATFORM_ADMIN')", accountId);
+        AuthSession owner = new AuthSession("auth-multi-" + suffix, String.valueOf(accountId), "测试用户",
+                new AccessScope("easyv-test-" + suffix, List.of(), List.of(), List.of("PLATFORM_ADMIN")), Instant.MAX);
+        var session = sessions.create(owner, "查询任务数后按状态排查", Map.of());
+        var binding = easyvBinding(owner, "ontology-multi");
+        String setId = "multi-set-" + suffix;
+        jdbc.update("insert into ingestion.dataset_version_sets (set_id,status,captured_at,frozen_at,created_by,created_at) values (?,'frozen',now(),now(),'test',now())", setId);
+        String executionId = executions.submit(session, "multi-query-" + suffix, "trace-multi", binding, setId).executionId();
+        ExecutionJob job = executions.claim("worker-multi-" + suffix, Duration.ofMinutes(1)).orElseThrow();
+        assertEquals(executionId, job.executionId());
+        var semantic = SemanticModel.discover();
+        var model = mock(EasyVAnalysisModel.class);
+        var queries = mock(SemanticQueryPort.class);
+        var datasets = mock(DatasetVersionSetRegistry.class);
+        var selection = mock(EasyVObjectSelectionService.class);
+        var agent = new EasyVSemanticAgent(model, semantic,
+                new SemanticQueryCompiler(semantic), queries, datasets, invocationEvents, selection, easyvTools);
+        var products = EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS;
+        Map<String, String> versions = products.stream().collect(java.util.stream.Collectors.toMap(key -> key, key -> "frozen-" + key));
+        Instant anchor = Instant.parse("2026-10-04T00:00:00Z");
+        when(datasets.requireFrozen(setId, products)).thenReturn(new DatasetVersionSet(
+                setId, versions, anchor, DatasetVersionSet.Status.FROZEN, anchor, anchor, "test"));
+        var time = Map.of("expression", Map.of("sourceText", "全部", "kind", "all"));
+        var first = Map.of("object", "easyv-forge-task", "measures", List.of("count"), "time", time);
+        var second = Map.of("object", "easyv-forge-task", "measures", List.of("count"), "dimensions", List.of("status"), "time", time);
+        when(model.plan(any())).thenReturn(
+                new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_metrics", "input", Map.of("intent", first))), null, List.of()),
+                new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_metrics", "input", Map.of("intent", second))), null, List.of()),
+                new PlanDecision(PlanStatus.FINISHED, List.of(), null, List.of()));
+        when(queries.execute(any(), any())).thenReturn(
+                new SemanticQueryResult(List.of(Map.of("count", 3)), List.of(), "select frozen-q1"),
+                new SemanticQueryResult(List.of(Map.of("status", "failed", "count", 1)), List.of(), "select frozen-q2"));
+        when(queries.coverage(any(), any())).thenReturn(
+                new DataCoverage(LocalDate.parse("2026-10-01"), LocalDate.parse("2026-10-03")));
+        when(model.compose(any(), any())).thenReturn(
+                new ComposedAnswer("失败 1 个任务", List.of(
+                        new Citation("q2", 0, "count")), List.of(), List.of(), List.of()));
+        var turn = new AgentTurn(ExecutionRepository.INITIAL_EXECUTION_CONTRACT,
+                session.id(), session.questionText(), null, null, Map.of(), Map.of(), anchor);
+        var ontology = new OntologyCatalog("ontology-multi", "1.0.0", List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var result = agent.execute(owner, turn, executionId, ontology, setId, binding.resolvedScope(), "trace-multi", job.workerId(),
+                ExecutionProgress.NOOP);
+        assertEquals(3, result.evidence().size());
+        String rootId = jdbc.queryForObject("select id from platform.agent_invocations where execution_id=? and parent_invocation_id is null", String.class, executionId);
+        var children = jdbc.queryForList("select parent_invocation_id,status,input::text,output::text from platform.agent_invocations where execution_id=? and tool_name='query_metrics' order by input->>'id'", executionId);
+        assertEquals(2, children.size());
+        var json = new JsonCodec();
+        for (int i = 0; i < children.size(); i++) {
+            var row = children.get(i);
+            assertEquals(rootId, row.get("parent_invocation_id"));
+            assertEquals("completed", row.get("status"));
+            var input = json.map(row.get("input"));
+            assertEquals("q" + (i + 1), input.get("id"));
+            assertEquals(versions, input.get("productVersions"));
+            assertEquals(Map.of("all", true, "values", Map.of()), input.get("scope"));
+            assertNull(input.get("from"));
+            assertEquals("2026-10-04", input.get("to"));
+            var output = json.map(row.get("output"));
+            assertEquals("select frozen-q" + (i + 1), output.get("sql"));
+            assertEquals(Map.of("from", "2026-10-01", "to", "2026-10-03"), output.get("coverage"));
+        }
+        assertEquals(List.of(Map.of("status", "failed", "count", 1)), json.map(children.get(1).get("output")).get("rows"));
+        executions.fail(executionId, job.workerId(), "TEST_END", "test cleanup", "trace-multi");
+    }
+
+    @Test
+    void objectAndAssessmentChildrenPersistFrozenOutputsAndReplayTraceWithRealWorkerIdentity() {
+        String suffix = UUID.randomUUID().toString();
+        String org = "objects-" + suffix;
+        long accountId = jdbc.queryForObject("insert into identity.accounts(account,display_name,organization_id) values (?,?,?) returning id", Long.class, "objects-" + suffix, "测试用户", org);
+        jdbc.update("insert into identity.role_grants(account_id,role_code) values (?,'PLATFORM_ADMIN')", accountId);
+        AuthSession worker = new AuthSession("worker", String.valueOf(accountId), "测试用户", new AccessScope(org, List.of(), List.of(), List.of()), Instant.MAX);
+        var session = sessions.create(worker, "比较区域方案", Map.of());
+        var binding = easyvBinding(worker, "ontology-objects");
+        String setId = "objects-set-" + suffix;
+        jdbc.update("insert into ingestion.dataset_version_sets (set_id,status,captured_at,frozen_at,created_by,created_at) values (?,'frozen',now(),now(),'test',now())", setId);
+        String executionId = executions.submit(session, "objects-query-" + suffix, "trace-objects", binding, setId).executionId();
+        var job = executions.claim("worker-objects-" + suffix, Duration.ofMinutes(1)).orElseThrow();
+        assertEquals(executionId, job.executionId());
+        var semantic = SemanticModel.discover();
+        var model = mock(EasyVAnalysisModel.class);
+        var objects = mock(EasyVObjectReadService.class);
+        var assessments = mock(EasyVSchemeAssessmentService.class);
+        var datasets = mock(DatasetVersionSetRegistry.class);
+        var selection = new EasyVObjectSelectionService(null, null, null, semantic);
+        Map<String, String> versions = new java.util.HashMap<>(EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS.stream().collect(java.util.stream.Collectors.toMap(k -> k, k -> "frozen-" + k)));
+        for (String key : List.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component")) versions.put(key, "frozen-" + key);
+        var anchor = Instant.parse("2026-10-04T00:00:00Z");
+        when(datasets.requireFrozen(setId, EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS)).thenReturn(new DatasetVersionSet(setId, versions, anchor, DatasetVersionSet.Status.FROZEN, anchor, anchor, "test"));
+        var ref = new ObjectQueryPort.Reference("easyv-prototype-block", "a:b", "frozen-easyv-prototype-block");
+        when(objects.readDuringExecution(any(), any(), any())).thenReturn(new EasyVObjectReadService.Result(executionId, setId, "ontology-objects",
+                new ObjectQueryPort.Page(ref.objectKey(), List.of(new ObjectQueryPort.Row(ref, Map.of("appId", "a", "blockKey", "a:b"))), 50, 0, false), null,
+                new EasyVObjectReadService.ObjectTypeView(ref.objectKey(), "原型区域", List.of(), List.of())));
+        when(assessments.assessDuringExecution(any(), any(), any())).thenAnswer(call -> new EasyVSchemeAssessmentService.Result("assessment", call.getArgument(2), "ontology-objects", versions,
+                "unassessable", "SCHEME_LIBRARY_NOT_RETAINED", null, List.of(), null));
+        when(model.plan(any())).thenReturn(new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_objects", "input", Map.of("objectKey", ref.objectKey()))), null, List.of()),
+                new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "assess_scheme", "input", Map.of("handle", "o1"))), null, List.of()), new PlanDecision(PlanStatus.FINISHED, List.of(), null, List.of()));
+        when(model.compose(any(), any())).thenReturn(new ComposedAnswer("尚未保留方案库", List.of(new Citation("q2", 0, "reason")), List.of(), List.of(), List.of()));
+        var tools = new EasyVAgentTools(objects, assessments, selection, easyvScopes, semantic, new JsonCodec());
+        var agent = new EasyVSemanticAgent(model, semantic, new SemanticQueryCompiler(semantic), mock(SemanticQueryPort.class), datasets, invocationEvents, selection, tools);
+        var result = agent.execute(worker, new AgentTurn(ExecutionRepository.INITIAL_EXECUTION_CONTRACT, session.id(), session.questionText(), null, null, Map.of(), Map.of(), anchor), executionId,
+                new OntologyCatalog("ontology-objects", "1", List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()), setId, binding.resolvedScope(), "trace-objects", job.workerId(), ExecutionProgress.NOOP);
+        var children = jdbc.queryForList("select parent_invocation_id,status,tool_name,input::text,output::text from platform.agent_invocations where execution_id=? and kind='subtool' order by input->>'id'", executionId);
+        assertEquals(2, children.size());
+        assertEquals(children.getFirst().get("parent_invocation_id"), children.getLast().get("parent_invocation_id"));
+        var json = new JsonCodec();
+        assertEquals("completed", children.getLast().get("status"));
+        assertEquals("assess_scheme", children.getLast().get("tool_name"));
+        assertEquals(versions, json.map(children.getLast().get("input")).get("productVersions"));
+        var output = json.map(children.getLast().get("output"));
+        assertEquals("SCHEME_LIBRARY_NOT_RETAINED", output.get("reason"));
+        assertEquals(setId, ((Map<?, ?>) output.get("selection")).get("datasetVersionSetId"));
+        assertEquals(2, ((List<?>) ((Map<?, ?>) result.plan().get("_resolvedContext")).get("toolCalls")).size());
+        executions.fail(executionId, job.workerId(), "TEST_END", "test cleanup", "trace-objects");
     }
 
     @Test

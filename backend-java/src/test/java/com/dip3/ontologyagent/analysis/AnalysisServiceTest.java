@@ -51,7 +51,7 @@ class AnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(sessions.findOwned("session-1", owner)).thenReturn(Optional.of(session));
+        when(sessions.requireOwned("session-1", owner)).thenReturn(session);
         OntologyCatalog ontology = new OntologyCatalog("ontology-1", "1.0.0",
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         when(ontologies.currentPublished()).thenReturn(ontology);
@@ -168,7 +168,7 @@ class AnalysisServiceTest {
         OntologyCatalog v2 = catalog("ontology-v2", "2.0.0");
         OntologyCatalog v3 = catalog("ontology-v3", "3.0.0");
         CapabilityBinding easyvBinding = easyvBinding(easyvOwner, v2.versionId());
-        when(sessions.findOwned("easyv-session", easyvOwner)).thenReturn(Optional.of(easyvSession));
+        when(sessions.requireOwned("easyv-session", easyvOwner)).thenReturn(easyvSession);
         when(ontologies.currentPublished()).thenReturn(v2);
         when(capabilities.bind(EASYV_ID, v2, easyvOwner)).thenReturn(easyvBinding);
         when(capabilities.require(easyvBinding, v2, easyvOwner))
@@ -205,7 +205,7 @@ class AnalysisServiceTest {
         AnalysisSession legacy = new AnalysisSession("legacy-1", "user-1", owner.scope(), "分析收缴率",
                 Map.of("_executionContract", ExecutionRepository.EXECUTION_CONTRACT),
                 "pending", Instant.now(), Instant.now());
-        when(sessions.findOwned("legacy-1", owner)).thenReturn(Optional.of(legacy));
+        when(sessions.requireOwned("legacy-1", owner)).thenReturn(legacy);
 
         BackendException error = assertThrows(BackendException.class,
                 () -> service.submit("legacy-1", owner, "request-legacy", "trace-legacy"));
@@ -220,7 +220,7 @@ class AnalysisServiceTest {
                 Map.of("_executionContract", ExecutionRepository.EXECUTION_CONTRACT,
                         "_capabilityId", Map.of("domainKey", "unknown", "capabilityKey", "unknown")),
                 "pending", Instant.now(), Instant.now());
-        when(sessions.findOwned("tampered-1", owner)).thenReturn(Optional.of(tampered));
+        when(sessions.requireOwned("tampered-1", owner)).thenReturn(tampered);
         org.mockito.Mockito.doThrow(new BackendException("CAPABILITY_NOT_REGISTERED", "unknown capability"))
                 .when(capabilities).bind(eq(new com.dip3.ontologyagent.capability.api.CapabilityId("unknown", "unknown")),
                         any(), eq(owner));

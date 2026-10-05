@@ -88,7 +88,18 @@ public final class AnalysisController {
         if (owner == null) return redirect("/login?next=/workspace/analysis/" + sessionId);
         String executionId;
         if (followUpId.isBlank()) {
-            executionId = analyses.submit(sessionId, owner, idempotencyKey, TraceFilter.from(request));
+            try {
+                executionId = analyses.submit(sessionId, owner, idempotencyKey, TraceFilter.from(request));
+            } catch (BackendException error) {
+                if (!List.of("ONTOLOGY_NOT_PUBLISHED", "DATASET_VERSION_SET_NOT_PUBLISHED")
+                        .contains(error.code())) throw error;
+                URI location = UriComponentsBuilder.fromPath("/workspace/analysis/{sessionId}")
+                        .queryParam("executionError", error.getMessage())
+                        .queryParam("executionErrorCode", error.code())
+                        .queryParam("traceId", TraceFilter.from(request))
+                        .buildAndExpand(sessionId).encode().toUri();
+                return ResponseEntity.status(HttpStatus.SEE_OTHER).location(location).build();
+            }
         } else {
             if (followUps == null) {
                 throw new BackendException("FOLLOW_UP_EXECUTION_UNAVAILABLE", "追问执行组件未配置。");

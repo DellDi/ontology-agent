@@ -507,6 +507,114 @@
               ]
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "title",
+            "datasetVersionSetId",
+            "objectKey",
+            "filters",
+            "scopeDescription"
+          ],
+          "properties": {
+            "type": {
+              "const": "object-browser"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "role": {
+              "enum": [
+                "primary",
+                "supporting"
+              ]
+            },
+            "datasetVersionSetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "objectKey": {
+              "enum": [
+                "easyv-prototype-layout",
+                "easyv-prototype-block",
+                "easyv-prototype-component"
+              ]
+            },
+            "filters": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "member",
+                  "operator",
+                  "values"
+                ],
+                "properties": {
+                  "member": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "operator": {
+                    "enum": [
+                      "EQUALS",
+                      "NOT_EQUALS",
+                      "CONTAINS",
+                      "GT",
+                      "GTE",
+                      "LT",
+                      "LTE",
+                      "SET",
+                      "NOT_SET"
+                    ]
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "scopeDescription": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "title",
+            "result"
+          ],
+          "properties": {
+            "type": {
+              "const": "scheme-comparison"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "role": {
+              "enum": [
+                "primary",
+                "supporting"
+              ]
+            },
+            "result": {
+              "$ref": "scheme-assessment-result.schema.json"
+            }
+          }
         }
       ]
     }

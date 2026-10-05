@@ -309,6 +309,53 @@ paths:
         '409': { description: Existing idempotency conflict, a legacy session, or a follow-up already bound to another execution, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
         '422': { description: Follow-up context is not executable or must be replanned first; browser form requests receive a 303 redirect carrying followUpExecutionError, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
         '500': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/objects/assess:
+    post:
+      summary: Compare fixed metrics and block geometry against the frozen EasyV scheme library
+      description: Java revalidates session, execution, product versions and current authorization. Persists replayable evidence in audit events. Rules are explicit heuristics pending real data calibration; no latest-library substitution for old manifests.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: './schemas/scheme-assessment-request.schema.json' } }
+      responses:
+        '200':
+          description: Assessment evidence or explicit unavailable coverage
+          content:
+            application/json: { schema: { $ref: './schemas/scheme-assessment-result.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /api/analysis/sessions/{sessionId}/objects/query:
+    post:
+      summary: Read EasyV prototype objects and declared relationships from this execution's frozen data
+      description: objectId omitted lists objects; objectId reads one detail; relation traverses a declared link. Filters and order reference root properties of the resulting object type. Reads intersect current EasyV scope with the execution scope; never select a newer manifest. Missing retained geometry is explicit, not reconstructed from staging.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: './schemas/object-read-request.schema.json' } }
+      responses:
+        '200':
+          description: Bound page of object references/properties; structure only on layout detail
+          content:
+            application/json: { schema: { $ref: './schemas/object-read-result.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: Requested data set differs from the execution, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
+        '422': { description: Required canonical product is absent or no longer published, content: { application/json: { schema: { $ref: './schemas/error.schema.json' } } } }
   /api/analysis/sessions/{sessionId}/follow-ups:
     get:
       summary: List the authenticated session follow-ups in creation order
@@ -338,6 +385,9 @@ paths:
               properties:
                 question: { type: string, minLength: 1, maxLength: 300 }
                 parentFollowUpId: { type: string, maxLength: 200 }
+                objectSelection:
+                  type: string
+                  description: 'Optional JSON object matching easyv-semantic-plan.schema.json#/$defs/objectSelection, or null to cancel; the server validates source ownership, frozen versions and permissions.'
           multipart/form-data:
             schema:
               type: object
@@ -345,6 +395,9 @@ paths:
               properties:
                 question: { type: string, minLength: 1, maxLength: 300 }
                 parentFollowUpId: { type: string, maxLength: 200 }
+                objectSelection:
+                  type: string
+                  description: 'Optional JSON object matching easyv-semantic-plan.schema.json#/$defs/objectSelection, or null to cancel; the server validates source ownership, frozen versions and permissions.'
       responses:
         '303': { description: Created follow-up redirect with followUpId, headers: { Location: { schema: { type: string } } } }
         '400': { $ref: '#/components/responses/Error' }
@@ -369,6 +422,9 @@ paths:
               properties:
                 question: { type: string, minLength: 1, maxLength: 300 }
                 parentFollowUpId: { type: string, maxLength: 200 }
+                objectSelection:
+                  type: string
+                  description: 'Optional JSON object matching easyv-semantic-plan.schema.json#/$defs/objectSelection, or null to cancel; the server validates source ownership, frozen versions and permissions.'
                 queries:
                   type: string
                   description: "JSON array of { \"id\": non-blank string, \"intent\": query intent object } entries"
@@ -379,6 +435,9 @@ paths:
               properties:
                 question: { type: string, minLength: 1, maxLength: 300 }
                 parentFollowUpId: { type: string, maxLength: 200 }
+                objectSelection:
+                  type: string
+                  description: 'Optional JSON object matching easyv-semantic-plan.schema.json#/$defs/objectSelection, or null to cancel; the server validates source ownership, frozen versions and permissions.'
                 queries:
                   type: string
                   description: "JSON array of { \"id\": non-blank string, \"intent\": query intent object } entries"

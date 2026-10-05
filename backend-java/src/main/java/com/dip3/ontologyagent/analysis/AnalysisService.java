@@ -143,9 +143,7 @@ public final class AnalysisService {
   }
 
   public AnalysisSession ownedSession(String sessionId, AuthSession owner) {
-    return sessions
-        .findOwned(sessionId, owner)
-        .orElseThrow(() -> new BackendException("SESSION_NOT_FOUND", "会话不存在或无权访问。"));
+    return sessions.requireOwned(sessionId, owner);
   }
 
   public List<ExecutionEvent> events(

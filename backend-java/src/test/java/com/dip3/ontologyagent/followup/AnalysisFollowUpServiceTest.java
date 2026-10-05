@@ -659,6 +659,87 @@ class AnalysisFollowUpServiceTest {
     verify(wakeups, never()).publish(any());
   }
 
+  @Test
+  void selectedFollowUpPinsOwnedSourceSetAndRevalidatesBeforeSubmission() {
+    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-root", "set-old",
+        new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-block", "a:b", "blocks-old"));
+    ExecutionSnapshotEntity source = snapshot(); source.datasetVersionSetId = "set-old";
+    var frozen = propertyBinding(owner, "ontology-1");
+    var narrowedScope = new com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot("property", 1,
+        Map.of("projectIds", List.of("project-1")));
+    var narrowed = new CapabilityBinding(frozen.id(), frozen.ontologyVersionId(), narrowedScope);
+    FollowUpPolicy selectionPolicy = mock(FollowUpPolicy.class);
+    when(repository.completedJavaSnapshot("execution-root", "session-1", "user-1")).thenReturn(Optional.of(source));
+    when(analyses.followUpPolicy(eq(owner), any())).thenReturn(selectionPolicy);
+    when(selectionPolicy.validateObjectSelection(owner, frozen, selection)).thenReturn(narrowedScope);
+    when(selectionPolicy.inheritedContext(source.planSnapshot)).thenReturn(Map.of("entity", "test"));
+    when(selectionPolicy.applyQuestionContext(any(), any(), eq(owner))).thenAnswer(call -> call.getArgument(1));
+    var selected = service.createSelected("session-1", owner, "看这个区域", selection);
+    assertEquals("set-old", selected.datasetVersionSetId());
+    assertEquals("execution-root", selected.referencedExecutionId());
+    assertEquals(narrowed.snapshot(), selected.capabilityBinding());
+    assertEquals(selection.snapshot(), selected.mergedContext().get("objectSelection"));
+    assertEquals(selected.inheritedContext(), selected.mergedContext());
+    verify(repository, never()).latestCompletedRootSnapshot(any(), any());
+    verify(analyses, never()).resolveExecutionDatasetVersionSet(any(), any());
+
+    var executions = mock(ExecutionRepository.class); var wakeups = mock(WakeupPublisher.class);
+    service = new AnalysisFollowUpService(analyses, repository, ontologies, executions, wakeups);
+    when(repository.lockOwned(selected.id(), "session-1", "user-1")).thenReturn(Optional.of(selected));
+    when(repository.completedSourceSnapshot(selected)).thenReturn(Optional.of(source));
+    when(selectionPolicy.validateObjectSelection(owner, narrowed, selection)).thenReturn(narrowedScope);
+    when(selectionPolicy.executableContext(any(), any(), any())).thenReturn(Map.of("objectSelection", selection.snapshot()));
+    when(executions.submitFollowUp(any(), any(), any(), any(), any(), any(), any(), any(), eq(narrowed), eq("set-old")))
+        .thenReturn(new ExecutionSubmission("execution-selected", false));
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      assertEquals("execution-selected", service.submit("session-1", selected.id(), owner, "idem", "trace"));
+      verify(selectionPolicy).validateObjectSelection(owner, narrowed, selection);
+      verify(executions).submitFollowUp(any(), eq(selected.id()), eq("execution-root"), any(), any(),
+          eq(Map.of("objectSelection", selection.snapshot())), any(), any(), eq(narrowed), eq("set-old"));
+      org.mockito.Mockito.clearInvocations(executions);
+      when(selectionPolicy.validateObjectSelection(owner, narrowed, selection)).thenThrow(new BackendException("OBJECT_SCOPE_FORBIDDEN", "权限已撤销"));
+      assertEquals("OBJECT_SCOPE_FORBIDDEN", assertThrows(BackendException.class,
+          () -> service.submit("session-1", selected.id(), owner, "idem", "trace")).code());
+      org.mockito.Mockito.verifyNoInteractions(executions);
+    } finally { TransactionSynchronizationManager.clearSynchronization(); }
+  }
+
+  @Test
+  void selectedContinuationDerivesParentFromOwnedSourceExecution() {
+    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-follow-1", "set-old",
+        new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", "a", "layouts-old"));
+    var parent = followUp("follow-1", "session-1", null, "execution-follow-1", context(), 2, plan(resolved()));
+    var source = snapshot(); source.executionId = "execution-follow-1"; source.followUpId = "follow-1"; source.datasetVersionSetId = "set-old";
+    when(repository.completedJavaSnapshot(source.executionId, "session-1", "user-1")).thenReturn(Optional.of(source));
+    when(repository.findOwned("follow-1", "user-1")).thenReturn(Optional.of(parent));
+    FollowUpPolicy selectedPolicy = mock(FollowUpPolicy.class);
+    when(analyses.followUpPolicy(any(), any())).thenReturn(selectedPolicy);
+    when(selectedPolicy.validateObjectSelection(any(), any(), eq(selection))).thenReturn(propertyBinding(owner,"ontology-1").resolvedScope());
+    when(selectedPolicy.inheritedContext(any())).thenReturn(context());
+    when(selectedPolicy.applyQuestionContext(any(), any(), any())).thenAnswer(call -> call.getArgument(1));
+    var child = service.createSelected("session-1", owner, "再看组件", selection);
+    assertEquals("follow-1", child.parentFollowUpId()); assertEquals("execution-follow-1", child.referencedExecutionId());
+    assertEquals("set-old", child.datasetVersionSetId());
+    source.executionId = "forged";
+    assertEquals("FOLLOW_UP_SOURCE_NOT_FOUND", assertThrows(BackendException.class,
+        () -> service.createSelected("session-1", owner, "继续", selection)).code());
+  }
+
+  @Test
+  void selectedSourceOwnershipAndManifestMustMatchBeforePolicyReads() {
+    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-root", "set-old",
+        new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", "a", "layouts-old"));
+    when(repository.completedJavaSnapshot("execution-root", "session-1", "user-1")).thenReturn(Optional.empty());
+    assertEquals("FOLLOW_UP_SOURCE_NOT_FOUND", assertThrows(BackendException.class,
+        () -> service.createSelected("session-1", owner, "看这个", selection)).code());
+    var source = snapshot(); source.datasetVersionSetId = "set-new";
+    when(repository.completedJavaSnapshot("execution-root", "session-1", "user-1")).thenReturn(Optional.of(source));
+    assertEquals("OBJECT_VERSION_MISMATCH", assertThrows(BackendException.class,
+        () -> service.createSelected("session-1", owner, "看这个", selection)).code());
+    verify(analyses, never()).followUpPolicy(any(), any());
+  }
+
   private ExecutionSnapshotEntity snapshot() {
     ExecutionSnapshotEntity row = new ExecutionSnapshotEntity();
     row.executionId = "execution-root";

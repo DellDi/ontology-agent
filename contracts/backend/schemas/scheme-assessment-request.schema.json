@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "executionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "datasetVersionSetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "objectKey": {
+          "type": "string",
+          "const": "easyv-prototype-block"
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "productVersionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "objectKey",
+        "objectId",
+        "productVersionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "executionId",
+    "datasetVersionSetId",
+    "reference"
+  ],
+  "additionalProperties": false,
+  "$id": "scheme-assessment-request.schema.json"
+}

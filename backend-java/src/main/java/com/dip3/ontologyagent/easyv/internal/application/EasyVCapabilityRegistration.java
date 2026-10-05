@@ -43,10 +43,10 @@ public final class EasyVCapabilityRegistration implements CapabilityRegistration
   private final FollowUpPolicy followUpPolicy;
 
   public EasyVCapabilityRegistration(EasyVMainAgent mainAgent, EasyVScopeResolver scopes,
-                                     SemanticModel semantic, SemanticQueryCompiler compiler) {
+                                     SemanticModel semantic, SemanticQueryCompiler compiler, EasyVObjectSelectionService selections) {
     this.mainAgent = mainAgent;
     this.scopes = scopes;
-    this.followUpPolicy = new EasyVFollowUpPolicy(semantic, compiler);
+    this.followUpPolicy = new EasyVFollowUpPolicy(semantic, compiler, selections);
   }
 
   @Override

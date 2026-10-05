@@ -2,6 +2,10 @@ package com.dip3.ontologyagent.easyv.internal.application;
 
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.FollowUpPolicy;
+import com.dip3.ontologyagent.capability.api.CapabilityBinding;
+import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
+import com.dip3.ontologyagent.semantic.api.ObjectSelection;
+import com.dip3.ontologyagent.semantic.api.ObjectQueryPort;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.semantic.api.QueryIntent;
@@ -29,10 +33,17 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
 
   private final SemanticModel semantic;
   private final SemanticQueryCompiler compiler;
+  private final EasyVObjectSelectionService selections;
 
-  EasyVFollowUpPolicy(SemanticModel semantic, SemanticQueryCompiler compiler) {
+  EasyVFollowUpPolicy(SemanticModel semantic, SemanticQueryCompiler compiler, EasyVObjectSelectionService selections) {
     this.semantic = semantic;
     this.compiler = compiler;
+    this.selections = selections;
+  }
+
+  @Override
+  public ResolvedScopeSnapshot validateObjectSelection(AuthSession principal, CapabilityBinding binding, ObjectSelection selection) {
+    return selections.require(principal, binding.resolvedScope(), selection).scope();
   }
 
   @Override
@@ -62,6 +73,15 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
       }
     }
     Map<String, Object> context = new LinkedHashMap<>();
+    var calls = EasyVAgentTools.readTrace(resolved.get("toolCalls"));
+    if (queries.isEmpty()) {
+      calls.forEach(call -> labels.add(String.valueOf(call.get("label"))));
+      ranges.add("来源冻结对象版本");
+      for (Map<String, Object> call : calls) for (Object ref : (List<?>) call.get("references")) {
+        var reference = new com.fasterxml.jackson.databind.ObjectMapper().convertValue(ref, ObjectQueryPort.Reference.class);
+        objects.add(semantic.require(reference.objectKey()).label());
+      }
+    }
     context.put("targetMetric", field("分析指标", String.join("；", labels)));
     context.put("entity", field("分析对象", objects.isEmpty() ? "EasyV 数据" : String.join("、", objects)));
     context.put("timeRange", field("时间范围", String.join("；", ranges)));
@@ -178,6 +198,11 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
     }
     Map<String, Object> context = new LinkedHashMap<>();
     context.put("queries", List.copyOf(intents));
+    var calls = EasyVAgentTools.readTrace(resolvedContext(sourcePlan).get("toolCalls"));
+    if (!calls.isEmpty()) context.put("toolCalls", calls);
+    if (mergedContext.get("objectSelection") != null) {
+      context.put("objectSelection", ObjectSelection.read(mergedContext.get("objectSelection")).snapshot());
+    }
     if (currentPlan != null && currentPlan.get("_queryOverride") instanceof List<?> override
         && !override.isEmpty()) {
       context.put("override", List.copyOf(override));
@@ -198,7 +223,7 @@ final class EasyVFollowUpPolicy implements FollowUpPolicy {
   @SuppressWarnings("unchecked")
   private static List<Map<String, Object>> queries(Map<String, Object> resolved) {
     List<?> list = (List<?>) resolved.get("queries");
-    if (list.isEmpty() || list.stream().anyMatch(item -> !(item instanceof Map<?, ?> map)
+    if ((list.isEmpty() && EasyVAgentTools.readTrace(resolved.get("toolCalls")).isEmpty()) || list.stream().anyMatch(item -> !(item instanceof Map<?, ?> map)
         || !(map.get("id") instanceof String) || !(map.get("label") instanceof String)
         || !(map.get("range") instanceof String) || !(map.get("intent") instanceof Map<?, ?>))) {
       throw new BackendException("FOLLOW_UP_CONTEXT_INVALID", "来源执行缺少有效的查询意图，无法承接追问。");

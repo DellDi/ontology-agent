@@ -1,0 +1,901 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "assessmentId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "selection": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "ontologyVersionId": {
+      "$ref": "#/$defs/__schema2"
+    },
+    "productVersionIds": {
+      "$ref": "#/$defs/__schema3"
+    },
+    "status": {
+      "$ref": "#/$defs/__schema4"
+    },
+    "reason": {
+      "$ref": "#/$defs/__schema5"
+    },
+    "geometry": {
+      "$ref": "#/$defs/__schema6"
+    },
+    "candidateInputs": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "comparison": {
+      "$ref": "#/$defs/__schema10"
+    }
+  },
+  "required": [
+    "assessmentId",
+    "selection",
+    "ontologyVersionId",
+    "productVersionIds",
+    "status",
+    "reason",
+    "geometry",
+    "candidateInputs",
+    "comparison"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema1": {
+      "type": "object",
+      "properties": {
+        "executionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "datasetVersionSetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "reference": {
+          "type": "object",
+          "properties": {
+            "objectKey": {
+              "type": "string",
+              "enum": [
+                "easyv-prototype-layout",
+                "easyv-prototype-block",
+                "easyv-prototype-component"
+              ]
+            },
+            "objectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "productVersionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "objectKey",
+            "objectId",
+            "productVersionId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "executionId",
+        "datasetVersionSetId",
+        "reference"
+      ],
+      "additionalProperties": false
+    },
+    "__schema2": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema3": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "__schema4": {
+      "type": "string",
+      "enum": [
+        "evaluated",
+        "unassessable"
+      ]
+    },
+    "__schema5": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema6": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "available",
+                "unavailable"
+              ]
+            },
+            "errorCode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bounds": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/__schema7"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "errorCode",
+            "bounds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema7": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "__schema8": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema9"
+      }
+    },
+    "__schema9": {
+      "type": "object",
+      "properties": {
+        "schemeId": {
+          "type": "string"
+        },
+        "blockTypeId": {
+          "type": "string"
+        },
+        "chartCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "parseStatus": {
+          "type": "string",
+          "enum": [
+            "available",
+            "missing",
+            "invalid"
+          ]
+        },
+        "parseErrorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "slots": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slotIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "internalId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "col": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "row": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "colSpan": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "rowSpan": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "col",
+                      "row",
+                      "colSpan",
+                      "rowSpan"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "config": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "y": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "width": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "height": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "width",
+                          "height"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "allowedChartCategories": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "recommendedGroups": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "slotIndex",
+                  "internalId",
+                  "role",
+                  "weight",
+                  "position",
+                  "config",
+                  "allowedChartCategories",
+                  "recommendedGroups"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemeId",
+        "blockTypeId",
+        "chartCount",
+        "parseStatus",
+        "parseErrorCode",
+        "slots"
+      ],
+      "additionalProperties": false
+    },
+    "__schema10": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "calibration": {
+                  "type": "string",
+                  "const": "heuristic_pending_real_data_calibration"
+                },
+                "normalization": {
+                  "type": "string"
+                },
+                "maxMetrics": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "readabilityWeight": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "roleWeight": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "positionWeight": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "inset": {
+                  "type": "number"
+                },
+                "titleReserve": {
+                  "type": "number"
+                },
+                "gap": {
+                  "type": "number"
+                },
+                "minimums": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema11"
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "calibration",
+                "normalization",
+                "maxMetrics",
+                "readabilityWeight",
+                "roleWeight",
+                "positionWeight",
+                "inset",
+                "titleReserve",
+                "gap",
+                "minimums"
+              ],
+              "additionalProperties": false
+            },
+            "input": {
+              "type": "object",
+              "properties": {
+                "blockTypeId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "schemeId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bounds": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/__schema7"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "titlePresent": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "metricBindingStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "metrics": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "slotIndex": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "componentId": {
+                            "type": "string"
+                          },
+                          "metricId": {
+                            "type": "string"
+                          },
+                          "chartFamily": {
+                            "type": "string"
+                          },
+                          "sceneType": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sourceType": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "slotIndex",
+                          "componentId",
+                          "metricId",
+                          "chartFamily",
+                          "sceneType",
+                          "sourceType"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "components": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "componentId": {
+                            "type": "string"
+                          },
+                          "geometry": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "available",
+                                      "missing",
+                                      "invalid"
+                                    ]
+                                  },
+                                  "errorCode": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "box": {
+                                    "anyOf": [
+                                      {
+                                        "$ref": "#/$defs/__schema7"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "status",
+                                  "errorCode",
+                                  "box"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "componentId",
+                          "geometry"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "blockTypeId",
+                "schemeId",
+                "bounds",
+                "titlePresent",
+                "metricBindingStatus",
+                "metrics",
+                "components"
+              ],
+              "additionalProperties": false
+            },
+            "current": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "candidates": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema12"
+              }
+            }
+          },
+          "required": [
+            "rules",
+            "input",
+            "current",
+            "candidates"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema11": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "__schema12": {
+      "type": "object",
+      "properties": {
+        "schemeId": {
+          "$ref": "#/$defs/__schema13"
+        },
+        "status": {
+          "$ref": "#/$defs/__schema14"
+        },
+        "score": {
+          "$ref": "#/$defs/__schema15"
+        },
+        "assignments": {
+          "$ref": "#/$defs/__schema16"
+        },
+        "findings": {
+          "$ref": "#/$defs/__schema17"
+        }
+      },
+      "required": [
+        "schemeId",
+        "status",
+        "score",
+        "assignments",
+        "findings"
+      ],
+      "additionalProperties": false
+    },
+    "__schema13": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema14": {
+      "type": "string",
+      "enum": [
+        "feasible",
+        "infeasible",
+        "unassessable"
+      ]
+    },
+    "__schema15": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema16": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slotIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "componentId": {
+            "type": "string"
+          },
+          "metricId": {
+            "type": "string"
+          },
+          "chartFamily": {
+            "type": "string"
+          },
+          "bounds": {
+            "$ref": "#/$defs/__schema7"
+          },
+          "minimum": {
+            "$ref": "#/$defs/__schema11"
+          },
+          "readability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "role": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "position": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "slotIndex",
+          "componentId",
+          "metricId",
+          "chartFamily",
+          "bounds",
+          "minimum",
+          "readability",
+          "role",
+          "position"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "__schema17": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "slotIndex": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "componentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "slotIndex",
+          "componentId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "$id": "scheme-assessment-result.schema.json"
+}

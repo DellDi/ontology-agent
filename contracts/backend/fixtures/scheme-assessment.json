@@ -1,0 +1,189 @@
+{
+  "assessmentId": "assessment-fixture",
+  "selection": {
+    "executionId": "execution-old",
+    "datasetVersionSetId": "set-old",
+    "reference": {
+      "objectKey": "easyv-prototype-block",
+      "objectId": "1:b",
+      "productVersionId": "blocks-old"
+    }
+  },
+  "ontologyVersionId": "ontology-old",
+  "productVersionIds": {
+    "easyv-prototype-layout": "layouts-old",
+    "easyv-prototype-block": "blocks-old",
+    "easyv-prototype-component": "components-old",
+    "easyv-scheme-library": "schemes-old"
+  },
+  "status": "evaluated",
+  "reason": null,
+  "geometry": {
+    "status": "available",
+    "errorCode": null,
+    "bounds": {
+      "x": 0.0,
+      "y": 0.0,
+      "width": 1000.0,
+      "height": 700.0
+    }
+  },
+  "candidateInputs": [
+    {
+      "schemeId": "current",
+      "blockTypeId": "type",
+      "chartCount": 1,
+      "parseStatus": "available",
+      "parseErrorCode": null,
+      "slots": [
+        {
+          "slotIndex": 0,
+          "internalId": "1",
+          "role": "main",
+          "weight": 1,
+          "position": {
+            "col": 1,
+            "row": 1,
+            "colSpan": 12,
+            "rowSpan": 12
+          },
+          "config": {
+            "x": "0%",
+            "y": "0%",
+            "width": "100%",
+            "height": "100%"
+          },
+          "allowedChartCategories": [
+            "chart"
+          ],
+          "recommendedGroups": []
+        }
+      ]
+    }
+  ],
+  "comparison": {
+    "rules": {
+      "version": "easyv-adaptation-v1",
+      "calibration": "heuristic_pending_real_data_calibration",
+      "normalization": "0..100; feasible assignments only; mean of per-metric weighted terms",
+      "maxMetrics": 7,
+      "readabilityWeight": 50,
+      "roleWeight": 30,
+      "positionWeight": 20,
+      "inset": 13.0,
+      "titleReserve": 52.0,
+      "gap": 16.0,
+      "minimums": {
+        "indicator": {
+          "width": 120.0,
+          "height": 64.0
+        },
+        "chart": {
+          "width": 240.0,
+          "height": 160.0
+        },
+        "table": {
+          "width": 320.0,
+          "height": 180.0
+        },
+        "map": {
+          "width": 400.0,
+          "height": 240.0
+        }
+      }
+    },
+    "input": {
+      "blockTypeId": "type",
+      "schemeId": "current",
+      "bounds": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1000.0,
+        "height": 700.0
+      },
+      "titlePresent": false,
+      "metricBindingStatus": "available",
+      "metrics": [
+        {
+          "slotIndex": 0,
+          "componentId": "c",
+          "metricId": "m",
+          "chartFamily": "bar",
+          "sceneType": null,
+          "sourceType": null
+        }
+      ],
+      "components": [
+        {
+          "componentId": "c",
+          "geometry": {
+            "status": "available",
+            "errorCode": null,
+            "box": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 100.0,
+              "height": 100.0
+            }
+          }
+        }
+      ]
+    },
+    "current": {
+      "schemeId": "current",
+      "status": "feasible",
+      "score": 100.0,
+      "assignments": [
+        {
+          "slotIndex": 0,
+          "componentId": "c",
+          "metricId": "m",
+          "chartFamily": "bar",
+          "bounds": {
+            "x": 13.0,
+            "y": 13.0,
+            "width": 974.0,
+            "height": 674.0
+          },
+          "minimum": {
+            "width": 240.0,
+            "height": 160.0
+          },
+          "readability": 100.0,
+          "role": 100.0,
+          "position": 100.0
+        }
+      ],
+      "findings": []
+    },
+    "candidates": [
+      {
+        "schemeId": "current",
+        "status": "feasible",
+        "score": 100.0,
+        "assignments": [
+          {
+            "slotIndex": 0,
+            "componentId": "c",
+            "metricId": "m",
+            "chartFamily": "bar",
+            "bounds": {
+              "x": 13.0,
+              "y": 13.0,
+              "width": 974.0,
+              "height": 674.0
+            },
+            "minimum": {
+              "width": 240.0,
+              "height": 160.0
+            },
+            "readability": 100.0,
+            "role": 100.0,
+            "position": 100.0
+          }
+        ],
+        "findings": []
+      }
+    ]
+  }
+}

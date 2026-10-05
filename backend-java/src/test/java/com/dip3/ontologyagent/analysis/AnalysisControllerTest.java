@@ -11,6 +11,8 @@ import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -114,6 +116,35 @@ class AnalysisControllerTest {
                 .andExpect(header().string("Location", "/workspace/analysis/session-1?executionId=execution-1"));
         verify(analyses).submit(org.mockito.ArgumentMatchers.eq("session-1"),
                 org.mockito.ArgumentMatchers.eq(owner), org.mockito.ArgumentMatchers.eq("idem-1"), anyString());
+    }
+
+    @Test
+    void executeStillReturnsJsonForAnInaccessibleSession() throws Exception {
+        when(auth.authenticate(any())).thenReturn(Optional.of(owner));
+        when(analyses.submit(anyString(), any(), isNull(), anyString()))
+                .thenThrow(new BackendException("SESSION_NOT_FOUND", "会话不存在或无权访问。"));
+        mvc.perform(post("/api/analysis/sessions/session-1/execute")
+                        .contentType("application/x-www-form-urlencoded"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SESSION_NOT_FOUND"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ONTOLOGY_NOT_PUBLISHED", "DATASET_VERSION_SET_NOT_PUBLISHED"})
+    void unpublishedRuntimeReturnsToTheConversationWithDiagnosticContext(String code) throws Exception {
+        when(auth.authenticate(any())).thenReturn(Optional.of(owner));
+        when(analyses.submit(anyString(), any(), isNull(), anyString()))
+                .thenThrow(new BackendException(code, "分析环境尚未就绪。"));
+        mvc.perform(post("/api/analysis/sessions/session-1/execute")
+                        .contentType("application/x-www-form-urlencoded"))
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string("Location", org.hamcrest.Matchers.startsWith(
+                        "/workspace/analysis/session-1?executionError=")))
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString(
+                        "executionErrorCode=" + code)))
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("traceId=")))
+                .andExpect(header().string("Location", org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("executionId="))));
     }
 
     @Test

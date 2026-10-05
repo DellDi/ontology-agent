@@ -58,6 +58,14 @@ public class AnalysisFollowUpRepository {
         return next;
     }
 
+    public Optional<ExecutionSnapshotEntity> completedJavaSnapshot(String executionId, String sessionId, String ownerUserId) {
+        ExecutionSnapshotEntity row = snapshots.selectById(executionId);
+        return row != null && sessionId.equals(row.sessionId) && ownerUserId.equals(row.ownerUserId)
+                && "completed".equals(row.status) && row.planSnapshot != null
+                && com.dip3.ontologyagent.execution.ExecutionRepository.isJavaContract(String.valueOf(row.planSnapshot.get("_executionContract")))
+                ? Optional.of(row) : Optional.empty();
+    }
+
     public Optional<ExecutionSnapshotEntity> latestCompletedRootSnapshot(String sessionId, String ownerUserId) {
         return snapshots.selectList(new QueryWrapper<ExecutionSnapshotEntity>()
                         .eq("session_id", sessionId).eq("owner_user_id", ownerUserId)

@@ -130,6 +130,19 @@ class AnalysisFollowUpPersistenceTest {
     }
 
     @Test
+    void selectedSourceRequiresExactOwnerSessionCompletedStateAndJavaContract() {
+        String id = "selected-" + suffix;
+        insertSnapshot(id, "follow-" + suffix, "java-follow-up-v1");
+        assertTrue(repository.completedJavaSnapshot(id, session.id(), owner.userId()).isPresent());
+        assertTrue(repository.completedJavaSnapshot(id, session.id(), "other-user").isEmpty());
+        assertTrue(repository.completedJavaSnapshot(id, "other-session", owner.userId()).isEmpty());
+        jdbc.update("update platform.analysis_execution_snapshots set status='processing' where execution_id=?", id);
+        assertTrue(repository.completedJavaSnapshot(id, session.id(), owner.userId()).isEmpty());
+        jdbc.update("update platform.analysis_execution_snapshots set status='completed', plan_snapshot='{}' where execution_id=?", id);
+        assertTrue(repository.completedJavaSnapshot(id, session.id(), owner.userId()).isEmpty());
+    }
+
+    @Test
     void nullablePlanJsonIsClearedAndListUsesCreatedOrder() {
         AnalysisFollowUp first = repository.create(followUp("follow-a-" + suffix, Instant.now(), plan()));
         AnalysisFollowUp second = repository.create(followUp("follow-b-" + suffix, Instant.now().minusSeconds(10),

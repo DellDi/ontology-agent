@@ -1,0 +1,76 @@
+{
+  "executionId": "execution-old",
+  "datasetVersionSetId": "set-old",
+  "ontologyVersionId": "ontology-old",
+  "page": {
+    "objectKey": "easyv-prototype-layout",
+    "rows": [
+      {
+        "reference": {
+          "objectKey": "easyv-prototype-layout",
+          "objectId": "app-1",
+          "productVersionId": "layout-old"
+        },
+        "properties": {
+          "appId": "app-1",
+          "parseStatus": "ok",
+          "parseErrorCode": null,
+          "blockCount": 1
+        }
+      }
+    ],
+    "limit": 1,
+    "offset": 0,
+    "hasMore": false
+  },
+  "structure": {
+    "status": "available",
+    "layout": {
+      "tag": "Pages",
+      "attributes": {},
+      "children": [
+        {
+          "tag": "Page",
+          "attributes": {
+            "width": "1920",
+            "height": "1080"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  "objectType": {
+    "key": "easyv-prototype-layout",
+    "label": "原型版式",
+    "properties": [
+      {
+        "key": "appId",
+        "label": "应用 ID",
+        "type": "STRING"
+      },
+      {
+        "key": "parseStatus",
+        "label": "解析状态",
+        "type": "STRING"
+      },
+      {
+        "key": "parseErrorCode",
+        "label": "解析错误代码",
+        "type": "STRING"
+      },
+      {
+        "key": "blockCount",
+        "label": "区域数",
+        "type": "NUMBER"
+      }
+    ],
+    "links": [
+      {
+        "key": "blocks",
+        "targetObjectKey": "easyv-prototype-block",
+        "targetLabel": "原型区域"
+      }
+    ]
+  }
+}

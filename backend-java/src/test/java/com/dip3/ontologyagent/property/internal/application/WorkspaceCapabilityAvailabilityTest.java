@@ -36,6 +36,8 @@ class WorkspaceCapabilityAvailabilityTest {
       .withBean(MainAgent.class, () -> mock(MainAgent.class))
       .withBean(PropertyProjectScopeResolver.class, () -> mock(PropertyProjectScopeResolver.class))
       .withBean(EasyVMainAgent.class, () -> mock(EasyVMainAgent.class))
+      .withBean(com.dip3.ontologyagent.easyv.internal.application.EasyVObjectSelectionService.class,
+          () -> mock(com.dip3.ontologyagent.easyv.internal.application.EasyVObjectSelectionService.class))
       .withBean(IdentityAccountService.class, () -> {
         IdentityAccountService accounts = mock(IdentityAccountService.class);
         when(accounts.subjectValue(123L, "easyv", "userId")).thenReturn(Optional.of("16"));
