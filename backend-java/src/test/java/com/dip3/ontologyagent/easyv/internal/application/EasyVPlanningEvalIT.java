@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,6 +35,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -80,6 +82,12 @@ class EasyVPlanningEvalIT {
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
     registry.add("spring.data.redis.url", () -> "redis://127.0.0.1:1");
+    registry.add("dip3.cube.api-url", () -> "http://127.0.0.1:1/cubejs-api/v1");
+    registry.add("dip3.cube.api-secret", () -> "easyv-planning-eval-cube-secret-unused-entropy");
+    providerProperties(registry);
+  }
+
+  static void providerProperties(DynamicPropertyRegistry registry) {
     registry.add("spring.ai.openai.base-url", () -> required("LLM_PROVIDER_BASE_URL"));
     registry.add("spring.ai.openai.api-key", () -> required("LLM_PROVIDER_API_KEY"));
     registry.add("spring.ai.openai.chat.model", () -> required("LLM_PROVIDER_MODEL"));
@@ -91,8 +99,6 @@ class EasyVPlanningEvalIT {
     registry.add("spring.ai.chat.memory.repository.jdbc.initialize-schema", () -> "never");
     registry.add("dip3.session-secret", () -> "easyv-planning-eval-session-secret-with-entropy");
     registry.add("dip3.redis-key-prefix", () -> "easyv-planning-eval");
-    registry.add("dip3.cube.api-url", () -> "http://127.0.0.1:1/cubejs-api/v1");
-    registry.add("dip3.cube.api-secret", () -> "easyv-planning-eval-cube-secret-unused-entropy");
     registry.add("dip3.neo4j.uri", () -> "bolt://127.0.0.1:1");
     registry.add("dip3.neo4j.username", () -> "neo4j");
     registry.add("dip3.neo4j.password", () -> "unused-easyv-planning-eval-password");
@@ -106,6 +112,51 @@ class EasyVPlanningEvalIT {
 
   @Autowired EasyVSemanticAgent agent;
   @Autowired SemanticModel semantic;
+  @Autowired org.springframework.context.ApplicationContext application;
+  @MockitoSpyBean EasyVAnalysisModel model;
+  @MockitoSpyBean org.springframework.ai.openai.OpenAiChatModel provider;
+  private final List<EasyVAnalysisModel.PlanDecision> planningDecisions = new ArrayList<>();
+  private final List<String> providerChunks = new ArrayList<>();
+
+  @BeforeEach
+  void recordRealModelDecisions() {
+    org.mockito.Mockito.doAnswer(invocation -> {
+      var decision = (EasyVAnalysisModel.PlanDecision) invocation.callRealMethod();
+      planningDecisions.add(decision);
+      return decision;
+    }).when(model).plan(org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.doAnswer(invocation -> {
+      @SuppressWarnings("unchecked")
+      var response = (reactor.core.publisher.Flux<org.springframework.ai.chat.model.ChatResponse>) invocation.callRealMethod();
+      return response.doOnNext(chunk -> providerChunks.add(chunk.getResult().getOutput().getText()));
+    }).when(provider).stream(org.mockito.ArgumentMatchers.any(org.springframework.ai.chat.prompt.Prompt.class));
+  }
+
+  @Test
+  void realModelObjectToolsUsePublishedFactsAndCurrentAnalystScope() throws Exception {
+    new EasyVObjectToolEval(application, planningDecisions).verify();
+  }
+
+  @Test
+  void realModelWorkerPersistsSelectedFollowUpsAndHistory() throws Exception {
+    new EasyVObjectToolEval(application, planningDecisions).verifyWorkerFollowUps();
+  }
+
+  @Test
+  void realModelComparisonRegression() throws Exception {
+    Map<String, Object> dataset;
+    try (InputStream input = Objects.requireNonNull(getClass().getResourceAsStream(DATASET), DATASET)) {
+      dataset = MAPPER.readValue(input, new TypeReference<>() {});
+    }
+    Set<String> ids = Set.of("c01", "c02", "c03", "c04", "c05", "u05", "f02");
+    List<Map<String, Object>> results = maps(dataset.get("cases")).stream()
+        .filter(item -> ids.contains(item.get("id")))
+        .map(item -> evaluate(item, Instant.parse((String) dataset.get("anchoredAt")))).toList();
+    Files.createDirectories(REPORT_DIR);
+    Files.writeString(REPORT_DIR.resolve("easyv-comparison-regression.json"), MAPPER.writeValueAsString(results));
+    assertTrue(results.stream().allMatch(result -> Boolean.TRUE.equals(result.get("pass"))),
+        () -> "对比规划回归未通过，详见 " + REPORT_DIR.resolve("easyv-comparison-regression.json").toAbsolutePath());
+  }
 
   @Test
   void realModelPlanningMeetsReleaseGate() throws Exception {
@@ -120,7 +171,11 @@ class EasyVPlanningEvalIT {
 
     List<Map<String, Object>> results = new ArrayList<>();
     for (Map<String, Object> item : maps(dataset.get("cases"))) {
-      results.add(evaluate(item, anchoredAt));
+      Map<String, Object> result = evaluate(item, anchoredAt);
+      results.add(result);
+      System.out.printf(Locale.ROOT, "EasyV planning eval %d: %s status=%s pass=%s timePass=%s durationMs=%s errorCode=%s%n",
+          results.size(), result.get("id"), result.get("status"), result.get("pass"), result.get("timePass"),
+          result.get("durationMs"), result.getOrDefault("errorCode", "none"));
     }
 
     long passed = results.stream().filter(r -> Boolean.TRUE.equals(r.get("pass"))).count();
@@ -156,6 +211,8 @@ class EasyVPlanningEvalIT {
   }
 
   private Map<String, Object> evaluate(Map<String, Object> item, Instant anchoredAt) {
+    planningDecisions.clear();
+    providerChunks.clear();
     Map<String, Object> expect = map(item.get("expect"));
     String expectedStatus = (String) expect.get("status");
     List<Map<String, Object>> previous = item.get("previousQueries") == null ? List.of() : maps(item.get("previousQueries"));
@@ -184,6 +241,8 @@ class EasyVPlanningEvalIT {
       result.put("message", error.getMessage());
     }
     result.put("durationMs", (System.nanoTime() - started) / 1_000_000L);
+    result.put("planningDecisions", List.copyOf(planningDecisions));
+    if ("error".equals(status)) result.put("providerResponse", String.join("", providerChunks));
     result.put("status", status);
     result.put("produced", produced.stream().map(this::describe).toList());
 
