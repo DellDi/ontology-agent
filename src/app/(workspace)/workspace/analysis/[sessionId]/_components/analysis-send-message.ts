@@ -1,3 +1,6 @@
+import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
+import { javaObjectSelectionSchema } from '@/infrastructure/java-backend/object-read-contract';
+
 /**
  * 对话发送编排：将"发一条消息"映射到后端既有轮次创建/执行链路。
  * 用户侧无感知——创建轮次、按需重生成计划、提交执行三步自动完成，
@@ -19,6 +22,14 @@ async function fetchStep(input: string, init?: RequestInit): Promise<Response> {
     }
     throw error;
   }
+}
+
+async function requireSuccessfulStep(response: Response, fallback: string) {
+  if (response.ok) return;
+  const body: unknown = await response.json().catch(() => null);
+  const error = body && typeof body === 'object' ? body as { error?: unknown; traceId?: unknown } : null;
+  throw new Error(typeof error?.error === 'string'
+    ? `${error.error}${typeof error.traceId === 'string' ? `（请求编号：${error.traceId}）` : ''}` : fallback);
 }
 
 function redirectParam(url: string, key: string): string | null {
@@ -96,6 +107,7 @@ export async function executePendingFollowUp(
       headers: { 'Idempotency-Key': crypto.randomUUID() },
     },
   );
+  await requireSuccessfulStep(executeResp, '启动分析失败，请稍后重试。');
   const executeError = redirectError(executeResp.url, [
     'followUpExecutionError',
   ]);
@@ -130,6 +142,7 @@ export async function createStructuredFollowUpAndExecute(
   input: {
     question: string;
     parentFollowUpId?: string;
+    objectSelection?: AnalysisObjectSelection | null;
     queries: { id: string; intent: Record<string, unknown> }[];
   },
 ): Promise<string> {
@@ -141,9 +154,11 @@ export async function createStructuredFollowUpAndExecute(
         question: input.question,
         parentFollowUpId: input.parentFollowUpId ?? '',
         queries: JSON.stringify(input.queries),
+        objectSelection: JSON.stringify(input.objectSelection ? javaObjectSelectionSchema.parse(input.objectSelection) : null),
       }),
     },
   );
+  await requireSuccessfulStep(createResp, '发送失败，请稍后重试。');
   const createError = redirectError(createResp.url, ['followUpError']);
   if (createError) throw new Error(createError);
   const followUpId = redirectParam(createResp.url, 'followUpId');
@@ -155,14 +170,18 @@ export async function createStructuredFollowUpAndExecute(
 export async function createFollowUpAndExecute(
   sessionId: string,
   question: string,
+  objectSelection: AnalysisObjectSelection | null = null,
 ): Promise<string> {
   const createResp = await fetchStep(
     `/api/analysis/sessions/${sessionId}/follow-ups`,
     {
       method: 'POST',
-      body: new URLSearchParams({ question }),
+      body: new URLSearchParams({ question,
+        objectSelection: JSON.stringify(objectSelection ? javaObjectSelectionSchema.parse(objectSelection) : null),
+      }),
     },
   );
+  await requireSuccessfulStep(createResp, '发送失败，请稍后重试。');
   const createError = redirectError(createResp.url, ['followUpError']);
   if (createError) throw new Error(createError);
   const followUpId = redirectParam(createResp.url, 'followUpId');

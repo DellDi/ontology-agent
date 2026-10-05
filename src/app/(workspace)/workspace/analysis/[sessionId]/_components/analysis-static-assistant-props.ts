@@ -31,7 +31,7 @@ const EMPTY_DIAGNOSTICS: ConversationDiagnostics = {
  * 统一走 AnalysisAssistantMessage 组件树，保证路由切换（live→static）时
  * React 按同类型组件 reconcile 而非卸载重挂载——否则图表会闪烁重绘。
  */
-export function buildStaticAssistantProps(turn: ChatTurn) {
+export function buildStaticAssistantProps(turn: ChatTurn, sessionId: string) {
   const status = turn.status === 'failed' ? ('failed' as const) : ('completed' as const);
   const blocks: AnalysisRenderedBlock[] = [];
   for (const [index, block] of (
@@ -40,6 +40,8 @@ export function buildStaticAssistantProps(turn: ChatTurn) {
     try {
       const part = normalizeExecutionRenderBlock(block, {
         sourceType: 'conclusion-read-model',
+        sessionId,
+        executionId: turn.executionId ?? undefined,
         blockIndex: index,
       });
       blocks.push(

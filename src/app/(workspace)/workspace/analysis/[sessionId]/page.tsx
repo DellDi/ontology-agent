@@ -6,6 +6,7 @@ import {
   type AnalysisExecutionStreamEvent,
 } from '@/domain/analysis-execution/stream-models';
 import type { AnalysisConclusionReadModel } from '@/domain/analysis-result/models';
+import { canViewOntologyGovernance } from '@/domain/ontology/governance';
 import {
   getAnalysisSession,
   getCurrentViewer,
@@ -194,13 +195,18 @@ export default async function AnalysisSessionPage({
     : null;
 
   const activeTurn = turns.find((turn) => turn.live) ?? null;
+  const executionError = !resolvedExecutionId
+    ? readSearchParam(resolvedSearchParams.executionError)
+    : undefined;
+  const executionErrorCode = readSearchParam(resolvedSearchParams.executionErrorCode);
   const initialPending = !resolvedExecutionId
-    && aggregate.runtime.autoExecute;
+    && aggregate.runtime.autoExecute && !executionError;
 
   return (
     <section className="flex min-h-0 w-full flex-1 flex-col">
       <AnalysisAutoExecuteGate
         enabled={initialPending}
+        submissionFailed={Boolean(executionError)}
         sessionId={sessionId}
       />
       <AnalysisPendingRefreshGate
@@ -228,7 +234,16 @@ export default async function AnalysisSessionPage({
         />
       ) : (
         <AnalysisConversationShell
+          key={sessionId}
           preparingInitial={initialPending}
+          submissionError={executionError ? {
+            message: executionError,
+            code: executionErrorCode,
+            traceId: readSearchParam(resolvedSearchParams.traceId),
+            setupHref: executionErrorCode === 'ONTOLOGY_NOT_PUBLISHED'
+              ? (canViewOntologyGovernance(viewer.scope.roleCodes) ? '/admin/ontology' : undefined)
+              : (viewer.scope.roleCodes.includes('PLATFORM_ADMIN') ? '/admin/ingestion' : undefined),
+          } : undefined}
           sessionId={sessionId}
           suggestions={suggestions}
           turnDrawerContents={turnDrawerContents}

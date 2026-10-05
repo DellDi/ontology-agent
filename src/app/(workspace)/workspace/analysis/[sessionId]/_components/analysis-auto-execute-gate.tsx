@@ -6,6 +6,7 @@ type AnalysisAutoExecuteGateProps = {
   sessionId: string;
   followUpId?: string;
   enabled: boolean;
+  submissionFailed?: boolean;
 };
 
 export function buildAnalysisAutoExecuteScopeKey(
@@ -15,17 +16,10 @@ export function buildAnalysisAutoExecuteScopeKey(
   return `${sessionId}:${followUpId ?? 'root'}`;
 }
 
-export function buildAnalysisAutoExecuteAttemptStorageKey(
-  executionScopeKey: string,
-) {
-  return `analysis-auto-execute-attempted:${executionScopeKey}`;
-}
-
 export function resolveAnalysisAutoExecuteAttempt(input: {
   enabled: boolean;
   lastSubmittedScope: string | null;
   executionScopeKey: string;
-  sessionAttemptedValue: string | null;
 }) {
   if (!input.enabled) {
     return 'skip-disabled' as const;
@@ -33,10 +27,6 @@ export function resolveAnalysisAutoExecuteAttempt(input: {
 
   if (input.lastSubmittedScope === input.executionScopeKey) {
     return 'skip-memory-dedup' as const;
-  }
-
-  if (input.sessionAttemptedValue === '1') {
-    return 'skip-session-dedup' as const;
   }
 
   return 'submit' as const;
@@ -58,6 +48,7 @@ export function AnalysisAutoExecuteGate({
   sessionId,
   followUpId,
   enabled,
+  submissionFailed = false,
 }: AnalysisAutoExecuteGateProps) {
   const submitFormRef = useRef<HTMLFormElement | null>(null);
   const lastSubmittedScopeRef = useRef<string | null>(null);
@@ -72,8 +63,6 @@ export function AnalysisAutoExecuteGate({
     sessionId,
     followUpId,
   );
-  const autoAttemptStorageKey =
-    buildAnalysisAutoExecuteAttemptStorageKey(executionScopeKey);
 
   const markSubmitted = () => {
     if (submitTimerRef.current !== null) {
@@ -94,34 +83,20 @@ export function AnalysisAutoExecuteGate({
   }, []);
 
   useEffect(() => {
-    let sessionAttemptedValue: string | null = null;
-    try {
-      sessionAttemptedValue = window.sessionStorage.getItem(autoAttemptStorageKey);
-    } catch {
-      // sessionStorage 不可用时退化为仅内存去重。
+    // enabled 来自服务端“尚未创建执行”；跨页面去重由服务端幂等键负责。
+    // 浏览器持久化“已尝试”会在提交失败后把会话永远卡在准备态。
+    if (submissionFailed) {
+      lastSubmittedScopeRef.current = null;
+      return;
     }
-
     const attemptDecision = resolveAnalysisAutoExecuteAttempt({
       enabled,
       lastSubmittedScope: lastSubmittedScopeRef.current,
       executionScopeKey,
-      sessionAttemptedValue,
     });
 
     if (attemptDecision === 'skip-disabled' || attemptDecision === 'skip-memory-dedup') {
       return;
-    }
-
-    if (attemptDecision === 'skip-session-dedup') {
-      lastSubmittedScopeRef.current = executionScopeKey;
-      return;
-    }
-
-    lastSubmittedScopeRef.current = executionScopeKey;
-    try {
-      window.sessionStorage.setItem(autoAttemptStorageKey, '1');
-    } catch {
-      // 存储失败忽略，不影响正常提交。
     }
 
     const formElement = submitFormRef.current;
@@ -129,8 +104,9 @@ export function AnalysisAutoExecuteGate({
       return;
     }
 
+    lastSubmittedScopeRef.current = executionScopeKey;
     submitAnalysisAutoExecuteForm(formElement);
-  }, [autoAttemptStorageKey, enabled, executionScopeKey]);
+  }, [enabled, executionScopeKey, submissionFailed]);
 
   // 首轮自动执行：进入页面即提交，不向用户暴露手动执行入口。
   if (!enabled && submissionStatus === null) {

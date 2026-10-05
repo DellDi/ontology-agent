@@ -60,6 +60,42 @@ test('Chat UI | 等待首个进度显示反馈，真实步骤、回答和错误�
   assert.match(html.disconnected, /实时连接中断/);
 });
 
+test('Chat UI | 未发布模型或数据时保留问题、停止等待并按权限提供管理入口', () => {
+  const html = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import context from 'next/dist/shared/lib/app-router-context.shared-runtime.js';
+    import shell from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-conversation-shell.tsx';
+    const props = {
+      sessionId: 'session-empty', viewModel: null,
+      turns: [{ key: 'initial', kind: 'initial', questionText: '统计 AI 大屏数量', status: 'pending', live: false }],
+      turnDrawerContents: {},
+    };
+    const render = (submissionError) => renderToStaticMarkup(React.createElement(
+      context.AppRouterContext.Provider, { value: {} },
+      React.createElement(shell.AnalysisConversationShell, { ...props, submissionError }),
+    ));
+    console.log(JSON.stringify({
+      model: render({ message: '本体未发布', code: 'ONTOLOGY_NOT_PUBLISHED', traceId: 'trace-model', setupHref: '/admin/ontology' }),
+      data: render({ message: '数据未发布', code: 'DATASET_VERSION_SET_NOT_PUBLISHED', traceId: 'trace-data', setupHref: '/admin/ingestion' }),
+      analyst: render({ message: '数据未发布', code: 'DATASET_VERSION_SET_NOT_PUBLISHED' }),
+    }));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } }));
+  for (const content of Object.values(html)) {
+    assert.match(content, /统计 AI 大屏数量/);
+    assert.match(content, /分析暂未就绪/);
+    assert.match(content, /当前未启动分析/);
+    assert.match(content, /role="alert"/);
+    assert.doesNotMatch(content, /等待分析进度|正在思考|正在处理/);
+    assert.doesNotMatch(content, /<textarea[^>]*\sdisabled(?:=|\s|>)/);
+  }
+  assert.match(html.model, /href="\/admin\/ontology"/);
+  assert.match(html.model, /trace-model/);
+  assert.match(html.data, /href="\/admin\/ingestion"/);
+  assert.match(html.analyst, /请联系管理员/);
+  assert.doesNotMatch(html.analyst, /href="\/admin\//);
+});
+
 test('Chat UI | shell 渲染全轮次对话线程（无折叠摘要）', () => {
   assert.ok(shellSource.includes('turns.map'), '应按 turns 数组渲染全部轮次');
   assert.ok(shellSource.includes('data-chat-turn'), '每轮应有定位锚点');

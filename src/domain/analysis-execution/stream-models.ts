@@ -26,6 +26,8 @@ export const EXECUTION_RENDER_BLOCK_TYPES = [
   'timeline',
   'approval-state',
   'skills-state',
+  'object-browser',
+  'scheme-comparison',
 ] as const;
 
 export type ExecutionRenderBlockType =
@@ -131,7 +133,26 @@ export type ExecutionSkillsStateBlock = {
   }[];
 };
 
+export type ExecutionObjectBrowserBlock = {
+  type: 'object-browser';
+  title: string;
+  role?: ExecutionRenderBlockRole;
+  datasetVersionSetId: string;
+  objectKey: 'easyv-prototype-layout' | 'easyv-prototype-block' | 'easyv-prototype-component';
+  filters: { member: string; operator: 'EQUALS' | 'NOT_EQUALS' | 'CONTAINS' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'SET' | 'NOT_SET'; values: string[] }[];
+  scopeDescription: string;
+};
+
+export type ExecutionSchemeComparisonBlock = {
+  type: 'scheme-comparison';
+  title: string;
+  role?: ExecutionRenderBlockRole;
+  result: Record<string, unknown>;
+};
+
 export type ExecutionRenderBlock =
+  | ExecutionSchemeComparisonBlock
+  | ExecutionObjectBrowserBlock
   | ExecutionStatusRenderBlock
   | ExecutionKeyValueBlock
   | ExecutionToolListBlock
@@ -517,6 +538,33 @@ function validateRenderBlock(
   const candidate = block as Record<string, unknown>;
 
   switch (candidate.type) {
+    case 'scheme-comparison': {
+      if (!candidate.result || typeof candidate.result !== 'object' || Array.isArray(candidate.result)) {
+        throw new InvalidAnalysisExecutionStreamEventError('scheme-comparison.result 必须是对象。');
+      }
+      return { type: 'scheme-comparison', title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+        result: candidate.result as Record<string, unknown>,
+        role: candidate.role === 'supporting' ? 'supporting' : 'primary' };
+    }
+    case 'object-browser': {
+      if (!['easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component'].includes(String(candidate.objectKey))) {
+        throw new InvalidAnalysisExecutionStreamEventError('object-browser.objectKey 无效。');
+      }
+      const filters = assertObjectArray(candidate.filters, 'object-browser.filters').map((filter) => {
+        if (!['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'GT', 'GTE', 'LT', 'LTE', 'SET', 'NOT_SET'].includes(String(filter.operator))
+          || !isStringArray(filter.values)) {
+          throw new InvalidAnalysisExecutionStreamEventError('object-browser.filters 无效。');
+        }
+        return { member: assertNonEmptyString(filter.member, 'filter.member'),
+          operator: filter.operator as ExecutionObjectBrowserBlock['filters'][number]['operator'], values: filter.values };
+      });
+      if (filters.length > 10) throw new InvalidAnalysisExecutionStreamEventError('object-browser.filters 超过限制。');
+      return { type: 'object-browser', title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
+        datasetVersionSetId: assertNonEmptyString(candidate.datasetVersionSetId, 'datasetVersionSetId'),
+        objectKey: candidate.objectKey as ExecutionObjectBrowserBlock['objectKey'], filters,
+        scopeDescription: assertNonEmptyString(candidate.scopeDescription, 'scopeDescription'),
+        role: candidate.role === 'primary' ? 'primary' : 'supporting' };
+    }
     case 'status':
       return {
         type: 'status',

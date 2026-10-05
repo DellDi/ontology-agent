@@ -1,6 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Database, X } from 'lucide-react';
+import { EmptyState } from '@/app/_components/empty-state';
+import { Button } from '@/components/ui/button';
 import {
   useCallback,
   useEffect,
@@ -20,6 +24,7 @@ import {
   type SemanticEditorCatalog,
   type SemanticQueryUnderstanding,
 } from '@/application/analysis-message-projection/semantic-understanding';
+import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
 import type { JavaAnalysisSession } from '@/infrastructure/java-backend';
 import { AnalysisUserMessage } from './analysis-user-message';
 import { AnalysisAssistantMessage } from './analysis-assistant-message';
@@ -53,6 +58,7 @@ export type RoundConclusionState = NonNullable<
 
 export type ChatTurn = {
   key: string;
+  executionId?: string | null;
   /** 根轮次或追问轮次；pending 消息轮一律为 follow-up */
   kind: 'initial' | 'follow-up';
   questionText: string;
@@ -67,6 +73,8 @@ export type ChatTurn = {
   editorCatalog?: SemanticEditorCatalog | null;
   clarification?: SemanticClarification | null;
   resolvedQueries?: ResolvedQueryIntent[];
+  objectSelection?: AnalysisObjectSelection;
+  objectSelectionLabel?: string;
 };
 
 export type AnalysisConversationShellProps = {
@@ -80,6 +88,12 @@ export type AnalysisConversationShellProps = {
   suggestions?: string[];
   /** 首轮尚未提交执行（java-initial autoExecute）时展示准备态 */
   preparingInitial?: boolean;
+  submissionError?: {
+    message: string;
+    code?: string;
+    traceId?: string;
+    setupHref?: string;
+  };
 };
 
 export function AnalysisConversationShell({
@@ -89,6 +103,7 @@ export function AnalysisConversationShell({
   turnDrawerContents,
   suggestions,
   preparingInitial = false,
+  submissionError,
 }: AnalysisConversationShellProps) {
   const router = useRouter();
   const [activeDrawer, setActiveDrawer] = useState<{
@@ -102,6 +117,25 @@ export function AnalysisConversationShell({
     content: ReactNode;
     testId?: string;
   } | null>(null);
+  const lastTurn = turns.at(-1);
+  const latestCompleted = turns.findLast((turn) => turn.status === 'completed');
+  const latestCompletedKey = latestCompleted?.key ?? null;
+  const [selectedObject, setSelectedObject] = useState<{ selection: AnalysisObjectSelection; label: string; completedKey: string | null } | null>(() =>
+    lastTurn?.objectSelection ? { selection: lastTurn.objectSelection,
+      label: lastTurn.objectSelectionLabel ?? lastTurn.objectSelection.reference.objectId, completedKey: latestCompletedKey } : null);
+  // 已完成对象轮次沿同一引用更新来源执行；浏览对象不会自动改变追问范围。
+  const latestSelection = latestCompleted?.objectSelection;
+  const selection = selectedObject && latestSelection
+    && latestCompletedKey !== selectedObject.completedKey
+    && latestSelection.datasetVersionSetId === selectedObject.selection.datasetVersionSetId
+    && latestSelection.reference.objectKey === selectedObject.selection.reference.objectKey
+    && latestSelection.reference.objectId === selectedObject.selection.reference.objectId
+    && latestSelection.reference.productVersionId === selectedObject.selection.reference.productVersionId
+      ? latestSelection : selectedObject?.selection ?? null;
+  const selectObject = useCallback((selection: AnalysisObjectSelection, label: string) => {
+    setSelectedObject({ selection, label, completedKey: latestCompletedKey });
+    setSidePanel(null);
+  }, [latestCompletedKey]);
   const [structuredError, setStructuredError] = useState<string | null>(null);
   const [isSending, startSendTransition] = useTransition();
   // 乐观轮次随 transition 生命周期存在：真实轮次经 RSC 提交后自动回收，
@@ -140,7 +174,7 @@ export function AnalysisConversationShell({
             text,
           });
           const url = target.mode === 'follow-up'
-            ? await createFollowUpAndExecute(sessionId, target.question)
+            ? await createFollowUpAndExecute(sessionId, target.question, selection)
             : await createSessionWithQuestion(target.question);
           // 客户端导航：RSC 增量刷新，避免整页重载闪烁与滚动归零；
           // 导航提交随本 transition 结束，乐观轮次届时自动回收
@@ -156,7 +190,7 @@ export function AnalysisConversationShell({
         }
       });
     },
-    [sessionId, router, isSending, addOptimisticQuestion, hasCompletedRoot, rootTurn],
+    [sessionId, router, isSending, addOptimisticQuestion, hasCompletedRoot, rootTurn, selection],
   );
 
   const answerClarification = useCallback(
@@ -203,6 +237,7 @@ export function AnalysisConversationShell({
               parentFollowUpId:
                 turn.kind === 'follow-up' ? (turn.followUpId ?? '') : '',
               queries: payload.queries,
+              objectSelection: turn.objectSelection ?? null,
             });
             setEditingTurnKey(null);
             router.push(url, { scroll: false });
@@ -246,7 +281,7 @@ export function AnalysisConversationShell({
     liveStatus === 'queued' ||
     liveStatus === 'disconnected';
   const composerDisabled =
-    preparingInitial || liveBusy || turns.some((turn) => turn.status === 'pending');
+    preparingInitial || liveBusy || (!submissionError && turns.some((turn) => turn.status === 'pending'));
   const drawerContent = activeDrawer
     ? (turnDrawerContents[activeDrawer.turnKey]?.[activeDrawer.type] ?? null)
     : null;
@@ -290,7 +325,48 @@ export function AnalysisConversationShell({
                   ref={isLast ? lastTurnRef : undefined}
                 >
                   <AnalysisUserMessage questionText={turn.questionText} />
-                  {turn.live && viewModel ? (
+                  {turn.objectSelection ? <p className="text-right text-xs text-muted-foreground">针对：{turn.objectSelectionLabel ?? turn.objectSelection.reference.objectId}</p> : null}
+                  {turn.kind === 'initial' && submissionError ? (
+                    <div role="alert" data-testid="analysis-submission-error" className="space-y-3">
+                      <EmptyState
+                        icon={<Database aria-hidden="true" />}
+                        title="分析暂未就绪"
+                        description={submissionError.code === 'ONTOLOGY_NOT_PUBLISHED'
+                          ? '当前环境尚未发布分析模型。完成模型发布与数据接入后，即可运行这个问题。'
+                          : submissionError.code === 'DATASET_VERSION_SET_NOT_PUBLISHED'
+                            ? '当前还没有可供分析的已发布数据。完成数据接入并发布后，即可运行这个问题。'
+                            : submissionError.message}
+                        action={(
+                          <div className="flex flex-wrap items-center justify-center gap-2">
+                            {submissionError.setupHref ? (
+                              <Button asChild>
+                                <Link href={submissionError.setupHref}>
+                                  {submissionError.code === 'ONTOLOGY_NOT_PUBLISHED' ? '管理分析模型' : '接入数据'}
+                                </Link>
+                              </Button>
+                            ) : null}
+                            <form action={`/api/analysis/sessions/${sessionId}/execute`} method="post">
+                              <Button type="submit" variant="outline">重新检查</Button>
+                            </form>
+                            <Button asChild variant="ghost">
+                              <Link href="/workspace">返回工作台</Link>
+                            </Button>
+                          </div>
+                        )}
+                      />
+                      <p className="text-center text-xs text-muted-foreground">
+                        问题已保留，当前未启动分析。{submissionError.setupHref ? '' : '请联系管理员完成初始化。'}
+                      </p>
+                      <details className="text-xs text-muted-foreground">
+                        <summary className="cursor-pointer">查看诊断信息</summary>
+                        <div className="mt-2 space-y-1 break-all">
+                          <p>{submissionError.message}</p>
+                          {submissionError.code ? <p>错误码：{submissionError.code}</p> : null}
+                          {submissionError.traceId ? <p>请求编号：{submissionError.traceId}</p> : null}
+                        </div>
+                      </details>
+                    </div>
+                  ) : turn.live && viewModel ? (
                     <AnalysisAssistantMessage
                       availableDetails={availableDetails}
                       clarification={turn.clarification}
@@ -311,6 +387,7 @@ export function AnalysisConversationShell({
                       }
                       onOpenDetail={openDetail(turn.key)}
                       onOpenSidePanel={openSidePanel}
+                      onObjectSelect={selectObject}
                       onSuggestionClick={sendMessage}
                       primaryAnswer={viewModel.assistantMessage.primaryAnswer}
                       progressLabel={viewModel.assistantMessage.progressLabel}
@@ -346,8 +423,9 @@ export function AnalysisConversationShell({
                       }
                       onOpenDetail={openDetail(turn.key)}
                       onOpenSidePanel={openSidePanel}
+                      onObjectSelect={selectObject}
                       understanding={turn.understanding}
-                      {...buildStaticAssistantProps(turn)}
+                      {...buildStaticAssistantProps(turn, sessionId)}
                     />
                   ) : (
                     <AnalysisThinkingMessage />
@@ -383,9 +461,13 @@ export function AnalysisConversationShell({
 
         {/* 输入框：对话窗口底部，下方无任何内容 */}
         <div className="pb-4 pt-3">
-          {!hasCompletedRoot ? (
+          {selectedObject ? <div className="mb-2 flex min-w-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs" data-testid="analysis-object-selection">
+            <span className="min-w-0 flex-1 break-all">针对：{selectedObject.label}</span>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="取消对象选择" onClick={() => setSelectedObject(null)}><X className="size-3.5" /></Button>
+          </div> : null}
+          {!hasCompletedRoot && !submissionError ? (
             <p className="pb-2 text-xs text-muted-foreground">
-              首轮分析未完成，发送将以新会话重新分析
+              {composerDisabled ? '正在分析，完成后可继续追问' : '首轮分析未完成，发送将以新会话重新分析'}
             </p>
           ) : null}
           <AnalysisChatComposer

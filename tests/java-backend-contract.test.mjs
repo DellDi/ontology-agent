@@ -25,6 +25,7 @@ const root = new URL('../', import.meta.url);
 const schemaNames = [
   'analysis-follow-up.schema.json',
   'analysis-session-aggregate.schema.json',
+  'scheme-assessment-result.schema.json',
   'conclusion-state.schema.json',
   'easyv-semantic-plan.schema.json',
   'error.schema.json',
@@ -44,7 +45,7 @@ async function jsonFixture(path) {
 }
 
 async function contractValidator() {
-  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  const ajv = new Ajv2020({ allErrors: true, strict: true, allowUnionTypes: true });
   addFormats(ajv);
   for (const name of schemaNames) {
     const schema = JSON.parse(await readFile(
@@ -79,6 +80,95 @@ function assertZod(schema, value, fixtureName) {
     `${fixtureName} 不符合 Next Zod 读取契约: ${result.success ? '' : result.error.message}`,
   );
 }
+
+test('对象与评估工具轨迹支持完成态、对象轮次追问和严格版本结果回放', async () => {
+  const ajv = await contractValidator();
+  const snapshot = await jsonFixture('snapshot-semantic-query.json');
+  const trace = await jsonFixture('agent-tool-trace.json');
+  const assessment = await jsonFixture('scheme-assessment.json');
+  assessment.selection.executionId = snapshot.executionId;
+  assessment.ontologyVersionId = snapshot.ontologyVersionId;
+  snapshot.planSnapshot._resolvedContext.queries = [];
+  snapshot.planSnapshot._resolvedContext.toolCalls = trace.toolCalls;
+  delete snapshot.planSnapshot._understanding; delete snapshot.planSnapshot._editorCatalog;
+  snapshot.conclusionState.renderBlocks = [{ type: 'scheme-comparison', title: '区域方案比较', role: 'primary', result: assessment }];
+  assertJsonSchema(ajv, 'execution-snapshot.schema.json', snapshot, 'object-only snapshot');
+  const view = { ...snapshot, ontologyVersionBindingSource: snapshot.ontologyVersionBinding.source };
+  delete view.ownerUserId; delete view.ontologyVersionBinding; delete view.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema, view, 'object-only snapshot view');
+  for (const mutate of [
+    (v) => { v.planSnapshot._resolvedContext.toolCalls = []; },
+    (v) => { v.planSnapshot._resolvedContext.toolCalls[0].references[0].scope = { all: true }; },
+    (v) => { v.conclusionState.renderBlocks[0].result.comparison.current.score = 101; },
+  ]) {
+    const invalid = structuredClone(snapshot); mutate(invalid);
+    assert.equal(ajv.getSchema('execution-snapshot.schema.json')(invalid), false);
+    assert.equal(javaExecutionSnapshotSchema.safeParse({ ...view, planSnapshot: invalid.planSnapshot, conclusionState: invalid.conclusionState }).success, false);
+  }
+  const wrongOrder = structuredClone(view); wrongOrder.planSnapshot._resolvedContext.toolCalls[0].id = 'q2';
+  assert.equal(javaExecutionSnapshotSchema.safeParse(wrongOrder).success, false);
+  const wrongExecution = structuredClone(view); wrongExecution.conclusionState.renderBlocks[0].result.selection.executionId = 'other';
+  assert.equal(javaExecutionSnapshotSchema.safeParse(wrongExecution).success, false);
+  const followUp = await jsonFixture('analysis-follow-up.json');
+  Object.assign(followUp, { capabilityBinding: snapshot.capabilityBinding, ontologyVersionId: snapshot.ontologyVersionId,
+    ontologyVersionBinding: { ontologyVersionId: snapshot.ontologyVersionId, source: 'inherited' },
+    referencedExecutionId: snapshot.executionId, previousPlanSnapshot: snapshot.planSnapshot,
+    currentPlanSnapshot: { ...snapshot.planSnapshot, _executionContract: 'java-follow-up-v1', _followUpId: followUp.id, _referencedExecutionId: snapshot.executionId },
+    currentPlanDiff: followUp.currentPlanDiff, planVersion: 1, resultExecutionId: null });
+  assertJsonSchema(ajv, 'analysis-follow-up.schema.json', followUp, 'object-only follow-up');
+  assertZod(javaAnalysisFollowUpSchema, followUp, 'object-only follow-up');
+});
+
+test('对象追问引用同时符合共享 Schema 与 Web 读取契约', async () => {
+  const ajv = await contractValidator();
+  const snapshot = await jsonFixture('snapshot-semantic-query.json');
+  const selection = {executionId:'execution-source',datasetVersionSetId:snapshot.datasetVersionSetId,
+    reference:{objectKey:'easyv-prototype-layout',objectId:'app-1',productVersionId:'layouts-old'}};
+  snapshot.followUpId='follow-selected'; snapshot.ontologyVersionBinding.source='inherited';
+  Object.assign(snapshot.planSnapshot, {_executionContract:'java-follow-up-v1',_followUpId:snapshot.followUpId,
+    _referencedExecutionId:selection.executionId,_objectSelection:selection,_objectSelectionLabel:'原型版式 · app-1'});
+  assertJsonSchema(ajv,'execution-snapshot.schema.json',snapshot,'selected snapshot');
+  const view = {...snapshot,ontologyVersionBindingSource:snapshot.ontologyVersionBinding.source};
+  delete view.ownerUserId; delete view.ontologyVersionBinding; delete view.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema,view,'selected snapshot view');
+  const followUp = await jsonFixture('analysis-follow-up.json');
+  followUp.capabilityBinding=snapshot.capabilityBinding;
+  followUp.ontologyVersionId=snapshot.ontologyVersionId;
+  followUp.ontologyVersionBinding={ontologyVersionId:snapshot.ontologyVersionId,source:'inherited'};
+  followUp.referencedExecutionId=selection.executionId; followUp.datasetVersionSetId=selection.datasetVersionSetId;
+  followUp.resultExecutionId=null; followUp.currentPlanSnapshot=null; followUp.previousPlanSnapshot=null; followUp.currentPlanDiff=null; followUp.planVersion=null;
+  for (const key of ['inheritedContext','mergedContext']) followUp[key].objectSelection=selection;
+  assertJsonSchema(ajv,'analysis-follow-up.schema.json',followUp,'selected follow-up');
+  assertZod(javaAnalysisFollowUpSchema,followUp,'selected follow-up');
+  snapshot.planSnapshot._objectSelection.reference.scope={all:true};
+  assert.equal(ajv.getSchema('execution-snapshot.schema.json')(snapshot),false);
+  assert.equal(javaExecutionSnapshotSchema.safeParse(view).success,false);
+});
+
+test('逐步查询与再次规划保持现有完成态和 SSE 回放契约', async () => {
+  const ajv = await contractValidator();
+  const snapshot = await jsonFixture('snapshot-semantic-query.json');
+  const steps = [
+    { id: 'plan-queries', kind: 'llm-plan', title: '理解问题并规划查询' },
+    { id: 'query-q1', kind: 'semantic-query', title: '查询任务状态' },
+    { id: 'plan-after-q1', kind: 'llm-plan', title: '根据查询结果决定下一步' },
+    { id: 'query-q2', kind: 'semantic-query', title: '查询失败任务' },
+    { id: 'plan-after-q2', kind: 'llm-plan', title: '根据查询结果决定下一步' },
+    { id: 'compose-answer', kind: 'llm-compose', title: '综合回答' },
+  ].map((step, index) => ({ ...step, order: index + 1 }));
+  snapshot.planSnapshot.steps = steps;
+  assertJsonSchema(ajv, 'execution-snapshot.schema.json', snapshot, 'multi-step semantic snapshot');
+  const view = { ...snapshot, ontologyVersionBindingSource: snapshot.ontologyVersionBinding.source };
+  delete view.ownerUserId; delete view.ontologyVersionBinding; delete view.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema, view, 'multi-step semantic view');
+  assert.deepEqual(javaExecutionSnapshotSchema.parse(view).planSnapshot.steps, steps);
+  const baseEvent = JSON.parse((await fixture('sse-completed.txt')).split('\n\n')[0].replace(/^data: /, ''));
+  for (const [index, step] of steps.entries()) {
+    const event = { ...baseEvent, id: `multi-${index}`, sequence: index + 1, kind: 'step-completed',
+      step: { id: step.id, order: step.order, title: step.title, status: 'completed', durationMs: 12 } };
+    assertJsonSchema(ajv, 'execution-event.schema.json', event, step.id);
+  }
+});
 
 test('Draft 2020-12 JSON Schema 与 Next Zod 共同校验 Java 后端 fixtures', async () => {
   const ajv = await contractValidator();

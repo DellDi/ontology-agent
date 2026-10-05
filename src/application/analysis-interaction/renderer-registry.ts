@@ -72,7 +72,7 @@ function resolveMaturity(kind: string): AnalysisRendererMaturity {
     return 'phase-a';
   }
 
-  if (kind === 'chart' || kind === 'graph') {
+  if (kind === 'chart' || kind === 'graph' || kind === 'object-browser' || kind === 'scheme-comparison') {
     return 'phase-b';
   }
 

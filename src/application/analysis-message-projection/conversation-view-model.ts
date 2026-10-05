@@ -236,6 +236,8 @@ export function translateStepStatus(status: string): string {
 // ---------------------------------------------------------------------------
 
 const RESULT_BLOCK_KINDS = new Set([
+  'object-browser',
+  'scheme-comparison',
   'chart',
   'table',
   'graph',
@@ -582,6 +584,7 @@ function renderEvidenceBlocks(
 
   // 构建 event kind 查找表，用于过滤 execution-status 事件的工程状态块
   const eventKindById = new Map<string, string>();
+  const eventById = new Map(events.map((event) => [event.id, event]));
   for (const event of events) {
     eventKindById.set(event.id, event.kind);
   }
@@ -595,8 +598,8 @@ function renderEvidenceBlocks(
     for (const [blockIndex, block] of evidencePart.blocks.entries()) {
       const source = {
         sourceType: 'execution-render-block' as const,
-        sessionId: undefined,
-        executionId: undefined,
+        sessionId: eventById.get(evidencePart.sourceEventId)?.sessionId,
+        executionId: eventById.get(evidencePart.sourceEventId)?.executionId,
         eventId: evidencePart.sourceEventId,
         sequence: evidencePart.sequence,
         blockIndex,
@@ -645,6 +648,7 @@ function renderEvidenceBlocks(
 
 function renderConclusionReadModelBlocks(
   conclusionPart: AiRuntimeConclusionCardPart | null,
+  context: Pick<AiRuntimeProjection, 'sessionId' | 'executionId'>,
 ): AnalysisRenderedBlock[] {
   if (!conclusionPart) return [];
 
@@ -654,6 +658,8 @@ function renderConclusionReadModelBlocks(
 
     const source = {
       sourceType: 'conclusion-read-model' as const,
+      sessionId: context.sessionId,
+      executionId: context.executionId,
       eventId: conclusionPart.id,
       blockIndex,
     };
@@ -1309,7 +1315,7 @@ export function buildConversationViewModel(
   }
 
   const conclusionResultBlocks = dedupeRenderedBlocks(
-    renderConclusionReadModelBlocks(conclusionPart),
+    renderConclusionReadModelBlocks(conclusionPart, projection),
   ).filter((block) => classifyRenderedBlock(block) === 'result');
   const mergedResultBlocks = dedupeRenderedBlocks([
     ...resultBlocks,
