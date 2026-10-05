@@ -161,6 +161,16 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 
 UI 审查范围限于分析对话状态和基础控件：项目已通过 `components.json` 接入 shadcn/ui，但 `src/components/ui` 与 `src/app/_components/workbench` 存在并行 Button/Field 实现。后续优先收敛基础控件与间距，再统一提交、等待、执行、完成、失败和断连的反馈，最后逐页替换；本次未实施整个前端重构。发送后底部输入框附近的可见空间和图表初始化尺寸需在后续对话布局审查中验证。
 
+2026-10-03 状态核对：本地已有 `85b12ce`（shadcn/ui + AI Elements 基座）和 `e9c770c`（三栏工作台与分析会话迁移）。本次 Web 门禁 101 通过、5 个可选容器测试跳过，tsc/生产构建通过，lint 0 错误、9 条 warning。首次拉取遇到 GitHub DNS 故障，后续 `git pull --ff-only` 成功，当前 `main` 为 `e9c770c`。easyv-dev SSH 和内网数据库仍不可达，未核实或发布新版 UI；用户要求先使用本地库，已通过正式迁移初始化独立 `ontology_agent_local` 至 V21，Web 使用本地端口 3000。此库不含内网历史会话和 EasyV 业务 facts；上面的部署镜像与浏览器证据均保留其历史日期。当前验收及下一业务目标见 [Ontology Agent Runtime §12](./architecture/ontology-agent-runtime.md#12-进度核对与下一交付目标2026-10-03)。
+
+2026-10-04 本地未就绪状态复验：初次执行缺少已发布本体或数据集时，Java 表单入口以 303 返回分析对话，Web 显示“分析暂未就绪”、保留原问题、停止自动提交；管理员可进入模型管理或数据接入，其他用户收到联系管理员的说明。错误码和 traceId 默认收起，点击“重新检查”仍使用正式执行入口。真实本地会话 `323fdbc5-081b-4ffc-a01d-4b8c959c43f6` 已验证自动提交、重新检查和展开诊断，均留在工作台；复验 traceId 为 `a466f19e-7b60-4070-bd7c-331dd9e69981`。相关 Java 控制器测试 10 通过、Web 对话测试 7 通过。本地仍没有已发布本体与 EasyV 业务 facts，未宣称分析成功或远端发布。
+
+## B1 结构树升级（V22，本地已验证，远端未发布）
+
+2026-10-03 增加 V22：版式 facts 新增 `layout_structure` JSONB，保存白名单几何属性与有序 XML 容器树；版式产品转换定义升为 `easyv-prototype-layout-v2`、schema 2。区域/组件产品、源数据集 v2 和八产品清单不变，Cube 聚合模型无需为此新增统计成员。
+
+发布前按本体运行时文档 §12.3 完成当前 B1 交付门禁。升级时先备份并停止旧 release-worker，再以新代码执行独立 migrate，使用保留的源 v2 数据物化新的版式产品并发布完整冻结集（或按原发布脚本执行 FULL），最后启用新 Worker 并验证本轮对象读取。原 V21 已发布 facts 不回填、不更新；缺树的旧冻结集在后续对象呈现中须明确标注结构覆盖尚未接入。发布仍需真实账号范围、统计回归与源结构对账；本地空库迁移与 Testcontainers 通过不等于真实数据或远端发布完成。
+
 ## Property 物化与图投影
 
 Property 不读取外部 ERP。确认平台库已有受控 `erp_staging` 后：
@@ -197,6 +207,28 @@ bootstrap 状态，不触发新的 ingestion 或 bootstrap。没有完成 `graph
 语义和 Capability。源数据更新通过独立 ingestion release 热发布，已运行的分析继续使用自己绑定的
 Dataset Version Set，新分析才选择新发布版本。
 
+
+## B1.4 指标槽位绑定（V23，本地已验证，评估功能待完成）
+
+V23 为区域 facts 增加指标槽位绑定及可用状态；区域产品升级为 `easyv-prototype-block-v2` / schema 2，源数据集继续使用 V21 引入的 v2，其他产品和八产品清单不变。旧冻结区域的绑定保持 null，新转换仅从明确对齐的 components / boundMetricIds 保存 ID 和类型，错误绑定不会补造指标或隐藏原结构。当前 UI、Agent 评估函数与评分/方案库接入仍按运行时文档 B1.4 推进，这次升级不代表候选比较已可用。
+
+部署时先备份平台库并停止旧 Worker，执行独立 migrate，再启用带区域 v2 转换器的新 API/Worker；如需在新分析中使用指标绑定，按正式发布链路将保留的原型源 v2 重新物化到新区域版本，并发布完整冻结集。旧冻结集不回填；缺失或不完整绑定应明确显示不可核验。2026-10-04 仅本地 `ontology_agent_local` 已完成备份、V22 → V23 和 Java 重启，区域 facts 为 0；Java 全量 572 通过，Web 116 通过、5 可选容器测试跳过，远端未发布。
+
+## B1.4 评分观测（V24，本地已验证，生成时输入未核验）
+
+V24 在既有流水线 facts 增加评分投影、状态与错误码，流水线源与产品都升至 schema 2，转换器为 `easyv-pipeline-node-v2`。完整 output 仅保留在受治理 staging，facts 投影受审查的 ID、类型、数值和槽位；八产品清单与 Cube 模型不变。源端编辑会覆盖 regenContextSnapshot，因此可解析快照也必须标为 `available_unverified`，不能描述为已认证的生成时评分或百分比；本次尚无 UI/Agent 评分消费。
+
+部署顺序：备份平台库并停止旧 Worker → 独立 migrate → 启动带流水线 v2 转换器的新 API/Worker → 以 FULL 或 RECONCILE 接入流水线 source v2 → 物化新流水线产品并发布完整八产品冻结集。旧 source v1 没有保留 output，不能直接用新转换器重跑；现有 schema 校验会拒绝。旧冻结 facts 不回填，旧版本 schema 不改写；缺失或坏快照保留原因，不能补造评分或原始输入。真实源发布需要私有采集环境恢复，不用本地 fixture 代替。
+
+2026-10-04 本地 `ontology_agent_local` 已备份、完成 V23 → V24 并重启 Java，health=UP，Web 3000 保持运行；流水线 facts 为 0。Java 全量 581 通过、package 通过，Web 116 通过、5 个可选容器测试跳过。easyv-dev 未发布；完整 B1.4 的原始输入核验、方案库、领域评估与候选比较继续按运行时文档推进。
+
+## B1.4 方案库（V25，新增一个评估输入产品）
+
+V25 接入 `ai_block_data` 与 `ai_block_internal_data`，共用既有 EasyV 只读连接；源契约按实际 DDL 使用 int4 / varchar JSON 文本。两个源均无更新时间，采用 RECONCILE，不通过 ID 增量漏掉配置修改。单个 `easyv-scheme-library` 产品同时绑定两个源版本，保存审核后的有序槽位及约束；装配使用 `easyv-scheme-library-v1`。旧八个产品与 Cube 统计模型不变，生产 ingest 清单增为九产品。
+
+升级顺序：备份并停止旧 Worker → 独立 migrate → 更新 API/Worker/采集镜像 → 确认私有采集账号可读 `easyv_saas.ai_block_data` / `easyv_saas.ai_block_internal_data` → FULL 或 RECONCILE 发布九产品完整冻结集。管理员发布任务的产品目录由平台注册驱动。旧冻结集不补入最新方案，方案库版本表示接入时配置，不能冒充历史生成时配置；缺失或坏约束保留错误，不补默认位置或无限制类目。当前尚未接入领域评估、候选比较 UI 和 Agent 工具，不能把此迁移描述为整个 B1.4 上线。
+
+2026-10-04 本地 `ontology_agent_local` 已备份并升至 V25，Java 重启后 health=UP，Web 3000 保持运行；方案 facts 为 0。Java 全量 590 通过、package 通过，Web 116 通过、5 个可选容器测试跳过。新增的实际 JDBC 类型/正式发布链路验证只在 Testcontainers 运行；远端源读取、私有账号权限和 easyv-dev 发布尚未验证。
 
 ## Web 发布任务与管理员初始化（V11–V14）
 
@@ -292,3 +324,31 @@ release-worker 不提供 HTTP 健康检查。已知两类停摆：宿主 Docker 
 看守方案（待实施）：宿主机 systemd timer 每分钟检查容器 `State.Status=running` 且 `RestartCount`
 未增长；存在 `pending` 超过 5 分钟的 `ingestion.release_tasks` 视为停摆；异常时告警，不在看守脚本中
 持有源凭据或自动重建。
+
+
+### B1.1 对象读取（本地验证，尚未发布 easyv-dev）
+
+对象 API 随新版 Java 与 Web 发布，Cube 使用同时重新生成的本体模型（新增对象关系及节点/网格属性）。无需额外迁移；V22 仍先于新版应用。对象读取必须使用来源执行的冻结集合，且该集合须包含 application/layout/block/component 四个产品。旧集合缺产品时明确报错，旧 V21 版式没有结构树时返回 not_retained，不将历史执行迁移到最新集合。上线验收须补充真实账号从统计到对象/画布的下钻、范围收窄及历史版本一致性；读取 API 与呈现的本地门禁已通过，原型查看器进度见 B1.2；Agent 工具与真实数据验收仍待实施。
+
+
+### B1.2 原型查看器（本地验证，尚未发布 easyv-dev）
+
+对象读取响应增加本体属性/关系展示描述，Web 与 Java 应同时升级，保持对象契约一致。该阶段没有新增数据库迁移（结构仍依赖 V22 的 layout_structure 和 v2 版式产品）。满足冻结产品集合且语义条件可表示的原型查询，在聊天结果中显示“查看原型”；旧执行的缺产品集合和不支持的聚合/关联条件不会生成宽化范围的入口。
+
+Java 全量 552 / Web 110 通过、5 个可选容器测试跳过，类型/相关 lint/生产构建通过。两个布局、选择/键盘、390px、缺结构/解析失败/403/空列表的浏览器证据来自隔离测试服务，不连接正式数据库。本地正式 facts 仍为空，不能据此认定完成真实接入与发布；上线后需用新冻结集合逐项验证源结构、同轮次历史读取及非管理员权限。
+
+
+### B1.3 对象追问发布边界（2026-10-04）
+
+本地实现已接入显式对象选择、同来源冻结集追问、服务端权限收窄与历史恢复；尚未在 easyv-dev 验收。复用 V22 和现有对象产品，没有新增迁移。必须同步升级 Java API/Worker 与 Web：新 Web 会在普通和结构化追问表单中发送 objectSelection，Java 校验来源与产品版本并写入受控快照；旧 Java 会忽略新字段，不能混搭版本后将其描述为已支持对象追问。
+
+按 B1.0/B1.2 的顺序迁移、发布新版结构产品与 Cube 模型，再升级同一代码版本的 Java/Web。发布后须用真实账号核对原型→区域/组件→追问，同对象连续追问、历史回看、切换与取消；独立核对选择 ID、冻结集合与查询证据，并验证撤权和伪造版本拒绝。普通追问保持最新完整集合规则，选中对象的追问固定原集合，不以最新版本替换历史对象。本地隔离 fixture 验证不能替代上述验收。
+
+
+### B1.4 V26 与方案评估发布边界（2026-10-04，尚未发布 easyv-dev）
+
+先备份并运行独立 migrate 升至 V26，再发布同版本 Java API/Worker 与 Web。V26 区域 transform 为 easyv-prototype-block-v3/schema 3，组件为 easyv-prototype-component-v2/schema 2；源 prototype-task 仍 v2，方案库仍 v1，两份 RECONCILE 配置输入必须共同冻结。发布产品清单仍为八个语义产品加 easyv-scheme-library，共九个。
+
+迁移不回填历史几何或标题状态；需重新物化区域/组件、并将方案库纳入新的完整冻结集合后，新分析才能比较。历史执行保持原集合，不能自动切到最新。新 Web 的评估入口调用 Java /objects/assess；升级 Web 与 Java 时须保持接口和共享 schema 一致。
+
+发布后核对：同冻结区域的固定指标实例、候选集合、实际百分比框和区域尺寸；当前编辑几何与候选库几何分别评估；撤权/错版本失败、旧集合缺库提示、不可读尺寸失败、审计的输入/规则/结果重放。easyv-adaptation-v1 阈值尚待真实数据校准，不能将适配分显示为历史生成评分或最终渲染质量认证。
