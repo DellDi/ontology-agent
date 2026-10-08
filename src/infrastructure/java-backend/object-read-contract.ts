@@ -13,6 +13,7 @@ export const javaObjectReadRequestSchema = z.object({
   executionId: z.string().min(1),
   datasetVersionSetId: z.string().min(1),
   objectKey,
+  drilldownId: z.string().min(1).max(500).nullable().optional(),
   objectId: z.string().min(1).max(500).nullable().optional(),
   relation: z.string().min(1).nullable().optional(),
   filters: z.array(z.object({
@@ -25,6 +26,12 @@ export const javaObjectReadRequestSchema = z.object({
   }).strict()).max(4).nullable().optional(),
   limit: z.number().int().min(1).max(200).nullable().optional(),
   offset: z.number().int().min(0).max(10000).nullable().optional(),
+}).strict();
+
+export const javaResultDrilldownSchema = z.object({
+  id: z.string().min(1).max(500), row: z.number().int().min(0), column: z.number().int().min(0),
+  objectKey, scopeDescription: z.string().min(1),
+  filters: javaObjectReadRequestSchema.shape.filters.unwrap().unwrap(),
 }).strict();
 
 // 树由 Java 解析器生成，展示端不解析 XML，也不补造缺失几何。

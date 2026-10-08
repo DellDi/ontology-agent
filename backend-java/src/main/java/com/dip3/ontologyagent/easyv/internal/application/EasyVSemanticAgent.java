@@ -303,7 +303,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
 
     List<GroundedConclusion.Claim> claims =
         List.of(new GroundedConclusion.Claim(CLAIM_KIND, answer.markdown(), references));
-    List<Map<String, Object>> blocks = new ArrayList<>(EasyVRenderBlocks.build(executed, answer.highlights()));
+    List<Map<String, Object>> blocks = new ArrayList<>(EasyVRenderBlocks.build(executed, answer.highlights(), semantic, datasetVersionSetId));
     blocks.addAll(EasyVRenderBlocks.objectBrowsers(executed, semantic, datasetVersionSetId,
         versionSet.productVersionIds().keySet()));
     blocks.addAll(objectResults.stream().map(tool -> tool.output().renderBlock()).toList());

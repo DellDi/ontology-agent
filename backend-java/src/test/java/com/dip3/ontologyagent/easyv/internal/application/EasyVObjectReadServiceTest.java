@@ -67,6 +67,51 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void drilldownRestoresOnlySavedFiltersAndRetainsFrozenVersionAcrossPages() {
+    savedDrilldown();
+    for (int offset : List.of(0, 20)) {
+      var result = service.read("session", admin, drilldown("q1:0:count", LAYOUT, null, offset));
+      assertEquals("set-old", result.datasetVersionSetId());
+      assertEquals(offset, result.page().offset());
+    }
+    verify(objects, times(2)).query(argThat(query -> query.filters().equals(List.of(
+        new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.EQUALS, List.of("L1-a"))))),
+        argThat(access -> "layouts-old".equals(access.productVersions().get(LAYOUT))));
+    verify(datasets, never()).latestFrozen(anySet());
+  }
+
+  @Test
+  void drilldownRejectsUnknownIdChangedTypeAndClientFiltersBeforeFacts() {
+    savedDrilldown();
+    assertEquals("OBJECT_DRILLDOWN_NOT_FOUND", assertThrows(BackendException.class,
+        () -> service.read("session", admin, drilldown("q1:wrong:count", LAYOUT, null, 0))).code());
+    assertEquals("OBJECT_DRILLDOWN_MISMATCH", assertThrows(BackendException.class,
+        () -> service.read("session", admin, drilldown("q1:0:count", "easyv-prototype-block", null, 0))).code());
+    assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class,
+        () -> service.read("session", admin, drilldown("q1:0:count", LAYOUT,
+            List.of(new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.EQUALS, List.of("L1-b"))), 0))).code());
+    verifyNoInteractions(objects);
+    snapshot(binding, "set-old");
+    assertEquals("OBJECT_DRILLDOWN_NOT_FOUND", assertThrows(BackendException.class,
+        () -> service.read("session", admin, drilldown("q1:0:count", LAYOUT, null, 0))).code(), "历史未保存绑定不能改读最新集合");
+  }
+
+  private void savedDrilldown() {
+    var json = new com.dip3.ontologyagent.support.JsonCodec();
+    var saved = new EasyVResultDrilldown.Binding("q1:0:count", 0, 0, LAYOUT, "版式 L1-a",
+        List.of(new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.EQUALS, List.of("L1-a"))));
+    when(executions.findJavaSnapshot("session", "execution", "1")).thenReturn(Optional.of(new ExecutionSnapshot(
+        "execution", "session", "1", null, "ontology-old", Map.of("source", "grounded-context"), binding.snapshot(),
+        "set-old", "completed", Map.of("_executionContract", "java-initial-v1"), List.of(), null,
+        List.of(json.map(json.write(Map.of("type", "kv-list", "datasetVersionSetId", "set-old", "drilldowns", List.of(saved))))),
+        null, null, null, "trace", NOW, NOW)));
+  }
+
+  private static EasyVObjectReadService.Request drilldown(String id, String objectKey, List<QueryIntent.Filter> filters, int offset) {
+    return new EasyVObjectReadService.Request("execution", "set-old", objectKey, null, null, filters, null, 20, offset, id);
+  }
+
+  @Test
   void rejectsCrossOwnerSessionAndExecutionBeforeReadingFacts() {
     when(sessions.requireOwned("session", admin)).thenThrow(new BackendException("SESSION_NOT_FOUND", "拒绝"));
     assertEquals("SESSION_NOT_FOUND", assertThrows(BackendException.class,
