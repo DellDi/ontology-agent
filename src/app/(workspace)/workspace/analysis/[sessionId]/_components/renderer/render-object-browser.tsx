@@ -59,9 +59,9 @@ function ObjectList({ title, rows, selected, onSelect, hasMore, loading, onMore 
     <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
       {!rows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">本轮冻结数据中没有关联对象。</p> : rows.map((row) => <button
         key={row.reference.objectId} type="button" aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
-        onClick={() => onSelect(row)} className={cn('flex w-full items-center justify-between gap-3 border-b border-border/50 px-3 py-2.5 text-left text-xs last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+        onClick={() => onSelect(row)} className={cn('flex w-full flex-col items-start gap-1 border-b border-border/50 px-3 py-2.5 text-left text-xs last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey && 'bg-primary/10 text-primary')}>
-        <span className="min-w-0 break-all font-medium">{label(row)}</span><span className="shrink-0 text-muted-foreground">{String(row.properties.chartFamily ?? row.properties.blockSize ?? row.properties.parseStatus ?? '')}</span>
+        <span className="min-w-0 break-all font-medium">{label(row)}</span><span className="break-all text-muted-foreground">{String(row.properties.chartFamily ?? row.properties.blockSize ?? row.properties.parseStatus ?? '')}</span>
       </button>)}
     </div>
     {hasMore && onMore ? <Button type="button" variant="outline" size="sm" disabled={loading} onClick={onMore}>{loading ? '正在读取…' : '加载更多'}</Button> : null}
