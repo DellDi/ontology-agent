@@ -227,6 +227,14 @@ class EasyVPrototypeStructureIngestionTest {
     assertNotEquals(contentHash(first.get(PRODUCTS.get(1))),contentHash(changed.get(PRODUCTS.get(1))));
     assertNotEquals(contentHash(first.get(PRODUCTS.get(2))),contentHash(changed.get(PRODUCTS.get(2))));
     assertEquals(signatureOf(first.get(PRODUCTS.get(0)),"chart_signature"),signatureOf(changed.get(PRODUCTS.get(0)),"chart_signature"));
+    var structures = new PrototypeStructurePostgresAdapter(jdbc, new JsonCodec());
+    String objectId = jdbc.queryForObject("select source_id::text || ':' || component_id from facts.easyv_prototype_component where product_version_id=? and block_id='page-1__left_1'", String.class, first.get(PRODUCTS.get(2)));
+    var originalGeometry = structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of(objectId));
+    assertEquals(100.0, ((Map<?, ?>) originalGeometry.get(objectId).get("box")).get("width"));
+    assertEquals(40.0, ((Map<?, ?>) structures.componentGeometry(changed.get(PRODUCTS.get(2)), List.of(objectId)).get(objectId).get("box")).get("width"));
+    assertEquals(originalGeometry, structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of(objectId)));
+    assertTrue(structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of("not-authorized")).isEmpty());
+    assertTrue(structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of()).isEmpty());
     assertEquals(2,jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",Integer.class,changed.get(PRODUCTS.get(2))));
     var viewer=new com.dip3.ontologyagent.auth.AuthSession("test","1","用户",new com.dip3.ontologyagent.auth.AccessScope("org",List.of(),List.of(),List.of("PLATFORM_ADMIN")),java.time.Instant.MAX);
     reader.audit("assessment-evidence","session-test",viewer,Map.of("input",original,"ruleVersion","easyv-adaptation-v1"));

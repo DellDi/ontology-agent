@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { PrototypeLayoutNode } from '@/domain/prototype-layout/models';
+import type { PrototypeLayoutNode, PrototypeComponentGeometry } from '@/domain/prototype-layout/models';
 
 const objectKey = z.enum(['easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component']);
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
@@ -42,10 +42,19 @@ export const javaLayoutNodeSchema: z.ZodType<JavaLayoutNode> = z.lazy(() => z.ob
   children: z.array(javaLayoutNodeSchema),
 }).strict());
 
+export const javaComponentGeometrySchema: z.ZodType<PrototypeComponentGeometry> = z.union([
+  z.object({ status: z.literal('available'), errorCode: z.null(), box: z.object({
+    x: z.number().min(0).max(100), y: z.number().min(0).max(100),
+    width: z.number().positive().max(100), height: z.number().positive().max(100),
+  }).strict().refine((box) => box.x + box.width <= 100 && box.y + box.height <= 100, '组件外框超出区域。') }).strict(),
+  z.object({ status: z.enum(['missing', 'invalid']), errorCode: z.string().min(1), box: z.null() }).strict(),
+]);
+
 export const javaObjectReadResultSchema = z.object({
   executionId: z.string().min(1),
   datasetVersionSetId: z.string().min(1),
   ontologyVersionId: z.string().min(1),
+  componentGeometry: z.record(z.string(), javaComponentGeometrySchema).optional(),
   objectType: z.object({
     key: objectKey, label: z.string().min(1),
     properties: z.array(z.object({ key: z.string().min(1), label: z.string().min(1),
@@ -69,6 +78,10 @@ export const javaObjectReadResultSchema = z.object({
     z.object({ status: z.literal('parse_failed'), layout: z.null() }).strict(),
   ]).nullable(),
 }).strict().superRefine((result, context) => {
+  if (result.componentGeometry && Object.keys(result.componentGeometry).some((id) => result.page.objectKey !== 'easyv-prototype-component'
+      || !result.page.rows.some((row) => row.reference.objectId === id))) {
+    context.addIssue({ code: 'custom', message: '组件位置必须属于当前授权页面中的对象。' });
+  }
   if (result.objectType.key !== result.page.objectKey) {
     context.addIssue({ code: 'custom', message: '对象声明与页面类型不一致。' });
   }

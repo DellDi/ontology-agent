@@ -86,7 +86,7 @@ class EasyVSchemeAssessmentServiceTest {
     assertEquals("AUDIT_WRITE_FAILED",assertThrows(BackendException.class,() -> service.assess("session",viewer,selection)).code());
   }
   private EasyVObjectReadService.Result detail(ObjectQueryPort.Reference reference,Map<String,Object> props,EasyVObjectReadService.Structure structure) {
-    return new EasyVObjectReadService.Result("execution-old","set-old","ontology-old",new ObjectQueryPort.Page(reference.objectKey(),List.of(new ObjectQueryPort.Row(reference,props)),1,0,false),structure,null);
+    return new EasyVObjectReadService.Result("execution-old","set-old","ontology-old",new ObjectQueryPort.Page(reference.objectKey(),List.of(new ObjectQueryPort.Row(reference,props)),1,0,false),structure,null,Map.of());
   }
   private DatasetVersionSet manifest(Map<String,String> values) { return new DatasetVersionSet("set-old",values,Instant.EPOCH,DatasetVersionSet.Status.FROZEN,Instant.EPOCH,Instant.EPOCH,"test"); }
 }

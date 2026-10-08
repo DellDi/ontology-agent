@@ -67,6 +67,19 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void componentGeometryUsesOnlyAuthorizedPageAndItsFrozenProductVersion() {
+    String component = "easyv-prototype-component";
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(component, "41:c1", "components-old"), Map.of());
+    doReturn(new ObjectQueryPort.Page(component, List.of(row), 20, 40, true)).when(objects).query(any(), any());
+    var geometry = Map.<String, Map<String, Object>>of("41:c1", Map.of("status", "missing", "errorCode", "COMPONENT_BOX_MISSING"));
+    when(structures.componentGeometry("components-old", List.of("41:c1"))).thenReturn(geometry);
+    var result = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", component, null, null, null, null, 20, 40));
+    assertEquals(geometry, result.componentGeometry());
+    verify(structures).componentGeometry("components-old", List.of("41:c1"));
+    verify(datasets, never()).latestFrozen(anySet());
+  }
+
+  @Test
   void drilldownRestoresOnlySavedFiltersAndRetainsFrozenVersionAcrossPages() {
     savedDrilldown();
     for (int offset : List.of(0, 20)) {

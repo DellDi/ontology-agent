@@ -221,6 +221,88 @@
           }
         }
       }
+    },
+    "componentGeometry": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "const": "available"
+              },
+              "errorCode": {
+                "type": "null"
+              },
+              "box": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "errorCode",
+              "box"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "enum": [
+                  "missing",
+                  "invalid"
+                ]
+              },
+              "errorCode": {
+                "type": "string",
+                "minLength": 1
+              },
+              "box": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "status",
+              "errorCode",
+              "box"
+            ]
+          }
+        ]
+      }
     }
   },
   "required": [
