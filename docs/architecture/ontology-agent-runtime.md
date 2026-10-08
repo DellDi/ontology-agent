@@ -773,3 +773,11 @@ B4 已按上述范围完成，后续优先修正 §13.5 记录的 Top N 结论�
 证据保存在工作区忽略目录 `.codex-runtime/b5-*`：修正前失败、Java package/Web 日志、首轮与最终模型报告、两条 SSE 与完整执行快照、`b5-real-reconciliation.json` 独立 SQL/分页 ID 对账、`b5-deployment-report.json` 以及 `b5-deployed-rank.jpg` / `b5-deployed-total.jpg` 浏览器截图。模型正式报告亦见 `backend-java/target/eval/easyv-topn-conclusion-report.json`，构建产物不纳入 Git。
 
 **阶段结论与后续边界**：B5 的已知 Top N 误读已复现、修正、部署并完成上述验收。下一阶段按 §13.4 选择对象相关指标与正式来源时间线，先确定真实查看需求与事件来源再实施。B1.4 的 30 项业务标注及 159 条可变快照原始输入认证缺口继续保留，不由本次结论修正关闭。
+
+### 13.7 指标卡结构占位调整（2026-10-08）
+
+按真实页面反馈，`single-value-metric` 在原型区域的缩略图/组件栅格中改为静态数字翻牌“1｜2｜3”，组件列表改用“123”标识；原有仪表盘图标和趋势箭头不再用于指标卡。这些数字只表示组件形态，不代表实际指标值。复用原有预览与选择链路，无数据/接口/后端变更。
+
+代码 `b0b312b`；ESLint、TypeScript、Web 130 项测试通过（5 项可选容器测试跳过），远端生产构建通过。easyv-dev 仅更新 Web 到 `ontology-agent-web:b0b312b`，healthy；Java 仍为 `020c73d`，其他容器 ID/启动时间未改变。回滚使用 `020c73d` 发布目录的 env，仅重建 web。
+
+浏览器在现有会话 `20e6d4ba-89ee-4071-85ae-ff1ff4257ba5`，原型 `6d677ebf13b2444681ba26ac50860e9b` 的 left_3 区域核实两个翻牌指标卡与条形图清晰区分，分别选中两张指标卡读取对应组件详情；切到 right_1 后只展示其指标卡/饼图两个组件，返回 left_3 正常。当前窄侧栏显示完整，error 日志为空。证据：工作区忽略目录 `.codex-runtime/metric-preview-*`（构建/测试日志、部署对照、浏览器快照及前后截图）。
