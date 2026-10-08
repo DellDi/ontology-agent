@@ -1,0 +1,187 @@
+{
+  "source": "B4 real frozen facts, independently reconciled; Top 3 signatures each count 1, full filtered count 5. No live database needed for composer replay.",
+  "cases": [
+    {
+      "id": "top3-only",
+      "question": "统计我可访问的 EasyV 生成原型版式原型数，筛选解析状态 ok，按版式签名展示数量最多的前3组。",
+      "results": [
+        {
+          "id": "q1",
+          "label": "原型版式 · 原型数 按版式签名（L1）",
+          "intent": {
+            "time": {
+              "expression": {
+                "kind": "all",
+                "sourceText": "未指定时间，按全部数据"
+              }
+            },
+            "limit": 3,
+            "order": [
+              {
+                "member": "count",
+                "direction": "desc"
+              }
+            ],
+            "object": "easyv-prototype-layout",
+            "filters": [
+              {
+                "member": "parseStatus",
+                "values": [
+                  "ok"
+                ],
+                "operator": "equals"
+              }
+            ],
+            "measures": [
+              "count"
+            ],
+            "dimensions": [
+              "layoutSignature"
+            ]
+          },
+          "range": "全部数据（截至 2026-10-08）",
+          "dataCoverage": "2026-09-10 至 2026-09-22",
+          "coverageStatus": "full",
+          "columns": [
+            {
+              "key": "layoutSignature",
+              "label": "版式签名（L1）"
+            },
+            {
+              "key": "count",
+              "label": "原型数"
+            }
+          ],
+          "totalRows": 3,
+          "rows": [
+            {
+              "count": 1,
+              "layoutSignature": "1551a8b131a261e48734422d2a3085c5620845e2035c13a0be044da7928b83d6"
+            },
+            {
+              "count": 1,
+              "layoutSignature": "62c0680099ac214a315c5b6bf17e709ab1355191ce09ed724d1948884c4d9db3"
+            },
+            {
+              "count": 1,
+              "layoutSignature": "a56ddd2e8a92eb12f9d1a6137419daa128eb0536c43a113f9672d5c2d03745d3"
+            }
+          ]
+        }
+      ],
+      "hasTotal": false
+    },
+    {
+      "id": "top3-with-total",
+      "question": "统计我可访问的 EasyV 生成原型版式原型数，筛选解析状态 ok，按版式签名展示数量最多的前3组，并说明全量原型数。",
+      "results": [
+        {
+          "id": "q1",
+          "label": "原型版式 · 原型数 按版式签名（L1）",
+          "intent": {
+            "time": {
+              "expression": {
+                "kind": "all",
+                "sourceText": "未指定时间，按全部数据"
+              }
+            },
+            "limit": 3,
+            "order": [
+              {
+                "member": "count",
+                "direction": "desc"
+              }
+            ],
+            "object": "easyv-prototype-layout",
+            "filters": [
+              {
+                "member": "parseStatus",
+                "values": [
+                  "ok"
+                ],
+                "operator": "equals"
+              }
+            ],
+            "measures": [
+              "count"
+            ],
+            "dimensions": [
+              "layoutSignature"
+            ]
+          },
+          "range": "全部数据（截至 2026-10-08）",
+          "dataCoverage": "2026-09-10 至 2026-09-22",
+          "coverageStatus": "full",
+          "columns": [
+            {
+              "key": "layoutSignature",
+              "label": "版式签名（L1）"
+            },
+            {
+              "key": "count",
+              "label": "原型数"
+            }
+          ],
+          "totalRows": 3,
+          "rows": [
+            {
+              "count": 1,
+              "layoutSignature": "1551a8b131a261e48734422d2a3085c5620845e2035c13a0be044da7928b83d6"
+            },
+            {
+              "count": 1,
+              "layoutSignature": "62c0680099ac214a315c5b6bf17e709ab1355191ce09ed724d1948884c4d9db3"
+            },
+            {
+              "count": 1,
+              "layoutSignature": "a56ddd2e8a92eb12f9d1a6137419daa128eb0536c43a113f9672d5c2d03745d3"
+            }
+          ]
+        },
+        {
+          "id": "q2",
+          "label": "原型版式 · 原型数",
+          "intent": {
+            "time": {
+              "expression": {
+                "kind": "all",
+                "sourceText": "未指定时间，按全部数据"
+              }
+            },
+            "order": [],
+            "object": "easyv-prototype-layout",
+            "filters": [
+              {
+                "member": "parseStatus",
+                "values": [
+                  "ok"
+                ],
+                "operator": "equals"
+              }
+            ],
+            "measures": [
+              "count"
+            ],
+            "dimensions": []
+          },
+          "range": "全部数据（截至 2026-10-08）",
+          "dataCoverage": "2026-09-10 至 2026-09-22",
+          "coverageStatus": "full",
+          "columns": [
+            {
+              "key": "count",
+              "label": "原型数"
+            }
+          ],
+          "totalRows": 1,
+          "rows": [
+            {
+              "count": 5
+            }
+          ]
+        }
+      ],
+      "hasTotal": true
+    }
+  ]
+}

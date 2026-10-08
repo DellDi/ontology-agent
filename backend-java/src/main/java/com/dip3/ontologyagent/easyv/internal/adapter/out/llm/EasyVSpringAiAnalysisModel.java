@@ -68,7 +68,10 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       规则：
       - observations 是本轮已执行的真实结果，每次执行后都会重新规划。已有足够证据时立即 finished；
         需要追加调用时只输出尚未执行的调用，禁止重复调用。remainingQueries 是本轮剩余指标查询次数，不能超出
-      - observations.rows 最多 50 行，totalRows 表示完整结果数量，禁止把截取的结果当作全集
+      - 指标 observations.intent 是已执行的查询，包含分组、过滤、排序与 limit。
+        totalRows 仅是该查询应用 limit 后返回的行数；有 dimensions 或时间分桶时是分组行数，不是对象数量。
+        rows 最多 50 行，rows 少于 totalRows 时只是证据截取；禁止把截取或 Top N 结果当作全集。
+        用户要求全量数量、全集占比时，需要同对象、过滤与时间范围的独立全量统计；不能将 Top N 行数或其计数之和代替。
       - object/measures/dimensions/filters 只能逐字使用目录中的 key；关系路径为 “关系key.目标属性key”
       - 时间只用时间表达式描述，不要自行计算日期；锚点日期与时区由输入给出
       - 只有用户要求看趋势或按日/周/月等拆分时才设置 time.granularity；询问一段时间内的总量、比率或单个数值时
@@ -76,6 +79,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       - 排行类问题用 order + limit；非排行问题不要设置 limit
       - 对比两个时期、环比或同比时，必须同时保留两个区间：time.expression 为本次主区间，compare 为对比区间。
         compare 与 time 同级，直接放时间表达式，不嵌套 expression；不能只查询一个时期后结束。
+        例如“8月和7月的平均评分对比”是两个期间各自的汇总，不是按月趋势；使用 time + compare，不设置 granularity。
       - 追问时 previousQueries 是上一轮已执行的查询，按用户的新问题在其基础上调整；追问必须体现新问题带来的变化，
         不能原样重复上一轮查询。只追问“和某期比/对比/环比”时，保留原 object/measures/dimensions/filters/time，
         在同一个 intent 上增加或替换 compare，不得遗漏比较区间。
@@ -98,6 +102,12 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
        "suggestions":["追问建议"],"suggestedActions":[{"label":"动作名","rationale":"基于数据的理由"}]}
       规则：
       - 数字必须与结果一致，禁止编造；结果为空或数据覆盖不足时如实说明，并说明数据覆盖区间
+      - 指标结果 intent 是已执行查询。intent.limit 表示排名只返回前 N 个分组；totalRows 是应用该限制后的返回行数，
+        不代表全部分组或全部对象。intent.dimensions 或时间分桶下，每行是一个分组，不能把行数当对象总数。
+      - rows 少于 totalRows 时只是证据截取。Top N 或截取结果只能描述已展示的组，不能声称全部只有这些组、
+        以这些组的计数之和声称全量总数，或据此计算全集占比。全量数量、占比及无重复等全局结论必须有覆盖全集的独立查询证据；
+        没有该证据时明确尚未统计全量，仍回答已有排名，不编造全量数字。若存在同范围的无分组全量统计，使用其指标值并引用该查询。
+      - 面向业务用户使用“前 N 组”“排名范围”“尚未统计全量”等文案，不输出 intent、limit、totalRows 等内部字段名。
       - citations 列出回答中每个关键数字对应的数据点（query 为结果 id，row 为 rows 下标，field 为列 key）；
         有非空结果时至少一个，所有结果 rows 为空时返回 []，不得编造行或把列表长度当作结果字段引用
       - field 必须实际存在于所引用的 rows[row]，不能引用 structureStatus/hasMore/returnedRows 等结果元数据

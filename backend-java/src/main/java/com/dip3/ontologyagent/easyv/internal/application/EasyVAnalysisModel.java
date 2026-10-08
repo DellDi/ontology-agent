@@ -20,7 +20,7 @@ public interface EasyVAnalysisModel {
    * @param previousConclusion 追问时上一轮结论（标题与摘要），首轮为空
    * @param previousQueries 追问时上一轮已执行的查询意图 JSON
    * @param violations 上一次规划的校验违规（纠正轮），首次为空
-   * @param observations 本轮真实结果，rows 最多 50 行，totalRows 保留完整行数
+   * @param observations 本轮真实结果，指标结果 intent 为已执行查询；rows 最多 50 行，totalRows 是该查询应用 limit 后的返回行数，不是全量对象数
    * @param remainingQueries 本轮剩余指标查询次数
    * @param remainingMillis 本轮剩余执行预算，模型调用不能重新开始计时
    */
@@ -55,7 +55,7 @@ public interface EasyVAnalysisModel {
   }
 
   /**
-   * @param results 已执行查询：id、标签、区间描述、列与结果行（行下标即引用下标）
+   * @param results 已执行查询：id、intent、标签、区间描述、列与结果行（行下标即引用下标）；totalRows 仍受 intent.limit 限制
    * @param violations 上一次回答的校验违规（纠正轮），首次为空
    * @param remainingMillis 本轮剩余执行预算，与规划阶段共享
    */

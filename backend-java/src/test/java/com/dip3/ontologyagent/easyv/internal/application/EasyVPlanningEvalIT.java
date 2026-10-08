@@ -143,6 +143,35 @@ class EasyVPlanningEvalIT {
   }
 
   @Test
+  void realModelConclusionKeepsTopNSeparateFromFullTotals() throws Exception {
+    Map<String, Object> dataset;
+    try (InputStream input = Objects.requireNonNull(getClass().getResourceAsStream("/eval/easyv-topn-conclusion-eval.json"))) {
+      dataset = MAPPER.readValue(input, new TypeReference<>() {});
+    }
+    List<Map<String, Object>> report = new ArrayList<>();
+    for (var item : maps(dataset.get("cases"))) {
+      var results = maps(item.get("results"));
+      var answer = model.compose(new EasyVAnalysisModel.ComposeRequest((String) item.get("question"),
+          "EasyV 用户 3 的数据", results, List.of(), 30000), text -> {});
+      String text = answer.markdown().replaceAll("[\\s*`，,:：]", "");
+      boolean wrongTotal = java.util.regex.Pattern.compile("(?:符合条件的原型|全部原型|原型总数|全量原型)(?:数|量)?(?:一共|总共|共|只有|为|是|仅有|仅|共有|计|有)*[3三](?:个|[。；]|$)").matcher(text).find();
+      boolean citationsValid = !answer.citations().isEmpty() && answer.citations().stream().allMatch(citation -> results.stream()
+          .filter(result -> result.get("id").equals(citation.query())).anyMatch(result -> {
+            var rows = maps(result.get("rows"));
+            return citation.row() >= 0 && citation.row() < rows.size() && rows.get(citation.row()).containsKey(citation.field());
+          }));
+      boolean totalCited = !Boolean.TRUE.equals(item.get("hasTotal")) || (text.contains("5")
+          && answer.citations().contains(new EasyVAnalysisModel.Citation("q2", 0, "count")));
+      report.add(Map.of("id", item.get("id"), "input", results, "answer", answer,
+          "pass", !wrongTotal && citationsValid && totalCited && !text.contains("limit") && !text.contains("totalRows")));
+    }
+    Files.createDirectories(REPORT_DIR);
+    Files.writeString(REPORT_DIR.resolve("easyv-topn-conclusion-report.json"), MAPPER.writeValueAsString(report));
+    assertTrue(report.stream().allMatch(item -> Boolean.TRUE.equals(item.get("pass"))),
+        "Top N 结论回归未通过，详见 target/eval/easyv-topn-conclusion-report.json");
+  }
+
+  @Test
   void realModelComparisonRegression() throws Exception {
     Map<String, Object> dataset;
     try (InputStream input = Objects.requireNonNull(getClass().getResourceAsStream(DATASET), DATASET)) {
