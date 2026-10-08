@@ -12,7 +12,7 @@ const blocks = ['left', 'right'].map((id) => ({ reference: { objectId: `source:$
 const page = (layout, dimensions = { width: '1200', height: '600' }) => node('Pages', {}, [node('Page', dimensions, [layout])]);
 const frame = (id, span) => node('Sider', { span }, [node('Block', { id, span: '12/12' })]);
 
-test('组件按源 1-based 栅格切分，不以指标 ID 或源百分比框代替网格位置', () => {
+test('旧读取响应缺少源外框字段时，近似栅格仍明确检查边界', () => {
   const components = [
     { reference: { objectId: 'block:kpi' }, properties: { chartFamily: 'single-value-metric', gridCol: 1, gridRow: 1, gridColSpan: 12, gridRowSpan: 3 } },
     { reference: { objectId: 'block:line' }, properties: { chartFamily: 'line', gridCol: 1, gridRow: 4, gridColSpan: 12, gridRowSpan: 9 } },
@@ -24,6 +24,22 @@ test('组件按源 1-based 栅格切分，不以指标 ID 或源百分比框代�
   for (const invalid of [{ gridCol: null }, { gridRow: 0 }, { gridColSpan: 13 }, { gridRow: 11 }, { gridColSpan: 1.5 }]) {
     const result = projectPrototypeComponents([{ ...components[1], properties: { ...components[1].properties, ...invalid } }]);
     assert.deepEqual(result.items, []); assert.match(result.diagnostics[0], /未保留有效的 12 栅格位置/);
+  }
+});
+
+test('方案 18 的末行使用源百分比框，不能因近似栅格越界漏掉三个组件', () => {
+  const components = [0, 1, 2].map((index) => ({ reference: { objectId: `41:c${index}` },
+    properties: { chartFamily: 'line', gridCol: 1 + index * 4, gridRow: 9, gridColSpan: 4, gridRowSpan: 5 } }));
+  const geometry = Object.fromEntries(components.map((row, index) => [row.reference.objectId,
+    { status: 'available', errorCode: null, box: { x: index * 33.33, y: 62.5, width: index === 2 ? 33.34 : 33.33, height: 37.5 } }]));
+  const result = projectPrototypeComponents(components, geometry);
+  assert.equal(result.items.length, 3); assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.items[2].x + result.items[2].width, 100);
+  assert.equal(result.items[2].y + result.items[2].height, 100);
+  for (const invalid of [{}, { '41:c0': { status: 'missing', errorCode: 'COMPONENT_BOX_MISSING', box: null } },
+    { '41:c0': { status: 'available', errorCode: null, box: { x: 90, y: 0, width: 20, height: 100 } } }]) {
+    const result = projectPrototypeComponents([components[0]], invalid);
+    assert.deepEqual(result.items, []); assert.equal(result.diagnostics.length, 1);
   }
 });
 
