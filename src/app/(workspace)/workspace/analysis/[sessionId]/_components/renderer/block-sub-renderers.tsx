@@ -18,26 +18,31 @@ import { DataTableBlock } from './charts/data-table-block';
 import { EntityGraphBlock } from './charts/entity-graph-block';
 import { LineChartBlock } from './charts/line-chart-block';
 import { asItemArray } from './charts/recharts-shared';
+import { resultDrilldownActions } from './result-drilldown';
 
-export function renderTableBlock({
+export function renderTableBlock(input: AnalysisInteractionUiRenderInput) {
+  const {
   renderedBlock,
   className = '',
   embedded = false,
-}: AnalysisInteractionUiRenderInput) {
+  } = input;
   return (
     <DataTableBlock
       block={renderedBlock}
       className={className}
       flat={embedded}
+      drilldown={resultDrilldownActions(input)}
     />
   );
 }
 
-export function renderChartBlock({
+export function renderChartBlock(input: AnalysisInteractionUiRenderInput) {
+  const {
   renderedBlock,
   className = '',
   embedded = false,
-}: AnalysisInteractionUiRenderInput) {
+  } = input;
+  const drilldown = resultDrilldownActions(input);
   const hint =
     typeof renderedBlock.payload.chartKind === 'string'
       ? renderedBlock.payload.chartKind
@@ -48,10 +53,11 @@ export function renderChartBlock({
   return (
     <div className={className}>
       {useLine ? (
-        <LineChartBlock block={renderedBlock} flat={embedded} />
+        <LineChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
       ) : (
-        <BarChartBlock block={renderedBlock} flat={embedded} />
+        <BarChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
       )}
+      {drilldown.reason ? <p className="mt-2 text-xs text-muted-foreground">{drilldown.reason}</p> : null}
     </div>
   );
 }
