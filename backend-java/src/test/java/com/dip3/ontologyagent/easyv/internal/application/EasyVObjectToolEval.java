@@ -88,7 +88,7 @@ final class EasyVObjectToolEval {
     var dataset = publish("worker-eval-full", false);
     var analyses = app.getBean(AnalysisService.class);
     var followUps = app.getBean(AnalysisFollowUpService.class);
-    var session = analyses.createSession(owner, "查看 EasyV 原型区域对象列表及详情，依据实际对象说明结构。");
+    var session = analyses.createSession(owner, "查看 EasyV 生成的原型区域对象列表及详情，依据实际对象说明结构。");
     List<Map<String, Object>> rounds = new ArrayList<>();
     try {
       var root = runWorker(session.id(), analyses.submit(session.id(), owner, "root", "trace-worker-root"), owner, rounds);
