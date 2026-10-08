@@ -72,5 +72,6 @@
         "targetLabel": "原型区域"
       }
     ]
-  }
+  },
+  "componentGeometry": {}
 }

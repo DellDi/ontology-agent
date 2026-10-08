@@ -68,7 +68,8 @@ public class EasyVObjectReadService {
   public record LinkView(String key, String targetObjectKey, String targetLabel) {}
   public record ObjectTypeView(String key, String label, List<PropertyView> properties, List<LinkView> links) {}
   public record Result(String executionId, String datasetVersionSetId, String ontologyVersionId,
-                       ObjectQueryPort.Page page, Structure structure, ObjectTypeView objectType) {}
+                       ObjectQueryPort.Page page, Structure structure, ObjectTypeView objectType,
+                       Map<String, Map<String, Object>> componentGeometry) {}
 
   private ObjectTypeView describe(String key) {
     var object = model.require(key);
@@ -201,7 +202,10 @@ public class EasyVObjectReadService {
     log.info("easyv_object_read executionId={} datasetVersionSetId={} userId={} objectKey={} objectId={} relation={} rows={} hasMore={}",
         request.executionId(), request.datasetVersionSetId(), viewer.userId(), request.objectKey(),
         request.objectId(), request.relation(), page.rows().size(), page.hasMore());
-    return new Result(request.executionId(), request.datasetVersionSetId(), ontologyVersionId, page, structure, describe(page.objectKey()));
+    var geometry = EasyVOntologyModel.PROTOTYPE_COMPONENT.key().equals(page.objectKey()) && !page.rows().isEmpty()
+        ? structures.componentGeometry(access.productVersions().get(page.objectKey()),
+            page.rows().stream().map(row -> row.reference().objectId()).toList()) : Map.<String, Map<String, Object>>of();
+    return new Result(request.executionId(), request.datasetVersionSetId(), ontologyVersionId, page, structure, describe(page.objectKey()), geometry);
   }
 
   private static void requireObject(String key) {

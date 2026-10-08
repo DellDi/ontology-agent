@@ -21,6 +21,31 @@ const request = {
   objectKey: 'easyv-prototype-layout', objectId: 'app-1',
 };
 
+test('组件外框属于授权页面，非法外框与未知字段不能被静默接受', () => {
+  const result = { ...detail, structure: null, objectType: { ...detail.objectType, key: 'easyv-prototype-component' },
+    page: { ...detail.page, objectKey: 'easyv-prototype-component', rows: [{ reference: { objectKey: 'easyv-prototype-component', objectId: '41:c1', productVersionId: 'components-old' }, properties: {} }] },
+    componentGeometry: { '41:c1': { status: 'available', errorCode: null, box: { x: 66.66, y: 62.5, width: 33.34, height: 37.5 } } } };
+  assert.equal(ajv.getSchema('object-read-result.schema.json')(result), true, ajv.errorsText());
+  assert.equal(javaObjectReadResultSchema.safeParse(result).success, true);
+  for (const geometry of [{ status: 'missing', errorCode: 'COMPONENT_BOX_MISSING', box: null },
+    { status: 'invalid', errorCode: 'COMPONENT_BOX_BOUNDS_INVALID', box: null }]) {
+    const body = { ...result, componentGeometry: { '41:c1': geometry } };
+    assert.equal(ajv.getSchema('object-read-result.schema.json')(body), true, ajv.errorsText());
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, true);
+  }
+  for (const mutate of [
+    (body) => { body.componentGeometry['not-authorized'] = body.componentGeometry['41:c1']; },
+    (body) => { body.componentGeometry['41:c1'].box.x = 90; },
+    (body) => { body.componentGeometry['41:c1'].box.width = 0; },
+    (body) => { body.componentGeometry['41:c1'].fallback = true; },
+  ]) {
+    const body = structuredClone(result); mutate(body);
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, false);
+  }
+  delete result.componentGeometry;
+  assert.equal(javaObjectReadResultSchema.safeParse(result).success, true, '滚动部署期间旧 API 响应可读取');
+});
+
 test('对象读取 | Java fixture 同时符合 JSON Schema 和严格 Zod', () => {
   for (const structure of [detail.structure, { status: 'not_retained', layout: null }, { status: 'parse_failed', layout: null }]) {
     const result = { ...detail, structure };
