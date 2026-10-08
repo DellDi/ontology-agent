@@ -1,6 +1,8 @@
 package com.dip3.ontologyagent.easyv.internal.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -821,6 +823,57 @@ class EasyVSemanticAgentTest {
   }
 
   @Test
+  void rankedGroupsRetainQueryScopeForReplanningAndConclusion() {
+    var intent = Map.<String, Object>of("object", "easyv-prototype-layout", "measures", List.of("count"),
+        "dimensions", List.of("layoutSignature"), "filters", List.of(Map.of("member", "parseStatus", "operator", "equals", "values", List.of("ok"))),
+        "time", ALL_TIME, "order", List.of(Map.of("member", "count", "direction", "desc")), "limit", 3);
+    var rows = List.of(Map.<String, Object>of("layoutSignature", "a", "count", 1),
+        Map.<String, Object>of("layoutSignature", "b", "count", 1), Map.<String, Object>of("layoutSignature", "c", "count", 1));
+    when(model.plan(any())).thenReturn(ready(intent), finished());
+    when(queries.execute(any(), any())).thenReturn(new SemanticQueryResult(rows, List.of(), "ranked-query"));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+
+    run(initialTurn(), ALL);
+
+    var planning = ArgumentCaptor.forClass(PlanRequest.class);
+    verify(model, times(2)).plan(planning.capture());
+    var composing = ArgumentCaptor.forClass(ComposeRequest.class);
+    verify(model).compose(composing.capture(), any());
+    var observed = planning.getAllValues().getLast().observations().getFirst();
+    var query = (Map<?, ?>) observed.get("intent");
+    assertNotNull(query, "Top N 结果必须保留已执行查询范围，不能把返回行数当全集");
+    assertEquals(3, query.get("limit"));
+    assertEquals(List.of("layoutSignature"), query.get("dimensions"));
+    assertEquals(intent.get("filters"), query.get("filters"));
+    assertEquals(intent.get("order"), query.get("order"));
+    assertEquals(observed, composing.getValue().results().getFirst());
+    assertEquals(3, observed.get("totalRows"));
+  }
+
+  @Test
+  void rankedComparisonKeepsItsLimitAndPeriodIdentity() {
+    var intent = Map.<String, Object>of("object", "easyv-forge-task", "measures", List.of("count"),
+        "dimensions", List.of("status"), "time", Map.of("expression", Map.of("sourceText", "本月", "kind", "to-date", "unit", "month")),
+        "compare", Map.of("sourceText", "上月", "kind", "calendar", "unit", "month", "offset", -1),
+        "order", List.of(Map.of("member", "count", "direction", "desc")), "limit", 3);
+    when(model.plan(any())).thenReturn(ready(intent), finished());
+    when(queries.execute(any(), any())).thenReturn(new SemanticQueryResult(List.of(Map.of("status", "success", "count", 8)),
+        List.of(Map.of("status", "failure", "count", 4)), "ranked-comparison"));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+    run(initialTurn(), ALL);
+    var composing = ArgumentCaptor.forClass(ComposeRequest.class);
+    verify(model).compose(composing.capture(), any());
+    var current = composing.getValue().results().get(0);
+    var previous = composing.getValue().results().get(1);
+    assertEquals("q1", current.get("id"));
+    assertEquals("q1:compare", previous.get("id"));
+    assertNotEquals(current.get("range"), previous.get("range"));
+    assertNotNull(previous.get("intent"));
+    assertEquals(current.get("intent"), previous.get("intent"));
+    assertEquals(3, ((Map<?, ?>) previous.get("intent")).get("limit"));
+  }
+
+  @Test
   void auditRetainsFullResultWhileModelEvidenceIsExplicitlyLimited() {
     var rows = java.util.stream.IntStream.range(0, 70).mapToObj(i -> Map.<String, Object>of("count", i)).toList();
     when(model.plan(any())).thenReturn(ready(COUNT_QUERY), finished());
@@ -832,6 +885,9 @@ class EasyVSemanticAgentTest {
     var observed = request.getAllValues().getLast().observations().getFirst();
     assertEquals(70, observed.get("totalRows"));
     assertEquals(50, ((List<?>) observed.get("rows")).size());
+    var composing = ArgumentCaptor.forClass(ComposeRequest.class);
+    verify(model).compose(composing.capture(), any());
+    assertEquals(observed, composing.getValue().results().getFirst());
     var output = ArgumentCaptor.forClass(Map.class);
     verify(recorder).succeedWhileLeased(eq("child-query_metrics-q1"), output.capture(), eq("execution-1"), eq("worker-1"));
     assertEquals(rows, output.getValue().get("rows"));

@@ -734,6 +734,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     Map<String, Object> out = new LinkedHashMap<>();
     out.put("id", id);
     out.put("label", label);
+    out.put("intent", QueryIntentCodec.write(query.compiled().intent()));
     out.put("range", range);
     DataCoverage dataCoverage = query.coverage();
     out.put("dataCoverage", dataCoverage == null || dataCoverage.empty() ? "无数据"
