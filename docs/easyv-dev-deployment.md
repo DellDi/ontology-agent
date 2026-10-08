@@ -5,6 +5,33 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
+## 当前发布（2026-10-08）
+
+- Java API/分析 Worker、独立 release-worker 与 Web 均为 `8039482`；平台库 `ontology_agent_test` 已迁移至 V26，真实九产品 FULL/INCREMENTAL/RECONCILE 发布 completed，三次行数/hash 一致。验证详情见 [运行时 B2.6](./architecture/ontology-agent-runtime.md#b26-真实公司源账号验收与发布2026-10-08)。
+- 运行目录 `/opt/ontology-agent-releases/8039482`，该目录 `.env.easyv-dev` 指向私有 `/opt/ontology-agent-release-private/b26-runtime-8039482.env`。后续命令在此目录执行；旧 `/opt/ontology-agent` 是保留的历史 checkout，配置缺 Cube 凭据，不能作为当前发布配置使用。
+- Web 远端绑定 `127.0.0.1:3100`，Java 8080；保持 loopback，不增加公开暴露。个人验证从本机 SSH 隧道访问 [工作台](http://127.0.0.1:3100/workspace)：
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
+  -L 127.0.0.1:3100:127.0.0.1:3100 easyv-dev
+```
+
+本次本机 3100 隧道已启动；3000 为原本地开发环境，两者数据库不同。迁移前备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20261008093213.dump`，原 80 个产品版本行数/hash 不变。
+
+独立采集容器重建仍须先加载私有源配置；API/Web 不携带源账号：
+
+```bash
+cd /opt/ontology-agent-releases/8039482
+scripts/easyv-dev config
+scripts/easyv-dev health
+set -a
+. /opt/ontology-agent-release-private/source-reader.env
+set +a
+scripts/easyv-dev release-worker
+```
+
+实际非管理员统计/对象/选择追问、第二组合场景、历史与权限边界、桌面/390px 通过。适配规则业务校准和历史原始生成输入认证尚未关闭，发布可用性与完整 B 的评分验收分别记录；不将本次部署描述为生成质量认证。
+
 ## 运行边界
 
 | 进程 | 长期运行 | 可访问 EasyV 源库 | 职责 |
