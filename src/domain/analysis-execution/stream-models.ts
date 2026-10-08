@@ -44,7 +44,22 @@ export type ExecutionStatusRenderBlock = {
   role?: ExecutionRenderBlockRole;
 };
 
-export type ExecutionKeyValueBlock = {
+export type ExecutionResultDrilldown = {
+  id: string;
+  row: number;
+  column: number;
+  objectKey: ExecutionObjectBrowserBlock['objectKey'];
+  scopeDescription: string;
+  filters: ExecutionObjectBrowserBlock['filters'];
+};
+
+type ExecutionStatisticContext = {
+  datasetVersionSetId?: string;
+  drilldowns?: ExecutionResultDrilldown[];
+  drilldownUnavailableReason?: string;
+};
+
+export type ExecutionKeyValueBlock = ExecutionStatisticContext & {
   type: 'kv-list';
   title: string;
   items: { label: string; value: string }[];
@@ -68,7 +83,7 @@ export type ExecutionMarkdownBlock = {
   role?: ExecutionRenderBlockRole;
 };
 
-export type ExecutionTableBlock = {
+export type ExecutionTableBlock = ExecutionStatisticContext & {
   type: 'table';
   title: string;
   columns: string[];
@@ -76,7 +91,7 @@ export type ExecutionTableBlock = {
   role?: ExecutionRenderBlockRole;
 };
 
-export type ExecutionChartBlock = {
+export type ExecutionChartBlock = ExecutionStatisticContext & {
   type: 'chart';
   title: string;
   chartType: 'bar' | 'line' | 'pie' | 'metric';
@@ -319,6 +334,7 @@ function validateChartBlock(
   }
 
   return {
+    ...statisticContext(candidate),
     type: 'chart',
     title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
     chartType,
@@ -352,6 +368,43 @@ function validateChartBlock(
     }),
     unit: assertOptionalString(candidate.unit, 'chart.unit'),
   };
+}
+
+function statisticContext(candidate: Record<string, unknown>): ExecutionStatisticContext {
+  if (candidate.drilldowns === undefined) {
+    return { drilldownUnavailableReason: assertOptionalString(candidate.drilldownUnavailableReason, 'drilldownUnavailableReason') };
+  }
+  const drilldowns = assertObjectArray(candidate.drilldowns, 'drilldowns').map((entry) => {
+    if (!Number.isInteger(entry.row) || Number(entry.row) < 0 || !Number.isInteger(entry.column) || Number(entry.column) < 0
+        || !['easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component'].includes(String(entry.objectKey))) {
+      throw new InvalidAnalysisExecutionStreamEventError('统计项下钻的坐标或对象类型无效。');
+    }
+    const rows = candidate.type === 'table' ? candidate.rows : candidate.type === 'kv-list' ? [candidate.items] :
+      Array.isArray(candidate.series) ? (candidate.series[Number(entry.column)] as { points?: unknown[] })?.points : [];
+    const columns = candidate.type === 'table' ? candidate.columns : candidate.type === 'kv-list' ? candidate.items : candidate.series;
+    if (!Array.isArray(rows) || Number(entry.row) >= rows.length || !Array.isArray(columns) || Number(entry.column) >= columns.length) {
+      throw new InvalidAnalysisExecutionStreamEventError('统计项下钻坐标超出实际结果。');
+    }
+    return { id: assertNonEmptyString(entry.id, 'drilldown.id'), row: Number(entry.row), column: Number(entry.column),
+      objectKey: entry.objectKey as ExecutionObjectBrowserBlock['objectKey'],
+      scopeDescription: assertNonEmptyString(entry.scopeDescription, 'drilldown.scopeDescription'),
+      filters: objectFilters(entry.filters) };
+  });
+  if (!drilldowns.length) throw new InvalidAnalysisExecutionStreamEventError('统计项下钻绑定不能为空。');
+  return { datasetVersionSetId: assertNonEmptyString(candidate.datasetVersionSetId, 'drilldown.datasetVersionSetId'), drilldowns };
+}
+
+function objectFilters(raw: unknown): ExecutionObjectBrowserBlock['filters'] {
+  const filters = assertObjectArray(raw, 'object-browser.filters').map((filter) => {
+    if (!['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'GT', 'GTE', 'LT', 'LTE', 'SET', 'NOT_SET'].includes(String(filter.operator))
+      || !isStringArray(filter.values)) {
+      throw new InvalidAnalysisExecutionStreamEventError('object-browser.filters 无效。');
+    }
+    return { member: assertNonEmptyString(filter.member, 'filter.member'),
+      operator: filter.operator as ExecutionObjectBrowserBlock['filters'][number]['operator'], values: filter.values };
+  });
+  if (filters.length > 10) throw new InvalidAnalysisExecutionStreamEventError('object-browser.filters 超过限制。');
+  return filters;
 }
 
 function validateGraphBlock(
@@ -550,15 +603,7 @@ function validateRenderBlock(
       if (!['easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component'].includes(String(candidate.objectKey))) {
         throw new InvalidAnalysisExecutionStreamEventError('object-browser.objectKey 无效。');
       }
-      const filters = assertObjectArray(candidate.filters, 'object-browser.filters').map((filter) => {
-        if (!['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'GT', 'GTE', 'LT', 'LTE', 'SET', 'NOT_SET'].includes(String(filter.operator))
-          || !isStringArray(filter.values)) {
-          throw new InvalidAnalysisExecutionStreamEventError('object-browser.filters 无效。');
-        }
-        return { member: assertNonEmptyString(filter.member, 'filter.member'),
-          operator: filter.operator as ExecutionObjectBrowserBlock['filters'][number]['operator'], values: filter.values };
-      });
-      if (filters.length > 10) throw new InvalidAnalysisExecutionStreamEventError('object-browser.filters 超过限制。');
+      const filters = objectFilters(candidate.filters);
       return { type: 'object-browser', title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
         datasetVersionSetId: assertNonEmptyString(candidate.datasetVersionSetId, 'datasetVersionSetId'),
         objectKey: candidate.objectKey as ExecutionObjectBrowserBlock['objectKey'], filters,
@@ -585,6 +630,7 @@ function validateRenderBlock(
       }
 
       return {
+        ...statisticContext(candidate),
         type: 'kv-list',
         title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
         items: candidate.items.map((item, index) => {
@@ -669,6 +715,7 @@ function validateRenderBlock(
       }
 
       return {
+        ...statisticContext(candidate),
         type: 'table',
         title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
         columns: candidate.columns,

@@ -52,7 +52,12 @@ public class EasyVObjectReadService {
   /** objectId 为空为列表；指定 ID 为详情；再指定 relation 为声明中的关系查询。 */
   public record Request(String executionId, String datasetVersionSetId, String objectKey, String objectId,
                         String relation, List<QueryIntent.Filter> filters, List<QueryIntent.Order> order,
-                        Integer limit, Integer offset) {
+                        Integer limit, Integer offset, String drilldownId) {
+    public Request(String executionId, String datasetVersionSetId, String objectKey, String objectId,
+                   String relation, List<QueryIntent.Filter> filters, List<QueryIntent.Order> order,
+                   Integer limit, Integer offset) {
+      this(executionId, datasetVersionSetId, objectKey, objectId, relation, filters, order, limit, offset, null);
+    }
     @JsonAnySetter
     public void rejectUnknown(String key, Object value) {
       throw new BackendException("OBJECT_QUERY_INVALID", "对象读取不接受字段：" + key);
@@ -96,14 +101,39 @@ public class EasyVObjectReadService {
     // resolveScope 检查当前角色和账号绑定；冻结快照仍决定这次历史读取的上限。
     var current = scopes.resolveScope(viewer);
     scopes.validateScope(binding.resolvedScope(), viewer);
-    return readAuthorized(request, binding.ontologyVersionId(),
+    return readAuthorized(resolveDrilldown(request, snapshot.resultBlocks()), binding.ontologyVersionId(),
         EasyVScopeResolver.narrowScope(binding.resolvedScope(), current), viewer);
+  }
+
+  private Request resolveDrilldown(Request request, List<Map<String, Object>> blocks) {
+    if (request.drilldownId() == null) return request;
+    for (var block : blocks) {
+      if (!(block.get("drilldowns") instanceof List<?> bindings)) continue;
+      for (Object raw : bindings) {
+        EasyVResultDrilldown.Binding saved;
+        try { saved = EasyVResultDrilldown.saved(raw); }
+        catch (IllegalArgumentException error) {
+          throw new BackendException("DATABASE_JSON_INVALID", "执行的下钻绑定不可读取：" + request.executionId(), error);
+        }
+        if (!request.drilldownId().equals(saved.id())) continue;
+        if (!request.datasetVersionSetId().equals(block.get("datasetVersionSetId")) || !request.objectKey().equals(saved.objectKey())) {
+          throw new BackendException("OBJECT_DRILLDOWN_MISMATCH", "下钻对象类型或冻结集合与统计项不一致。");
+        }
+        if (saved.filters() == null || saved.filters().size() > 10) {
+          throw new BackendException("DATABASE_JSON_INVALID", "执行的下钻过滤条件无效：" + request.executionId());
+        }
+        return new Request(request.executionId(), request.datasetVersionSetId(), saved.objectKey(), null, null,
+            saved.filters(), null, request.limit(), request.offset());
+      }
+    }
+    throw new BackendException("OBJECT_DRILLDOWN_NOT_FOUND", "此执行未保存该统计项的下钻绑定：" + request.drilldownId());
   }
 
   /** 已运行的 Worker 以可信执行上下文和租约读取，不依赖尚未产生的完成快照。 */
   @Transactional(timeout = 30)
   public Result readDuringExecution(CapabilityExecutionContext context, ResolvedScopeSnapshot frozenScope, Request request) {
     validateRequest(request);
+    if (request.drilldownId() != null) throw new BackendException("OBJECT_QUERY_INVALID", "统计项下钻只能读取已经保存的执行结果。");
     if (!context.executionId().equals(request.executionId()) || !context.datasetVersionSetId().equals(request.datasetVersionSetId())) {
       throw new BackendException("OBJECT_VERSION_MISMATCH", "运行时对象读取与当前执行或冻结集合不一致。");
     }
@@ -129,6 +159,12 @@ public class EasyVObjectReadService {
     }
     if (request.relation() != null && (request.relation().isBlank() || request.objectId() == null)) {
       throw new BackendException("OBJECT_QUERY_INVALID", "关系查询需要源对象 ID 与关系 key。");
+    }
+    if (request.drilldownId() != null && (request.drilldownId().isBlank() || request.drilldownId().length() > 500
+        || request.objectId() != null || request.relation() != null
+        || (request.filters() != null && !request.filters().isEmpty())
+        || (request.order() != null && !request.order().isEmpty()))) {
+      throw new BackendException("OBJECT_QUERY_INVALID", "统计项下钻只接受已保存的绑定 ID 与分页，不接受替换对象、过滤或排序。");
     }
   }
 

@@ -394,6 +394,26 @@ class EasyVPrototypeStructureIngestionTest {
     assertEquals(0, reader.related(PRODUCTS.get(0), "app-2", "blocks",
         new ObjectQueryPort.Query(PRODUCTS.get(1), null, null, 50, 0), all).rows().size());
     assertEquals("invalid_xml", reader.require(PRODUCTS.get(0), "app-2", all).properties().get("parseStatus"));
+    // 精确分组下钻使用同一本体属性表达式；分页/权限/父应用删除不能改变分组含义。
+    String family = (String) components.rows().getFirst().properties().get("chartFamily");
+    var familyFilter = List.of(new QueryIntent.Filter("chartFamily", QueryIntent.Operator.EQUALS, List.of(family)));
+    var familyPage = reader.query(new ObjectQueryPort.Query(PRODUCTS.get(2), familyFilter, null, 1, 0), scoped);
+    int total = familyPage.rows().size();
+    while (familyPage.hasMore()) {
+      familyPage = reader.query(new ObjectQueryPort.Query(PRODUCTS.get(2), familyFilter, null, 1, total), scoped);
+      assertTrue(familyPage.rows().stream().allMatch(r -> family.equals(r.properties().get("chartFamily"))));
+      total += familyPage.rows().size();
+    }
+    assertEquals(jdbc.queryForObject("""
+        select count(*) from facts.easyv_prototype_component c
+        join facts.easyv_ai_application a on a.app_id=c.app_id
+          and a.product_version_id=? and a.user_id='16' and not a.is_deleted
+        where c.product_version_id=? and c.chart_family=?
+        """, Integer.class, versions.get("easyv-ai-application"), versions.get(PRODUCTS.get(2)), family), total);
+    var nullSignature = reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0),
+        List.of(new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.NOT_SET, List.of())), null, 50, 0), scoped);
+    assertTrue(nullSignature.rows().stream().allMatch(r -> r.properties().get("layoutSignature") == null));
+    assertEquals(2, nullSignature.rows().size());
     var structures = new PrototypeStructurePostgresAdapter(jdbc, new JsonCodec());
     assertEquals("Pages", structures.structure(versions.get(PRODUCTS.get(0)), "app-1").get("tag"));
     assertNull(structures.structure(versions.get(PRODUCTS.get(0)), "app-2"));

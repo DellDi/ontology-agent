@@ -44,6 +44,32 @@ async function jsonFixture(path) {
   return JSON.parse(await fixture(path));
 }
 
+test('Java contract | 精确下钻绑定的快照字段与冻结集合通过共享契约', async () => {
+  const snapshot = await jsonFixture('snapshot-semantic-query.json');
+  const ajv = await contractValidator();
+  const asView = () => {
+    const view = { ...snapshot, ontologyVersionBindingSource: snapshot.ontologyVersionBinding.source };
+    delete view.ownerUserId; delete view.ontologyVersionBinding; delete view.datasetVersionSetId;
+    return view;
+  };
+  const binding = { id: 'q1:0:count', row: 0, column: 0, objectKey: 'easyv-prototype-component',
+    scopeDescription: 'donut · 组件数 3', filters: [{ member: 'chartFamily', operator: 'EQUALS', values: ['donut'] }] };
+  for (const block of [
+    { type: 'kv-list', title: '组件数', items: [{ label: '组件数', value: '3' }] },
+    { type: 'table', title: '组件数', columns: ['组件数'], rows: [['3']] },
+    { type: 'chart', title: '组件数', chartType: 'bar', series: [{ name: '组件数', points: [{ label: 'donut', value: 3 }] }] },
+  ]) {
+    const rendered = { ...block, datasetVersionSetId: snapshot.datasetVersionSetId, drilldowns: [binding] };
+    snapshot.conclusionState.renderBlocks = [rendered];
+    assertJsonSchema(ajv, 'execution-snapshot.schema.json', snapshot, '统计项下钻快照');
+    assertZod(javaExecutionSnapshotSchema, asView(), '统计项下钻读取视图');
+    rendered.datasetVersionSetId = 'set-forged';
+    assert.equal(javaExecutionSnapshotSchema.safeParse(asView()).success, false);
+    delete rendered.datasetVersionSetId;
+    assert.equal(ajv.getSchema('execution-snapshot.schema.json')(snapshot), false);
+  }
+});
+
 async function contractValidator() {
   const ajv = new Ajv2020({ allErrors: true, strict: true, allowUnionTypes: true });
   addFormats(ajv);

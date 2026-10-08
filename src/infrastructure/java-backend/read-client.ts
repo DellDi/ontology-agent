@@ -3,7 +3,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { javaSchemeAssessmentResultSchema } from './scheme-assessment-contract';
-import { javaObjectSelectionSchema } from './object-read-contract';
+import { javaObjectSelectionSchema, javaResultDrilldownSchema } from './object-read-contract';
 
 import {
   CORRELATION_HEADER,
@@ -12,6 +12,13 @@ import {
 
 const jsonObjectSchema = z.record(z.string(), z.unknown());
 const executionRenderBlockSchema = jsonObjectSchema.superRefine((block, context) => {
+  if (block.drilldowns !== undefined) {
+    if (!['kv-list', 'table', 'chart'].includes(String(block.type))
+        || typeof block.datasetVersionSetId !== 'string' || !block.datasetVersionSetId
+        || !z.array(javaResultDrilldownSchema).min(1).safeParse(block.drilldowns).success) {
+      context.addIssue({ code: 'custom', message: '统计项下钻缺少有效的绑定或冻结集合。' });
+    }
+  }
   if (block.type !== 'scheme-comparison') return;
   const parsed = z.strictObject({ type: z.literal('scheme-comparison'), title: z.string().min(1),
     role: z.enum(['primary', 'supporting']).optional(), result: javaSchemeAssessmentResultSchema }).safeParse(block);
@@ -580,6 +587,9 @@ function validateCapabilityPayload(
       }
       addSemanticEasyVIssues(value.conclusionState, context);
       for (const block of value.conclusionState?.renderBlocks ?? []) {
+        if (block.drilldowns !== undefined && block.datasetVersionSetId !== value.conclusionState?.evidence?.find(item => item.source === easyVDataScopeSource)?.datasetVersionSetId) {
+          context.addIssue({ code: 'custom', path: ['conclusionState', 'renderBlocks'], message: '统计项下钻不属于本轮冻结集合。' });
+        }
         if (block.type !== 'scheme-comparison') continue;
         const parsed = javaSchemeAssessmentResultSchema.safeParse(block.result);
         if (parsed.success && (parsed.data.selection.executionId !== value.executionId

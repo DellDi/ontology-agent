@@ -175,7 +175,8 @@ function payloadFromRenderBlock(block: ExecutionRenderBlock) {
         tone: block.tone,
       };
     case 'kv-list':
-      return stripUndefinedPayload({ items: block.items, role: block.role });
+      return stripUndefinedPayload({ items: block.items, role: block.role, datasetVersionSetId: block.datasetVersionSetId,
+        drilldowns: block.drilldowns, drilldownUnavailableReason: block.drilldownUnavailableReason });
     case 'tool-list':
       return { items: block.items };
     case 'markdown':
@@ -185,6 +186,9 @@ function payloadFromRenderBlock(block: ExecutionRenderBlock) {
         columns: block.columns,
         rows: block.rows,
         role: block.role,
+        datasetVersionSetId: block.datasetVersionSetId,
+        drilldowns: block.drilldowns,
+        drilldownUnavailableReason: block.drilldownUnavailableReason,
       });
     case 'chart':
       return stripUndefinedPayload({
@@ -192,6 +196,9 @@ function payloadFromRenderBlock(block: ExecutionRenderBlock) {
         series: block.series,
         unit: block.unit,
         role: block.role,
+        datasetVersionSetId: block.datasetVersionSetId,
+        drilldowns: block.drilldowns,
+        drilldownUnavailableReason: block.drilldownUnavailableReason,
       });
     case 'graph':
       return {

@@ -385,7 +385,27 @@
                 "primary",
                 "supporting"
               ]
+            },
+            "datasetVersionSetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "drilldowns": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/statisticalDrilldown"
+              }
+            },
+            "drilldownUnavailableReason": {
+              "type": "string",
+              "minLength": 1
             }
+          },
+          "dependentRequired": {
+            "drilldowns": [
+              "datasetVersionSetId"
+            ]
           }
         },
         {
@@ -431,7 +451,27 @@
                 "primary",
                 "supporting"
               ]
+            },
+            "datasetVersionSetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "drilldowns": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/statisticalDrilldown"
+              }
+            },
+            "drilldownUnavailableReason": {
+              "type": "string",
+              "minLength": 1
             }
+          },
+          "dependentRequired": {
+            "drilldowns": [
+              "datasetVersionSetId"
+            ]
           }
         },
         {
@@ -505,7 +545,27 @@
                 "primary",
                 "supporting"
               ]
+            },
+            "datasetVersionSetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "drilldowns": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/statisticalDrilldown"
+              }
+            },
+            "drilldownUnavailableReason": {
+              "type": "string",
+              "minLength": 1
             }
+          },
+          "dependentRequired": {
+            "drilldowns": [
+              "datasetVersionSetId"
+            ]
           }
         },
         {
@@ -617,6 +677,85 @@
           }
         }
       ]
+    },
+    "statisticalDrilldown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "row",
+        "column",
+        "objectKey",
+        "scopeDescription",
+        "filters"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "objectKey": {
+          "enum": [
+            "easyv-prototype-layout",
+            "easyv-prototype-block",
+            "easyv-prototype-component"
+          ]
+        },
+        "scopeDescription": {
+          "type": "string",
+          "minLength": 1
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "member": {
+                "type": "string",
+                "minLength": 1
+              },
+              "operator": {
+                "enum": [
+                  "EQUALS",
+                  "NOT_EQUALS",
+                  "CONTAINS",
+                  "GT",
+                  "GTE",
+                  "LT",
+                  "LTE",
+                  "SET",
+                  "NOT_SET"
+                ]
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "member",
+              "operator",
+              "values"
+            ]
+          },
+          "maxItems": 10
+        }
+      }
     }
   }
 }

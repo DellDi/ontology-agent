@@ -20,7 +20,8 @@ final class EasyVRenderBlocks {
 
   private EasyVRenderBlocks() {}
 
-  static List<Map<String, Object>> build(List<ExecutedQuery> executed, List<Highlight> highlights) {
+  static List<Map<String, Object>> build(List<ExecutedQuery> executed, List<Highlight> highlights,
+                                        SemanticModel model, String datasetVersionSetId) {
     Map<String, String> vizByQuery = new LinkedHashMap<>();
     for (Highlight highlight : highlights) {
       if (highlight.query() != null && highlight.viz() != null) vizByQuery.putIfAbsent(highlight.query(), highlight.viz());
@@ -30,7 +31,9 @@ final class EasyVRenderBlocks {
       if (query.result().rows().isEmpty()) continue;
       String viz = vizByQuery.get(query.id());
       boolean primary = vizByQuery.isEmpty() ? blocks.isEmpty() : viz != null && !"none".equals(viz);
-      blocks.add(block(query, viz, primary ? "primary" : "supporting"));
+      Map<String, Object> rendered = new LinkedHashMap<>(block(query, viz, primary ? "primary" : "supporting"));
+      EasyVResultDrilldown.attach(rendered, query, model, datasetVersionSetId);
+      blocks.add(rendered);
     }
     return List.copyOf(blocks);
   }
@@ -45,18 +48,8 @@ final class EasyVRenderBlocks {
       var compiled = query.compiled();
       if (!prototypes.contains(compiled.objectKey())) continue;
       var object = model.require(compiled.objectKey());
-      if (compiled.intent().filters().stream().anyMatch(filter -> object.findProperty(filter.member()).isEmpty())) continue;
-      String time = compiled.intent().time().dimension();
-      if (time == null || time.isBlank()) time = object.defaultTimeProperty();
-      if (time != null && object.findProperty(time).isEmpty()) continue;
-      List<QueryIntent.Filter> filters = new ArrayList<>(compiled.intent().filters());
-      if (time != null && !compiled.range().allData()) {
-        filters.add(new QueryIntent.Filter(time, QueryIntent.Operator.GTE,
-            List.of(compiled.range().from().atStartOfDay(compiled.zone()).toOffsetDateTime().toString())));
-        filters.add(new QueryIntent.Filter(time, QueryIntent.Operator.LT,
-            List.of(compiled.range().to().plusDays(1).atStartOfDay(compiled.zone()).toOffsetDateTime().toString())));
-      }
-      if (filters.size() > 10) continue;
+      List<QueryIntent.Filter> filters = EasyVResultDrilldown.objectFilters(compiled, object);
+      if (filters == null) continue;
       blocks.add(Map.of("type", "object-browser", "title", query.label() + " · 对象范围", "role", "supporting",
           "datasetVersionSetId", datasetVersionSetId, "objectKey", object.key(), "filters", List.copyOf(filters),
           "scopeDescription", "本次查询当前期的对象范围；不按聚合分组、排名或结果条数截取。"));
