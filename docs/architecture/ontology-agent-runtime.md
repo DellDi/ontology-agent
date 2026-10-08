@@ -657,3 +657,11 @@ B2.1 同一 Agent 的对象工具、方案比较与回放（2026-10-04）：
 - 私有证据位于 `.codex-runtime/b26-*`：三模式发布及 hash 对账、source-independent-reconciliation、root/selected/scenario2/duplicate/cleared 的 aggregate/audit/SSE/report、boundary-report、history-boundaries、own-rule-survey、generation-input-provenance、deployed-services、planning-eval。截图 `b26-canvas-desktop.jpg`、`b26-canvas-mobile.jpg`、`b26-comparison-mobile.jpg`、`b26-history-desktop.jpg`；30 个实际区域的待业务标注清单 `b26-rule-calibration-review.csv`。凭据文件与报告均不提交。
 
 - 界面后续问题：Recharts 初始尺寸测量记录 3 条 width/height=-1 告警，实际图表和回访结果正常，浏览器未记录 error。本轮保留诊断，不把当前浏览器描述成无告警；不顺带扩大渲染重构。
+
+### B2.7 区域与组件结构联动（2026-10-08）
+
+- 根据真实页面反馈，区域列表改为结构缩略图与区域名称；组件面板沿已有 `block → components` 关系读取，只展示当前区域。默认选第一个区域，区域列表与版式画布均可切换；点击组件的栅格占位或图表类型条目，保留所属区域高亮、组件属性与对象追问引用。
+- 复用对象读取中已有的 gridCol/gridRow/gridColSpan/gridRowSpan，按源 1-based、12 × 12 栅格投影组件。指标卡、折线、条形、环形、表格等使用图形占位示意，ID 留在属性和引用中；缺失、非法或越界栅格明确提示，不能补造布局。该示意表示源网格切分，不等同于百分比配置或最终大屏像素渲染。未修改 Java、事实、本体、查询权限或冻结版本契约。
+- 实际非管理员在原 B2.6 会话上验证：区域 right_1 仅有一个环形图，foot_2 仅有指标卡/条形图，right_3 显示两个指标卡与一个环形图，布局分别为整块、上下切分、左侧上下/右侧整列。点击 foot_2_chart_2 与 right_3_chart_2 后属性与所属区域一致，组件追问选择条保留对应引用。窄侧栏缩略图上下排列名称/计数；390px 下 document/body/viewport 均 390，没有页面横向溢出。
+- Web 125 项通过，5 项可选容器测试跳过；TypeScript、修改文件 ESLint、隔离生产构建和远端正式镜像构建通过。已推送 `6ccfbdc` / `975d675` 并部署 Web `975d675`，镜像 `c67d80827331`，Web/Java healthy，登录页 HTTP 200，Java 容器未重启。本次浏览器未记录 error。证据位于 `.codex-runtime/b27-*`，截图为 `b27-deployed-desktop.jpg` / `b27-deployed-panel.jpg` / `b27-deployed-mobile.jpg`。
+- 完整 B 的业务评分校准与历史原始输入认证仍按 B2.6 保留缺口；本次显示改动不改变评估规则或原始输入认证状态。
