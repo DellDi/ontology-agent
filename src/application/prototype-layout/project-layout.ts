@@ -52,7 +52,7 @@ function split(node: PrototypeLayoutNode, children: PrototypeLayoutNode[], rect:
   });
 }
 
-/** 只还原源结构中的区域和主视觉；组件像素尺寸未进入事实契约，组件选择关联到所属区域。 */
+/** 还原源结构中的区域和主视觉；组件在独立的源栅格预览中展示。 */
 export function projectPrototypeLayout(tree: PrototypeLayoutNode, blocks: readonly Block[]): PrototypeCanvasPage[] {
   const pages: PrototypeLayoutNode[] = [];
   function find(node: PrototypeLayoutNode) {
@@ -107,4 +107,22 @@ export function projectPrototypeLayout(tree: PrototypeLayoutNode, blocks: readon
     }
     return output;
   });
+}
+
+/** 对象读取已保留的 1-based、12 × 12 栅格；不将它冒充源百分比框或最终像素尺寸。 */
+export function projectPrototypeComponents(components: readonly { reference: { objectId: string }; properties: Record<string, unknown> }[]) {
+  const items: { objectId: string; chartFamily: string; x: number; y: number; width: number; height: number }[] = [];
+  const diagnostics: string[] = [];
+  for (const component of components) {
+    const { gridCol, gridRow, gridColSpan, gridRowSpan, chartFamily } = component.properties;
+    if (![gridCol, gridRow, gridColSpan, gridRowSpan].every((v) => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 12)
+        || Number(gridCol) + Number(gridColSpan) > 13 || Number(gridRow) + Number(gridRowSpan) > 13) {
+      diagnostics.push(`组件 ${component.properties.componentId ?? component.reference.objectId} 未保留有效的 12 栅格位置。`);
+      continue;
+    }
+    items.push({ objectId: component.reference.objectId, chartFamily: typeof chartFamily === 'string' ? chartFamily : '',
+      x: (Number(gridCol) - 1) / 12 * 100, y: (Number(gridRow) - 1) / 12 * 100,
+      width: Number(gridColSpan) / 12 * 100, height: Number(gridRowSpan) / 12 * 100 });
+  }
+  return { items, diagnostics };
 }

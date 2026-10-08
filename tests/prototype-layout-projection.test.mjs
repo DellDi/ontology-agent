@@ -6,11 +6,26 @@ import parts from '../src/application/analysis-interaction/interaction-part-sche
 import registry from '../src/application/analysis-interaction/renderer-registry.ts';
 import vm from '../src/application/analysis-message-projection/conversation-view-model.ts';
 import mapper from '../src/application/ai-runtime/runtime-projection-mapper.ts';
-const { projectPrototypeLayout } = projection;
+const { projectPrototypeLayout, projectPrototypeComponents } = projection;
 const node = (tag, attributes = {}, children = []) => ({ tag, attributes, children });
 const blocks = ['left', 'right'].map((id) => ({ reference: { objectId: `source:${id}` }, properties: { blockId: id } }));
 const page = (layout, dimensions = { width: '1200', height: '600' }) => node('Pages', {}, [node('Page', dimensions, [layout])]);
 const frame = (id, span) => node('Sider', { span }, [node('Block', { id, span: '12/12' })]);
+
+test('组件按源 1-based 栅格切分，不以指标 ID 或源百分比框代替网格位置', () => {
+  const components = [
+    { reference: { objectId: 'block:kpi' }, properties: { chartFamily: 'single-value-metric', gridCol: 1, gridRow: 1, gridColSpan: 12, gridRowSpan: 3 } },
+    { reference: { objectId: 'block:line' }, properties: { chartFamily: 'line', gridCol: 1, gridRow: 4, gridColSpan: 12, gridRowSpan: 9 } },
+  ];
+  assert.deepEqual(projectPrototypeComponents(components), { diagnostics: [], items: [
+    { objectId: 'block:kpi', chartFamily: 'single-value-metric', x: 0, y: 0, width: 100, height: 25 },
+    { objectId: 'block:line', chartFamily: 'line', x: 0, y: 25, width: 100, height: 75 },
+  ] });
+  for (const invalid of [{ gridCol: null }, { gridRow: 0 }, { gridColSpan: 13 }, { gridRow: 11 }, { gridColSpan: 1.5 }]) {
+    const result = projectPrototypeComponents([{ ...components[1], properties: { ...components[1].properties, ...invalid } }]);
+    assert.deepEqual(result.items, []); assert.match(result.diagnostics[0], /未保留有效的 12 栅格位置/);
+  }
+});
 
 test('Layout 的直接 Block 与冻结区域绑定，不能把已读取的区域显示为空结构', () => {
   const result = projectPrototypeLayout(page(node('Layout', { 'grid-direction': 'horizontal' }, [

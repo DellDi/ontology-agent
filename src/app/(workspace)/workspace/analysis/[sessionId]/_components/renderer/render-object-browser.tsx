@@ -11,6 +11,7 @@ import { javaObjectReadRequestSchema, type JavaObjectReadRequest, type JavaObjec
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { SchemeAssessmentPanel } from './scheme-assessment-panel';
+import { chartPlaceholder, PrototypeComponentPreview } from './prototype-component-preview';
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
 
 type SelectObject = AnalysisInteractionUiRenderInput['onObjectSelect'];
@@ -28,16 +29,16 @@ function useObjectRead(context: Context, query: Omit<JavaObjectReadRequest, 'exe
     retry: false, staleTime: 0, gcTime: 0 });
 }
 
-function useRelated(context: Context, layoutId: string, relation: string) {
-  return useInfiniteQuery({ queryKey: ['analysis-object-relation', context, layoutId, relation],
+function useRelated(context: Context, objectId: string, relation: string, objectKey: JavaObjectReadRequest['objectKey'] = 'easyv-prototype-layout') {
+  return useInfiniteQuery({ queryKey: ['analysis-object-relation', context, objectKey, objectId, relation],
     initialPageParam: 0,
     queryFn: ({ signal, pageParam }) => readAnalysisObjects(context.sessionId, {
       executionId: context.executionId, datasetVersionSetId: context.datasetVersionSetId,
-      objectKey: 'easyv-prototype-layout', objectId: layoutId, relation, limit: 200, offset: pageParam,
+      objectKey, objectId, relation, limit: 200, offset: pageParam,
     }, signal),
     getNextPageParam: (page) => page.page.hasMore && page.page.offset + page.page.limit <= 10000
       ? page.page.offset + page.page.limit : undefined,
-    enabled: !!layoutId, retry: false, staleTime: 0, gcTime: 0,
+    enabled: !!objectId, retry: false, staleTime: 0, gcTime: 0,
   });
 }
 
@@ -49,6 +50,11 @@ function Pending({ children }: { children: string }) {
 }
 function label(row: Row) {
   return String(row.properties.componentId ?? row.properties.blockId ?? row.properties.appId ?? row.reference.objectId);
+}
+function regionLabel(row: Row) {
+  const id = String(row.properties.blockId ?? row.reference.objectId).replace(/^page-\d+__/, '');
+  return id.replace(/^(foot|footer|left|right|header)(?:_|$)/, (_, position: string) =>
+    `${({ foot: '底部', footer: '底部', left: '左侧', right: '右侧', header: '顶部' } as Record<string, string>)[position]} `).replaceAll('_', ' · ');
 }
 function ObjectList({ title, rows, selected, onSelect, hasMore, loading, onMore }: {
   title: string; rows: Row[]; selected: Row | null; onSelect: (row: Row) => void;
@@ -80,8 +86,12 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
   const blockRows = blocks.data?.pages.flatMap((page) => page.page.rows) ?? [];
   const componentRows = components.data?.pages.flatMap((page) => page.page.rows) ?? [];
   const selected = detail.data?.page.rows[0] ?? focus;
-  const selectedBlock = selected.reference.objectKey === 'easyv-prototype-block' ? selected.reference.objectId
+  const focusedBlock = selected.reference.objectKey === 'easyv-prototype-block' ? selected.reference.objectId
     : selected.reference.objectKey === 'easyv-prototype-component' ? selected.properties.blockKey : null;
+  const selectedBlock = typeof focusedBlock === 'string' ? focusedBlock : blockRows[0]?.reference.objectId;
+  const selectedRegion = blockRows.find((row) => row.reference.objectId === selectedBlock);
+  const regionComponents = useRelated(context, selectedBlock ?? '', 'components', 'easyv-prototype-block');
+  const regionComponentRows = regionComponents.data?.pages.flatMap((page) => page.page.rows) ?? [];
   const structure = layout.data?.structure;
   const pages = structure?.status === 'available' ? projectPrototypeLayout(structure.layout, blockRows) : [];
   const type: Type | undefined = detail.data?.objectType;
@@ -114,13 +124,42 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
       {page.diagnostics.map((message) => <p key={message} className="text-xs text-muted-foreground" role="status">{message}</p>)}
     </section>) : null}
     {blocks.data?.pages.at(-1)?.page.hasMore ? <p className="text-xs text-muted-foreground">区域尚未读取完整，加载更多后补齐对象关联。</p> : null}
-    <p className="text-xs leading-5 text-muted-foreground">此图展示区域布局。组件选择会高亮所属区域；组件的网格坐标可在属性中查看，组件的位置与尺寸由源百分比配置及区域外框确定；历史版本可能未保留这些输入。</p>
-    <div className="grid gap-4 min-[640px]:grid-cols-2">
-      <ObjectList title="区域" rows={blockRows} selected={blockRows.find((row) => row.reference.objectId === selectedBlock) ?? selected} onSelect={setFocus} hasMore={blocks.hasNextPage} loading={blocks.isFetchingNextPage} onMore={() => { void blocks.fetchNextPage(); }} />
-      <div className="space-y-2">
-        {components.isPending ? <Pending>正在读取组件…</Pending> : null}
-        {components.error ? <Notice error={components.error} /> : <ObjectList title="组件" rows={componentRows} selected={selected} onSelect={setFocus} hasMore={components.hasNextPage} loading={components.isFetchingNextPage} onMore={() => { void components.fetchNextPage(); }} />}
-      </div>
+    <p className="text-xs leading-5 text-muted-foreground">选择区域，查看它的组件结构。下方按源 12 × 12 栅格展示切分，图表图形为占位示意。</p>
+    <div className="@container">
+    <div className="grid items-start gap-3 @min-[320px]:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+      <section className="min-w-0 space-y-2" aria-label="原型区域列表">
+        <h4 className="text-xs font-semibold text-muted-foreground">区域 · {blockRows.length}{blocks.hasNextPage ? '+' : ''}</h4>
+        <div className="max-h-96 overflow-y-auto rounded-lg border border-border">
+          {!blockRows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">本轮冻结数据中没有关联区域。</p> : null}
+          {blockRows.map((row) => <button key={row.reference.objectId} type="button" aria-label={`选择区域 ${label(row)}`} aria-pressed={row.reference.objectId === selectedBlock}
+            title={label(row)} onClick={() => setFocus(row)} className={cn('flex w-full flex-wrap items-center gap-2 border-b border-border/50 px-2 py-3 text-left last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-primary/10 text-primary')}>
+            <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === row.reference.objectId)} thumbnail />
+            <span className="min-w-0 flex-1 space-y-1"><span className="block break-all text-xs font-medium">{regionLabel(row)}</span><span className="block text-[10px] text-muted-foreground">{String(row.properties.componentCount ?? '—')} 个组件</span></span>
+          </button>)}
+        </div>
+        {components.error ? <Notice error={components.error} /> : null}
+        {components.hasNextPage ? <Button type="button" variant="ghost" size="sm" disabled={components.isFetchingNextPage} onClick={() => { void components.fetchNextPage(); }}>补齐结构缩略图</Button> : null}
+        {blocks.hasNextPage ? <Button type="button" variant="outline" size="sm" disabled={blocks.isFetchingNextPage} onClick={() => { void blocks.fetchNextPage(); }}>加载更多区域</Button> : null}
+      </section>
+      <section className="min-w-0 space-y-3" aria-label="所选区域组件">
+        <div className="space-y-1"><h4 className="break-all text-xs font-semibold">{selectedRegion ? regionLabel(selectedRegion) : '区域组件'}</h4>
+          <p className="text-[10px] text-muted-foreground">{regionComponents.isPending ? '组件结构' : `${regionComponentRows.length}${regionComponents.hasNextPage ? '+' : ''} 个组件 · 栅格结构`}</p></div>
+        {selectedBlock && regionComponents.isPending ? <Pending>正在读取区域组件…</Pending> : null}
+        {regionComponents.error ? <Notice error={regionComponents.error} /> : null}
+        {regionComponents.data ? <>
+          {regionComponentRows.length ? <PrototypeComponentPreview rows={regionComponentRows} selected={selected.reference.objectId} onSelect={setFocus} />
+            : <p className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">该区域没有关联组件。</p>}
+          <div className="space-y-1.5">{regionComponentRows.map((row, index) => {
+            const { label: chartLabel, icon: Icon } = chartPlaceholder(row.properties.chartFamily);
+            return <button key={row.reference.objectId} type="button" aria-label={`查看组件 ${label(row)}`} aria-pressed={selected.reference.objectId === row.reference.objectId}
+              onClick={() => setFocus(row)} className={cn('flex w-full items-center gap-2 rounded-lg border border-border bg-background px-2 py-2 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', selected.reference.objectId === row.reference.objectId && 'border-primary bg-primary/10 text-primary')}>
+              <Icon className="size-4 shrink-0 text-primary" aria-hidden /><span className="min-w-0 flex-1 break-all">{chartLabel}</span><span className="text-[10px] text-muted-foreground">{index + 1}</span>
+            </button>;
+          })}</div>
+          {regionComponents.hasNextPage ? <Button type="button" variant="outline" size="sm" disabled={regionComponents.isFetchingNextPage} onClick={() => { void regionComponents.fetchNextPage(); }}>加载更多组件</Button> : null}
+        </> : null}
+      </section>
+    </div>
     </div>
     <section className="space-y-3 border-t border-border pt-4" aria-label="所选对象属性">
       <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {label(selected)}</h4>
