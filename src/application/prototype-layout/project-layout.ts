@@ -1,4 +1,4 @@
-import type { PrototypeLayoutNode } from '@/domain/prototype-layout/models';
+import type { PrototypeLayoutNode, PrototypeComponentGeometry } from '@/domain/prototype-layout/models';
 
 type Rect = { x: number; y: number; width: number; height: number };
 export type PrototypeCanvasItem = Rect & { key: string; label: string; objectId: string | null; kind: 'block' | 'content' };
@@ -109,12 +109,25 @@ export function projectPrototypeLayout(tree: PrototypeLayoutNode, blocks: readon
   });
 }
 
-/** 对象读取已保留的 1-based、12 × 12 栅格；不将它冒充源百分比框或最终像素尺寸。 */
-export function projectPrototypeComponents(components: readonly { reference: { objectId: string }; properties: Record<string, unknown> }[]) {
+/** 新版读取源百分比外框；旧响应没有 geometry 字段时仍展示明确标注的近似栅格。 */
+export function projectPrototypeComponents(components: readonly { reference: { objectId: string }; properties: Record<string, unknown> }[],
+  geometry?: Record<string, PrototypeComponentGeometry>) {
   const items: { objectId: string; chartFamily: string; x: number; y: number; width: number; height: number }[] = [];
   const diagnostics: string[] = [];
   for (const component of components) {
     const { gridCol, gridRow, gridColSpan, gridRowSpan, chartFamily } = component.properties;
+    if (geometry !== undefined) {
+      const retained = geometry[component.reference.objectId];
+      const box = retained?.box;
+      if (retained?.status !== 'available' || !box || !Object.values(box).every(Number.isFinite)
+          || box.x < 0 || box.y < 0 || box.width <= 0 || box.height <= 0
+          || box.x + box.width > 100 || box.y + box.height > 100) {
+        diagnostics.push(`组件 ${component.properties.componentId ?? component.reference.objectId} 的源位置${retained?.status === 'invalid' || box ? '无效' : '未保留'}${retained?.errorCode ? `（${retained.errorCode}）` : ''}。`);
+        continue;
+      }
+      items.push({ objectId: component.reference.objectId, chartFamily: typeof chartFamily === 'string' ? chartFamily : '', ...box });
+      continue;
+    }
     if (![gridCol, gridRow, gridColSpan, gridRowSpan].every((v) => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 12)
         || Number(gridCol) + Number(gridColSpan) > 13 || Number(gridRow) + Number(gridRowSpan) > 13) {
       diagnostics.push(`组件 ${component.properties.componentId ?? component.reference.objectId} 未保留有效的 12 栅格位置。`);
