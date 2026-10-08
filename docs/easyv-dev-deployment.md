@@ -7,8 +7,8 @@ Cube 与 Neo4j 作为 Property 投影运行。
 
 ## 当前发布（2026-10-08）
 
-- Java API/分析 Worker、独立 release-worker 与 Web 均为 `8039482`；平台库 `ontology_agent_test` 已迁移至 V26，真实九产品 FULL/INCREMENTAL/RECONCILE 发布 completed，三次行数/hash 一致。验证详情见 [运行时 B2.6](./architecture/ontology-agent-runtime.md#b26-真实公司源账号验收与发布2026-10-08)。
-- 运行目录 `/opt/ontology-agent-releases/8039482`，该目录 `.env.easyv-dev` 指向私有 `/opt/ontology-agent-release-private/b26-runtime-8039482.env`。后续命令在此目录执行；旧 `/opt/ontology-agent` 是保留的历史 checkout，配置缺 Cube 凭据，不能作为当前发布配置使用。
+- Web 已更新为 `975d675`，区域列表与组件栅格预览联动；Java API/分析 Worker、独立 release-worker 保持 `8039482`。本次仅以 `up -d --no-deps web` 更新 Web，Java 容器 ID/启动时间未变。平台库 `ontology_agent_test` 已迁移至 V26，真实九产品 FULL/INCREMENTAL/RECONCILE 发布 completed，三次行数/hash 一致。验证详情见 [运行时 B2.6](./architecture/ontology-agent-runtime.md#b26-真实公司源账号验收与发布2026-10-08)。
+- 当前 Web 发布目录 `/opt/ontology-agent-releases/975d675`，`.env.easyv-dev` 指向私有 `/opt/ontology-agent-release-private/b27-runtime-975d675.env`，其中保留 Java `8039482` 镜像和原数据库配置。后续命令在此目录执行；旧 `/opt/ontology-agent` 是保留的历史 checkout，配置缺 Cube 凭据，不能作为当前发布配置使用。
 - Web 远端绑定 `127.0.0.1:3100`，Java 8080；保持 loopback，不增加公开暴露。个人验证从本机 SSH 隧道访问 [工作台](http://127.0.0.1:3100/workspace)：
 
 ```bash
@@ -21,7 +21,7 @@ ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
 独立采集容器重建仍须先加载私有源配置；API/Web 不携带源账号：
 
 ```bash
-cd /opt/ontology-agent-releases/8039482
+cd /opt/ontology-agent-releases/975d675
 scripts/easyv-dev config
 scripts/easyv-dev health
 set -a
