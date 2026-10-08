@@ -6,6 +6,7 @@ RUN npm install --global pnpm@11.7.0
 RUN mkdir -p /app && chown 1001:0 /app
 WORKDIR /app
 COPY --chown=1001:0 package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=1001:0 patches ./patches
 USER 1001
 RUN pnpm install --frozen-lockfile
 
