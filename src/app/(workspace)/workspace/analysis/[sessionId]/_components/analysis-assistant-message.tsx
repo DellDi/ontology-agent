@@ -40,6 +40,7 @@ function isBlockAlreadyVisualized(
   metricCards: MetricCard[],
   visualizations: Visualization[],
 ): boolean {
+  if (Array.isArray(block.payload?.drilldowns) && block.payload.drilldowns.length) return false;
   if (block.kind === 'kv-list' && metricCards.length > 0) return true;
   if (
     block.kind === 'chart' &&
@@ -198,6 +199,8 @@ export function AnalysisAssistantMessage({
         <AnalysisResultBlockRenderer
           key={`supporting-${block.kind}-${index}`}
           block={block}
+          onOpenSidePanel={onOpenSidePanel}
+          onObjectSelect={onObjectSelect}
         />
       ))}
       {result?.evidenceBlocks.length ? (
@@ -317,7 +320,7 @@ export function AnalysisAssistantMessage({
                   key={`result-${block.kind}-${index}`}
                   style={{ animationDelay: `${Math.min(index, 5) * 80}ms` }}
                 >
-                  <AnalysisResultBlockRenderer block={block} embedded />
+                  <AnalysisResultBlockRenderer block={block} embedded onOpenSidePanel={onOpenSidePanel} onObjectSelect={onObjectSelect} />
                 </div>
               ))}
             </div>

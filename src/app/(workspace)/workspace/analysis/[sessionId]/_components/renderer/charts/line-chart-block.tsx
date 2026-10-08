@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
+import type { ResultDrilldownActions } from '../result-drilldown';
 
 import {
   asItemArray,
@@ -74,9 +75,11 @@ function extractMultiSeries(block: AnalysisRenderedBlock): {
 export function LineChartBlock({
   block,
   flat = false,
+  drilldown,
 }: {
   block: AnalysisRenderedBlock;
   flat?: boolean;
+  drilldown?: ResultDrilldownActions;
 }) {
   const { data, seriesNames } = extractMultiSeries(block);
   const title =
@@ -117,17 +120,29 @@ export function LineChartBlock({
               wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }}
             />
           ) : null}
-          {seriesNames.map((name, index) => (
+          {seriesNames.map((name, index) => {
+            const dot = ({ cx, cy, index: row }: { cx?: number; cy?: number; index?: number }) => {
+              const interactive = row !== undefined && drilldown?.has(row, index);
+              return <circle cx={cx} cy={cy} r={4} fill={CHART_PALETTE[index % CHART_PALETTE.length]}
+                role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined}
+                aria-label={interactive ? `查看${data[row!]?.label}的${name}支撑对象` : undefined}
+                className={interactive ? 'cursor-pointer focus-visible:outline-none focus-visible:stroke-primary focus-visible:stroke-2' : undefined}
+                onClick={interactive ? () => drilldown?.open(row!, index) : undefined}
+                onKeyDown={interactive ? event => { if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault(); drilldown?.open(row!, index);
+                } } : undefined} />;
+            };
+            return (
             <Line
               key={name}
               type="monotone"
               dataKey={name}
               stroke={CHART_PALETTE[index % CHART_PALETTE.length]}
               strokeWidth={2}
-              dot={{ r: 3 }}
-              activeDot={{ r: 5 }}
+              dot={drilldown ? dot : { r: 3 }}
+              activeDot={drilldown ? dot : { r: 5 }}
             />
-          ))}
+          ); })}
         </LineChart>
       </ResponsiveContainer>
     </ChartShell>

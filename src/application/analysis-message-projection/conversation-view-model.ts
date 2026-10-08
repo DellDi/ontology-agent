@@ -725,6 +725,8 @@ function extractMetricCards(
   const cards: MetricCard[] = [];
 
   for (const block of blocks) {
+    // 交互结果由注册表直接呈现，保留执行来源；提取为纯指标卡会丢失下钻上下文。
+    if (Array.isArray(block.payload?.drilldowns) && block.payload.drilldowns.length) continue;
     if (block.kind === 'kv-list') {
       // defense-in-depth：跳过运营 / 状态类 kv-list，避免污染业务指标卡
       if (block.title && NON_METRIC_KV_LIST_TITLES.has(block.title)) continue;
@@ -772,6 +774,7 @@ function extractVisualizations(
   const visualizations: Visualization[] = [];
 
   for (const block of blocks) {
+    if (Array.isArray(block.payload?.drilldowns) && block.payload.drilldowns.length) continue;
     if (block.kind === 'chart' && block.payload?.chartType !== 'metric') {
       visualizations.push({
         type: 'chart',

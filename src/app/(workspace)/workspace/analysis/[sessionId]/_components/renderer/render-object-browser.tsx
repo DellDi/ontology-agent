@@ -19,7 +19,7 @@ type Row = JavaObjectReadResult['page']['rows'][number];
 type Type = JavaObjectReadResult['objectType'];
 type Context = Pick<JavaObjectReadRequest, 'executionId' | 'datasetVersionSetId'> & { sessionId: string };
 
-const browserPayload = javaObjectReadRequestSchema.pick({ datasetVersionSetId: true, objectKey: true, filters: true })
+const browserPayload = javaObjectReadRequestSchema.pick({ datasetVersionSetId: true, objectKey: true, filters: true, drilldownId: true })
   .extend({ scopeDescription: z.string().min(1), role: z.enum(['primary', 'supporting']).optional() }).strict();
 
 function useObjectRead(context: Context, query: Omit<JavaObjectReadRequest, 'executionId' | 'datasetVersionSetId'>, enabled = true) {
@@ -187,12 +187,12 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
   </div>;
 }
 
-function ObjectBrowser({ context, objectKey, filters, scopeDescription, onObjectSelect }: {
-  context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; scopeDescription: string; onObjectSelect?: SelectObject;
+function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescription, onObjectSelect }: {
+  context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; drilldownId?: string | null; scopeDescription: string; onObjectSelect?: SelectObject;
 }) {
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<Row | null>(null);
-  const list = useObjectRead(context, { objectKey, filters, limit: 20, offset });
+  const list = useObjectRead(context, { objectKey, filters, drilldownId, limit: 20, offset });
   const root = selected ?? list.data?.page.rows[0];
   return <div className="space-y-5" data-testid="analysis-object-browser">
     <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p>
@@ -213,6 +213,6 @@ export function renderObjectBrowserBlock({ renderedBlock, onObjectSelect }: Anal
   const payload = browserPayload.safeParse(renderedBlock.payload);
   const { sessionId, executionId } = renderedBlock.source;
   if (!payload.success || !sessionId || !executionId) return <p role="alert" className="text-sm text-destructive">原型查看入口缺少有效的执行上下文，无法读取对象。</p>;
-  return <ObjectBrowser context={{ sessionId, executionId, datasetVersionSetId: payload.data.datasetVersionSetId }}
-    objectKey={payload.data.objectKey} filters={payload.data.filters} scopeDescription={payload.data.scopeDescription} onObjectSelect={onObjectSelect} />;
+  return <ObjectBrowser key={`${executionId}:${payload.data.drilldownId ?? 'query-scope'}`} context={{ sessionId, executionId, datasetVersionSetId: payload.data.datasetVersionSetId }}
+    objectKey={payload.data.objectKey} filters={payload.data.filters} drilldownId={payload.data.drilldownId} scopeDescription={payload.data.scopeDescription} onObjectSelect={onObjectSelect} />;
 }

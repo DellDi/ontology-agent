@@ -5,12 +5,14 @@ import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
 import { EmptyState } from '@/app/_components/empty-state';
 import { cn } from '@/app/_lib/cn';
+import type { ResultDrilldownActions } from '../result-drilldown';
 
 type DataTableBlockProps = {
   block: AnalysisRenderedBlock;
   className?: string;
   /** 嵌套在对话气泡内时置 true：去外层卡片边框与阴影，仅保留表格内容。 */
   flat?: boolean;
+  drilldown?: ResultDrilldownActions;
 };
 
 function extractTableData(block: AnalysisRenderedBlock) {
@@ -66,7 +68,7 @@ function formatCellValue(text: string): string {
   return formatShanghaiDateTime(date);
 }
 
-export function DataTableBlock({ block, className, flat = false }: DataTableBlockProps) {
+export function DataTableBlock({ block, className, flat = false, drilldown }: DataTableBlockProps) {
   const { columns, rows } = extractTableData(block);
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
@@ -162,7 +164,12 @@ export function DataTableBlock({ block, className, flat = false }: DataTableBloc
                         'break-words whitespace-pre-wrap',
                       )}
                     >
-                      {displayValue}
+                      {drilldown?.has(rowIndex, cellIndex) ? <button type="button"
+                        aria-label={`查看第 ${rowIndex + 1} 行${columns[cellIndex]}的支撑对象`}
+                        onClick={() => drilldown.open(rowIndex, cellIndex)}
+                        className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {displayValue}<span className="ml-1 text-xs">↗</span>
+                      </button> : displayValue}
                     </td>
                   );
                 })}
@@ -171,6 +178,7 @@ export function DataTableBlock({ block, className, flat = false }: DataTableBloc
           </tbody>
         </table>
       </div>
+      {drilldown?.reason ? <p className="mt-2 text-xs text-muted-foreground">{drilldown.reason}</p> : null}
     </div>
   );
 }

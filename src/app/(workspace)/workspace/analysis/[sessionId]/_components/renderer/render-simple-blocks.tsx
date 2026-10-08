@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { MarkdownContent } from '@/app/_components/markdown-content';
 
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
+import { resultDrilldownActions } from './result-drilldown';
 
 import {
   getToneClassName,
@@ -30,11 +31,13 @@ export function renderStatusBlock({
   );
 }
 
-export function renderKvListBlock({
+export function renderKvListBlock(input: AnalysisInteractionUiRenderInput) {
+  const {
   renderedBlock,
   className = '',
   embedded = false,
-}: AnalysisInteractionUiRenderInput) {
+  } = input;
+  const drilldown = resultDrilldownActions(input);
   const items = getItems(renderedBlock.payload.items);
   if (items.length === 0) {
     return (
@@ -51,21 +54,26 @@ export function renderKvListBlock({
       className={`${className} ${panelChrome(embedded)}`}
     >
       {renderTitle(renderedBlock)}
-      <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-        {items.map((item) => (
+      <dl className={`mt-3 grid gap-3 sm:grid-cols-2 ${renderedBlock.payload.drilldowns ? 'lg:grid-cols-3' : ''}`}>
+        {items.map((item, index) => (
           <div
             key={getString(item.label)}
-            className="rounded border border-border/60 bg-background px-3 py-2"
+            className={renderedBlock.payload.drilldowns ? 'rounded-lg bg-muted/50 px-4 py-3' : 'rounded border border-border/60 bg-background px-3 py-2'}
           >
             <dt className="text-xs font-medium text-muted-foreground">
               {getString(item.label)}
             </dt>
-            <dd className="mt-1 text-sm break-words text-foreground">
-              {getString(item.value)}
+            <dd className={`mt-1 break-words text-foreground ${renderedBlock.payload.drilldowns ? 'text-2xl font-semibold tabular-nums' : 'text-sm'}`}>
+              {drilldown.has(0, index) ? <button type="button" onClick={() => drilldown.open(0, index)}
+                aria-label={`查看${getString(item.label)}的支撑对象`}
+                className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                {getString(item.value)}<span className="ml-2 text-xs font-normal">查看对象 ↗</span>
+              </button> : getString(item.value)}
             </dd>
           </div>
         ))}
       </dl>
+      {drilldown.reason ? <p className="mt-2 text-xs text-muted-foreground">{drilldown.reason}</p> : null}
     </div>
   );
 }
