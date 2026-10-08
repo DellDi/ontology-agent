@@ -28,7 +28,7 @@ export function PrototypeComponentPreview({ rows, selected, onSelect, thumbnail 
   rows: Row[]; selected?: string; onSelect?: (row: Row) => void; thumbnail?: boolean;
 }) {
   const { items, diagnostics } = projectPrototypeComponents(rows);
-  return <div className={cn('space-y-2', thumbnail && 'w-16 shrink-0')}>
+  return <div className={cn('space-y-2', thumbnail && 'w-full')}>
     <div className={cn('relative overflow-hidden rounded-md border border-border bg-background', thumbnail ? 'h-12' : 'aspect-square')}
       role={thumbnail ? undefined : 'group'} aria-label={thumbnail ? undefined : '区域组件栅格布局'} aria-hidden={thumbnail || undefined}
       style={{ backgroundImage: 'linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)', backgroundSize: '8.333333% 8.333333%' }}>

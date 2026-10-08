@@ -125,16 +125,16 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
     </section>) : null}
     {blocks.data?.pages.at(-1)?.page.hasMore ? <p className="text-xs text-muted-foreground">区域尚未读取完整，加载更多后补齐对象关联。</p> : null}
     <p className="text-xs leading-5 text-muted-foreground">选择区域，查看它的组件结构。下方按源 12 × 12 栅格展示切分，图表图形为占位示意。</p>
-    <div className="@container">
+    {blocks.data ? <div className="@container">
     <div className="grid items-start gap-3 @min-[320px]:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
       <section className="min-w-0 space-y-2" aria-label="原型区域列表">
         <h4 className="text-xs font-semibold text-muted-foreground">区域 · {blockRows.length}{blocks.hasNextPage ? '+' : ''}</h4>
         <div className="max-h-96 overflow-y-auto rounded-lg border border-border">
           {!blockRows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">本轮冻结数据中没有关联区域。</p> : null}
           {blockRows.map((row) => <button key={row.reference.objectId} type="button" aria-label={`选择区域 ${label(row)}`} aria-pressed={row.reference.objectId === selectedBlock}
-            title={label(row)} onClick={() => setFocus(row)} className={cn('flex w-full flex-wrap items-center gap-2 border-b border-border/50 px-2 py-3 text-left last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-primary/10 text-primary')}>
+            title={label(row)} onClick={() => setFocus(row)} className={cn('flex w-full flex-col items-start gap-2 border-b border-border/50 px-2 py-3 text-left last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-primary/10 text-primary')}>
             <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === row.reference.objectId)} thumbnail />
-            <span className="min-w-0 flex-1 space-y-1"><span className="block break-all text-xs font-medium">{regionLabel(row)}</span><span className="block text-[10px] text-muted-foreground">{String(row.properties.componentCount ?? '—')} 个组件</span></span>
+            <span className="min-w-0 space-y-1"><span className="block break-all text-xs font-medium">{regionLabel(row)}</span><span className="block whitespace-nowrap text-[10px] text-muted-foreground">{String(row.properties.componentCount ?? '—')} 个组件</span></span>
           </button>)}
         </div>
         {components.error ? <Notice error={components.error} /> : null}
@@ -160,7 +160,7 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
         </> : null}
       </section>
     </div>
-    </div>
+    </div> : null}
     <section className="space-y-3 border-t border-border pt-4" aria-label="所选对象属性">
       <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {label(selected)}</h4>
       {onObjectSelect ? <Button type="button" size="sm" variant="outline" disabled={!detail.data?.page.rows[0] || !type}
