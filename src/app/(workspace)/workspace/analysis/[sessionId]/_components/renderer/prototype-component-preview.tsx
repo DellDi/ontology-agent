@@ -1,11 +1,11 @@
-import { ChartArea, ChartBar, ChartColumn, ChartLine, ChartPie, ChartScatter, CircleGauge, Donut, Layers3, MapPinned, Radar, Table2, Text, Timer } from 'lucide-react';
+import { Binary, ChartArea, ChartBar, ChartColumn, ChartLine, ChartPie, ChartScatter, Donut, Layers3, MapPinned, Radar, Table2, Text, Timer } from 'lucide-react';
 import { projectPrototypeComponents } from '@/application/prototype-layout/project-layout';
 import type { JavaObjectReadResult } from '@/infrastructure/java-backend/object-read-contract';
 import { cn } from '@/lib/utils';
 
 type Row = JavaObjectReadResult['page']['rows'][number];
 const charts = {
-  'single-value-metric': { label: '指标卡', icon: CircleGauge },
+  'single-value-metric': { label: '指标卡', icon: Binary },
   line: { label: '折线图', icon: ChartLine },
   area: { label: '面积图', icon: ChartArea },
   bar: { label: '柱状图', icon: ChartColumn },
@@ -24,6 +24,14 @@ export function chartPlaceholder(family: unknown) {
   return charts[family as keyof typeof charts] ?? { label: typeof family === 'string' && family ? family : '图表类型未保留', icon: Layers3 };
 }
 
+const metricPlaceholder = <svg viewBox="0 0 100 50" className="h-3/4 w-4/5 max-w-32" aria-hidden>
+  {[1, 2, 3].map((digit, index) => <g key={digit} transform={`translate(${8 + index * 29}, 5)`}>
+    <rect width="26" height="40" rx="4" fill="currentColor" fillOpacity=".08" stroke="currentColor" strokeOpacity=".3" />
+    <path d="M0 20h26" stroke="currentColor" strokeOpacity=".2" />
+    <text x="13" y="29" textAnchor="middle" fill="currentColor" fontFamily="ui-monospace, monospace" fontSize="27" fontWeight="600">{digit}</text>
+  </g>)}
+</svg>;
+
 export function PrototypeComponentPreview({ rows, selected, onSelect, thumbnail = false }: {
   rows: Row[]; selected?: string; onSelect?: (row: Row) => void; thumbnail?: boolean;
 }) {
@@ -35,12 +43,7 @@ export function PrototypeComponentPreview({ rows, selected, onSelect, thumbnail 
       {items.map((item) => {
         const { icon: Icon } = chartPlaceholder(item.chartFamily);
         const content = <span className={cn('flex h-full w-full items-center justify-center rounded-sm border border-primary/25 bg-primary/10 text-primary', selected === item.objectId && 'border-primary bg-primary/20 ring-2 ring-inset ring-primary')}>
-          {item.chartFamily === 'single-value-metric' ? <svg viewBox="0 0 100 60" className="h-3/4 w-3/4 max-w-28" aria-hidden>
-            <rect x="10" y="8" width="32" height="5" rx="2" fill="currentColor" opacity=".35" />
-            <rect x="10" y="25" width="42" height="16" rx="3" fill="currentColor" opacity=".65" />
-            <path d="M67 40 76 31 82 35 91 22 M83 22h8v8" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-            <rect x="10" y="49" width="55" height="3" rx="1.5" fill="currentColor" opacity=".2" />
-          </svg> : <Icon className={thumbnail ? 'h-3/5 max-h-5 w-3/5' : 'h-3/5 max-h-20 w-3/5 max-w-24'} strokeWidth={1.5} aria-hidden />}
+          {item.chartFamily === 'single-value-metric' ? metricPlaceholder : <Icon className={thumbnail ? 'h-3/5 max-h-5 w-3/5' : 'h-3/5 max-h-20 w-3/5 max-w-24'} strokeWidth={1.5} aria-hidden />}
         </span>;
         const style = { left: `${item.x}%`, top: `${item.y}%`, width: `${item.width}%`, height: `${item.height}%` };
         const row = rows.find((candidate) => candidate.reference.objectId === item.objectId)!;
