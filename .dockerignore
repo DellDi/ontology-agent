@@ -6,6 +6,7 @@ node_modules
 .env.*
 !.env.example
 .runtime
+.codex-runtime
 .git
 .gitignore
 coverage

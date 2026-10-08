@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     // Non-app framework assets in this repo:
+    ".codex-runtime/**",
     ".agents/**",
     "_bmad/**",
     "_bmad-output/**",
