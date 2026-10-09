@@ -1,0 +1,11 @@
+{
+  "name": "local-dev",
+  "label": "本地开发",
+  "kind": "local",
+  "remoteDatabase": false,
+  "database": {
+    "host": "127.0.0.1",
+    "port": 55432,
+    "name": "ontology_agent_local"
+  }
+}

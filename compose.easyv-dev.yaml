@@ -4,6 +4,8 @@ x-java-image: &java-image
   image: ${ONTOLOGY_JAVA_IMAGE:-ontology-agent-java:easyv-dev}
 
 x-platform-database: &platform-database
+  # 声明环境：工作台与日志据此标识；护栏只对 local-dev 生效（docs/environments.md）。
+  DIP3_ENVIRONMENT: ${DIP3_ENVIRONMENT:-easyv-dev}
   JAVA_DATABASE_URL: ${JAVA_DATABASE_URL:?JAVA_DATABASE_URL is required}
   JAVA_DATABASE_USERNAME: ${JAVA_DATABASE_USERNAME:?JAVA_DATABASE_USERNAME is required}
   JAVA_DATABASE_PASSWORD: ${JAVA_DATABASE_PASSWORD:?JAVA_DATABASE_PASSWORD is required}

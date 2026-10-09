@@ -46,6 +46,11 @@ management:
     health:
       show-details: when_authorized
 dip3:
+  environment:
+    # 声明本进程所属环境：local-dev 只允许连接本机数据库，部署环境必须显式声明（见 docs/environments.md）。
+    name: ${DIP3_ENVIRONMENT:local-dev}
+    label: ${DIP3_ENVIRONMENT_LABEL:}
+    allow-remote-database: ${DIP3_ALLOW_REMOTE_DATABASE:false}
   database:
     # Cube 语义查询使用的 facts 只读角色（DBA 预创建）；空表示本机/开发环境用应用账号直连。
     facts-reader-role: ${FACTS_READER_ROLE:}

@@ -207,6 +207,15 @@ paths:
                 properties:
                   accountLoginAvailable: { type: boolean }
                   urlBridgeEnabled: { type: boolean }
+  /api/runtime/environment:
+    get:
+      summary: Identify which environment this backend process belongs to
+      description: name and label come from the declared DIP3_ENVIRONMENT, never inferred from the database address. Anonymous callers only learn the environment; database host, port and name are returned only to PLATFORM_ADMIN and are otherwise null. remoteDatabase is true only when a local-dev process was explicitly allowed to use a non-local database.
+      responses:
+        '200':
+          description: Declared environment of this process
+          content:
+            application/json: { schema: { $ref: './schemas/runtime-environment.schema.json' } }
   /api/auth/login:
     post:
       summary: Account/password login through the enabled identity providers

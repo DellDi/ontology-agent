@@ -41,6 +41,7 @@ services:
       neo4j:
         condition: service_healthy
     environment:
+      DIP3_ENVIRONMENT: ${DIP3_ENVIRONMENT:-production}
       JAVA_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       JAVA_DATABASE_USERNAME: ${POSTGRES_USER}
       JAVA_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
@@ -82,6 +83,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      DIP3_ENVIRONMENT: ${DIP3_ENVIRONMENT:-production}
       JAVA_DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       JAVA_DATABASE_USERNAME: ${POSTGRES_USER}
       JAVA_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}

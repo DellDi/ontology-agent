@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,30}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "enum": [
+        "local",
+        "shared",
+        "production"
+      ]
+    },
+    "remoteDatabase": {
+      "type": "boolean"
+    },
+    "database": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "type": "string",
+              "minLength": 1
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "host",
+            "port",
+            "name"
+          ]
+        }
+      ]
+    }
+  },
+  "required": [
+    "name",
+    "label",
+    "kind",
+    "remoteDatabase",
+    "database"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime-environment.schema.json"
+}
