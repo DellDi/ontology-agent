@@ -1,6 +1,6 @@
 # Multi-domain Runtime Architecture
 
-> 当前进度以 [Ontology Agent Runtime §14.5](./ontology-agent-runtime.md#145-b6-实施与验收记录2026-10-09) 为准（2026-10-09）：B6 首批原型/区域组件构成、精确组件追问与数据出处已验收发布，easyv-dev Web/backend `57d159e` healthy。后续为 B1.4 业务评分校准与上游不可变输入留存；其他业务指标、正式事件时间线及配置化/C/D 保留独立门禁。本文保留历史基线；Property 恢复依赖真实 ERP 接入。
+> 当前进度以 [Ontology Agent Runtime §14.5](./ontology-agent-runtime.md#145-b6-实施与验收记录2026-10-09) 为准（2026-10-09）：B6 首批原型/区域组件构成、精确组件追问与数据出处已验收发布，easyv-dev Web/backend `57d159e` healthy。插入 [B7 动态呈现与通用对象视图](./ontology-agent-runtime.md#146-b7-插入补充计划动态呈现与通用对象视图2026-10-09待实施)，待实施；B1.4 业务评分校准与上游不可变输入留存按独立依赖并行推进，其他业务指标、正式事件时间线及配置化/C/D 保留独立门禁。本文保留历史基线；Property 恢复依赖真实 ERP 接入。
 
 > 状态：Baseline（2026-08-31）
 > 适用范围：Ontology Agent 的分析运行时、Domain Pack 与未来 Action Runtime
