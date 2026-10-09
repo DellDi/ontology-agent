@@ -33,8 +33,12 @@ derive_cube_db_env() {
 
 compose() {
   local requested_ingest_mode=${INGEST_MODE:-}
+  local requested_web_image=${ONTOLOGY_WEB_IMAGE:-}
+  local requested_java_image=${ONTOLOGY_JAVA_IMAGE:-}
   derive_cube_db_env
   if [[ -n "$requested_ingest_mode" ]]; then export INGEST_MODE="$requested_ingest_mode"; fi
+  if [[ -n "$requested_web_image" ]]; then export ONTOLOGY_WEB_IMAGE="$requested_web_image"; fi
+  if [[ -n "$requested_java_image" ]]; then export ONTOLOGY_JAVA_IMAGE="$requested_java_image"; fi
   if docker compose version >/dev/null 2>&1; then
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
   else
@@ -262,7 +266,11 @@ case "$command" in
   deploy)
     require_env_file
     compose config --quiet
-    compose up -d
+    if (( $# > 1 )); then
+      compose up -d --no-deps "${@:2}"
+    else
+      compose up -d
+    fi
     wait_for_health
     ;;
   health)
@@ -332,7 +340,7 @@ case "$command" in
     wait_for_health
     ;;
   *)
-    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|facts-reader-seed|facts-reader-sql|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy [service...]|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|facts-reader-seed|facts-reader-sql|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
     exit 2
     ;;
 esac
