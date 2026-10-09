@@ -72,12 +72,28 @@ public class IdentityAccountService {
     public IdentityAccount provision(String account, String displayName, String password,
                                      String organizationId, String source, List<String> roles,
                                      String grantedBy) {
+        return provision(account, displayName, password, organizationId, source, roles, grantedBy, true);
+    }
+
+    /** 仅供本地开发种子使用（LocalDevAccountSeed 已限定 local-dev 环境）：不套用平台口令长度策略。 */
+    @Transactional
+    IdentityAccount provisionWithoutPasswordPolicy(String account, String displayName, String password,
+                                                   String organizationId, String source, List<String> roles,
+                                                   String grantedBy) {
+        return provision(account, displayName, password, organizationId, source, roles, grantedBy, false);
+    }
+
+    private IdentityAccount provision(String account, String displayName, String password,
+                                      String organizationId, String source, List<String> roles,
+                                      String grantedBy, boolean enforcePasswordPolicy) {
         String normalized = normalizeAccount(account);
         Optional<IdentityAccount> existing = findByAccount(normalized);
         if (existing.isPresent()) {
             return existing.get();
         }
-        validatePassword(password);
+        if (enforcePasswordPolicy) {
+            validatePassword(password);
+        }
         jdbc.update("""
                         insert into identity.accounts(account, display_name, password_hash, source, organization_id)
                         values (?,?,?,?,?)

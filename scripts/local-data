@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# 本地数据快照：公司平台库（只读）→ 本地平台库。说明见 docs/environments.md 第 10 节。
+#   export  从公司平台库精选导出最近 N 个冻结集及其依赖链（需要公司网络，连接强制只读）
+#   import  把快照导入本地库（仅写本机库；目标非空时拒绝，除非 --replace）
+#   verify  用快照清单逐表核对本地库
+# 不导出：identity（账号）、会话/执行/审计、采集批次原始数据、采集游标。
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+CONTAINER=${LOCAL_DATA_PSQL_CONTAINER:-ontology-agent-local-postgres}
+COMPANY_ENV=${LOCAL_DATA_COMPANY_ENV:-"$ROOT_DIR/.env.company"}
+LOCAL_ENV=${LOCAL_DATA_LOCAL_ENV:-"$ROOT_DIR/.env"}
+
+FACT_TABLES="easyv_ai_application easyv_prototype_task easyv_pipeline_node easyv_forge_generation_task easyv_generation_feedback easyv_prototype_layout easyv_prototype_block easyv_prototype_component easyv_scheme_library"
+ONTOLOGY_COUNT_TABLES="entity_definitions metric_definitions time_semantics factor_definitions"
+
+# 表|行谓词|类型（@SETS@ 冻结集、@PV@ 产品版本、@SV@ 采集版本、@SR@ 采集运行、@PR@ 物化运行均为已校验的 SQL 数组）。
+# 类型 T=导出并导入的数据；D=Flyway 迁移注册的定义表，不导入，只核对内容（忽略 created_at/updated_at）是否一致。
+# 顺序即依赖顺序，导出与导入共用。
+table_specs() {
+  cat <<'SPECS'
+ingestion.source_definitions|true|D
+ingestion.dataset_definitions|true|D
+ingestion.data_product_definitions|true|D
+ingestion.data_product_inputs|true|D
+ingestion.source_ingestion_runs|id = ANY(@SR@)|T
+ingestion.source_dataset_versions|id = ANY(@SV@)|T
+ingestion.product_materialization_runs|id = ANY(@PR@)|T
+ingestion.data_product_versions|id = ANY(@PV@)|T
+ingestion.data_product_version_lineage|product_version_id = ANY(@PV@)|T
+ingestion.dataset_version_sets|set_id = ANY(@SETS@)|T
+ingestion.dataset_version_set_items|set_id = ANY(@SETS@)|T
+SPECS
+  local table
+  for table in $FACT_TABLES; do echo "facts.$table|product_version_id = ANY(@PV@)|T"; done
+}
+
+fail() { echo "错误：$*" >&2; exit 1; }
+note() { echo "· $*"; }
+
+usage() {
+  cat >&2 <<USAGE
+usage: scripts/local-data <command>
+  export [--sets N] [--out DIR]    精选导出最近 N（默认 3）个冻结集；默认输出 snapshots/<时间>
+  import <快照目录> [--replace]    导入本地库；--replace 先清空快照涉及的表（其他表有数据引用时拒绝）
+  verify <快照目录>                逐表核对本地库与快照清单
+USAGE
+  exit 2
+}
+
+env_value() { grep -E "^$2=" "$1" 2>/dev/null | tail -1 | cut -d= -f2- || true; }
+
+# 解析 jdbc:postgresql://host[:port]/db[?...]，结果放入 PJ_HOST / PJ_PORT / PJ_DB。
+parse_jdbc() {
+  if [[ $1 =~ ^jdbc:postgresql://([^/:?]+)(:([0-9]+))?/([^/?]+) ]]; then
+    PJ_HOST=${BASH_REMATCH[1]}; PJ_PORT=${BASH_REMATCH[3]:-5432}; PJ_DB=${BASH_REMATCH[4]}
+  else
+    fail "无法解析数据库地址：$1"
+  fi
+}
+
+require_container() {
+  docker ps --format '{{.Names}}' | grep -qx "$CONTAINER" || fail "找不到运行中的本地 PostgreSQL 容器 ${CONTAINER}（可用 LOCAL_DATA_PSQL_CONTAINER 指定）。"
+}
+
+load_company() {
+  [[ -r $COMPANY_ENV ]] || fail "缺少 ${COMPANY_ENV}（公司平台库凭据，见 docs/environments.md 第 4 节）。"
+  local url; url=$(env_value "$COMPANY_ENV" JAVA_DATABASE_URL)
+  C_USER=$(env_value "$COMPANY_ENV" JAVA_DATABASE_USERNAME); C_PASS=$(env_value "$COMPANY_ENV" JAVA_DATABASE_PASSWORD)
+  [[ -n $url && -n $C_USER && -n $C_PASS ]] || fail "$COMPANY_ENV 缺少 JAVA_DATABASE_URL / USERNAME / PASSWORD。"
+  parse_jdbc "$url"; C_HOST=$PJ_HOST; C_PORT=$PJ_PORT; C_DB=$PJ_DB
+}
+
+load_local() {
+  [[ -r $LOCAL_ENV ]] || fail "缺少 ${LOCAL_ENV}。"
+  local url; url=$(env_value "$LOCAL_ENV" JAVA_DATABASE_URL)
+  L_USER=$(env_value "$LOCAL_ENV" JAVA_DATABASE_USERNAME); L_PASS=$(env_value "$LOCAL_ENV" JAVA_DATABASE_PASSWORD)
+  [[ -n $url && -n $L_USER && -n $L_PASS ]] || fail "$LOCAL_ENV 缺少 JAVA_DATABASE_URL / USERNAME / PASSWORD。"
+  parse_jdbc "$url"
+  case $PJ_HOST in
+    127.0.0.1|localhost|::1|\[::1\]) ;;
+    *) fail "$LOCAL_ENV 的平台库不是本机地址（${PJ_HOST}），本命令只写本机库。" ;;
+  esac
+  L_DB=$PJ_DB
+}
+
+# 公司库：会话级强制只读；UTC 保证两边行文本一致。
+cpsql() {
+  docker exec -e PGPASSWORD="$C_PASS" -e PGCONNECT_TIMEOUT=10 -e PGOPTIONS='-c default_transaction_read_only=on -c TimeZone=UTC' \
+    "$CONTAINER" psql -h "$C_HOST" -p "$C_PORT" -U "$C_USER" -d "$C_DB" -X -A -t -v ON_ERROR_STOP=1 "$@"
+}
+# 本地库：经容器内 socket 连接，不经过任何网络地址。不带 -i，避免吞掉调用方循环的标准输入。
+lpsql() {
+  docker exec -e PGPASSWORD="$L_PASS" -e PGOPTIONS='-c TimeZone=UTC' \
+    "$CONTAINER" psql -U "$L_USER" -d "$L_DB" -X -A -t -v ON_ERROR_STOP=1 "$@"
+}
+# 仅导入使用：从标准输入读取脚本与 COPY 数据。
+lpsql_input() {
+  docker exec -i -e PGPASSWORD="$L_PASS" -e PGOPTIONS='-c TimeZone=UTC' \
+    "$CONTAINER" psql -U "$L_USER" -d "$L_DB" -X -A -t -v ON_ERROR_STOP=1 "$@"
+}
+
+# 把标准输入的标识列表变成 SQL 文本数组；非法字符直接失败，杜绝拼接注入。
+array_literal() {
+  local line items=""
+  while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    [[ $line =~ ^[A-Za-z0-9._:-]+$ ]] || fail "出现非法标识：$line"
+    items="${items:+$items,}'$line'"
+  done
+  [[ -n $items ]] || fail "依赖集合为空，无法导出。"
+  echo "ARRAY[$items]::text[]"
+}
+
+substitute() {
+  local text=$1
+  text=${text//@SETS@/$SETS}; text=${text//@PV@/$PV}; text=${text//@SV@/$SV}; text=${text//@SR@/$SR}; text=${text//@PR@/$PR}
+  echo "$text"
+}
+
+# 表摘要：行数、行内容哈希、列签名。$1 库函数 $2 表 $3 谓词 $4 类型（T/D）
+table_digest() {
+  local run=$1 table=$2 predicate=$3 kind=${4:-T} schema=${2%%.*} name=${2#*.}
+  local rows_hash cols_hash text_expr="t::text"
+  [[ $kind == D ]] && text_expr="(to_jsonb(t) - 'created_at' - 'updated_at')::text"
+  rows_hash=$($run -c "select count(*) || E'\t' || md5(coalesce(string_agg($text_expr, '|' order by ($text_expr) collate \"C\"), '')) from (select * from $table where $predicate) t")
+  cols_hash=$($run -c "select md5(string_agg(column_name || ':' || data_type || ':' || is_nullable, ',' order by ordinal_position)) from information_schema.columns where table_schema = '$schema' and table_name = '$name'")
+  printf '%s\t%s\t%s\n' "$table" "$rows_hash" "$cols_hash"
+}
+
+file_sum() { shasum -a 256 "$1" | cut -d' ' -f1; }
+
+flyway_max() { $1 -c "select max(version::int) from public.flyway_schema_history where success"; }
+ontology_signature() {
+  local run=$1 table sig
+  sig=$($run -c "select coalesce(string_agg(id || ':' || status, ',' order by id), '') from platform.ontology_versions")
+  for table in $ONTOLOGY_COUNT_TABLES; do sig="$sig;$table=$($run -c "select count(*) from platform.ontology_$table")"; done
+  echo "$sig"
+}
+
+cmd_export() {
+  local sets=3 out=""
+  while (( $# )); do
+    case $1 in
+      --sets) sets=${2:-}; shift 2 ;;
+      --out) out=${2:-}; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  [[ $sets =~ ^[0-9]+$ ]] && (( sets >= 1 && sets <= 10 )) || fail "--sets 必须是 1-10 的整数。"
+  require_container; load_company
+  [[ -n $out ]] || out="$ROOT_DIR/snapshots/$(date -u +%Y%m%dT%H%M%SZ)"
+  [[ ! -e $out ]] || fail "输出目录已存在：$out"
+  cpsql -c "select 1" >/dev/null || fail "无法连接公司平台库 $C_HOST:$C_PORT/${C_DB}（需要公司网络）。"
+  note "公司平台库 $C_HOST:$C_PORT/${C_DB}（只读会话），导出最近 $sets 个冻结集"
+
+  SETS=$(cpsql -c "select set_id from ingestion.dataset_version_sets where status = 'frozen' order by captured_at desc, set_id desc limit $sets" | array_literal)
+  PV=$(cpsql -c "select product_version_id from ingestion.dataset_version_set_items where set_id = ANY($SETS)" | array_literal)
+  local seed="select source_dataset_version_id from ingestion.data_product_version_lineage where product_version_id = ANY($PV)" table
+  for table in $FACT_TABLES; do seed="$seed union select source_dataset_version_id from facts.$table where product_version_id = ANY($PV)"; done
+  SV=$(cpsql -c "with recursive s(id) as ($seed union select v.parent_version_id from ingestion.source_dataset_versions v join s on v.id = s.id where v.parent_version_id is not null) select id from s where id is not null" | array_literal)
+  PR=$(cpsql -c "select materialization_run_id from ingestion.data_product_versions where id = ANY($PV)" | array_literal)
+  SR=$(cpsql -c "select source_ingestion_run_id from ingestion.source_dataset_versions where id = ANY($SV)" | array_literal)
+
+  mkdir -p "$out"; chmod 700 "$out"
+  local manifest="$out/manifest.tsv" spec predicate rows file lines
+  {
+    printf '#snapshot\t%s\n' "$(basename "$out")"
+    printf '#created_at\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf '#source\t%s:%s/%s\n' "$C_HOST" "$C_PORT" "$C_DB"
+    printf '#flyway_max\t%s\n' "$(flyway_max cpsql)"
+    printf '#ontology\t%s\n' "$(ontology_signature cpsql)"
+    printf '#sets\t%s\n' "$(cpsql -c "select string_agg(set_id || '@' || to_char(captured_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') || '#' || (select count(*) from ingestion.dataset_version_set_items i where i.set_id = s.set_id), ',' order by captured_at desc) from ingestion.dataset_version_sets s where set_id = ANY($SETS)")"
+  } > "$manifest"
+  local kind
+  table_specs | while IFS='|' read -r table predicate kind; do
+    predicate=$(substitute "$predicate")
+    spec=$(table_digest cpsql "$table" "$predicate" "$kind")
+    rows=$(echo "$spec" | cut -f2)
+    if [[ $kind == T ]]; then
+      file="$out/$table.copy"
+      cpsql -c "COPY (SELECT * FROM $table WHERE $predicate) TO STDOUT" > "$file"
+      lines=$(wc -l < "$file" | tr -d ' ')
+      [[ $lines == "$rows" ]] || fail "$table 导出行数不一致：文件 ${lines}，查询 ${rows}（源数据在导出期间发生了变化，请重新导出）。"
+    fi
+    printf '%s\t%s\t%s\n' "$kind" "$spec" "$([[ $kind == T ]] && file_sum "$file" || echo -)" >> "$manifest"
+    note "$(printf '%-48s %8s 行%s' "$table" "$rows" "$([[ $kind == D ]] && echo '（定义表：只核对，不导入）')")"
+  done
+  chmod 600 "$out"/*
+  note "快照：${out}（$(du -sh "$out" | cut -f1)）"
+  echo "下一步：scripts/local-data import \"$out\""
+}
+
+manifest_value() { grep -E "^#$2"$'\t' "$1/manifest.tsv" | head -1 | cut -f2-; }
+
+require_snapshot() {
+  [[ -d ${1:-} && -r ${1:-}/manifest.tsv ]] || fail "不是有效的快照目录：${1:-（未指定）}"
+}
+
+compare_environment() {
+  local dir=$1 local_flyway
+  local_flyway=$(flyway_max lpsql)
+  [[ $(manifest_value "$dir" flyway_max) == "$local_flyway" ]] || fail "迁移版本不一致：快照 $(manifest_value "$dir" flyway_max)，本地 ${local_flyway}。先对本地库执行 scripts/local-dev migrate，或重新导出。"
+  [[ $(manifest_value "$dir" ontology) == "$(ontology_signature lpsql)" ]] || fail "本体版本或定义数量与快照不一致：快照 $(manifest_value "$dir" ontology)，本地 $(ontology_signature lpsql)。"
+}
+
+cmd_verify() {
+  local dir=${1:-}; require_snapshot "$dir"; require_container; load_local
+  compare_environment "$dir"
+  local bad=0 tag table rows hash cols actual
+  while IFS=$'\t' read -r tag table rows hash cols filesum; do
+    [[ $tag == T || $tag == D ]] || continue
+    actual=$(table_digest lpsql "$table" true "$tag")
+    if [[ $actual == "$(printf '%s\t%s\t%s\t%s' "$table" "$rows" "$hash" "$cols")" ]]; then
+      note "$(printf '通过 %-46s %8s 行' "$table" "$rows")"
+    else
+      echo "× 不一致 ${table}：快照 $rows 行；本地 $(echo "$actual" | cut -f2) 行；内容/列签名$([[ $(echo "$actual" | cut -f3,4) == "$(printf '%s\t%s' "$hash" "$cols")" ]] && echo 相同 || echo 不同)" >&2
+      bad=$((bad + 1))
+    fi
+  done < "$dir/manifest.tsv"
+  local frozen set_id
+  for set_id in $(manifest_value "$dir" sets | tr ',' '\n' | cut -d@ -f1); do
+    frozen=$(lpsql -c "select count(*) from ingestion.dataset_version_sets where set_id = '$set_id' and status = 'frozen'")
+    [[ $frozen == 1 ]] || { echo "× 冻结集 $set_id 在本地不是 frozen 状态" >&2; bad=$((bad + 1)); }
+  done
+  (( bad == 0 )) || fail "核对失败：$bad 项不一致。"
+  note "核对通过：本地库与快照 $(manifest_value "$dir" snapshot) 逐表一致"
+}
+
+cmd_import() {
+  local dir=${1:-} replace=0; shift || true
+  while (( $# )); do case $1 in --replace) replace=1; shift ;; *) usage ;; esac; done
+  require_snapshot "$dir"; require_container; load_local
+  compare_environment "$dir"
+  local tag table rows hash cols local_cols count
+  local all="" load="" skipped="" conflicts=""
+  while IFS=$'\t' read -r tag table rows hash cols filesum; do
+    if [[ $tag == D ]]; then
+      [[ $(table_digest lpsql "$table" true D) == "$(printf '%s\t%s\t%s\t%s' "$table" "$rows" "$hash" "$cols")" ]] \
+        || fail "定义表 ${table} 的内容与快照不一致（忽略时间戳）：本地迁移版本或代码与公司环境不同，不能导入依赖它的数据。"
+      continue
+    fi
+    [[ $tag == T ]] || continue
+    [[ -r $dir/$table.copy ]] || fail "快照缺少 $table.copy"
+    [[ $(file_sum "$dir/$table.copy") == "$filesum" ]] || fail "快照文件 ${table}.copy 的校验和与清单不符（已损坏或被改动），未写入本地库。"
+    local_cols=$(lpsql -c "select md5(string_agg(column_name || ':' || data_type || ':' || is_nullable, ',' order by ordinal_position)) from information_schema.columns where table_schema = '${table%%.*}' and table_name = '${table#*.}'")
+    [[ $cols == "$local_cols" ]] || fail "$table 的列定义与快照不一致，请先迁移本地库或重新导出。"
+    all="${all:+$all,}$table"
+    count=$(lpsql -c "select count(*) from $table")
+    if [[ $count == 0 ]]; then
+      load="${load:+$load,}$table"
+    elif [[ $(table_digest lpsql "$table" true T) == "$(printf '%s\t%s\t%s\t%s' "$table" "$rows" "$hash" "$cols")" ]]; then
+      skipped="${skipped:+$skipped,}$table"   # 已存在且与快照一致（重复导入）
+    else
+      conflicts="$conflicts $table($count)"
+    fi
+  done < "$dir/manifest.tsv"
+
+  local truncate=""
+  if (( replace )); then
+    # 清空全部快照表后重新导入；被其他表引用且这些表有数据时拒绝，不做连带删除。
+    local list outside
+    list=$(printf "'%s'::regclass," ${all//,/ } | sed 's/,$//')
+    for outside in $(lpsql -c "select distinct conrelid::regclass::text from pg_constraint where contype = 'f' and confrelid = ANY(ARRAY[$list]) and conrelid <> ALL(ARRAY[$list])"); do
+      [[ $(lpsql -c "select count(*) from $outside") == 0 ]] || fail "$outside 引用了将被清空的表且有数据，--replace 不会删除它们。"
+    done
+    truncate="TRUNCATE $all CASCADE;"; load=$all; skipped=""
+  elif [[ -n $conflicts ]]; then
+    fail "本地库已有与快照不同的数据，拒绝导入：${conflicts}。确认要覆盖快照涉及的表时加 --replace。"
+  fi
+  [[ -z $skipped ]] || note "已存在且与快照一致，跳过：${skipped//,/ }"
+  [[ -n $load ]] || { note "没有需要导入的表"; cmd_verify "$dir"; return; }
+
+  note "导入本地库 ${L_DB}：$(manifest_value "$dir" snapshot)（冻结集 $(manifest_value "$dir" sets | tr ',' '\n' | cut -d@ -f1 | tr '\n' ' ')）"
+  {
+    echo '\set ON_ERROR_STOP on'
+    echo 'BEGIN;'
+    # 快照中的行本就是已发布的不可变数据；导入期间临时关闭触发器与外键检查，提交后由 verify 逐表核对。
+    echo "SET LOCAL session_replication_role = replica;"
+    [[ -z $truncate ]] || echo "$truncate"
+    while IFS=$'\t' read -r tag table rows hash cols filesum; do
+      [[ $tag == T ]] || continue
+      case ",$load," in *",$table,"*) ;; *) continue ;; esac
+      echo "COPY $table FROM stdin;"
+      cat "$dir/$table.copy"
+      printf '%s\n' '\.'
+    done < "$dir/manifest.tsv"
+    echo 'COMMIT;'
+  } | lpsql_input -q >/dev/null
+  cmd_verify "$dir"
+}
+
+case "${1:-}" in
+  export) shift; cmd_export "$@" ;;
+  import) shift; cmd_import "$@" ;;
+  verify) shift; cmd_verify "$@" ;;
+  *) usage ;;
+esac

@@ -58,3 +58,6 @@ docs/original-mysql/*.sql
 
 # scripts/easyv-dev backup 默认输出目录：含业务数据与账号，不得入库
 /backups/
+
+# scripts/local-data 导出的真实业务数据快照，不得入库
+/snapshots/

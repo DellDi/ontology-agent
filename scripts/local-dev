@@ -10,6 +10,7 @@ usage() {
 usage: scripts/local-dev <command>
   backend   启动本地 Java API + Worker（读取 .env，连接本机库）
   migrate   对本机库执行 Flyway 迁移后退出
+  accounts  创建本地开发账号（与 easyv-dev 验收账号同形；口令默认 123456，可用 LOCAL_ACCOUNTS_PASSWORD 覆盖）
   web       启动本地 Web（http://127.0.0.1:\${APP_PORT:-3000}）
   status    查看本地容器、端口与后端声明的环境
 USAGE
@@ -53,6 +54,11 @@ case "${1:-}" in
   migrate)
     load_env
     exec mise exec "$JAVA_TOOL" -- mvn -f "$ROOT_DIR/backend-java/pom.xml" -q spring-boot:run -Dspring-boot.run.profiles=migrate
+    ;;
+  accounts)
+    load_env
+    export LOCAL_ACCOUNTS_PASSWORD=${LOCAL_ACCOUNTS_PASSWORD:-123456}
+    exec mise exec "$JAVA_TOOL" -- mvn -f "$ROOT_DIR/backend-java/pom.xml" -q spring-boot:run -Dspring-boot.run.profiles=local-accounts
     ;;
   web)
     load_env
