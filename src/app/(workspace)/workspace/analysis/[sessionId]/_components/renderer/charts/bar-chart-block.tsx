@@ -13,34 +13,16 @@ import {
 } from 'recharts';
 
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
+import { chartSeriesView } from '@/application/analysis-interaction/chart-table-view';
 import type { ResultDrilldownActions } from '../result-drilldown';
 
 import {
-  asItemArray,
   CHART_AXIS_TICK,
   CHART_GRID,
   CHART_PALETTE,
   ChartShell,
   truncateLabel,
 } from './recharts-shared';
-
-function extractBarData(block: AnalysisRenderedBlock) {
-  const series = asItemArray(block.payload.series);
-  const points = series.map(entry => asItemArray(entry.points));
-  const labels = [...new Set(points.flatMap(entries => entries.map(point => String(point.label ?? ''))))];
-  const byLabel = points.map(entries => new Map(entries.map(point => [String(point.label ?? ''), point.value])));
-  return { seriesNames: series.map(entry => String(entry.name)), data: labels.map(label => {
-    const row: Record<string, string | number | null> = {
-      label,
-      shortLabel: truncateLabel(label),
-    };
-    byLabel.forEach((values, index) => {
-      const value = values.get(label);
-      row[`value-${index}`] = typeof value === 'number' && Number.isFinite(value) ? value : null;
-    });
-    return row;
-  }) };
-}
 
 export function BarChartBlock({
   block,
@@ -51,7 +33,8 @@ export function BarChartBlock({
   flat?: boolean;
   drilldown?: ResultDrilldownActions;
 }) {
-  const { data, seriesNames } = extractBarData(block);
+  const { data: rows, seriesNames, pointRows } = chartSeriesView(block.payload);
+  const data = rows.map(row => ({ ...row, shortLabel: truncateLabel(row.label) }));
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
       ? block.title
@@ -91,20 +74,22 @@ export function BarChartBlock({
           />
           {seriesNames.length > 1 ? <Legend /> : null}
           {seriesNames.map((name, seriesIndex) => <Bar key={`series-${seriesIndex}`} name={name} dataKey={`value-${seriesIndex}`} radius={[4, 4, 0, 0]}>
-            {data.map((point, index) => (
+            {data.map((point, index) => {
+              const sourceRow = pointRows[index][seriesIndex];
+              return (
               <Cell
                 key={index}
                 fill={CHART_PALETTE[(seriesNames.length === 1 ? index : seriesIndex) % CHART_PALETTE.length]}
-                {...(drilldown?.has(index, seriesIndex) ? {
+                {...(sourceRow !== null && drilldown?.has(sourceRow, seriesIndex) ? {
                   role: 'button', tabIndex: 0, 'aria-label': `查看${point.label}的支撑对象`,
                   className: 'cursor-pointer focus-visible:outline-none focus-visible:stroke-primary focus-visible:stroke-2',
-                  onClick: () => drilldown.open(index, seriesIndex),
+                  onClick: () => drilldown.open(sourceRow!, seriesIndex),
                   onKeyDown: (event: React.KeyboardEvent<SVGElement>) => {
-                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); drilldown.open(index, seriesIndex); }
+                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); drilldown.open(sourceRow!, seriesIndex); }
                   },
                 } : {})}
               />
-            ))}
+            ); })}
           </Bar>)}
         </BarChart>
       </ResponsiveContainer>
