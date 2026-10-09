@@ -1,6 +1,6 @@
 # 统一 Ontology 数据底座实施计划
 
-> 当前进度以 [Ontology Agent Runtime §14.5](./ontology-agent-runtime.md#145-b6-实施与验收记录2026-10-09) 为准（2026-10-09）：B6 首批原型/区域组件构成、精确组件追问与数据出处已验收发布，easyv-dev Web/backend `57d159e` healthy。插入 [B7 动态呈现与通用对象视图](./ontology-agent-runtime.md#146-b7-插入补充计划动态呈现与通用对象视图2026-10-09实施中)，B7.1 已完成、B7.2 首批本地实现通过门禁，未发布，证据见 [§14.7](./ontology-agent-runtime.md#147-b71-审计与-b72-首批本地实现2026-10-09)；B1.4 业务评分校准与上游不可变输入留存按独立依赖并行推进，其他业务指标、正式事件时间线及配置化/C/D 保留独立门禁。本文保留历史基线；Property 恢复依赖真实 ERP 接入。
+> 当前进度以 [Ontology Agent Runtime §14.5](./ontology-agent-runtime.md#145-b6-实施与验收记录2026-10-09) 为准（2026-10-09）：B6 首批原型/区域组件构成、精确组件追问与数据出处已验收发布，easyv-dev Web/backend `57d159e` healthy。插入 [B7 动态呈现与通用对象视图](./ontology-agent-runtime.md#146-b7-插入补充计划动态呈现与通用对象视图2026-10-09实施中)，B7.1 已完成、B7.2 与 B7.3 首批本地实现通过门禁，均未发布，证据见 [§14.7](./ontology-agent-runtime.md#147-b71-审计与-b72-首批本地实现2026-10-09)、[§14.8](./ontology-agent-runtime.md#148-b73-首批本地实现ai-应用与原型对象共用集合详情2026-10-09)；B1.4 业务评分校准与上游不可变输入留存按独立依赖并行推进，其他业务指标、正式事件时间线及配置化/C/D 保留独立门禁。本文保留历史基线；Property 恢复依赖真实 ERP 接入。
 
 > 状态：执行中。P0 已完成 EasyV 源表事实审计；P1 已建立两阶段控制面 schema、通用 Java 契约、
 > 静态引用校验与 PostgreSQL 状态机/持久化适配器；P2 已完成通用 PostgreSQL Connector、
@@ -317,7 +317,7 @@ tie breaker、真实 `jsonb`、多页 batch、第二 dataset 失败不推进 cur
 
 验收：Testcontainers 中完成 full、incremental、失败恢复和 tombstone；源库无写入。
 
-### P3：EasyV Domain Data Pack（真实链路已通过，口径冻结待办）
+### P3：EasyV Domain Data Pack（真实链路与当前查询口径对账已完成）
 
 - [x] 注册五个 EasyV source dataset 与 canonical product；
 - [x] 实现当前能力所需字段清洗、强类型 facts、typed canonical transform 和 version-level lineage；
@@ -325,22 +325,21 @@ tie breaker、真实 `jsonb`、多页 batch、第二 dataset 失败不推进 cur
   coverage 和失败语义的开发测试；
 - [x] 在 `easyv-dev` 对真实开发源库执行 full 与零变更 incremental，源行数前后保持
   493 / 414 / 10,223 / 476 / 1,844；增量发布产生完整 v2 product versions，而非清空 facts；
-- [ ] 人工核对 canonical 聚合和现有 golden query；
+- [x] 核对当前 canonical 聚合与 golden query：A0 同冻结集逐行等价验证见 `ontology-agent-runtime.md` §9；2026-10-08 真实源 JSON/独立 SQL/界面统计对账见 §12.3 B2.6。此项不认证适配规则或历史生成评分。
 - [x] 已实现当前明确的敏感字段边界（例如失败原因只保存 hash），但不扩展未审计字段；
 - [x] 冻结 Application `is_delete`/`is_deleted` 口径：源 `is_delete='1'` 作为 tombstone 写入
   `facts.easyv_ai_application.is_deleted` 并随 product version 保留；问数只统计 active 行。
   Prototype / Pipeline / Forge / Feedback 无独立删除字段，跟随 active Application。物理删除与
   更长 history 保留策略不在本阶段宣称。
 
-验收尚未完成：真实 source gate、canonical 行数、批次、版本、lineage 与删除口径已有证据；人工
-golden query 仍待确认。
+当前查询口径对账已完成：真实 source gate、canonical 行数、批次、版本、lineage、删除口径及同冻结集查询已有证据；原型结构扩展与最新真实源对账见 `ontology-agent-runtime.md` §12.3 B2.6。评分校准与历史原始输入认证独立保留待办。
 
 ### P4：Agent Runtime 切换（EasyV 联合门禁已完成）
 
 - [x] EasyV capability 改读平台 `facts`，运行时入口为 `EasyVCanonicalFactAdapter`（已由 `EasyVSemanticAgent` + `SemanticQueryPort`（Cube）替代，见 `ontology-agent-runtime.md` §7）；
 - [x] source credential 只出现在 ingestion source connector 配置边界，canonical runtime 不直连来源表；
 - [x] Job/Execution/Snapshot/Evidence metadata 保存并校验 `DatasetVersionSet` binding；
-- [x] Follow-up 与 retry 继承原 dataset binding；
+- [x] 执行与 retry 使用冻结 dataset binding；普通追问绑定最新完整集合，明确选中对象的追问沿用来源集合（当前规则见 `ontology-agent-runtime.md` §12.3 B2.6）。
 - [x] 已删除旧 runtime source-reader 引用并切换到 `EasyVCanonicalFactAdapter`；剩余的
   EasyV PostgreSQL 配置只承担 ingestion source connection；
 - [x] 在 `easyv-dev` 部署中阻断 Backend 到 EasyV 源库的非 ingestion 访问，并完成完整 Java、Web contract、

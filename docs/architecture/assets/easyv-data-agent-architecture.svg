@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">本体驱动的 Data Agent 架构</title>
+  <desc id="desc">EasyV 当前只读实现。用户经工作台和 Java API 绑定身份、能力、授权范围及版本，由有限多步 Agent 调用指标查询、对象查询与领域评估。工具读取独立采集 Worker 发布的冻结事实，结果与证据返回 Agent 继续规划，并经回答生成与引用校验呈现。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0 0L8 4L0 8Z" fill="#2563b8"/></marker>
+    <style>
+      text{font-family:'PingFang SC','Microsoft YaHei',Arial,sans-serif;fill:#142e53}
+      .title{font-size:54px;font-weight:600}.subtitle{font-size:26px;fill:#58708f}
+      .heading{font-size:31px;font-weight:600}.body{font-size:25px}.meta{font-size:22px;fill:#506884}
+      .section{font-size:24px;font-weight:600;fill:#345987}.light{fill:#fff}
+      .card{fill:#fff;stroke:#7395c5;stroke-width:1.8}.wash{fill:#eef5fc}.line{fill:none;stroke:#2563b8;stroke-width:2.6}
+      .dotted{fill:none;stroke:#6796cd;stroke-width:2.4;stroke-dasharray:4 7}.foot{font-size:20px;fill:#647a95}
+    </style>
+  </defs>
+  <rect width="1920" height="1080" fill="#fff"/>
+  <rect x="72" y="53" width="7" height="81" rx="3" fill="#2563b8"/>
+  <text class="title" x="101" y="94">本体驱动的 Data Agent 架构</text>
+  <text class="subtitle" x="101" y="138">EasyV 当前实现 · 从自然语言到可追溯的业务结论</text>
+  <text class="meta" x="1778" y="91" text-anchor="end">CURRENT ARCHITECTURE</text>
+  <text class="meta" x="1778" y="126" text-anchor="end">2026.10</text>
+
+  <!-- Ontology supplies the catalog to the Agent; it is not an end-user data source. -->
+  <path class="dotted" d="M174 340V184H1437V220" marker-end="url(#arrow)"/>
+  <rect x="830" y="165" width="208" height="31" fill="#fff"/>
+  <text class="meta" x="934" y="189" text-anchor="middle">提供目录与语义定义</text>
+
+  <!-- Request and execution binding. -->
+  <rect class="card" x="345" y="220" width="405" height="148" rx="12"/>
+  <text class="heading" x="547" y="267" text-anchor="middle">用户与工作台</text>
+  <text class="body" x="547" y="309" text-anchor="middle">提问 · 对象选择 · 追问</text>
+  <text class="meta" x="547" y="344" text-anchor="middle">Next.js / Java BFF</text>
+  <path class="line" d="M750 294H788" marker-end="url(#arrow)"/>
+  <rect class="card" x="790" y="220" width="405" height="148" rx="12"/>
+  <text class="heading" x="992" y="267" text-anchor="middle">API 与执行绑定</text>
+  <text class="body" x="992" y="309" text-anchor="middle">身份 · 能力 · 授权范围</text>
+  <text class="meta" x="992" y="344" text-anchor="middle">本体版本 · 数据版本</text>
+  <path class="line" d="M1195 294H1233" marker-end="url(#arrow)"/>
+  <rect x="1235" y="220" width="405" height="148" rx="12" fill="#f0f6ff" stroke="#2563b8" stroke-width="2"/>
+  <text class="heading" x="1437" y="267" text-anchor="middle">有限多步 Agent</text>
+  <text class="body" x="1437" y="309" text-anchor="middle">规划 → 执行 → 观察 → 再规划</text>
+  <text class="meta" x="1437" y="344" text-anchor="middle">Java Worker / Spring AI</text>
+
+  <!-- Ontology declaration rail. -->
+  <rect x="72" y="340" width="205" height="365" rx="12" fill="#eef5fc" stroke="#aac2df" stroke-width="1.5"/>
+  <rect x="72" y="340" width="205" height="8" rx="4" fill="#2563b8"/>
+  <text class="heading" x="174" y="400" text-anchor="middle">本体语义</text>
+  <text class="body" x="174" y="463" text-anchor="middle">对象 · 属性</text>
+  <text class="body" x="174" y="511" text-anchor="middle">关系 · 指标</text>
+  <text class="body" x="174" y="559" text-anchor="middle">时间 · 范围</text>
+  <path d="M94 611H255" stroke="#c0d2e7" stroke-width="1.4"/>
+  <text class="meta" x="174" y="650" text-anchor="middle">Java</text>
+  <text class="meta" x="174" y="680" text-anchor="middle">SemanticModel</text>
+
+  <!-- The tool bus is selected by the Agent. -->
+  <rect x="325" y="433" width="1335" height="238" rx="14" fill="#f4f8fd"/>
+  <path class="line" d="M1437 368V405H547V476" marker-end="url(#arrow)"/>
+  <path class="line" d="M992 405V476" marker-end="url(#arrow)"/>
+  <path class="line" d="M1437 405V476" marker-end="url(#arrow)"/>
+  <text class="section" x="345" y="464">受治理的只读工具</text>
+
+  <rect class="card" x="345" y="476" width="405" height="164" rx="10"/>
+  <path d="M355 476H740Q750 476 750 486V531H345V486Q345 476 355 476Z" fill="#174a85"/>
+  <text class="heading light" x="547" y="514" text-anchor="middle">指标查询</text>
+  <text class="body" x="547" y="577" text-anchor="middle">QueryIntent → Java 编译</text>
+  <text class="body" x="547" y="614" text-anchor="middle">Cube → SQL</text>
+
+  <rect class="card" x="790" y="476" width="405" height="164" rx="10"/>
+  <path d="M800 476H1185Q1195 476 1195 486V531H790V486Q790 476 800 476Z" fill="#174a85"/>
+  <text class="heading light" x="992" y="514" text-anchor="middle">对象查询</text>
+  <text class="body" x="992" y="577" text-anchor="middle">过滤 · 明细 · 关系读取</text>
+  <text class="body" x="992" y="614" text-anchor="middle">PostgreSQL 参数化 SQL</text>
+
+  <rect class="card" x="1235" y="476" width="405" height="164" rx="10"/>
+  <path d="M1245 476H1630Q1640 476 1640 486V531H1235V486Q1235 476 1245 476Z" fill="#174a85"/>
+  <text class="heading light" x="1437" y="514" text-anchor="middle">领域评估</text>
+  <text class="body" x="1437" y="577" text-anchor="middle">结构 · 指标 · 候选方案</text>
+  <text class="body" x="1437" y="614" text-anchor="middle">Java 确定性算法</text>
+
+  <!-- Tools query pinned canonical facts and receive results. -->
+  <path class="line" d="M547 646V720" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <path class="line" d="M992 646V720" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <path class="line" d="M1437 646V720" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+
+  <!-- Separate ingestion pipeline, never source access from the analysis Agent. -->
+  <rect x="72" y="738" width="175" height="76" rx="10" fill="#f5f8fc" stroke="#aac2df" stroke-width="1.5"/>
+  <text class="body" x="159" y="784" text-anchor="middle">EasyV 源库</text>
+  <path class="line" d="M247 776H278" marker-end="url(#arrow)"/>
+  <rect x="280" y="738" width="215" height="76" rx="10" fill="#f5f8fc" stroke="#aac2df" stroke-width="1.5"/>
+  <text class="body" x="387" y="772" text-anchor="middle">独立采集</text>
+  <text class="meta" x="387" y="801" text-anchor="middle">Worker</text>
+  <path class="line" d="M495 776H528" marker-end="url(#arrow)"/>
+  <rect x="530" y="725" width="1110" height="100" rx="12" fill="#eaf3fe" stroke="#aac2df" stroke-width="1.5"/>
+  <text class="heading" x="1085" y="767" text-anchor="middle">冻结事实 · PostgreSQL canonical facts</text>
+  <text class="meta" x="1085" y="802" text-anchor="middle">同一执行使用同一数据版本与授权范围</text>
+
+  <!-- Responses flow to evidence, and observations return to the Agent. -->
+  <path class="line" d="M600 825V865H480V906" marker-end="url(#arrow)"/>
+  <text class="meta" x="622" y="867">查询结果与对象引用</text>
+  <rect class="card" x="345" y="908" width="270" height="90" rx="10"/>
+  <text class="heading" x="480" y="963" text-anchor="middle">结果与证据</text>
+  <path class="line" d="M615 953H723" marker-end="url(#arrow)"/>
+  <rect class="card" x="725" y="908" width="405" height="90" rx="10"/>
+  <text class="heading" x="927" y="963" text-anchor="middle">回答生成与引用校验</text>
+  <path class="line" d="M1130 953H1218" marker-end="url(#arrow)"/>
+  <rect class="card" x="1220" y="908" width="420" height="90" rx="10"/>
+  <text class="body" x="1430" y="947" text-anchor="middle">图表 · 对象 · 原型画布</text>
+  <text class="body" x="1430" y="981" text-anchor="middle">方案比较</text>
+  <path class="line" d="M480 998V1030H1760V294H1644" marker-end="url(#arrow)"/>
+  <rect x="1680" y="537" width="145" height="85" fill="#fff"/>
+  <text class="meta" x="1752" y="566" text-anchor="middle">Observation</text>
+  <text class="meta" x="1752" y="599" text-anchor="middle">依据结果再规划</text>
+  <text class="foot" x="960" y="1065" text-anchor="middle">当前开放：EasyV   ｜   Property 已封存   ｜   适配规则待业务校准</text>
+</svg>
