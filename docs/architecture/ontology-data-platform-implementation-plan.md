@@ -1,6 +1,6 @@
 # 统一 Ontology 数据底座实施计划
 
-> 当前排期以 [Ontology Agent Runtime §6 与 §11](./ontology-agent-runtime.md) 为准：下一交付为 EasyV 原型设计分析（A 扩展 + B1），逐步建立可声明接入与呈现能力。本文保留历史实施基线；Property 恢复依赖真实 ERP 数据接入，不是本轮前置任务。
+> 当前进度以 [Ontology Agent Runtime §14.5](./ontology-agent-runtime.md#145-b6-实施与验收记录2026-10-09) 为准（2026-10-09）：B6 首批原型/区域组件构成、精确组件追问与数据出处已验收发布，easyv-dev Web/backend `57d159e` healthy。后续为 B1.4 业务评分校准与上游不可变输入留存；其他业务指标、正式事件时间线及配置化/C/D 保留独立门禁。本文保留历史基线；Property 恢复依赖真实 ERP 接入。
 
 > 状态：执行中。P0 已完成 EasyV 源表事实审计；P1 已建立两阶段控制面 schema、通用 Java 契约、
 > 静态引用校验与 PostgreSQL 状态机/持久化适配器；P2 已完成通用 PostgreSQL Connector、
