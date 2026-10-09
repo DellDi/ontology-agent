@@ -378,9 +378,9 @@ export function AnalysisAssistantMessage({
               {objectBlocks.map((block, index) => (
                 <button key={`objects-${index}`} type="button"
                   className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => onOpenSidePanel?.({ title: block.title ?? '查看原型', testId: 'analysis-object-drawer',
+                  onClick={() => onOpenSidePanel?.({ title: block.title ?? '对象详情', testId: 'analysis-object-drawer',
                     content: <AnalysisResultBlockRenderer block={block} onObjectSelect={onObjectSelect} /> })}>
-                  查看原型{objectBlocks.length > 1 ? ` · ${block.title}` : ''}
+                  查看对象{objectBlocks.length > 1 ? ` · ${block.title}` : ''}
                 </button>
               ))}
               {detailItemCount > 0 ? (
