@@ -1,4 +1,5 @@
 import 'server-only';
+import { selectSessionCookie } from './session-cookie';
 
 import { headers } from 'next/headers';
 import { z } from 'zod';
@@ -1147,9 +1148,7 @@ export async function readJavaBackend<T>(path: string, schema: z.ZodType<T>): Pr
     accept: 'application/json',
     [CORRELATION_HEADER]: correlationId,
   });
-  const sessionCookie = incoming.get('cookie')?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith('dip3_session='));
+  const sessionCookie = selectSessionCookie(incoming.get('cookie'));
   if (sessionCookie) requestHeaders.set('cookie', sessionCookie);
 
   let response: Response;

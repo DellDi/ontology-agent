@@ -56,6 +56,7 @@ services:
       REDIS_URL: redis://valkey:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-easyv-dev}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dip3_session}
       ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE:-false}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CUBE_API_URL: http://cube:4000/cubejs-api/v1
@@ -99,6 +100,7 @@ services:
       APP_PORT: 3000
       HOSTNAME: 0.0.0.0
       JAVA_BACKEND_URL: http://backend:8080
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dip3_session}
     ports:
       - "${EASYV_DEMO_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000"
     healthcheck:

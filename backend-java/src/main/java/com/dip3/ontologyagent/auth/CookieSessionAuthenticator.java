@@ -5,6 +5,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -28,10 +29,13 @@ public final class CookieSessionAuthenticator {
 
     private final AuthSessionRepository sessions;
     private final byte[] secret;
+    private final String cookieName;
 
-    public CookieSessionAuthenticator(AuthSessionRepository sessions, BackendProperties properties) {
+    public CookieSessionAuthenticator(AuthSessionRepository sessions, BackendProperties properties,
+                                      @Value("${dip3.session-cookie-name:dip3_session}") String cookieName) {
         this.sessions = sessions;
         this.secret = properties.sessionSecret().getBytes(StandardCharsets.UTF_8);
+        this.cookieName = cookieName;
     }
 
     public Optional<AuthSession> authenticate(HttpServletRequest request) {
@@ -42,7 +46,7 @@ public final class CookieSessionAuthenticator {
     /** 校验 Cookie 签名后返回 sessionId（不校验会话是否仍有效，用于登出清理）。 */
     public Optional<String> verifiedSessionId(HttpServletRequest request) {
         String value = Arrays.stream(request.getCookies() == null ? new Cookie[0] : request.getCookies())
-                .filter(cookie -> COOKIE_NAME.equals(cookie.getName()))
+                .filter(cookie -> cookieName.equals(cookie.getName()))
                 .map(Cookie::getValue)
                 .findFirst()
                 .orElse(null);
@@ -56,7 +60,7 @@ public final class CookieSessionAuthenticator {
     }
 
     public ResponseCookie createSessionCookie(String sessionId, boolean secure) {
-        return ResponseCookie.from(COOKIE_NAME, createCookieValue(sessionId))
+        return ResponseCookie.from(cookieName, createCookieValue(sessionId))
                 .httpOnly(true)
                 .sameSite("Lax")
                 .path("/")
@@ -66,7 +70,7 @@ public final class CookieSessionAuthenticator {
     }
 
     public ResponseCookie clearSessionCookie(boolean secure) {
-        return ResponseCookie.from(COOKIE_NAME, "")
+        return ResponseCookie.from(cookieName, "")
                 .httpOnly(true)
                 .sameSite("Lax")
                 .path("/")

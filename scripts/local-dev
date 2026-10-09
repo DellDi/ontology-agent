@@ -31,6 +31,8 @@ load_env() {
     exit 1
   fi
   export DIP3_ENVIRONMENT=local-dev
+  # Cookie 不按端口隔离：3000 的登录不能覆盖 3100 的公司会话。
+  export SESSION_COOKIE_NAME=${SESSION_COOKIE_NAME:-dip3_session_local}
 }
 
 status() {

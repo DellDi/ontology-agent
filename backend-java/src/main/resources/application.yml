@@ -82,6 +82,7 @@ dip3:
       tool-calling: ${LLM_PROVIDER_TOOL_CALLING}
       structured-output: ${LLM_PROVIDER_STRUCTURED_OUTPUT}
   session-secret: ${SESSION_SECRET}
+  session-cookie-name: ${SESSION_COOKIE_NAME:dip3_session}
   redis-key-prefix: ${REDIS_KEY_PREFIX:dip3}
   auth:
     providers:

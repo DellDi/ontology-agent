@@ -1,4 +1,5 @@
 import 'server-only';
+import { selectSessionCookie } from './session-cookie';
 
 import {
   CORRELATION_HEADER,
@@ -34,9 +35,7 @@ function upstreamHeaders(request: Request, correlationId: string) {
     const value = request.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
-  const sessionCookie = request.headers.get('cookie')?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith('dip3_session='));
+  const sessionCookie = selectSessionCookie(request.headers.get('cookie'));
   if (sessionCookie) headers.set('cookie', sessionCookie);
   headers.set(CORRELATION_HEADER, correlationId);
   return headers;
