@@ -27,8 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public class EasyVObjectReadService {
   private static final Logger log = LoggerFactory.getLogger(EasyVObjectReadService.class);
-  private static final Set<String> OBJECTS = Set.of(EasyVOntologyModel.PROTOTYPE_LAYOUT.key(),
-      EasyVOntologyModel.PROTOTYPE_BLOCK.key(), EasyVOntologyModel.PROTOTYPE_COMPONENT.key());
+  private static final Set<String> OBJECTS = EasyVOntologyModel.READABLE_OBJECT_KEYS;
+  private static final Set<String> SUMMARY_OBJECTS = Set.of(EasyVOntologyModel.PROTOTYPE_LAYOUT.key(),
+      EasyVOntologyModel.PROTOTYPE_BLOCK.key());
   private final AnalysisSessionRepository sessions;
   private final OntologyRepository ontologies;
   private final ExecutionRepository executions;
@@ -169,7 +170,7 @@ public class EasyVObjectReadService {
     requireObject(request.objectKey());
     if (Boolean.TRUE.equals(request.includeComponentSummary()) && (request.objectId() == null
         || request.relation() != null || request.drilldownId() != null
-        || EasyVOntologyModel.PROTOTYPE_COMPONENT.key().equals(request.objectKey()))) {
+        || !SUMMARY_OBJECTS.contains(request.objectKey()))) {
       throw new BackendException("OBJECT_QUERY_INVALID", "组件构成统计仅支持原型版式或区域详情。");
     }
     if ((request.limit() != null && (request.limit() < 1 || request.limit() > 200))
@@ -269,6 +270,6 @@ public class EasyVObjectReadService {
   }
 
   private static void requireObject(String key) {
-    if (key == null || !OBJECTS.contains(key)) throw new BackendException("OBJECT_QUERY_INVALID", "当前读取仅支持原型版式、区域与组件。");
+    if (key == null || !OBJECTS.contains(key)) throw new BackendException("OBJECT_QUERY_INVALID", "当前读取仅支持 AI 应用、原型版式、区域与组件。");
   }
 }

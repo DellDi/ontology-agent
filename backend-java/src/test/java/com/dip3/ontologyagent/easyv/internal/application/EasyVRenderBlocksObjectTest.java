@@ -135,7 +135,25 @@ class EasyVRenderBlocksObjectTest {
       assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(filtered), model, "set", PRODUCTS).isEmpty());
     }
     assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(query), model, "set", Set.of("easyv-prototype-block")).isEmpty());
-    assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(query("easyv-ai-application", List.of(), all)), model, "set", PRODUCTS).isEmpty());
+  }
+
+  @Test
+  void applicationCountOpensTheSameBrowserAndExactDrilldownWhileOtherObjectsStayClosed() {
+    var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
+    var application = query("easyv-ai-application", List.of(), all);
+    var browser = EasyVRenderBlocks.objectBrowsers(List.of(application), model, "set-old", PRODUCTS).getFirst();
+    assertEquals("easyv-ai-application", browser.get("objectKey"));
+    assertEquals(List.of(), browser.get("filters"));
+    assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(application), model, "set-old", Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component")).isEmpty(),
+        "缺少应用产品时不能打开读取范围");
+    var block = EasyVRenderBlocks.build(List.of(application), List.of(), model, "set-old").getFirst();
+    assertEquals("easyv-ai-application", bindings(block).getFirst().get("objectKey"));
+    assertEquals(List.of(), bindings(block).getFirst().get("filters"));
+    for (String other : List.of("easyv-prototype", "easyv-forge-task", "easyv-generation-feedback")) {
+      var closed = query(other, List.of(), all);
+      assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(closed), model, "set-old", PRODUCTS).isEmpty(), other);
+      assertFalse(EasyVRenderBlocks.build(List.of(closed), List.of(), model, "set-old").getFirst().containsKey("drilldowns"), other);
+    }
   }
 
   private EasyVSemanticAgent.ExecutedQuery query(String object, List<QueryIntent.Filter> filters, TimeExpression time) {

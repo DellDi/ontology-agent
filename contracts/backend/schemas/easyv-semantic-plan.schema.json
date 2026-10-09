@@ -396,6 +396,7 @@
           "properties": {
             "objectKey": {
               "enum": [
+                "easyv-ai-application",
                 "easyv-prototype-layout",
                 "easyv-prototype-block",
                 "easyv-prototype-component"

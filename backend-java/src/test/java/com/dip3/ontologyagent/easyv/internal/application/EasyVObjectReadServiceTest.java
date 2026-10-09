@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 class EasyVObjectReadServiceTest {
   private static final String LAYOUT = "easyv-prototype-layout";
+  private static final String APPLICATION = "easyv-ai-application";
   private static final Instant NOW = Instant.parse("2026-10-03T12:00:00Z");
   private final AnalysisSessionRepository sessions = mock(AnalysisSessionRepository.class);
   private final OntologyRepository ontologies = mock(OntologyRepository.class);
@@ -203,8 +204,54 @@ class EasyVObjectReadServiceTest {
     assertThrows(BackendException.class, () -> service.read("session", admin, request("app-1", "unknown", "set-old")));
     assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class, () -> service.read("session", admin,
         new EasyVObjectReadService.Request("execution", "set-old", "property-project", null, null, null, null, null, null))).code());
-    assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class, () -> service.read("session", admin,
-        request("app-1", "application", "set-old"))).code());
+  }
+
+  @Test
+  void applicationsReuseTheSameReadPathFrozenVersionAndMetadataWithoutInventedRelations() {
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(APPLICATION, "app-1", "apps-old"), Map.of("appId", "app-1"));
+    doReturn(new ObjectQueryPort.Page(APPLICATION, List.of(row), 20, 0, false)).when(objects).query(any(), any());
+    when(objects.require(eq(APPLICATION), eq("app-1"), any())).thenReturn(row);
+    var list = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", APPLICATION, null, null, null, null, 20, 0));
+    assertEquals(APPLICATION, list.objectType().key());
+    assertEquals("AI 应用", list.objectType().label());
+    assertTrue(list.objectType().properties().stream().anyMatch(property ->
+        property.key().equals("createdAt") && property.type() == OntologyProperty.Type.TIME));
+    assertTrue(list.objectType().links().isEmpty(), "应用没有声明出边关系，不能补造");
+    verify(objects).query(argThat(query -> APPLICATION.equals(query.objectKey())),
+        argThat(access -> "apps-old".equals(access.productVersions().get(APPLICATION))));
+    var detail = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", APPLICATION, "app-1", null, null, null, null, null));
+    assertEquals("apps-old", detail.page().rows().getFirst().reference().productVersionId());
+    assertNull(detail.structure());
+    assertNull(detail.componentSummary());
+    assertTrue(detail.componentGeometry().isEmpty());
+    verifyNoInteractions(structures, queries);
+    verify(datasets, never()).latestFrozen(anySet());
+  }
+
+  @Test
+  void prototypeObjectsExposeAndTraverseTheDeclaredApplicationRelationInTheFrozenScope() {
+    for (String key : List.of(LAYOUT, "easyv-prototype-block", "easyv-prototype-component")) {
+      var type = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", key, null, null, null, null, null, null)).objectType();
+      assertTrue(type.links().stream().anyMatch(link -> link.key().equals("application")
+          && link.targetObjectKey().equals(APPLICATION) && link.targetLabel().equals("AI 应用")), key);
+    }
+    when(objects.related(eq(LAYOUT), eq("app-1"), eq("application"), any(), any()))
+        .thenReturn(new ObjectQueryPort.Page(APPLICATION, List.of(), 50, 0, false));
+    assertEquals(APPLICATION, service.read("session", admin, request("app-1", "application", "set-old")).page().objectKey());
+    verify(objects).related(eq(LAYOUT), eq("app-1"), eq("application"),
+        argThat(query -> APPLICATION.equals(query.objectKey())),
+        argThat(access -> "apps-old".equals(access.productVersions().get(APPLICATION))));
+  }
+
+  @Test
+  void objectsOutsideTheReadableCatalogAndApplicationSummariesAreRejectedBeforeFacts() {
+    for (String key : List.of("easyv-forge-task", "easyv-generation-feedback", "easyv-prototype")) {
+      assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class, () -> service.read("session", admin,
+          new EasyVObjectReadService.Request("execution", "set-old", key, null, null, null, null, null, null))).code(), key);
+    }
+    assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class,
+        () -> service.read("session", admin, summary(APPLICATION, "app-1"))).code());
+    verifyNoInteractions(objects, queries);
   }
 
   @Test

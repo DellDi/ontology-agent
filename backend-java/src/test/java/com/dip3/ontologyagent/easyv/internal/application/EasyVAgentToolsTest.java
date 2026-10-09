@@ -91,6 +91,17 @@ class EasyVAgentToolsTest {
     verify(objects).readDuringExecution(eq(context), eq(ALL), argThat(req -> req.objectId().equals("1:other")));
   }
 
+  @Test void selectedApplicationConstrainsPrototypeToolsWhileApplicationsStayOutsideTheToolCatalog() {
+    var application = row("easyv-ai-application", "1", Map.of("appId", "1"));
+    var run = tools.open(context, ALL, versions, application, List.of());
+    assertEquals(new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS, List.of("1")),
+        run.prepare("query_objects", Map.of("objectKey", COMPONENT)).request().filters().getFirst());
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", "easyv-ai-application")));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("read_object", Map.of("handle", "selected")));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("traverse_objects", Map.of("handle", "selected", "relation", "components")));
+    verifyNoInteractions(objects, assessments);
+  }
+
   @Test void ordinaryFollowUpReauthorizesHistoricalIdentityInCurrentFrozenVersion() {
     var historical = new ObjectQueryPort.Reference(COMPONENT, "1:c", "components-previous");
     var trace = List.of(Map.<String, Object>of("id", "q1", "tool", "read_object", "label", "组件", "input", Map.of("handle", "o1"), "references", List.of(historical)));

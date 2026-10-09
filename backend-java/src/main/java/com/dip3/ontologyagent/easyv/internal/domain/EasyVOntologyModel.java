@@ -11,6 +11,7 @@ import com.dip3.ontologyagent.semantic.api.OntologyProperty.Type;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * EasyV 本体对象声明：Cube 模型与对象/动作工具的唯一来源。
@@ -282,6 +283,10 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
   public static final List<OntologyObjectType> OBJECTS =
       List.of(APPLICATION, PROTOTYPE, PROTOTYPE_LAYOUT, PROTOTYPE_BLOCK, PROTOTYPE_COMPONENT,
           PIPELINE_NODE, PIPELINE_TASK, FORGE_TASK, FEEDBACK);
+
+  /** 对象读取、选择与统计下钻开放的对象；新增对象须同步共享契约枚举（契约测试校验）。 */
+  public static final Set<String> READABLE_OBJECT_KEYS =
+      Set.of(APPLICATION.key(), PROTOTYPE_LAYOUT.key(), PROTOTYPE_BLOCK.key(), PROTOTYPE_COMPONENT.key());
 
   @Override
   public String domainKey() {

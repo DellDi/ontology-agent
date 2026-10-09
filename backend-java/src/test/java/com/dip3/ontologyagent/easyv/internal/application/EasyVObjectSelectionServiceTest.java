@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class EasyVObjectSelectionServiceTest {
   private static final String LAYOUT = "easyv-prototype-layout", BLOCK = "easyv-prototype-block", COMPONENT = "easyv-prototype-component";
+  private static final String APPLICATION = "easyv-ai-application";
   private final ObjectQueryPort objects = mock(ObjectQueryPort.class);
   private final DatasetVersionSetRegistry datasets = mock(DatasetVersionSetRegistry.class);
   private final IdentityAccountService accounts = mock(IdentityAccountService.class);
@@ -73,6 +74,23 @@ class EasyVObjectSelectionServiceTest {
     assertConstraint(COMPONENT, row(LAYOUT, "a", "layouts-old"), "appId", "a");
     assertConstraint(LAYOUT, row(COMPONENT, "a:b:c", "components-old"), "appId", "a");
     assertConstraint("easyv-ai-application", row(BLOCK, "a:b", "blocks-old"), "appId", "a");
+  }
+
+  @Test void applicationsAreSelectableAtTheirExactVersionAndConstrainEveryDeclaredNeighbour() {
+    var application = new ObjectSelection("execution-old", "set-old", new ObjectQueryPort.Reference(APPLICATION, "a", "apps-old"));
+    when(objects.require(eq(APPLICATION), eq("a"), any())).thenReturn(row(APPLICATION, "a", "apps-old"));
+    assertEquals("apps-old", service.require(viewer("PLATFORM_ADMIN"), all, application).object().reference().productVersionId());
+    var forged = new ObjectSelection("execution-old", "set-old", new ObjectQueryPort.Reference(APPLICATION, "a", "apps-new"));
+    assertEquals("OBJECT_VERSION_MISMATCH", assertThrows(BackendException.class, () -> service.require(viewer("PLATFORM_ADMIN"), all, forged)).code());
+    for (String target : List.of(APPLICATION, LAYOUT, BLOCK, COMPONENT, "easyv-forge-task", "easyv-generation-feedback")) {
+      assertConstraint(target, row(APPLICATION, "a", "apps-old"), "appId", "a");
+    }
+  }
+
+  @Test void objectsOutsideTheReadableCatalogCannotBeSelected() {
+    var forgeTask = new ObjectSelection("execution-old", "set-old", new ObjectQueryPort.Reference("easyv-forge-task", "t", "tasks-old"));
+    assertEquals("OBJECT_SELECTION_INVALID", assertThrows(BackendException.class, () -> service.require(viewer("PLATFORM_ADMIN"), all, forgeTask)).code());
+    verifyNoInteractions(objects);
   }
 
   @Test void unrelatedQueryCannotSilentlyDiscardSelectionAndMissingLinkValueCannotBeGuessed() {
