@@ -96,15 +96,39 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
-  void drilldownRejectsUnknownIdChangedTypeAndClientFiltersBeforeFacts() {
+  void drilldownAppendsUserRefinementsAfterSavedFiltersAndNeverReplacesThem() {
+    savedDrilldown();
+    var saved = new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.EQUALS, List.of("L1-a"));
+    var wider = new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.EQUALS, List.of("L1-b"));
+    var refine = new QueryIntent.Filter("parseStatus", QueryIntent.Operator.EQUALS, List.of("ok"));
+    var order = List.of(new QueryIntent.Order("createdAt", QueryIntent.Direction.DESC));
+    var request = new EasyVObjectReadService.Request("execution", "set-old", LAYOUT, null, null, List.of(wider, refine), order, 20, 20, "q1:0:count");
+    var result = service.read("session", admin, request);
+    assertEquals("set-old", result.datasetVersionSetId());
+    verify(objects).query(argThat(query -> query.filters().equals(List.of(saved, wider, refine))
+        && query.order().equals(order) && query.offset() == 20),
+        argThat(access -> "layouts-old".equals(access.productVersions().get(LAYOUT))));
+    verify(datasets, never()).latestFrozen(anySet());
+    clearInvocations(objects);
+    service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", LAYOUT, null, null, null, order, 20, 0, "q1:0:count"));
+    verify(objects).query(argThat(query -> query.filters().equals(List.of(saved)) && query.order().equals(order)), any());
+  }
+
+  @Test
+  void drilldownRejectsUnknownIdChangedTypeReplacedTargetAndFilterOverflowBeforeFacts() {
     savedDrilldown();
     assertEquals("OBJECT_DRILLDOWN_NOT_FOUND", assertThrows(BackendException.class,
         () -> service.read("session", admin, drilldown("q1:wrong:count", LAYOUT, null, 0))).code());
     assertEquals("OBJECT_DRILLDOWN_MISMATCH", assertThrows(BackendException.class,
         () -> service.read("session", admin, drilldown("q1:0:count", "easyv-prototype-block", null, 0))).code());
+    var extra = Collections.nCopies(10, new QueryIntent.Filter("parseStatus", QueryIntent.Operator.EQUALS, List.of("ok")));
     assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class,
-        () -> service.read("session", admin, drilldown("q1:0:count", LAYOUT,
-            List.of(new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.EQUALS, List.of("L1-b"))), 0))).code());
+        () -> service.read("session", admin, drilldown("q1:0:count", LAYOUT, extra, 0))).code(), "已保存过滤加追加筛选合计不能超过 10 项");
+    for (var request : List.of(
+        new EasyVObjectReadService.Request("execution", "set-old", LAYOUT, "app-1", null, null, null, 20, 0, "q1:0:count"),
+        new EasyVObjectReadService.Request("execution", "set-old", LAYOUT, null, "blocks", null, null, 20, 0, "q1:0:count"))) {
+      assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class, () -> service.read("session", admin, request)).code());
+    }
     verifyNoInteractions(objects);
     snapshot(binding, "set-old");
     assertEquals("OBJECT_DRILLDOWN_NOT_FOUND", assertThrows(BackendException.class,

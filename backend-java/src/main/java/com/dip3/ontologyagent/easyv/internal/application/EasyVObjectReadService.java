@@ -139,8 +139,14 @@ public class EasyVObjectReadService {
         if (saved.filters() == null || saved.filters().size() > 10) {
           throw new BackendException("DATABASE_JSON_INVALID", "执行的下钻过滤条件无效：" + request.executionId());
         }
+        // 已保存的统计项过滤永远排在前面且不可替换；用户筛选只能在其上追加（AND），排序不改变集合。
+        List<QueryIntent.Filter> filters = new ArrayList<>(saved.filters());
+        if (request.filters() != null) filters.addAll(request.filters());
+        if (filters.size() > 10) {
+          throw new BackendException("OBJECT_QUERY_INVALID", "统计项过滤与追加筛选合计不能超过 10 项。");
+        }
         return new Request(request.executionId(), request.datasetVersionSetId(), saved.objectKey(), null, null,
-            saved.filters(), null, request.limit(), request.offset());
+            List.copyOf(filters), request.order(), request.limit(), request.offset());
       }
     }
     throw new BackendException("OBJECT_DRILLDOWN_NOT_FOUND", "此执行未保存该统计项的下钻绑定：" + request.drilldownId());
@@ -183,10 +189,8 @@ public class EasyVObjectReadService {
       throw new BackendException("OBJECT_QUERY_INVALID", "关系查询需要源对象 ID 与关系 key。");
     }
     if (request.drilldownId() != null && (request.drilldownId().isBlank() || request.drilldownId().length() > 500
-        || request.objectId() != null || request.relation() != null
-        || (request.filters() != null && !request.filters().isEmpty())
-        || (request.order() != null && !request.order().isEmpty()))) {
-      throw new BackendException("OBJECT_QUERY_INVALID", "统计项下钻只接受已保存的绑定 ID 与分页，不接受替换对象、过滤或排序。");
+        || request.objectId() != null || request.relation() != null)) {
+      throw new BackendException("OBJECT_QUERY_INVALID", "统计项下钻只接受已保存的绑定 ID、分页与进一步缩小范围的筛选和排序，不接受替换对象或关系。");
     }
   }
 
