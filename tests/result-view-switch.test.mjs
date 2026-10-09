@@ -3,8 +3,33 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import tableView from '../src/application/analysis-interaction/chart-table-view.ts';
 
-const { chartTableView, shiftDrilldownColumns } = tableView;
+const { chartTableView, chartSeriesView, shiftDrilldownColumns } = tableView;
 const point = (label, value) => ({ label, value });
+
+test('图形数据 | 缺失点保留为空，真实 0 保留，时间轴补入相邻期间，点位映射回原系列行号', () => {
+  const result = chartSeriesView({ series: [
+    { name: '成功', points: [point('10-01', 5), point('10-03', 7)] },
+    { name: '失败', points: [point('10-01', 1), point('10-02', 0), point('10-03', 2)] },
+  ] });
+  assert.deepEqual(result.data, [
+    { label: '10-01', 'value-0': 5, 'value-1': 1 },
+    { label: '10-02', 'value-0': null, 'value-1': 0 },
+    { label: '10-03', 'value-0': 7, 'value-1': 2 },
+  ]);
+  assert.deepEqual(result.pointRows, [[0, 0], [null, 1], [1, 2]]);
+});
+
+test('图形数据 | 重复标签逐次保留，同名系列不覆盖；对齐数据与表格读数一致', () => {
+  const payload = { chartType: 'line', series: [
+    { name: '数量', points: [point('A', 2), point('B', 0), point('A', 4)] },
+    { name: '数量', points: [point('A', 7), point('B', 3), point('A', 9)] },
+  ] };
+  const graph = chartSeriesView(payload);
+  assert.deepEqual(graph.seriesNames, ['数量', '数量']);
+  assert.deepEqual(graph.pointRows, [[0, 0], [1, 1], [2, 2]]);
+  assert.deepEqual(graph.data.map(row => [row.label, String(row['value-0']), String(row['value-1'])]), chartTableView(payload).rows);
+  assert.deepEqual(graph.data.map(row => row['value-0']), [2, 0, 4]);
+});
 
 test('结果视图 | 图表与表格读取同一份保存数据：分组图用“分组”列，时间序列用“时间”列，数值原样保留', () => {
   const bar = chartTableView({ chartType: 'bar', series: [{ name: '组件数', points: [point('donut', 3), point('line', 2.5)] }] });

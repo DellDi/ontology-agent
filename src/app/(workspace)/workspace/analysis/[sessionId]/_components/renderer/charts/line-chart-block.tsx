@@ -12,65 +12,16 @@ import {
 } from 'recharts';
 
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
+import { chartSeriesView } from '@/application/analysis-interaction/chart-table-view';
 import type { ResultDrilldownActions } from '../result-drilldown';
 
 import {
-  asItemArray,
   CHART_AXIS_TICK,
   CHART_GRID,
   CHART_PALETTE,
   ChartShell,
-  toNumber,
   truncateLabel,
 } from './recharts-shared';
-
-type SeriesView = {
-  name: string;
-  pointsByLabel: Map<string, number>;
-};
-
-function extractMultiSeries(block: AnalysisRenderedBlock): {
-  data: Array<Record<string, number | string>>;
-  seriesNames: string[];
-} {
-  const rawSeries = asItemArray(block.payload.series);
-  const seriesViews: SeriesView[] = rawSeries.map((series, index) => {
-    const name =
-      typeof series.name === 'string' && series.name
-        ? series.name
-        : `系列 ${index + 1}`;
-    const pointsByLabel = new Map<string, number>();
-    for (const point of asItemArray(series.points)) {
-      const label =
-        typeof point.label === 'string' ? point.label : String(point.label ?? '');
-      pointsByLabel.set(label, toNumber(point.value, 0));
-    }
-    return { name, pointsByLabel };
-  });
-
-  // 取所有点的并集作为 x 轴
-  const labelOrder: string[] = [];
-  for (const series of seriesViews) {
-    for (const label of series.pointsByLabel.keys()) {
-      if (!labelOrder.includes(label)) {
-        labelOrder.push(label);
-      }
-    }
-  }
-
-  const data = labelOrder.map((label) => {
-    const row: Record<string, number | string> = {
-      label,
-      shortLabel: truncateLabel(label),
-    };
-    for (const series of seriesViews) {
-      row[series.name] = series.pointsByLabel.get(label) ?? 0;
-    }
-    return row;
-  });
-
-  return { data, seriesNames: seriesViews.map((series) => series.name) };
-}
 
 export function LineChartBlock({
   block,
@@ -81,7 +32,8 @@ export function LineChartBlock({
   flat?: boolean;
   drilldown?: ResultDrilldownActions;
 }) {
-  const { data, seriesNames } = extractMultiSeries(block);
+  const { data: rows, seriesNames, pointRows } = chartSeriesView(block.payload);
+  const data = rows.map(row => ({ ...row, shortLabel: truncateLabel(row.label) }));
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
       ? block.title
@@ -122,21 +74,25 @@ export function LineChartBlock({
           ) : null}
           {seriesNames.map((name, index) => {
             const dot = ({ cx, cy, index: row }: { cx?: number; cy?: number; index?: number }) => {
-              const interactive = row !== undefined && drilldown?.has(row, index);
+              const sourceRow = row === undefined ? null : pointRows[row]?.[index];
+              if (sourceRow == null || cx == null || cy == null) return <g />;
+              const interactive = drilldown?.has(sourceRow, index);
               return <circle cx={cx} cy={cy} r={4} fill={CHART_PALETTE[index % CHART_PALETTE.length]}
                 role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined}
                 aria-label={interactive ? `查看${data[row!]?.label}的${name}支撑对象` : undefined}
                 className={interactive ? 'cursor-pointer focus-visible:outline-none focus-visible:stroke-primary focus-visible:stroke-2' : undefined}
-                onClick={interactive ? () => drilldown?.open(row!, index) : undefined}
+                onClick={interactive ? () => drilldown?.open(sourceRow, index) : undefined}
                 onKeyDown={interactive ? event => { if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault(); drilldown?.open(row!, index);
+                  event.preventDefault(); drilldown?.open(sourceRow, index);
                 } } : undefined} />;
             };
             return (
             <Line
-              key={name}
+              key={`series-${index}`}
+              name={name}
               type="monotone"
-              dataKey={name}
+              dataKey={`value-${index}`}
+              connectNulls={false}
               stroke={CHART_PALETTE[index % CHART_PALETTE.length]}
               strokeWidth={2}
               dot={drilldown ? dot : { r: 3 }}

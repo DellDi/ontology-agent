@@ -139,3 +139,41 @@ test('精确下钻 | 点击只传绑定 ID，三个结果形态使用同一坐�
   assert.match(parsed.html, /查看组件数的支撑对象/);
   assert.match(parsed.tableHtml, /查看第 1 行组件数的支撑对象/);
 });
+
+test('图形回归 | 折线缺失期间不补零、不连线，柱/折线下钻均使用原系列点位，缺失点没有交互', () => {
+  const result = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react';
+    import lines from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/charts/line-chart-block.tsx';
+    import bars from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/charts/bar-chart-block.tsx';
+    const calls = [];
+    const checks = [];
+    const block = { kind: 'chart', payload: { series: [
+      { name: '数量', points: [{ label: '10-01', value: 5 }, { label: '10-03', value: 7 }] },
+      { name: '数量', points: [{ label: '10-01', value: 1 }, { label: '10-02', value: 0 }, { label: '10-03', value: 2 }] }
+    ] }, source: { sourceType: 'execution-render-block' } };
+    const drilldown = { has: (row, column) => { checks.push([row, column]); return true; },
+      open: (row, column) => calls.push([row, column]), reason: null };
+    const line = lines.LineChartBlock({ block, drilldown }).props.children.props.children;
+    const series = React.Children.toArray(line.props.children).filter(child => child.props.dataKey?.startsWith('value-'));
+    const missing = series[0].props.dot({ cx: 20, cy: 30, index: 1 });
+    const noChecksForMissing = checks.length === 0;
+    series[0].props.dot({ cx: 20, cy: 30, index: 2 }).props.onClick();
+    const bar = bars.BarChartBlock({ block, drilldown }).props.children.props.children;
+    const barSeries = React.Children.toArray(bar.props.children).filter(child => child.props.dataKey?.startsWith('value-'));
+    const cells = React.Children.toArray(barSeries[0].props.children);
+    cells[2].props.onKeyDown({ key: 'Enter', preventDefault() {} });
+    console.log(JSON.stringify({ data: line.props.data, barData: bar.props.data, keys: series.map(child => child.props.dataKey),
+      connectNulls: series.map(child => child.props.connectNulls), calls, noChecksForMissing,
+      missingRole: missing.props.role ?? null, barMissingRole: cells[1].props.role ?? null }));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
+  const parsed = JSON.parse(result);
+  assert.deepEqual(parsed.data, parsed.barData);
+  assert.deepEqual(parsed.data.map(row => row['value-0']), [5, null, 7]);
+  assert.deepEqual(parsed.data.map(row => row['value-1']), [1, 0, 2]);
+  assert.deepEqual(parsed.keys, ['value-0', 'value-1'], '同名系列使用独立的数值字段');
+  assert.deepEqual(parsed.connectNulls, [false, false]);
+  assert.deepEqual(parsed.calls, [[1, 0], [1, 0]], '显示第 3 行对应原系列第 2 个点');
+  assert.equal(parsed.noChecksForMissing, true);
+  assert.equal(parsed.missingRole, null);
+  assert.equal(parsed.barMissingRole, null);
+});
