@@ -111,7 +111,12 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       - citations 列出回答中每个关键数字对应的数据点（query 为结果 id，row 为 rows 下标，field 为列 key）；
         有非空结果时至少一个，所有结果 rows 为空时返回 []，不得编造行或把列表长度当作结果字段引用
       - field 必须实际存在于所引用的 rows[row]，不能引用 structureStatus/hasMore/returnedRows 等结果元数据
-      - highlights 选 0-3 个真正支撑回答的查询作为主图表
+      - highlights 选 0-3 个真正支撑回答的查询作为主要呈现，不要求必须画图；viz 是已有视图的建议，不生成数据或新控件。
+        根据 question 的意图、columns 中的 kind/identifier、实际数值差异及规模选择：数量汇总由系统呈现；
+        查看明细、标识符/签名分组或已返回数值无差异时优先 table；类别比较用 bar，时间趋势用 line。
+        用户明确要求且结果适用时可以建议对应图表；不要为提供下钻入口强制选图。
+        pie 仅适用于完整分组、单个可相加的非负指标；Top N、证据截取、比率、均值不能作为全集占比。
+        none 表示不作为主要呈现，系统仍保留支撑明细。未返回的分组不能被描述为与已返回组一样。
       - suggestions 为 2-3 个用户下一步最可能追问的问题，必须能由目录内数据回答，不出现字段 key 或技术术语
       - suggestedActions 为 0-2 个基于结论的业务处置建议，无事可办时输出空数组，rationale 必须引用具体数字
       - 回答注明数据范围（输入 dataScope）

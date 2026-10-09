@@ -400,6 +400,10 @@
             "drilldownUnavailableReason": {
               "type": "string",
               "minLength": 1
+            },
+            "presentationReason": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "dependentRequired": {
@@ -566,6 +570,50 @@
             "drilldowns": [
               "datasetVersionSetId"
             ]
+          },
+          "if": {
+            "properties": {
+              "chartType": {
+                "const": "pie"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "series": {
+                "type": "array",
+                "maxItems": 1,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "number",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      "contains": {
+                        "type": "object",
+                        "required": [
+                          "value"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         {

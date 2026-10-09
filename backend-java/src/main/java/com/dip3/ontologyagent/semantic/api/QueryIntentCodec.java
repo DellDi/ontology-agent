@@ -153,6 +153,7 @@ public final class QueryIntentCodec {
         item.put("key", property.key());
         item.put("label", property.label());
         item.put("type", lower(property.type()));
+        item.put("identifier", property.identifier());
         if (property.description() != null) item.put("description", property.description());
         return item;
       }).toList());

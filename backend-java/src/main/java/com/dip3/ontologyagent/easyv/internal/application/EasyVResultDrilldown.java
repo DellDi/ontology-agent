@@ -69,7 +69,7 @@ final class EasyVResultDrilldown {
       if (!valid || filters.size() > 10) continue;
       int column;
       switch ((String) block.get("type")) {
-        case "table" -> column = columns.indexOf(count.get());
+        case "table" -> column = columns.indexOf(count.get()) + (query.compareRange() != null ? 1 : 0);
         case "chart" -> column = columns.stream().filter(c -> c.kind() == CompiledSemanticQuery.ColumnKind.MEASURE).toList().indexOf(count.get());
         case "kv-list" -> column = columns.stream().filter(c -> c.kind() == CompiledSemanticQuery.ColumnKind.MEASURE).toList().indexOf(count.get())
             * (executed.result().compareRows().isEmpty() ? 1 : 2);

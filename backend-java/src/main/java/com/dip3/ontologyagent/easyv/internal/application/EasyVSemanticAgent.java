@@ -284,6 +284,15 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
           continue;
         }
         List<String> found = new ArrayList<>();
+        for (var highlight : answer == null ? List.<EasyVAnalysisModel.Highlight>of() : answer.highlights()) {
+          if (highlight.viz() == null || !List.of("bar", "line", "pie", "table", "none").contains(highlight.viz())) {
+            found.add("highlight 的 viz 不支持：" + highlight.viz());
+          }
+          if (executed.stream().noneMatch(query -> query.id().equals(highlight.query()))
+              && objectResults.stream().noneMatch(tool -> tool.id().equals(highlight.query()))) {
+            found.add("highlight 的查询不存在：" + highlight.query());
+          }
+        }
         List<GroundedConclusion.EvidenceReference> resolved = references(answer, evidence, found);
         if (found.isEmpty()) {
           references = resolved;
@@ -708,7 +717,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     return new Evidence.Provenance(ontology.versionId(), datasetVersionSetId, versionSet.capturedAt(), versions);
   }
 
-  private static List<Map<String, Object>> projections(List<ExecutedQuery> executed, List<ExecutedTool> objectResults, List<Evidence> evidence) {
+  private List<Map<String, Object>> projections(List<ExecutedQuery> executed, List<ExecutedTool> objectResults, List<Evidence> evidence) {
     Map<String, Evidence> bySource = new LinkedHashMap<>();
     evidence.forEach(item -> bySource.put(item.source(), item));
     List<Map<String, Object>> out = new ArrayList<>();
@@ -728,7 +737,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     return out;
   }
 
-  private static Map<String, Object> projection(String id, String label, String range,
+  private Map<String, Object> projection(String id, String label, String range,
                                                 ResolvedTimeRange coverageRange, ExecutedQuery query,
                                                 List<Map<String, Object>> rows, Evidence evidence) {
     Map<String, Object> out = new LinkedHashMap<>();
@@ -746,7 +755,9 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       out.put("effectiveRange", coverage.effectiveFrom() + " 至 " + coverage.effectiveTo());
     }
     out.put("columns", query.compiled().columns().stream()
-        .map(column -> Map.of("key", column.key(), "label", column.label())).toList());
+        .map(column -> Map.of("key", column.key(), "label", column.label(), "kind", lower(column.kind()),
+            "identifier", column.kind() == CompiledSemanticQuery.ColumnKind.DIMENSION
+                && semantic.resolve(query.compiled().objectKey(), column.key()).property().identifier())).toList());
     out.put("totalRows", rows.size());
     out.put("rows", evidence == null ? List.of() : evidence.rows());
     return out;
