@@ -40,6 +40,57 @@ test('精确下钻 | 缺版本、坏坐标和未知对象类型被拒绝', () =>
     objectKey: binding.objectKey, drilldownId: binding.id, limit: 20, offset: 20 }).success, true);
 });
 
+test('动态呈现 | 表格说明与精确下钻在实时和历史投影保持一致', () => {
+  const block = { type: 'table', title: '版式分组', columns: ['版式签名', '原型数'], rows: [['hash-a', '1']],
+    presentationReason: '已返回分组没有数值差异，使用明细便于查看对象。',
+    ...context, drilldowns: [{ ...binding, column: 1 }] };
+  const validated = validateAnalysisExecutionStreamEvent(event(block)).renderBlocks[0];
+  const source = { sourceType: 'execution-render-block', sessionId: 'session-old', executionId: 'execution-old' };
+  const live = normalizeExecutionRenderBlock(validated, source);
+  const saved = normalizeExecutionRenderBlock(JSON.parse(JSON.stringify(block)), source);
+  assert.equal(live.payload.presentationReason, block.presentationReason);
+  assert.deepEqual(live.payload, saved.payload);
+  const invalid = { ...block, presentationReason: { reason: 'bad' } };
+  assert.throws(() => validateAnalysisExecutionStreamEvent(event(invalid)));
+});
+
+test('动态呈现 | 前端按正式图表类型分派，饼图不会被当作柱图，非法占比数据被拒绝', () => {
+  const result = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import registry from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/block-sub-renderers.tsx';
+    import table from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/charts/data-table-block.tsx';
+    const types = ['bar', 'line', 'pie'].map(chartType => {
+      const renderedBlock = { kind: 'chart', payload: { chartType, series: [{ name: '数量', points: [{ label: 'A', value: 1 }] }] }, source: { sourceType: 'execution-render-block' } };
+      const rendered = registry.renderChartBlock({ renderedBlock });
+      return rendered.props.children[0].type.name;
+    });
+    const multi = registry.renderChartBlock({ renderedBlock: { kind: 'chart', payload: { chartType: 'bar', series: [
+      { name: '数量', points: [{ label: 'A', value: 3 }] }, { name: '金额', points: [{ label: 'A', value: 9 }, { label: 'B', value: 7 }] }
+    ] }, source: { sourceType: 'execution-render-block' } } }).props.children[0];
+    const bars = multi.type(multi.props).props.children.props.children;
+    const data = bars.props.data;
+    const html = renderToStaticMarkup(React.createElement(table.DataTableBlock, {
+      block: { kind: 'table', source: { sourceType: 'execution-render-block' }, payload: { columns: ['签名', '数量'], rows: [['hash-a', '1']], presentationReason: '当前预览 50 行；不是全量对象数。' } }
+    }));
+    console.log(JSON.stringify({ types, multiType: multi.type.name, data, html }));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
+  const parsed = JSON.parse(result);
+  assert.deepEqual(parsed.types, ['BarChartBlock', 'LineChartBlock', 'PieChartBlock']);
+  assert.equal(parsed.multiType, 'BarChartBlock');
+  assert.deepEqual(parsed.data, [{ label: 'A', shortLabel: 'A', 'value-0': 3, 'value-1': 9 },
+    { label: 'B', shortLabel: 'B', 'value-0': null, 'value-1': 7 }]);
+  assert.match(parsed.html, /当前预览 50 行；不是全量对象数/);
+  const pie = { ...chart, chartType: 'pie' };
+  assert.doesNotThrow(() => validateAnalysisExecutionStreamEvent(event(pie)));
+  for (const value of [-1, 0, Infinity]) {
+    const invalid = structuredClone(pie); invalid.series[0].points[0].value = value;
+    assert.throws(() => validateAnalysisExecutionStreamEvent(event(invalid)));
+  }
+  const multiple = structuredClone(pie); multiple.series.push(structuredClone(multiple.series[0]));
+  assert.throws(() => validateAnalysisExecutionStreamEvent(event(multiple)));
+});
+
 test('精确下钻 | 交互结果保留注册表渲染，不被无执行上下文的业务投影覆盖', () => {
   const source = { sourceType: 'execution-render-block', sessionId: 'session-old', executionId: 'execution-old' };
   const block = normalizeExecutionRenderBlock(chart, source);

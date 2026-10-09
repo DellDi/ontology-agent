@@ -88,6 +88,7 @@ export type ExecutionTableBlock = ExecutionStatisticContext & {
   title: string;
   columns: string[];
   rows: string[][];
+  presentationReason?: string;
   role?: ExecutionRenderBlockRole;
 };
 
@@ -333,7 +334,7 @@ function validateChartBlock(
     );
   }
 
-  return {
+  const block: ExecutionChartBlock = {
     ...statisticContext(candidate),
     type: 'chart',
     title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
@@ -368,6 +369,14 @@ function validateChartBlock(
     }),
     unit: assertOptionalString(candidate.unit, 'chart.unit'),
   };
+  if (chartType === 'pie') {
+    const total = block.series[0].points.reduce((sum, point) => sum + point.value, 0);
+    if (block.series.length !== 1 || block.series[0].points.some(point => point.value < 0)
+        || !Number.isFinite(total) || total <= 0) {
+      throw new InvalidAnalysisExecutionStreamEventError('饼图需要单个系列、非负数值和大于零的总量。');
+    }
+  }
+  return block;
 }
 
 function statisticContext(candidate: Record<string, unknown>): ExecutionStatisticContext {
@@ -720,6 +729,7 @@ function validateRenderBlock(
         title: assertNonEmptyString(candidate.title, 'renderBlocks.title'),
         columns: candidate.columns,
         rows: candidate.rows,
+        presentationReason: assertOptionalString(candidate.presentationReason, 'table.presentationReason'),
       };
     case 'chart':
       return validateChartBlock(candidate);

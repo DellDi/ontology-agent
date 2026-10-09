@@ -185,6 +185,7 @@ function payloadFromRenderBlock(block: ExecutionRenderBlock) {
       return stripUndefinedPayload({
         columns: block.columns,
         rows: block.rows,
+        presentationReason: block.presentationReason,
         role: block.role,
         datasetVersionSetId: block.datasetVersionSetId,
         drilldowns: block.drilldowns,
