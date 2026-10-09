@@ -19,6 +19,7 @@ import { EntityGraphBlock } from './charts/entity-graph-block';
 import { LineChartBlock } from './charts/line-chart-block';
 import { PieChartBlock } from './charts/pie-chart-block';
 import { resultDrilldownActions } from './result-drilldown';
+import { ResultViewSwitch } from './result-view-switch';
 
 export function renderTableBlock(input: AnalysisInteractionUiRenderInput) {
   const {
@@ -49,15 +50,17 @@ export function renderChartBlock(input: AnalysisInteractionUiRenderInput) {
       : null;
   const useLine = hint === 'line';
 
+  const chart = hint === 'pie' ? (
+    <PieChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
+  ) : useLine ? (
+    <LineChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
+  ) : (
+    <BarChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
+  );
+
   return (
     <div className={className}>
-      {hint === 'pie' ? (
-        <PieChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
-      ) : useLine ? (
-        <LineChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
-      ) : (
-        <BarChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
-      )}
+      <ResultViewSwitch block={renderedBlock} drilldown={drilldown} embedded={embedded} chart={chart} />
       {drilldown.reason ? <p className="mt-2 text-xs text-muted-foreground">{drilldown.reason}</p> : null}
     </div>
   );
