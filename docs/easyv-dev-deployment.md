@@ -5,10 +5,10 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布（2026-10-08）
+## 当前发布（2026-10-09）
 
-- Web 已更新为 `975d675`，区域列表与组件栅格预览联动；Java API/分析 Worker、独立 release-worker 保持 `8039482`。本次仅以 `up -d --no-deps web` 更新 Web，Java 容器 ID/启动时间未变。平台库 `ontology_agent_test` 已迁移至 V26，真实九产品 FULL/INCREMENTAL/RECONCILE 发布 completed，三次行数/hash 一致。验证详情见 [运行时 B2.6](./architecture/ontology-agent-runtime.md#b26-真实公司源账号验收与发布2026-10-08)。
-- 当前 Web 发布目录 `/opt/ontology-agent-releases/975d675`，`.env.easyv-dev` 指向私有 `/opt/ontology-agent-release-private/b27-runtime-975d675.env`，其中保留 Java `8039482` 镜像和原数据库配置。后续命令在此目录执行；旧 `/opt/ontology-agent` 是保留的历史 checkout，配置缺 Cube 凭据，不能作为当前发布配置使用。
+- Web 和 Java API/分析 Worker 均为 `34f7cbc`、healthy；独立 release-worker 保持 `8039482`。B7 首批动态呈现、通用应用/原型集合详情、排序筛选与图表表格切换通过真实账号验收。平台库 `ontology_agent_test` 沿用 V26；本次没有迁移或重采集，Cube/Cube Store/Valkey/release-worker 容器 ID 和启动时间不变。当前证据见 [运行时 §14.10](./architecture/ontology-agent-runtime.md#1410-b75-首批真实验收环境隔离与发布2026-10-09)，九产品历史发布对账见 §12.3。
+- 当前发布目录 `/opt/ontology-agent-releases/34f7cbc`，`.env.easyv-dev` 沿用私有 `/opt/ontology-agent-release-private/chart-preview-57d159e.env`。私有配置中的历史镜像值仍保留，部署时必须显式指定下面的 Web/Java 镜像参数；脚本已保证这些参数不被私有配置覆盖。旧 `/opt/ontology-agent` 是历史 checkout，不作为当前发布目录。
 - Web 远端绑定 `127.0.0.1:3100`，Java 8080；保持 loopback，不增加公开暴露。个人验证从本机 SSH 隧道访问 [工作台](http://127.0.0.1:3100/workspace)：
 
 ```bash
@@ -16,12 +16,27 @@ ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
   -L 127.0.0.1:3100:127.0.0.1:3100 easyv-dev
 ```
 
-本次本机 3100 隧道已启动；3000 为原本地开发环境，两者数据库不同。迁移前备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20261008093213.dump`，原 80 个产品版本行数/hash 不变。
+本次本机 3100 隧道已启动；3000 为独立本地开发环境，两者数据库不同，具体见 [环境说明](./environments.md)。发布前备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20261009173609.dump`（24MB）；回执在发布目录 `b75-deployment-report.json`。公司保持 `dip3_session`，本地使用 `dip3_session_local`，可在同一浏览器同时登录。
+
+按影响范围只更新应用服务，先 backend 再 Web（本次 Web 依赖新的环境接口）：
+
+```bash
+cd /opt/ontology-agent-releases/34f7cbc
+ONTOLOGY_JAVA_IMAGE=ontology-agent-java:34f7cbc ONTOLOGY_WEB_IMAGE=ontology-agent-web:34f7cbc scripts/easyv-dev deploy backend
+ONTOLOGY_JAVA_IMAGE=ontology-agent-java:34f7cbc ONTOLOGY_WEB_IMAGE=ontology-agent-web:34f7cbc scripts/easyv-dev deploy web
+```
+
+应用回滚使用本次发布前的 `57d159e` 镜像，先 Web 再 backend；无需恢复数据库：
+
+```bash
+ONTOLOGY_JAVA_IMAGE=ontology-agent-java:57d159e ONTOLOGY_WEB_IMAGE=ontology-agent-web:57d159e scripts/easyv-dev deploy web
+ONTOLOGY_JAVA_IMAGE=ontology-agent-java:57d159e ONTOLOGY_WEB_IMAGE=ontology-agent-web:57d159e scripts/easyv-dev deploy backend
+```
 
 独立采集容器重建仍须先加载私有源配置；API/Web 不携带源账号：
 
 ```bash
-cd /opt/ontology-agent-releases/975d675
+cd /opt/ontology-agent-releases/34f7cbc
 scripts/easyv-dev config
 scripts/easyv-dev health
 set -a
@@ -30,7 +45,7 @@ set +a
 scripts/easyv-dev release-worker
 ```
 
-实际非管理员统计/对象/选择追问、第二组合场景、历史与权限边界、桌面/390px 通过。适配规则业务校准和历史原始生成输入认证尚未关闭，发布可用性与完整 B 的评分验收分别记录；不将本次部署描述为生成质量认证。
+本批非管理员动态选型、应用/原型集合与详情、选择追问、历史与权限边界、桌面/390px 通过。真实数百条集合与全部图形覆盖、适配规则业务校准和历史原始生成输入认证尚未关闭，不将本次部署描述为通用完备或生成质量认证。
 
 ## 运行边界
 
