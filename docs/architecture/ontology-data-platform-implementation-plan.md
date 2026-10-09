@@ -1,6 +1,6 @@
 # 统一 Ontology 数据底座实施计划
 
-> 当前进度以 [Ontology Agent Runtime §14.5](./ontology-agent-runtime.md#145-b6-实施与验收记录2026-10-09) 为准（2026-10-09）：B6 首批原型/区域组件构成、精确组件追问与数据出处已验收发布，easyv-dev Web/backend `57d159e` healthy。插入 [B7 动态呈现与通用对象视图](./ontology-agent-runtime.md#146-b7-插入补充计划动态呈现与通用对象视图2026-10-09实施中)，B7.1 已完成、B7.2 与 B7.3 首批本地实现通过门禁，均未发布，证据见 [§14.7](./ontology-agent-runtime.md#147-b71-审计与-b72-首批本地实现2026-10-09)、[§14.8](./ontology-agent-runtime.md#148-b73-首批本地实现ai-应用与原型对象共用集合详情2026-10-09)；B1.4 业务评分校准与上游不可变输入留存按独立依赖并行推进，其他业务指标、正式事件时间线及配置化/C/D 保留独立门禁。本文保留历史基线；Property 恢复依赖真实 ERP 接入。
+> 当前进度以 [Ontology Agent Runtime §14.5](./ontology-agent-runtime.md#145-b6-实施与验收记录2026-10-09) 为准（2026-10-09）：B6 首批原型/区域组件构成、精确组件追问与数据出处已验收发布，easyv-dev Web/backend `57d159e` healthy。插入 [B7 动态呈现与通用对象视图](./ontology-agent-runtime.md#146-b7-插入补充计划动态呈现与通用对象视图2026-10-09实施中)，B7.1 已完成、B7.2 至 B7.4 首批本地实现通过门禁，均未发布，证据见 [§14.7](./ontology-agent-runtime.md#147-b71-审计与-b72-首批本地实现2026-10-09)、[§14.8](./ontology-agent-runtime.md#148-b73-首批本地实现ai-应用与原型对象共用集合详情2026-10-09)、[§14.9](./ontology-agent-runtime.md#149-b74-首批本地实现对象集合排序筛选与图表-表格视图切换2026-10-09)；B1.4 业务评分校准与上游不可变输入留存按独立依赖并行推进，其他业务指标、正式事件时间线及配置化/C/D 保留独立门禁。本文保留历史基线；Property 恢复依赖真实 ERP 接入。
 
 > 状态：执行中。P0 已完成 EasyV 源表事实审计；P1 已建立两阶段控制面 schema、通用 Java 契约、
 > 静态引用校验与 PostgreSQL 状态机/持久化适配器；P2 已完成通用 PostgreSQL Connector、
