@@ -177,7 +177,7 @@ class EasyVAgentToolsTest {
   private ObjectQueryPort.Row row(String key, String id, Map<String, Object> properties) { return new ObjectQueryPort.Row(new ObjectQueryPort.Reference(key, id, versions.get(key)), properties); }
   private EasyVObjectReadService.Result result(String key, ObjectQueryPort.Row row, boolean more) {
     return new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old", new ObjectQueryPort.Page(key, List.of(row), 50, 0, more), null,
-        new EasyVObjectReadService.ObjectTypeView(key, model.require(key).label(), List.of(), List.of()), Map.of());
+        new EasyVObjectReadService.ObjectTypeView(key, model.require(key).label(), List.of(), List.of()), Map.of(), null, null);
   }
   private static EasyVSchemeAssessmentService.Result assessmentFixture() throws Exception {
     Path path = Path.of("../contracts/backend/fixtures/scheme-assessment.json");

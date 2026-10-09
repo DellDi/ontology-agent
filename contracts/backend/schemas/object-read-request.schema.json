@@ -150,6 +150,12 @@
       ],
       "minLength": 1,
       "maxLength": 500
+    },
+    "includeComponentSummary": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
   "required": [
@@ -158,5 +164,42 @@
     "objectKey"
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "object-read-request.schema.json"
+  "$id": "object-read-request.schema.json",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "includeComponentSummary": {
+            "const": true
+          }
+        },
+        "required": [
+          "includeComponentSummary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "objectKey": {
+            "enum": [
+              "easyv-prototype-layout",
+              "easyv-prototype-block"
+            ]
+          },
+          "objectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "type": "null"
+          },
+          "drilldownId": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "objectId"
+        ]
+      }
+    }
+  ]
 }

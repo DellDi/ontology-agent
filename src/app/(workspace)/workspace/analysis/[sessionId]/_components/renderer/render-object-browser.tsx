@@ -19,8 +19,12 @@ type Row = JavaObjectReadResult['page']['rows'][number];
 type Type = JavaObjectReadResult['objectType'];
 type Context = Pick<JavaObjectReadRequest, 'executionId' | 'datasetVersionSetId'> & { sessionId: string };
 
-const browserPayload = javaObjectReadRequestSchema.pick({ datasetVersionSetId: true, objectKey: true, filters: true, drilldownId: true })
-  .extend({ scopeDescription: z.string().min(1), role: z.enum(['primary', 'supporting']).optional() }).strict();
+const browserPayload = z.object({
+  datasetVersionSetId: javaObjectReadRequestSchema.shape.datasetVersionSetId,
+  objectKey: javaObjectReadRequestSchema.shape.objectKey, filters: javaObjectReadRequestSchema.shape.filters,
+  drilldownId: javaObjectReadRequestSchema.shape.drilldownId,
+  scopeDescription: z.string().min(1), role: z.enum(['primary', 'supporting']).optional(),
+}).strict();
 
 function useObjectRead(context: Context, query: Omit<JavaObjectReadRequest, 'executionId' | 'datasetVersionSetId'>, enabled = true) {
   const body = { executionId: context.executionId, datasetVersionSetId: context.datasetVersionSetId, ...query };

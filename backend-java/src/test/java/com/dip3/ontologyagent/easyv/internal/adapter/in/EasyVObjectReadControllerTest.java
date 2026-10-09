@@ -62,7 +62,7 @@ class EasyVObjectReadControllerTest {
             new EasyVObjectReadService.PropertyView("parseStatus", "解析状态", OntologyProperty.Type.STRING),
             new EasyVObjectReadService.PropertyView("parseErrorCode", "解析错误代码", OntologyProperty.Type.STRING),
             new EasyVObjectReadService.PropertyView("blockCount", "区域数", OntologyProperty.Type.NUMBER)),
-            List.of(new EasyVObjectReadService.LinkView("blocks", "easyv-prototype-block", "原型区域"))), Map.of()));
+            List.of(new EasyVObjectReadService.LinkView("blocks", "easyv-prototype-block", "原型区域"))), Map.of(), null, new EasyVObjectReadService.DataContext(java.time.Instant.parse("2026-10-03T12:00:00Z"), "全部数据")));
     String body = mvc.perform(post(PATH).contentType("application/json").content(BODY))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     var json = new JsonCodec();

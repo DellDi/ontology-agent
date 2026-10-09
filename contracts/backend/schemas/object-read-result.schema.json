@@ -303,6 +303,127 @@
           }
         ]
       }
+    },
+    "componentSummary": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "groups": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "chartFamily": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "filter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "member": {
+                    "const": "chartFamily"
+                  },
+                  "operator": {
+                    "enum": [
+                      "EQUALS",
+                      "NOT_SET"
+                    ]
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 1
+                  }
+                },
+                "required": [
+                  "member",
+                  "operator",
+                  "values"
+                ],
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "operator": {
+                          "const": "EQUALS"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "values": {
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "values": {
+                          "maxItems": 0,
+                          "type": "array"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "chartFamily",
+              "count",
+              "filter"
+            ]
+          }
+        }
+      },
+      "required": [
+        "total",
+        "groups"
+      ]
+    },
+    "dataContext": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "scopeDescription": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "capturedAt",
+        "scopeDescription"
+      ]
     }
   },
   "required": [
