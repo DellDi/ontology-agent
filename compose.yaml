@@ -13,6 +13,7 @@ services:
     environment:
       APP_PORT: ${APP_PORT}
       JAVA_BACKEND_URL: http://backend:8080
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dip3_session_local}
     ports:
       - "127.0.0.1:${APP_PORT}:${APP_PORT}"
     volumes:
@@ -94,6 +95,7 @@ services:
       REDIS_URL: redis://redis:6379
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX}
       SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dip3_session_local}
       ENABLE_URL_BRIDGE: ${ENABLE_URL_BRIDGE}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CUBE_API_URL: http://cube:4000/cubejs-api/v1

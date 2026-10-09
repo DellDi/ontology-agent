@@ -30,7 +30,7 @@ class CookieSessionAuthenticatorTest {
                 new AccessScope("org-1", List.of("project-1"), List.of(), List.of("analyst")),
                 Instant.now().plusSeconds(60));
         when(sessions.findValid("session-1")).thenReturn(java.util.Optional.of(expected));
-        CookieSessionAuthenticator authenticator = new CookieSessionAuthenticator(sessions, properties());
+        CookieSessionAuthenticator authenticator = new CookieSessionAuthenticator(sessions, properties(), CookieSessionAuthenticator.COOKIE_NAME);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setCookies(new Cookie(CookieSessionAuthenticator.COOKIE_NAME, signed("session-1")));
 
@@ -41,11 +41,27 @@ class CookieSessionAuthenticatorTest {
     @Test
     void rejectsTamperedCookiesBeforeAnySessionLookup() {
         AuthSessionRepository sessions = mock(AuthSessionRepository.class);
-        CookieSessionAuthenticator authenticator = new CookieSessionAuthenticator(sessions, properties());
+        CookieSessionAuthenticator authenticator = new CookieSessionAuthenticator(sessions, properties(), CookieSessionAuthenticator.COOKIE_NAME);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setCookies(new Cookie(CookieSessionAuthenticator.COOKIE_NAME, "c2Vzc2lvbi0x.invalid"));
 
         assertTrue(authenticator.authenticate(request).isEmpty());
+        verify(sessions, never()).findValid(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void localCookieDoesNotConsumeOrClearTheCompanySession() throws Exception {
+        AuthSessionRepository sessions = mock(AuthSessionRepository.class);
+        CookieSessionAuthenticator local = new CookieSessionAuthenticator(sessions, properties(), "dip3_session_local");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie("dip3_session", signed("company-session")),
+                new Cookie("dip3_session_local", signed("local-session")));
+
+        assertEquals("local-session", local.verifiedSessionId(request).orElseThrow());
+        assertEquals("dip3_session_local", local.createSessionCookie("local-session", false).getName());
+        assertEquals("dip3_session_local", local.clearSessionCookie(false).getName());
+        request.setCookies(new Cookie("dip3_session", signed("company-session")));
+        assertTrue(local.authenticate(request).isEmpty());
         verify(sessions, never()).findValid(org.mockito.ArgumentMatchers.anyString());
     }
 

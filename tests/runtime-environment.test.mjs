@@ -5,15 +5,33 @@ import { execFileSync } from 'node:child_process';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schemaModule from '../src/infrastructure/java-backend/runtime-environment-schema.ts';
 import presentation from '../src/application/runtime-environment/presentation.ts';
+import sessionCookies from '../src/infrastructure/java-backend/session-cookie.ts';
 
 const { runtimeEnvironmentSchema } = schemaModule;
 const { environmentBadge, environmentTitle } = presentation;
+const { selectSessionCookie } = sessionCookies;
 const root = new URL('../contracts/backend/', import.meta.url);
 const fixture = JSON.parse(await readFile(new URL('fixtures/runtime-environment.json', root), 'utf8'));
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 ajv.addSchema(JSON.parse(await readFile(new URL('schemas/runtime-environment.schema.json', root), 'utf8')));
 const validate = ajv.getSchema('runtime-environment.schema.json');
 const env = (patch) => ({ ...fixture, ...patch });
+
+test('运行环境 | 本地与公司 Cookie 同时存在时只转发当前环境，会话缺失不使用另一环境', () => {
+  const previous = process.env.SESSION_COOKIE_NAME;
+  try {
+    delete process.env.SESSION_COOKIE_NAME;
+    const cookies = 'theme=dark; dip3_session=company; dip3_session_local=local';
+    assert.equal(selectSessionCookie(cookies), 'dip3_session=company');
+    process.env.SESSION_COOKIE_NAME = 'dip3_session_local';
+    assert.equal(selectSessionCookie(cookies), 'dip3_session_local=local');
+    assert.equal(selectSessionCookie('dip3_session=company'), undefined);
+    assert.equal(selectSessionCookie(null), undefined);
+  } finally {
+    if (previous === undefined) delete process.env.SESSION_COOKIE_NAME;
+    else process.env.SESSION_COOKIE_NAME = previous;
+  }
+});
 
 test('运行环境 | Java 契约样本同时满足 JSON Schema 与严格 Zod，非管理员的库地址为空', () => {
   for (const body of [fixture, env({ database: null }), env({ name: 'easyv-dev', label: '公司验收 easyv-dev', kind: 'shared' }),
