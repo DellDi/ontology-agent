@@ -56,7 +56,7 @@ test('Java contract | 精确下钻绑定的快照字段与冻结集合通过共�
     scopeDescription: 'donut · 组件数 3', filters: [{ member: 'chartFamily', operator: 'EQUALS', values: ['donut'] }] };
   for (const block of [
     { type: 'kv-list', title: '组件数', items: [{ label: '组件数', value: '3' }] },
-    { type: 'table', title: '组件数', columns: ['组件数'], rows: [['3']] },
+    { type: 'table', title: '组件数', columns: ['组件数'], rows: [['3']], presentationReason: '当前展示查询明细。' },
     { type: 'chart', title: '组件数', chartType: 'bar', series: [{ name: '组件数', points: [{ label: 'donut', value: 3 }] }] },
   ]) {
     const rendered = { ...block, datasetVersionSetId: snapshot.datasetVersionSetId, drilldowns: [binding] };
@@ -67,6 +67,19 @@ test('Java contract | 精确下钻绑定的快照字段与冻结集合通过共�
     assert.equal(javaExecutionSnapshotSchema.safeParse(asView()).success, false);
     delete rendered.datasetVersionSetId;
     assert.equal(ajv.getSchema('execution-snapshot.schema.json')(snapshot), false);
+  }
+});
+
+test('Java contract | 饼图只接受单个非负且有正值的系列', async () => {
+  const ajv = await contractValidator();
+  const validate = ajv.getSchema('conclusion-state.schema.json');
+  const state = { causes: [], renderBlocks: [{ type: 'chart', title: '构成', chartType: 'pie',
+    series: [{ name: '数量', points: [{ label: 'A', value: 3 }, { label: 'B', value: 0 }] }] }] };
+  assert.equal(validate(state), true, JSON.stringify(validate.errors));
+  for (const mutate of [s => { s.renderBlocks[0].series[0].points[0].value = -1; },
+    s => { s.renderBlocks[0].series[0].points[0].value = 0; },
+    s => { s.renderBlocks[0].series.push(structuredClone(s.renderBlocks[0].series[0])); }]) {
+    const invalid = structuredClone(state); mutate(invalid); assert.equal(validate(invalid), false);
   }
 });
 

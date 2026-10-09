@@ -549,6 +549,20 @@ class EasyVSemanticAgentTest {
   }
 
   @Test
+  void invalidViewAndUnknownQueryAreCorrectedBeforeSavingPresentation() {
+    when(model.plan(any())).thenReturn(ready(COUNT_QUERY), finished());
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 12, "successRate", 75.0)));
+    when(model.compose(any(), any())).thenReturn(new ComposedAnswer("共 12 个任务", List.of(new Citation("q1", 0, "count")),
+        List.of(new Highlight("q9", "invented-widget")), List.of(), List.of()), answer(List.of(new Citation("q1", 0, "count"))));
+    run(initialTurn(), ALL);
+    var requests = ArgumentCaptor.forClass(ComposeRequest.class);
+    verify(model, times(2)).compose(requests.capture(), any());
+    assertTrue(requests.getAllValues().getLast().violations().stream().anyMatch(v -> v.contains("viz 不支持")));
+    assertTrue(requests.getAllValues().getLast().violations().stream().anyMatch(v -> v.contains("查询不存在")));
+    assertEquals("measure", ((Map<?, ?>) ((List<?>) requests.getAllValues().getLast().results().getFirst().get("columns")).getFirst()).get("kind"));
+  }
+
+  @Test
   void ungroundedAnswerGetsOneCorrectionThenFailsLoud() {
     when(model.plan(any())).thenReturn(ready(COUNT_QUERY)).thenReturn(finished());
     when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 12, "successRate", 75.0)));
