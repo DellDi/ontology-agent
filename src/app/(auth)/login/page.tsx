@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import {
@@ -6,6 +7,9 @@ import {
   JavaBackendHttpError,
 } from '@/infrastructure/java-backend';
 import { hasWorkspaceAccess, sanitizeNextPath } from '@/domain/auth/models';
+import { getRuntimeEnvironment } from '@/infrastructure/java-backend/runtime-environment-client';
+import { environmentTitle } from '@/application/runtime-environment/presentation';
+import { EnvironmentBadge } from '@/app/_components/environment-badge';
 import { StatusBanner } from '@/app/_components/status-banner';
 import { AccountLoginForm } from './_components/account-login-form';
 
@@ -21,6 +25,12 @@ function readSearchParam(value: string | string[] | undefined, fallback = '') {
   return fallback;
 }
 
+/** 登录前就能分清登录的是哪个环境。 */
+export async function generateMetadata(): Promise<Metadata> {
+  const title = environmentTitle(await getRuntimeEnvironment());
+  return title ? { title } : {};
+}
+
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = (await searchParams) ?? {};
   const nextPath = sanitizeNextPath(readSearchParam(params.next));
@@ -29,6 +39,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const prefillAccount = readSearchParam(params.account);
   const authConfig = await getAuthConfig();
   const accountLoginAvailable = authConfig.accountLoginAvailable;
+  const environment = await getRuntimeEnvironment();
 
   let viewer: Awaited<ReturnType<typeof getCurrentViewer>> | null = null;
   try {
@@ -53,6 +64,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <h1 className="mt-3 text-2xl font-semibold tracking-tight">
             登录工作台
           </h1>
+          <div className="mt-3 flex justify-center"><EnvironmentBadge environment={environment} /></div>
         </div>
 
         <div className="rounded-md border border-border bg-card shadow-[var(--shadow-panel)]">
