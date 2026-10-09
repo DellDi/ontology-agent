@@ -74,17 +74,34 @@ Provider 能力必须显式声明，应用不会推断能力或切换 fallback�
 
 ## 本地运行
 
-先启动并初始化 PostgreSQL、Redis、Cube 与 Neo4j，再让当前 shell 获得根目录 `.env` 中的配置。
-宿主机开发默认由 `POSTGRES_PORT`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`
-组成 JDBC 地址；部署环境可用 `JAVA_DATABASE_URL`、`JAVA_DATABASE_USERNAME`、
-`JAVA_DATABASE_PASSWORD` 显式覆盖。
+前置条件：
 
-```powershell
-$java21 = 'C:\Users\zxzho\AppData\Local\mise\installs\java\temurin-21.0.12+8.0.LTS'
-$env:JAVA_HOME = $java21
-$env:Path = "$java21\bin;$env:Path"
-mvn -f backend-java/pom.xml spring-boot:run
+- 已安装 `mise`（`scripts/local-dev` 通过它获取 JDK 21，版本见脚本内 `JAVA_TOOL`）。
+- 根目录 `.env` 已由 `cp .env.example .env` 生成并填好本地值（说明见 [`docs/environments.md`](../docs/environments.md)）。
+- 与 `.env` 对应的本地 PostgreSQL、Redis、Cube 已启动；启用 Property 域时还需 Neo4j。当前容器及地址见 [`docs/environments.md`](../docs/environments.md)，不要在已有本地容器上重复启动另一套基础设施。
+
+命令行（macOS / Linux；Windows 请在 Git Bash 或 WSL 中执行）：
+
+```bash
+scripts/local-dev migrate   # 首次或 schema 变更时执行 Flyway 迁移
+scripts/local-dev backend   # 启动 Java API + Worker
 ```
+
+`scripts/local-dev` 负责加载 `.env` 并通过 mise 启动 Java，Java 进程本身不读取 `.env`。
+
+### IntelliJ IDEA
+
+`.idea/` 不入库，每台机器做一次即可：
+
+1. **添加 JDK 21**：`File → Project Structure → SDKs → +`，选择 mise 安装的 JDK 21 目录（`mise where java@<版本>`，版本见 `scripts/local-dev`），并将 Project SDK 设为它。
+2. **关联 Maven**：右键 `backend-java/pom.xml` → **Add as Maven Project**，右侧出现 Maven 工具窗口即成功。
+3. **添加两个 Shell Script 配置**：`Run → Edit Configurations → + → Shell Script`，Execute 选 `Script file`，其余填写如下：
+   - Script path：`scripts/local-dev`（点击浏览选择）
+   - Script options：`backend`（迁移配置填 `migrate`）
+   - Working directory：项目根目录
+   - Interpreter path：系统自带的 `bash`
+   - 若提示找不到 `mise`，在 Environment variables 的 `PATH` 中加入 mise 所在目录。IDEA 从 Dock 启动时通常拿不到终端里的 PATH。
+4. 首次先运行 `migrate` 配置，再运行 `backend` 配置。
 
 Next.js 的分析读写适配器只读取 `JAVA_BACKEND_URL`，例如 `http://127.0.0.1:8080`。
 现有登录入口仍按仓库原有配置创建共享 Cookie session。Java 服务不会回退到旧的 TypeScript
