@@ -60,7 +60,7 @@
 
 ## Environments And Data
 
-- 环境、数据来源、账号与同步关系以 [`docs/environments.md`](./docs/environments.md) 为准，动手前先读。要点：本地（3000）与公司验收 easyv-dev（3100，SSH 隧道入口）是两套独立系统，**没有自动同步**；本地库目前没有业务数据。
+- 环境、数据来源、账号与同步关系以 [`docs/environments.md`](./docs/environments.md) 为准，动手前先读。要点：本地（3000）与公司验收 easyv-dev（3100，SSH 隧道入口）是两套独立系统，**没有自动同步**；本地业务数据来自 `scripts/local-data` 导入的真实平台快照。
 - 验证结论必须写明环境；真实业务数据只在 easyv-dev 验收。不得为取得数据连接公司库，也不得把手工造数说成真实验收。
 - 不读取、不回显 `.env*` 中的密码与密钥；未经用户明确要求，不对公司库做写入、迁移、`restore`、采集或清理，不设置 `DIP3_ALLOW_REMOTE_DATABASE=true`，不用 `.env.company` 启动本地后端。
 
