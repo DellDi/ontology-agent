@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { readableObjectKeys } from '@/domain/analysis-execution/object-selection';
 import type { PrototypeLayoutNode, PrototypeComponentGeometry } from '@/domain/prototype-layout/models';
 
-const objectKey = z.enum(['easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component']);
+const objectKey = z.enum(readableObjectKeys);
+const summaryObjectKeys: readonly string[] = ['easyv-prototype-layout', 'easyv-prototype-block'];
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 
 export const javaObjectSelectionSchema = z.object({
@@ -29,7 +31,7 @@ export const javaObjectReadRequestSchema = z.object({
   offset: z.number().int().min(0).max(10000).nullable().optional(),
 }).strict().superRefine((request, context) => {
   if (request.includeComponentSummary && (!request.objectId || request.relation || request.drilldownId
-      || request.objectKey === 'easyv-prototype-component')) {
+      || !summaryObjectKeys.includes(request.objectKey))) {
     context.addIssue({ code: 'custom', message: '组件构成统计仅支持原型版式或区域详情。' });
   }
 });
@@ -95,7 +97,7 @@ export const javaObjectReadResultSchema = z.object({
 }).strict().superRefine((result, context) => {
   if (result.componentSummary) {
     const summary = result.componentSummary;
-    if (result.page.rows.length !== 1 || result.page.objectKey === 'easyv-prototype-component'
+    if (result.page.rows.length !== 1 || !summaryObjectKeys.includes(result.page.objectKey)
         || summary.total !== summary.groups.reduce((total, group) => total + group.count, 0)
         || new Set(summary.groups.map((group) => group.chartFamily)).size !== summary.groups.length
         || summary.groups.some((group) => group.chartFamily === null

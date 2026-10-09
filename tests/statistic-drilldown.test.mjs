@@ -15,6 +15,20 @@ const chart = { type: 'chart', title: '组件分布', chartType: 'bar', series: 
 const event = block => ({ id: 'event', sessionId: 'session-old', executionId: 'execution-old', sequence: 1,
   kind: 'stage-result', timestamp: '2026-10-08T00:00:00Z', renderBlocks: [block] });
 
+test('精确下钻 | AI 应用统计项与对象范围同属开放目录，目录外对象在流式边界被拒绝', () => {
+  const application = { ...chart, drilldowns: [{ ...binding, objectKey: 'easyv-ai-application', filters: [] }] };
+  const browser = { type: 'object-browser', title: 'AI 应用数 · 对象范围', role: 'supporting', datasetVersionSetId: 'set-old',
+    objectKey: 'easyv-ai-application', filters: [], scopeDescription: '本次查询当前期的对象范围' };
+  for (const block of [application, browser]) {
+    assert.doesNotThrow(() => validateAnalysisExecutionStreamEvent(event(block)));
+  }
+  assert.equal(normalizeExecutionRenderBlock(browser, { sourceType: 'execution-render-block', sessionId: 'session-old', executionId: 'execution-old' }).payload.objectKey, 'easyv-ai-application');
+  for (const block of [{ ...application, drilldowns: [{ ...application.drilldowns[0], objectKey: 'easyv-forge-task' }] },
+    { ...browser, objectKey: 'easyv-forge-task' }]) {
+    assert.throws(() => validateAnalysisExecutionStreamEvent(event(block)));
+  }
+});
+
 test('精确下钻 | SSE 与历史投影保留相同绑定与冻结集合', () => {
   for (const block of [chart, { type: 'kv-list', title: '组件数', items: [{ label: '组件数', value: '3' }], ...context },
     { type: 'table', title: '分组计数', columns: ['组件数'], rows: [['3']], ...context }]) {

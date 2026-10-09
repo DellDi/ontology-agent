@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Layers3, Loader2 } from 'lucide-react';
 import { z } from 'zod';
@@ -56,13 +56,22 @@ function Pending({ children }: { children: string }) {
 function label(row: Row) {
   return String(row.properties.componentId ?? row.properties.blockId ?? row.properties.appId ?? row.reference.objectId);
 }
+type RowView = { title: (row: Row) => string; summary: (row: Row, type?: Type) => string };
+const prototypeRows: RowView = { title: label,
+  summary: (row) => String(row.properties.chartFamily ?? row.properties.blockSize ?? row.properties.parseStatus ?? '') };
+const metadataRows: RowView = { title: (row) => row.reference.objectId, summary: (row, type) => {
+  const time = type?.properties.find((property) => property.type === 'TIME');
+  const value = time ? row.properties[time.key] : null;
+  return time && typeof value === 'string' ? `${time.label} ${formatShanghaiDateTime(value)}` : '';
+} };
+
 function regionLabel(row: Row) {
   const id = String(row.properties.blockId ?? row.reference.objectId).replace(/^page-\d+__/, '');
   return id.replace(/^(foot|footer|left|right|header)(?:_|$)/, (_, position: string) =>
     `${({ foot: '底部', footer: '底部', left: '左侧', right: '右侧', header: '顶部' } as Record<string, string>)[position]} `).replaceAll('_', ' · ');
 }
-function ObjectList({ title, rows, selected, onSelect, hasMore, loading, onMore }: {
-  title: string; rows: Row[]; selected: Row | null; onSelect: (row: Row) => void;
+function ObjectList({ title, rows, type, selected, onSelect, hasMore, loading, onMore }: {
+  title: string; rows: Row[]; type?: Type; selected: Row | null; onSelect: (row: Row) => void;
   hasMore?: boolean; loading?: boolean; onMore?: () => void;
 }) {
   return <section className="space-y-2">
@@ -72,7 +81,7 @@ function ObjectList({ title, rows, selected, onSelect, hasMore, loading, onMore 
         key={row.reference.objectId} type="button" aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
         onClick={() => onSelect(row)} className={cn('flex w-full flex-col items-start gap-1 border-b border-border/50 px-3 py-2.5 text-left text-xs last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey && 'bg-primary/10 text-primary')}>
-        <span className="min-w-0 break-all font-medium">{label(row)}</span><span className="break-all text-muted-foreground">{String(row.properties.chartFamily ?? row.properties.blockSize ?? row.properties.parseStatus ?? '')}</span>
+        <span className="min-w-0 break-all font-medium">{viewOf(row.reference.objectKey).rows.title(row)}</span><span className="break-all text-muted-foreground">{viewOf(row.reference.objectKey).rows.summary(row, type)}</span>
       </button>)}
     </div>
     {hasMore && onMore ? <Button type="button" variant="outline" size="sm" disabled={loading} onClick={onMore}>{loading ? '正在读取…' : '加载更多'}</Button> : null}
@@ -105,7 +114,7 @@ function ComponentComposition({ context, object, summary, onSelect }: {
       {components.isPending ? <Pending>正在读取对应组件…</Pending> : null}
       {components.error ? <Notice error={components.error} /> : null}
       {components.data ? <>
-        <ObjectList title="对应组件" rows={components.data.page.rows} selected={null} onSelect={onSelect} />
+        <ObjectList title="对应组件" rows={components.data.page.rows} type={components.data.objectType} selected={null} onSelect={onSelect} />
         <div className="flex items-center justify-between gap-2"><span className="text-[10px] text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span>
           <div className="flex gap-1"><Button type="button" variant="ghost" size="sm" aria-label="上一页对应组件" disabled={offset === 0} onClick={() => setOffset(offset - 20)}><ChevronLeft className="size-4" /></Button>
             <Button type="button" variant="ghost" size="sm" aria-label="下一页对应组件" disabled={!components.data.page.hasMore || offset + 20 > 10000} onClick={() => setOffset(offset + 20)}><ChevronRight className="size-4" /></Button></div>
@@ -115,15 +124,71 @@ function ComponentComposition({ context, object, summary, onSelect }: {
   </section>;
 }
 
-function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; root: Row; onObjectSelect?: SelectObject }) {
+type DetailQuery = ReturnType<typeof useObjectRead>;
+type ViewProps = { context: Context; root: Row; onObjectSelect?: SelectObject };
+
+function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hints, beforeProperties, afterProperties }: {
+  context: Context; focus: Row; detail: DetailQuery; onFocus: (row: Row) => void; onObjectSelect?: SelectObject;
+  hints?: { relation?: string; provenance?: string }; beforeProperties?: ReactNode; afterProperties?: ReactNode;
+}) {
+  const [relation, setRelation] = useState<Type['links'][number] | null>(null);
+  const selected = detail.data?.page.rows[0] ?? focus;
+  const type: Type | undefined = detail.data?.objectType;
+  const title = viewOf(selected.reference.objectKey).rows.title(selected);
+  const related = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
+    relation: relation?.key, limit: 20 }, relation !== null);
+  return <section className="space-y-3 border-t border-border pt-4" aria-label="所选对象属性">
+    <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {title}</h4>
+    {onObjectSelect ? <Button type="button" size="sm" variant="outline" disabled={!detail.data?.page.rows[0] || !type}
+      onClick={() => { if (detail.data?.page.rows[0] && type) onObjectSelect({ executionId: detail.data.executionId,
+        datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }, `${type.label} · ${title}`); }}>
+      针对这个对象追问
+    </Button> : null}
+    {detail.isPending ? <Pending>正在读取对象属性…</Pending> : null}
+    {detail.error ? <Notice error={detail.error} /> : null}
+    {beforeProperties}
+    {type ? <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
+      {type.properties.map((property) => {
+        const value = selected.properties[property.key];
+        return <div key={property.key} className="contents"><dt className="text-muted-foreground">{property.label}</dt>
+          <dd className="break-all">{property.type === 'TIME' && typeof value === 'string' ? formatShanghaiDateTime(value) : String(value ?? '未提供')}</dd></div>;
+      })}
+    </dl> : null}
+    {afterProperties}
+    {type?.links.length ? <div className="flex flex-wrap gap-2">{type.links.map((link) => <Button key={link.key} type="button" variant="outline" size="sm"
+      aria-pressed={relation?.key === link.key} onClick={() => setRelation(link)}>查看{link.targetLabel}</Button>)}</div> : null}
+    {relation ? <div className="space-y-2">{related.isPending ? <Pending>正在读取关联对象…</Pending> : null}
+      {related.error ? <Notice error={related.error} /> : null}
+      {related.data ? <><ObjectList title={relation.targetLabel} rows={related.data.page.rows} type={related.data.objectType} selected={selected} onSelect={onFocus} />
+        {related.data.page.hasMore ? <p className="text-xs text-muted-foreground">{hints?.relation ?? '仅显示前 20 个关联对象。'}</p> : null}</> : null}
+    </div> : null}
+    <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">数据出处与版本</summary>
+      {detail.data?.dataContext ? <div className="mt-2 space-y-1 leading-5">
+        <p>集合捕获时间：{formatShanghaiDateTime(detail.data.dataContext.capturedAt)}（北京时间）</p>
+        <p>有效权限范围：{detail.data.dataContext.scopeDescription}</p>
+        <p>{hints?.provenance ?? '集合捕获时间表示本轮数据版本的捕获时间；源属性中的创建时间均不代表对象最后编辑时间。'}</p>
+      </div> : null}
+      <p className="mt-2 break-all leading-5">对象：{selected.reference.objectId}<br />产品版本：{selected.reference.productVersionId}<br />冻结集合：{context.datasetVersionSetId}<br />来源执行：{context.executionId}</p>
+    </details>
+  </section>;
+}
+
+function GenericObjectDetail({ context, root, onObjectSelect }: ViewProps) {
+  const [focus, setFocus] = useState<Row>(root);
+  const detail = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId });
+  return <div className="space-y-4">
+    <ObjectDetailPanel key={`${focus.reference.objectKey}:${focus.reference.objectId}`} context={context} focus={focus} detail={detail}
+      onFocus={setFocus} onObjectSelect={onObjectSelect} />
+  </div>;
+}
+
+function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
   const layoutId = typeof root.properties.appId === 'string' ? root.properties.appId : '';
   const layout = useObjectRead(context, { objectKey: 'easyv-prototype-layout', objectId: layoutId }, !!layoutId);
   const blocks = useRelated(context, layoutId, 'blocks');
   const components = useRelated(context, layoutId, 'components');
-  const [focus, updateFocus] = useState<Row>(root);
+  const [focus, setFocus] = useState<Row>(root);
   const [metricStyle, setMetricStyle] = useState<MetricPreviewStyle>('number');
-  const [relation, setRelation] = useState<Type['links'][number] | null>(null);
-  const setFocus = (row: Row) => { updateFocus(row); setRelation(null); };
   // 滚动发布时，旧 API 没有 dataContext；确认服务具备新契约后再请求构成统计。
   const detail = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
     includeComponentSummary: layout.data?.dataContext && (focus.reference.objectKey === 'easyv-prototype-block'
@@ -143,9 +208,6 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
     ? Object.assign({}, ...regionComponents.data.pages.map((page) => page.componentGeometry)) : undefined;
   const structure = layout.data?.structure;
   const pages = structure?.status === 'available' ? projectPrototypeLayout(structure.layout, blockRows) : [];
-  const type: Type | undefined = detail.data?.objectType;
-  const related = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
-    relation: relation?.key, limit: 20 }, relation !== null);
 
   if (!layoutId) return <p role="alert" className="text-sm text-destructive">对象缺少所属应用 ID，无法定位原型。</p>;
   return <div className="space-y-4">
@@ -217,42 +279,28 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
       </section>
     </div>
     </div> : null}
-    <section className="space-y-3 border-t border-border pt-4" aria-label="所选对象属性">
-      <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {label(selected)}</h4>
-      {onObjectSelect ? <Button type="button" size="sm" variant="outline" disabled={!detail.data?.page.rows[0] || !type}
-        onClick={() => { if (detail.data?.page.rows[0] && type) onObjectSelect({ executionId: detail.data.executionId,
-          datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }, `${type.label} · ${label(selected)}`); }}>
-        针对这个对象追问
-      </Button> : null}
-      {detail.isPending ? <Pending>正在读取对象属性…</Pending> : null}
-      {detail.error ? <Notice error={detail.error} /> : null}
-      {selected.reference.objectKey === 'easyv-prototype-layout' && selected.properties.parseStatus !== 'ok'
-        ? <p className="text-xs text-muted-foreground">原型结构未成功解析，暂无组件构成统计。解析状态与错误码见下方属性。</p> : null}
-      {detail.data?.componentSummary ? <ComponentComposition key={`${context.executionId}:${context.datasetVersionSetId}:${selected.reference.objectKey}:${selected.reference.objectId}`}
-        context={context} object={selected} summary={detail.data.componentSummary} onSelect={setFocus} /> : null}
-      {type ? <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
-        {type.properties.map((property) => <div key={property.key} className="contents"><dt className="text-muted-foreground">{property.label}</dt><dd className="break-all">{String(selected.properties[property.key] ?? '未提供')}</dd></div>)}
-      </dl> : null}
-      {selected.reference.objectKey === 'easyv-prototype-block' && detail.data?.page.rows[0] ? <SchemeAssessmentPanel key={`${selected.reference.objectId}:${selected.reference.productVersionId}`} sessionId={context.sessionId}
-        selection={{ executionId: context.executionId, datasetVersionSetId: context.datasetVersionSetId, reference: selected.reference }} /> : null}
-      {type?.links.length ? <div className="flex flex-wrap gap-2">{type.links.map((link) => <Button key={link.key} type="button" variant="outline" size="sm"
-        aria-pressed={relation?.key === link.key} onClick={() => setRelation(link)}>查看{link.targetLabel}</Button>)}</div> : null}
-      {relation ? <div className="space-y-2">{related.isPending ? <Pending>正在读取关联对象…</Pending> : null}
-        {related.error ? <Notice error={related.error} /> : null}
-        {related.data ? <><ObjectList title={relation.targetLabel} rows={related.data.page.rows} selected={selected} onSelect={setFocus} />
-          {related.data.page.hasMore ? <p className="text-xs text-muted-foreground">显示前 20 个关联对象。完整区域和组件可在上方列表中继续加载。</p> : null}</> : null}
-      </div> : null}
-      <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">数据出处与版本</summary>
-        {detail.data?.dataContext ? <div className="mt-2 space-y-1 leading-5">
-          <p>集合捕获时间：{formatShanghaiDateTime(detail.data.dataContext.capturedAt)}（北京时间）</p>
-          <p>有效权限范围：{detail.data.dataContext.scopeDescription}</p>
-          <p>组件构成只统计所选原型或区域。集合捕获时间表示本轮数据版本的捕获时间；原型创建时间是源属性，均不代表组件最后编辑时间。</p>
-        </div> : null}
-        <p className="mt-2 break-all leading-5">对象：{selected.reference.objectId}<br />产品版本：{selected.reference.productVersionId}<br />冻结集合：{context.datasetVersionSetId}<br />来源执行：{context.executionId}</p>
-      </details>
-    </section>
+    <ObjectDetailPanel key={`${focus.reference.objectKey}:${focus.reference.objectId}`} context={context} focus={focus} detail={detail}
+      onFocus={setFocus} onObjectSelect={onObjectSelect}
+      hints={{ relation: '显示前 20 个关联对象。完整区域和组件可在上方列表中继续加载。',
+        provenance: '组件构成只统计所选原型或区域。集合捕获时间表示本轮数据版本的捕获时间；原型创建时间是源属性，均不代表组件最后编辑时间。' }}
+      beforeProperties={<>
+        {selected.reference.objectKey === 'easyv-prototype-layout' && selected.properties.parseStatus !== 'ok'
+          ? <p className="text-xs text-muted-foreground">原型结构未成功解析，暂无组件构成统计。解析状态与错误码见下方属性。</p> : null}
+        {detail.data?.componentSummary ? <ComponentComposition key={`${context.executionId}:${context.datasetVersionSetId}:${selected.reference.objectKey}:${selected.reference.objectId}`}
+          context={context} object={selected} summary={detail.data.componentSummary} onSelect={setFocus} /> : null}
+      </>}
+      afterProperties={selected.reference.objectKey === 'easyv-prototype-block' && detail.data?.page.rows[0] ? <SchemeAssessmentPanel key={`${selected.reference.objectId}:${selected.reference.productVersionId}`} sessionId={context.sessionId}
+        selection={{ executionId: context.executionId, datasetVersionSetId: context.datasetVersionSetId, reference: selected.reference }} /> : null} />
   </div>;
 }
+
+type ObjectView = { rows: RowView; Detail: ComponentType<ViewProps> };
+const prototypeView: ObjectView = { rows: prototypeRows, Detail: PrototypeDetail };
+const metadataView: ObjectView = { rows: metadataRows, Detail: GenericObjectDetail };
+const objectViews: Partial<Record<Row['reference']['objectKey'], ObjectView>> = {
+  'easyv-prototype-layout': prototypeView, 'easyv-prototype-block': prototypeView, 'easyv-prototype-component': prototypeView,
+};
+function viewOf(objectKey: Row['reference']['objectKey']) { return objectViews[objectKey] ?? metadataView; }
 
 function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescription, onObjectSelect }: {
   context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; drilldownId?: string | null; scopeDescription: string; onObjectSelect?: SelectObject;
@@ -261,18 +309,19 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
   const [selected, setSelected] = useState<Row | null>(null);
   const list = useObjectRead(context, { objectKey, filters, drilldownId, limit: 20, offset });
   const root = selected ?? list.data?.page.rows[0];
+  const Detail = root ? viewOf(root.reference.objectKey).Detail : null;
   return <div className="space-y-5" data-testid="analysis-object-browser">
     <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p>
     {list.isPending ? <Pending>正在读取本轮对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}
     {list.data ? <>
-      {!list.data.page.rows.length ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">当前范围没有可查看的对象</p><p className="mt-1 text-xs text-muted-foreground">可以调整分析条件后重新发起分析。</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} selected={root ?? null} onSelect={setSelected} />}
+      {!list.data.page.rows.length ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">当前范围没有可查看的对象</p><p className="mt-1 text-xs text-muted-foreground">可以调整分析条件后重新发起分析。</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}
       <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span><div className="flex gap-1">
         <Button type="button" size="sm" variant="ghost" aria-label="上一页对象" disabled={!offset || list.isFetching} onClick={() => { setOffset(offset - 20); setSelected(null); }}><ChevronLeft className="size-4" /></Button>
         <Button type="button" size="sm" variant="ghost" aria-label="下一页对象" disabled={!list.data.page.hasMore || offset >= 10000 || list.isFetching} onClick={() => { setOffset(offset + 20); setSelected(null); }}><ChevronRight className="size-4" /></Button>
       </div></div>
     </> : null}
-    {root ? <PrototypeDetail key={`${root.reference.objectKey}:${root.reference.objectId}`} context={context} root={root} onObjectSelect={onObjectSelect} /> : null}
+    {root && Detail ? <Detail key={`${root.reference.objectKey}:${root.reference.objectId}`} context={context} root={root} onObjectSelect={onObjectSelect} /> : null}
   </div>;
 }
 

@@ -84,6 +84,18 @@ test('对象追问 | 历史助手实际组件入口携带该轮执行，不能�
 });
 
 
+test('对象追问 | AI 应用对象范围的历史入口携带该轮执行', () => {
+  const block = {type:'object-browser',title:'AI 应用数 · 对象范围',role:'supporting',objectKey:'easyv-ai-application',
+    datasetVersionSetId:'set-old', filters:[],scopeDescription:'本次查询当前期的对象范围'};
+  const props = staticModule.buildStaticAssistantProps({key:'r-old',executionId:'execution-old',status:'completed',
+    conclusionState:{causes:[],renderBlocks:[block]}}, 'session-old');
+  const browser = props.result.blocks.find(block => block.kind === 'object-browser');
+  assert.equal(browser.payload.objectKey, 'easyv-ai-application');
+  assert.equal(browser.source.executionId, 'execution-old');
+  assert.equal(browser.source.sessionId, 'session-old');
+});
+
+
 test('对象追问 | 待执行和失败历史保留请求引用，取消后的普通轮不恢复旧选择', () => {
   const initial={id:'root',kind:'initial',status:'completed',executionId:'execution-source',followUpId:null,planSnapshot:null};
   const selected={id:'f-selected',questionText:'针对这个',resultExecutionId:null,mergedContext:{objectSelection:selection}};
