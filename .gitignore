@@ -55,3 +55,6 @@ cube/conf/.cubestore/
 
 # original mysql sql files
 docs/original-mysql/*.sql
+
+# scripts/easyv-dev backup 默认输出目录：含业务数据与账号，不得入库
+/backups/

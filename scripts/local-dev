@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# 本地开发（local-dev）统一入口：只读取 .env，只连接本机基础设施。说明见 docs/environments.md。
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+JAVA_TOOL=${LOCAL_DEV_JAVA_TOOL:-java@temurin-21.0.12+8.0.LTS}
+
+usage() {
+  cat >&2 <<USAGE
+usage: scripts/local-dev <command>
+  backend   启动本地 Java API + Worker（读取 .env，连接本机库）
+  migrate   对本机库执行 Flyway 迁移后退出
+  web       启动本地 Web（http://127.0.0.1:\${APP_PORT:-3000}）
+  status    查看本地容器、端口与后端声明的环境
+USAGE
+  exit 2
+}
+
+load_env() {
+  if [[ ! -r "$ROOT_DIR/.env" ]]; then
+    echo "缺少 .env：cp .env.example .env，并按 docs/environments.md 填写本地值。" >&2
+    exit 1
+  fi
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT_DIR/.env"
+  set +a
+  if [[ "${DIP3_ENVIRONMENT:-local-dev}" != "local-dev" ]]; then
+    echo "scripts/local-dev 只用于 local-dev，当前 DIP3_ENVIRONMENT=${DIP3_ENVIRONMENT}。" >&2
+    exit 1
+  fi
+  export DIP3_ENVIRONMENT=local-dev
+}
+
+status() {
+  echo "== 本地容器"
+  docker ps --format '  {{.Names}}  {{.Ports}}  {{.Status}}' 2>/dev/null | grep -E 'ontology-agent-local|dip3-' || echo "  未发现本地基础设施容器"
+  echo "== 监听端口（3000 本地 Web / 8080 本地 Java / 3100 公司验收隧道 / 55432 本地库）"
+  local port
+  for port in 3000 8080 3100 55432 4000 6379; do
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then echo "  :$port 监听中"; else echo "  :$port 未监听"; fi
+  done
+  echo "== 本地 Java 声明的环境（127.0.0.1:${JAVA_BACKEND_PORT:-8080}）"
+  curl -fsS --max-time 3 "http://127.0.0.1:${JAVA_BACKEND_PORT:-8080}/api/runtime/environment" || echo "  后端未运行，或版本早于环境接口"
+  echo
+}
+
+case "${1:-}" in
+  backend)
+    load_env
+    exec mise exec "$JAVA_TOOL" -- mvn -f "$ROOT_DIR/backend-java/pom.xml" spring-boot:run
+    ;;
+  migrate)
+    load_env
+    exec mise exec "$JAVA_TOOL" -- mvn -f "$ROOT_DIR/backend-java/pom.xml" -q spring-boot:run -Dspring-boot.run.profiles=migrate
+    ;;
+  web)
+    load_env
+    cd "$ROOT_DIR"
+    exec pnpm dev --hostname 127.0.0.1 --port "${APP_PORT:-3000}"
+    ;;
+  status) status ;;
+  *) usage ;;
+esac

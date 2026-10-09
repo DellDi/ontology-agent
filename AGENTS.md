@@ -58,6 +58,12 @@
 - 数据库所有权归 Java：PostgreSQL 由 Flyway `V1__init.sql`（幂等、可重复执行）独占初始化，经 `--spring.profiles.active=migrate` 独立入口执行，应用启动不自动迁移。
 - 测试组织：Java 单元/集成（Testcontainers）+ `tests/*` 前端/契约验证。
 
+## Environments And Data
+
+- 环境、数据来源、账号与同步关系以 [`docs/environments.md`](./docs/environments.md) 为准，动手前先读。要点：本地（3000）与公司验收 easyv-dev（3100，SSH 隧道入口）是两套独立系统，**没有自动同步**；本地库目前没有业务数据。
+- 验证结论必须写明环境；真实业务数据只在 easyv-dev 验收。不得为取得数据连接公司库，也不得把手工造数说成真实验收。
+- 不读取、不回显 `.env*` 中的密码与密钥；未经用户明确要求，不对公司库做写入、迁移、`restore`、采集或清理，不设置 `DIP3_ALLOW_REMOTE_DATABASE=true`，不用 `.env.company` 启动本地后端。
+
 ## Local Development
 
 基础设施容器化 + 应用代码宿主机运行：`postgres / redis / neo4j / cube` 用容器，`web` 用 `pnpm dev`，Java API/Worker 用 `mvn -f backend-java/pom.xml spring-boot:run`。仅当验证容器边界、镜像行为、compose 依赖顺序或部署问题时才全容器运行。

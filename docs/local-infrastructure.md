@@ -1,5 +1,7 @@
 # 本地基础设施基线
 
+> 本地与公司验收环境的区别、数据来源、账号与护栏见 [环境与数据说明](./environments.md)。本地统一启动入口为 `scripts/local-dev`。
+
 ## 目标
 
 当前 Compose 支持 `web`、`backend`、一次性 `migrate`（Java Flyway）、`postgres`、`redis`、`cube`、`neo4j` 的完整联调拓扑。日常开发默认只在容器中运行四个基础设施服务，Next.js 与 Java API/Worker 在宿主机运行。

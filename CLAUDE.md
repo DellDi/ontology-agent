@@ -46,6 +46,10 @@ Clean Architecture（六边形），依赖方向：`domain ← application ← i
 - Styling / Package：Tailwind CSS 4 / pnpm
 - Runtime：Node.js 24（仅 Web）+ JVM 21（全部业务与迁移）
 
+## Environments
+
+环境（本地 3000 / 公司验收 3100）、数据来源、账号与护栏见 [`docs/environments.md`](./docs/environments.md)。本地统一入口：`scripts/local-dev backend|web|migrate|status`；公司侧凭据在 `.env.company`，日常 `.env` 只放本地值。
+
 ## Setup & Commands
 
 ```bash
@@ -76,6 +80,8 @@ mvn -f backend-java/pom.xml test      # Java 测试（Testcontainers）
 | `AUTH_LOCAL_PROVIDER_ENABLED` | 平台本地账号密码登录 Provider | `true` |
 | `ENABLE_URL_BRIDGE` | URL 桥接登录（供可信上游嵌入，账号须已供给） | `0` |
 | `COOKIE_SECURE` | 会话 Cookie Secure（生产置 `true`） | `false` |
+| `DIP3_ENVIRONMENT` | 本进程声明的环境：`local-dev`（默认，只允许本机库）/`easyv-dev`/`production` | `local-dev` |
+| `DIP3_ALLOW_REMOTE_DATABASE` | 显式允许 `local-dev` 连接非本机库（需用户明确要求） | `false` |
 
 ## Backend Errors（Java）
 
