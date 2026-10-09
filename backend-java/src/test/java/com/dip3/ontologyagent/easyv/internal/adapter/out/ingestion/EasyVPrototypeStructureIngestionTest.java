@@ -455,6 +455,31 @@ class EasyVPrototypeStructureIngestionTest {
   }
 
   @Test
+  void userSortKeepsMissingValuesLastInBothDirectionsAndPaginatesStably() {
+    var time = LocalDateTime.parse("2026-09-04T09:00:00");
+    var input = new ArrayList<>(rows(validJson("4")));
+    input.add(row(5L, "app-5", XML, validJson("4"), time, time));
+    var versions = materializeAll(publish("sort-source", input), "sort");
+    versions.put("easyv-ai-application", applicationVersion("sort", false));
+    var reader = new PostgresObjectQueryAdapter(jdbc, SemanticModel.discover());
+    var all = new SemanticQueryPort.AccessContext(versions, SemanticQueryPort.Scope.everything());
+    for (var direction : QueryIntent.Direction.values()) {
+      var order = List.of(new QueryIntent.Order("parseErrorCode", direction));
+      var page = reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), null, order, 50, 0), all);
+      var codes = page.rows().stream().map(r -> r.properties().get("parseErrorCode")).toList();
+      int firstMissing = codes.indexOf(null);
+      assertTrue(firstMissing > 0, direction + " 排序应先有值后缺失：" + codes);
+      assertTrue(codes.subList(firstMissing, codes.size()).stream().allMatch(java.util.Objects::isNull), direction + " 缺失值必须全部排在末尾：" + codes);
+      var paged = new ArrayList<String>();
+      for (int offset = 0; offset < page.rows().size(); offset += 2) {
+        reader.query(new ObjectQueryPort.Query(PRODUCTS.get(0), null, order, 2, offset), all).rows()
+            .forEach(row -> paged.add(row.reference().objectId()));
+      }
+      assertEquals(page.rows().stream().map(r -> r.reference().objectId()).toList(), paged, direction + " 分页拼接必须与整页一致");
+    }
+  }
+
+  @Test
   void applicationObjectsUseTheSameFrozenReadPathWithMembershipScopeAndLayoutRelation() {
     var versions = materializeAll(publish("application-read", rows(validJson("4"))), "application-read");
     versions.put("easyv-ai-application", applicationVersion("application-read", false));

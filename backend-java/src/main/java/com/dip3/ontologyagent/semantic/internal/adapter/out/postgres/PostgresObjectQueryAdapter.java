@@ -41,7 +41,7 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     List<String> order = new ArrayList<>();
     for (QueryIntent.Order item : query.order()) {
       if (item == null || item.direction() == null) throw invalid("排序方向不能为空。");
-      order.add(expression(root.requireProperty(item.member()), "o") + " " + item.direction().name());
+      order.add(expression(root.requireProperty(item.member()), "o") + " " + item.direction().name() + " NULLS LAST");
     }
     // 主键是最后的确定性排序键；冻结事实不会在翻页期间改变。
     order.add(expression(root.primaryKey(), "o") + " ASC");
