@@ -1,4 +1,5 @@
 import type { JobStatus } from '@/domain/job-contract/models';
+import { readableObjectKeys, type ReadableObjectKey } from '@/domain/analysis-execution/object-selection';
 
 export const EXECUTION_EVENT_KINDS = [
   'execution-status',
@@ -154,7 +155,7 @@ export type ExecutionObjectBrowserBlock = {
   title: string;
   role?: ExecutionRenderBlockRole;
   datasetVersionSetId: string;
-  objectKey: 'easyv-prototype-layout' | 'easyv-prototype-block' | 'easyv-prototype-component';
+  objectKey: ReadableObjectKey;
   filters: { member: string; operator: 'EQUALS' | 'NOT_EQUALS' | 'CONTAINS' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'SET' | 'NOT_SET'; values: string[] }[];
   scopeDescription: string;
 };
@@ -385,7 +386,7 @@ function statisticContext(candidate: Record<string, unknown>): ExecutionStatisti
   }
   const drilldowns = assertObjectArray(candidate.drilldowns, 'drilldowns').map((entry) => {
     if (!Number.isInteger(entry.row) || Number(entry.row) < 0 || !Number.isInteger(entry.column) || Number(entry.column) < 0
-        || !['easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component'].includes(String(entry.objectKey))) {
+        || !(readableObjectKeys as readonly string[]).includes(String(entry.objectKey))) {
       throw new InvalidAnalysisExecutionStreamEventError('统计项下钻的坐标或对象类型无效。');
     }
     const rows = candidate.type === 'table' ? candidate.rows : candidate.type === 'kv-list' ? [candidate.items] :
@@ -609,7 +610,7 @@ function validateRenderBlock(
         role: candidate.role === 'supporting' ? 'supporting' : 'primary' };
     }
     case 'object-browser': {
-      if (!['easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component'].includes(String(candidate.objectKey))) {
+      if (!(readableObjectKeys as readonly string[]).includes(String(candidate.objectKey))) {
         throw new InvalidAnalysisExecutionStreamEventError('object-browser.objectKey 无效。');
       }
       const filters = objectFilters(candidate.filters);

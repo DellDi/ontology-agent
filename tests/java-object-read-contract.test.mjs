@@ -64,6 +64,40 @@ test('对象读取 | Java fixture 同时符合 JSON Schema 和严格 Zod', () =>
   }
 });
 
+test('对象读取 | AI 应用与原型对象共用同一契约，目录外对象与错配的专业附件被拒绝', () => {
+  const application = { ...detail, structure: null, componentGeometry: {},
+    objectType: { key: 'easyv-ai-application', label: 'AI 应用', links: [],
+      properties: [{ key: 'appId', label: '应用 ID', type: 'STRING' }, { key: 'createdAt', label: '应用创建时间', type: 'TIME' }] },
+    page: { ...detail.page, objectKey: 'easyv-ai-application', rows: [{
+      reference: { objectKey: 'easyv-ai-application', objectId: 'app-1', productVersionId: 'apps-old' },
+      properties: { appId: 'app-1', createdAt: '2026-10-08T01:00:00Z' } }] } };
+  const toLayout = { ...detail, objectType: { ...detail.objectType, links: [...detail.objectType.links,
+    { key: 'application', targetObjectKey: 'easyv-ai-application', targetLabel: 'AI 应用' }] } };
+  for (const body of [application, toLayout]) {
+    assert.equal(ajv.getSchema('object-read-result.schema.json')(body), true, ajv.errorsText());
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, true);
+  }
+  const listRequest = { ...request, objectKey: 'easyv-ai-application', objectId: null };
+  assert.equal(ajv.getSchema('object-read-request.schema.json')(listRequest), true);
+  assert.equal(javaObjectReadRequestSchema.safeParse(listRequest).success, true);
+  for (const body of [{ ...listRequest, objectKey: 'easyv-forge-task' },
+    { ...request, objectKey: 'easyv-ai-application', includeComponentSummary: true }]) {
+    assert.equal(ajv.getSchema('object-read-request.schema.json')(body), false);
+    assert.equal(javaObjectReadRequestSchema.safeParse(body).success, false);
+  }
+  for (const mutate of [
+    (body) => { body.objectType.key = 'easyv-forge-task'; body.page.objectKey = 'easyv-forge-task'; body.page.rows[0].reference.objectKey = 'easyv-forge-task'; },
+    (body) => { body.structure = { status: 'not_retained', layout: null }; },
+    (body) => { body.componentSummary = { total: 0, groups: [] }; },
+    (body) => { body.componentGeometry = { 'app-1': { status: 'missing', errorCode: 'COMPONENT_BOX_MISSING', box: null } }; },
+  ]) {
+    const body = structuredClone(application); mutate(body);
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, false);
+  }
+  assert.equal(contracts.javaObjectSelectionSchema.safeParse({ executionId: 'execution-old', datasetVersionSetId: 'set-old',
+    reference: { objectKey: 'easyv-ai-application', objectId: 'app-1', productVersionId: 'apps-old' } }).success, true);
+});
+
 test('对象读取 | 拒绝无执行/冻结集、越界分页、SQL 字段和损坏结构', () => {
   for (const mutate of [
     (body) => { delete body.executionId; },
