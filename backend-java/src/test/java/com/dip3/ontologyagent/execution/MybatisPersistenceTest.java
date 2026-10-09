@@ -361,7 +361,7 @@ class MybatisPersistenceTest {
         var ref = new ObjectQueryPort.Reference("easyv-prototype-block", "a:b", "frozen-easyv-prototype-block");
         when(objects.readDuringExecution(any(), any(), any())).thenReturn(new EasyVObjectReadService.Result(executionId, setId, "ontology-objects",
                 new ObjectQueryPort.Page(ref.objectKey(), List.of(new ObjectQueryPort.Row(ref, Map.of("appId", "a", "blockKey", "a:b"))), 50, 0, false), null,
-                new EasyVObjectReadService.ObjectTypeView(ref.objectKey(), "原型区域", List.of(), List.of()), Map.of()));
+                new EasyVObjectReadService.ObjectTypeView(ref.objectKey(), "原型区域", List.of(), List.of()), Map.of(), null, null));
         when(assessments.assessDuringExecution(any(), any(), any())).thenAnswer(call -> new EasyVSchemeAssessmentService.Result("assessment", call.getArgument(2), "ontology-objects", versions,
                 "unassessable", "SCHEME_LIBRARY_NOT_RETAINED", null, List.of(), null));
         when(model.plan(any())).thenReturn(new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_objects", "input", Map.of("objectKey", ref.objectKey()))), null, List.of()),

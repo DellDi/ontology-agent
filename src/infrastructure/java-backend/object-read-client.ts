@@ -14,5 +14,9 @@ export async function readAnalysisObjects(sessionId: string, request: JavaObject
   if (parsed.executionId !== body.executionId || parsed.datasetVersionSetId !== body.datasetVersionSetId) {
     throw new Error('对象响应与来源执行版本不一致。');
   }
+  if (body.includeComponentSummary && (!parsed.componentSummary || !parsed.dataContext
+      || parsed.page.objectKey !== body.objectKey || parsed.page.rows[0]?.reference.objectId !== body.objectId)) {
+    throw new Error('组件构成响应缺少统计或数据出处，或与所选对象不一致。');
+  }
   return parsed;
 }

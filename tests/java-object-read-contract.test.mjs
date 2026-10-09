@@ -4,13 +4,16 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
 import contracts from '../src/infrastructure/java-backend/object-read-contract.ts';
+import objectClient from '../src/infrastructure/java-backend/object-read-client.ts';
 import queryRoute from '../src/app/api/analysis/sessions/[sessionId]/objects/query/route.ts';
 
 const { javaObjectReadRequestSchema, javaObjectReadResultSchema } = contracts;
 const root = new URL('../contracts/backend/', import.meta.url);
 const detail = JSON.parse(await readFile(new URL('fixtures/object-read-detail.json', root), 'utf8'));
 const ajv = new Ajv2020({ allErrors: true, strict: true, allowUnionTypes: true });
+addFormats(ajv);
 for (const name of ['object-read-request', 'object-read-result']) {
   const schema = JSON.parse(await readFile(new URL(`schemas/${name}.schema.json`, root), 'utf8'));
   assert.equal(ajv.validateSchema(schema), true);
@@ -116,4 +119,54 @@ test('对象读取 | BFF 原样透传路径、Cookie、冻结上下文和 Java �
   assert.equal(mismatch.status, 409);
   assert.equal((await mismatch.json()).code, 'OBJECT_VERSION_MISMATCH');
   assert.equal(captured[1].body.datasetVersionSetId, 'set-forged');
+});
+
+
+test('组件构成 | 全量数量、空值和未知族必须保留，分类条件与统计一致', () => {
+  const groups = [
+    { chartFamily: 'table', count: 250, filter: { member: 'chartFamily', operator: 'EQUALS', values: ['table'] } },
+    { chartFamily: 'future-chart', count: 2, filter: { member: 'chartFamily', operator: 'EQUALS', values: ['future-chart'] } },
+    { chartFamily: null, count: 1, filter: { member: 'chartFamily', operator: 'NOT_SET', values: [] } },
+  ];
+  const full = { ...detail, componentSummary: { total: 253, groups } };
+  for (const body of [full, { ...detail, componentSummary: { total: 0, groups: [] } }]) {
+    assert.equal(ajv.getSchema('object-read-result.schema.json')(body), true, ajv.errorsText());
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, true);
+  }
+  for (const mutate of [
+    (body) => { body.componentSummary.total = 3; },
+    (body) => { body.componentSummary.groups[0].filter.values = ['line']; },
+    (body) => { body.componentSummary.groups[2].filter.operator = 'EQUALS'; },
+    (body) => { body.componentSummary.groups.push(body.componentSummary.groups[0]); },
+    (body) => { body.dataContext.capturedAt = 'invalid'; },
+    (body) => { body.dataContext.connectorPassword = 'not-allowed'; },
+    (body) => { body.componentSummary.groups[0].count = 1.5; },
+  ]) {
+    const body = structuredClone(full); mutate(body);
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, false);
+  }
+  const legacy = structuredClone(detail); delete legacy.componentSummary; delete legacy.dataContext;
+  assert.equal(javaObjectReadResultSchema.safeParse(legacy).success, true, '旧 API 不补造统计或时间');
+  assert.equal(ajv.getSchema('object-read-request.schema.json')({ ...request, includeComponentSummary: true }), true);
+  for (const body of [{ ...request, objectKey: 'easyv-prototype-component', includeComponentSummary: true }, { ...request, relation: 'components', includeComponentSummary: true }, { ...request, objectId: null, includeComponentSummary: true }]) {
+    assert.equal(ajv.getSchema('object-read-request.schema.json')(body), false);
+    assert.equal(javaObjectReadRequestSchema.safeParse(body).success, false);
+  }
+});
+
+
+test('组件构成 | 请求统计后不能接受缺失统计或属于其他对象的响应', async (context) => {
+  const original = globalThis.fetch; context.after(() => { globalThis.fetch = original; });
+  const complete = { ...detail, componentSummary: { total: 0, groups: [] } };
+  const invoke = () => objectClient.readAnalysisObjects('session-old', { ...request, includeComponentSummary: true }, new AbortController().signal);
+  globalThis.fetch = async () => Response.json(complete);
+  assert.equal((await invoke()).componentSummary.total, 0);
+  for (const mutate of [
+    (body) => { delete body.componentSummary; },
+    (body) => { body.dataContext = null; },
+    (body) => { body.page.rows[0].reference.objectId = 'other-app'; },
+  ]) {
+    const body = structuredClone(complete); mutate(body); globalThis.fetch = async () => Response.json(body);
+    await assert.rejects(invoke(), /缺少统计或数据出处，或与所选对象不一致/);
+  }
 });

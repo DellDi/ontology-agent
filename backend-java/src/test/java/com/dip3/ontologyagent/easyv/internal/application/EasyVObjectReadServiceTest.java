@@ -26,6 +26,7 @@ class EasyVObjectReadServiceTest {
   private final DatasetVersionSetRegistry datasets = mock(DatasetVersionSetRegistry.class);
   private final IdentityAccountService accounts = mock(IdentityAccountService.class);
   private final ObjectQueryPort objects = mock(ObjectQueryPort.class);
+  private final SemanticQueryPort queries = mock(SemanticQueryPort.class);
   private final PrototypeStructureReadPort structures = mock(PrototypeStructureReadPort.class);
   private final AuthSession admin = viewer("1", "PLATFORM_ADMIN");
   private final AuthSession analyst = viewer("1", "EASYV_ANALYST");
@@ -35,7 +36,7 @@ class EasyVObjectReadServiceTest {
   @BeforeEach
   void setup() {
     service = new EasyVObjectReadService(sessions, ontologies, executions, datasets, new EasyVScopeResolver(accounts),
-        objects, SemanticModel.discover(), structures);
+        objects, SemanticModel.discover(), structures, queries);
     binding = binding(Map.of("userId", "1", "accessMode", "all"));
     when(ontologies.published("ontology-old")).thenReturn(new OntologyCatalog("ontology-old", "1",
         List.of(new OntologyCatalog.Item(EasyVGenerationOntology.ENTITY_KEY, "应用", Map.of())),
@@ -250,6 +251,71 @@ class EasyVObjectReadServiceTest {
     return new CapabilityExecutionContext(worker,
         new com.dip3.ontologyagent.agent.AgentTurn("java-initial-v1", "session", "读取对象", null, null, Map.of(), Map.of(), NOW),
         "execution", new com.dip3.ontologyagent.ontology.OntologyCatalog("ontology-old", "1", List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()), "set-old", "trace", "worker");
+  }
+
+
+  @Test
+  void fullCompositionUsesDeclaredParentRelationOldVersionsAndNarrowedScope() {
+    when(accounts.subjectValue(1L, "easyv", "userId")).thenReturn(Optional.of("16"));
+    when(objects.require(eq(LAYOUT), eq("app-1"), any())).thenReturn(new ObjectQueryPort.Row(
+        new ObjectQueryPort.Reference(LAYOUT, "app-1", "layouts-old"), Map.of("appId", "app-1", "parseStatus", "ok")));
+    var missingFamily = new LinkedHashMap<String, Object>(); missingFamily.put("chartFamily", null); missingFamily.put("count", 1);
+    when(queries.execute(any(), any())).thenReturn(new SemanticQueryPort.SemanticQueryResult(List.of(
+        Map.of("chartFamily", "single-value-metric", "count", 250), Map.of("chartFamily", "future-chart", "count", 2), missingFamily), List.of(), "sql"));
+    var result = service.read("session", analyst, summary(LAYOUT, "app-1"));
+    assertEquals(253, result.componentSummary().total(), "count is independent of the one-object detail page");
+    assertEquals(3, result.componentSummary().groups().size());
+    assertEquals(new QueryIntent.Filter("chartFamily", QueryIntent.Operator.NOT_SET, List.of()), result.componentSummary().groups().getLast().filter());
+    assertEquals("future-chart", result.componentSummary().groups().get(1).chartFamily());
+    assertEquals(NOW, result.dataContext().capturedAt());
+    assertEquals("EasyV 用户 16 的数据", result.dataContext().scopeDescription());
+    verify(queries).execute(argThat(q -> q.intent().filters().equals(List.of(
+        new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS, List.of("app-1"))))
+        && q.intent().limit() == null && q.range().allData() && q.intent().dimensions().equals(List.of("chartFamily"))),
+        argThat(a -> a.productVersions().get("easyv-prototype-component").equals("components-old")
+            && a.scope().values().equals(Map.of("userId", List.of("16")))));
+    verify(datasets, never()).latestFrozen(anySet());
+  }
+
+  @Test
+  void regionCompositionUsesSourceSpecificBlockKeyAndEmptyMeansZero() {
+    String block = "easyv-prototype-block";
+    when(objects.require(eq(block), eq("41:b1"), any())).thenReturn(new ObjectQueryPort.Row(
+        new ObjectQueryPort.Reference(block, "41:b1", "blocks-old"), Map.of("blockKey", "41:b1", "appId", "app-1", "blockId", "b1")));
+    when(queries.execute(any(), any())).thenReturn(new SemanticQueryPort.SemanticQueryResult(List.of(), List.of(), "sql"));
+    var result = service.read("session", admin, summary(block, "41:b1"));
+    assertEquals(0, result.componentSummary().total());
+    assertTrue(result.componentSummary().groups().isEmpty());
+    verify(queries).execute(argThat(q -> q.intent().filters().equals(List.of(
+        new QueryIntent.Filter("blockKey", QueryIntent.Operator.EQUALS, List.of("41:b1"))))), any());
+  }
+
+  @Test
+  void compositionNeverQueriesWhenNotRequestedOrWhenAuthorizationFails() {
+    service.read("session", admin, request(null, null, "set-old"));
+    assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class,
+        () -> service.read("session", admin, summary("easyv-prototype-component", "41:c1"))).code());
+    when(sessions.requireOwned("session", admin)).thenThrow(new BackendException("SESSION_NOT_FOUND", "无权访问"));
+    assertEquals("SESSION_NOT_FOUND", assertThrows(BackendException.class,
+        () -> service.read("session", admin, summary(LAYOUT, "app-1"))).code());
+    verifyNoInteractions(queries);
+  }
+
+  @Test
+  void invalidCompositionAndSemanticFailuresAreNotConvertedToZero() {
+    when(objects.require(eq(LAYOUT), eq("app-1"), any())).thenReturn(new ObjectQueryPort.Row(
+        new ObjectQueryPort.Reference(LAYOUT, "app-1", "layouts-old"), Map.of("appId", "app-1", "parseStatus", "ok")));
+    when(queries.execute(any(), any())).thenReturn(new SemanticQueryPort.SemanticQueryResult(
+        List.of(Map.of("chartFamily", "table", "count", 1.5)), List.of(), "sql"));
+    assertEquals("SEMANTIC_RESULT_INVALID", assertThrows(BackendException.class,
+        () -> service.read("session", admin, summary(LAYOUT, "app-1"))).code());
+    when(queries.execute(any(), any())).thenThrow(new BackendException("SEMANTIC_RESULT_TRUNCATED", "截断"));
+    assertEquals("SEMANTIC_RESULT_TRUNCATED", assertThrows(BackendException.class,
+        () -> service.read("session", admin, summary(LAYOUT, "app-1"))).code());
+  }
+
+  private static EasyVObjectReadService.Request summary(String key, String id) {
+    return new EasyVObjectReadService.Request("execution", "set-old", key, id, null, null, null, 1, 0, null, true);
   }
 
   private void snapshot(CapabilityBinding binding, String set) {

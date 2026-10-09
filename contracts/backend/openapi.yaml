@@ -337,7 +337,7 @@ paths:
   /api/analysis/sessions/{sessionId}/objects/query:
     post:
       summary: Read EasyV prototype objects and declared relationships from this execution's frozen data
-      description: objectId omitted lists objects; objectId reads one detail; relation traverses a declared link. Filters and order reference root properties of the resulting object type. Reads intersect current EasyV scope with the execution scope; never select a newer manifest. Missing retained geometry is explicit, not reconstructed from staging.
+      description: objectId omitted lists objects; objectId reads one detail; relation traverses a declared link. Filters and order reference root properties of the resulting object type. Reads intersect current EasyV scope with the execution scope; never select a newer manifest. Missing retained geometry is explicit, not reconstructed from staging. includeComponentSummary=true on a layout or block detail returns full component counts grouped by chartFamily, independent of preview pagination; each group supplies its filter for the declared components relationship. dataContext identifies the manifest capture time and effective scope, never a source editing event.
       security: [{ cookieAuth: [] }]
       parameters:
         - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }

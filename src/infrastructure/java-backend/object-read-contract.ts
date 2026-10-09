@@ -13,6 +13,7 @@ export const javaObjectReadRequestSchema = z.object({
   executionId: z.string().min(1),
   datasetVersionSetId: z.string().min(1),
   objectKey,
+  includeComponentSummary: z.boolean().nullable().optional(),
   drilldownId: z.string().min(1).max(500).nullable().optional(),
   objectId: z.string().min(1).max(500).nullable().optional(),
   relation: z.string().min(1).nullable().optional(),
@@ -26,7 +27,12 @@ export const javaObjectReadRequestSchema = z.object({
   }).strict()).max(4).nullable().optional(),
   limit: z.number().int().min(1).max(200).nullable().optional(),
   offset: z.number().int().min(0).max(10000).nullable().optional(),
-}).strict();
+}).strict().superRefine((request, context) => {
+  if (request.includeComponentSummary && (!request.objectId || request.relation || request.drilldownId
+      || request.objectKey === 'easyv-prototype-component')) {
+    context.addIssue({ code: 'custom', message: '组件构成统计仅支持原型版式或区域详情。' });
+  }
+});
 
 export const javaResultDrilldownSchema = z.object({
   id: z.string().min(1).max(500), row: z.number().int().min(0), column: z.number().int().min(0),
@@ -55,6 +61,15 @@ export const javaObjectReadResultSchema = z.object({
   datasetVersionSetId: z.string().min(1),
   ontologyVersionId: z.string().min(1),
   componentGeometry: z.record(z.string(), javaComponentGeometrySchema).optional(),
+  componentSummary: z.object({
+    total: z.number().int().min(0),
+    groups: z.array(z.object({
+      chartFamily: z.string().min(1).max(500).nullable(), count: z.number().int().positive(),
+      filter: z.object({ member: z.literal('chartFamily'), operator: z.enum(['EQUALS', 'NOT_SET']),
+        values: z.array(z.string().min(1).max(500)).max(1) }).strict(),
+    }).strict()).max(5000),
+  }).strict().nullable().optional(),
+  dataContext: z.object({ capturedAt: z.iso.datetime({ offset: true }), scopeDescription: z.string().min(1) }).strict().nullable().optional(),
   objectType: z.object({
     key: objectKey, label: z.string().min(1),
     properties: z.array(z.object({ key: z.string().min(1), label: z.string().min(1),
@@ -78,6 +93,17 @@ export const javaObjectReadResultSchema = z.object({
     z.object({ status: z.literal('parse_failed'), layout: z.null() }).strict(),
   ]).nullable(),
 }).strict().superRefine((result, context) => {
+  if (result.componentSummary) {
+    const summary = result.componentSummary;
+    if (result.page.rows.length !== 1 || result.page.objectKey === 'easyv-prototype-component'
+        || summary.total !== summary.groups.reduce((total, group) => total + group.count, 0)
+        || new Set(summary.groups.map((group) => group.chartFamily)).size !== summary.groups.length
+        || summary.groups.some((group) => group.chartFamily === null
+          ? group.filter.operator !== 'NOT_SET' || group.filter.values.length !== 0
+          : group.filter.operator !== 'EQUALS' || group.filter.values.length !== 1 || group.filter.values[0] !== group.chartFamily)) {
+      context.addIssue({ code: 'custom', message: '组件构成必须属于单个原型或区域，数量与下钻条件须与分类一致。' });
+    }
+  }
   if (result.componentGeometry && Object.keys(result.componentGeometry).some((id) => result.page.objectKey !== 'easyv-prototype-component'
       || !result.page.rows.some((row) => row.reference.objectId === id))) {
     context.addIssue({ code: 'custom', message: '组件位置必须属于当前授权页面中的对象。' });
