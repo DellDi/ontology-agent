@@ -10,6 +10,7 @@ import { readAnalysisObjects } from '@/infrastructure/java-backend/object-read-c
 import { javaObjectReadRequestSchema, type JavaObjectReadRequest, type JavaObjectReadResult } from '@/infrastructure/java-backend/object-read-contract';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatShanghaiDateTime } from '@/lib/format-datetime';
 import { SchemeAssessmentPanel } from './scheme-assessment-panel';
 import { chartPlaceholder, ComponentGlyph, PrototypeComponentPreview, type MetricPreviewStyle } from './prototype-component-preview';
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
@@ -78,6 +79,42 @@ function ObjectList({ title, rows, selected, onSelect, hasMore, loading, onMore 
   </section>;
 }
 
+function ComponentComposition({ context, object, summary, onSelect }: {
+  context: Context; object: Row; summary: NonNullable<JavaObjectReadResult['componentSummary']>; onSelect: (row: Row) => void;
+}) {
+  const [groupIndex, setGroupIndex] = useState<number | null>(null);
+  const [offset, setOffset] = useState(0);
+  const group = groupIndex === null ? null : summary.groups[groupIndex];
+  const components = useObjectRead(context, { objectKey: object.reference.objectKey, objectId: object.reference.objectId,
+    relation: 'components', filters: group ? [group.filter] : [], limit: 20, offset }, !!group);
+  return <section className="space-y-3" aria-label="组件类型构成">
+    <div className="flex items-baseline justify-between gap-2"><h4 className="text-xs font-semibold">组件类型构成</h4>
+      <span className="text-xs text-muted-foreground">全部 {summary.total} 个组件</span></div>
+    <p className="text-[10px] leading-4 text-muted-foreground">按所选{object.reference.objectKey === 'easyv-prototype-layout' ? '原型' : '区域'}的全部组件统计，点击数量查看对应组件。</p>
+    {summary.groups.length ? <div className="grid grid-cols-2 gap-2">{summary.groups.map((item, index) => <button
+      key={item.chartFamily ?? 'missing-family'} type="button" aria-pressed={index === groupIndex}
+      aria-label={`查看${chartPlaceholder(item.chartFamily).label} ${item.count} 个组件`}
+      onClick={() => { setGroupIndex(index); setOffset(0); }}
+      className={cn('flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', index === groupIndex && 'border-primary bg-primary/5')}>
+      <ComponentGlyph family={item.chartFamily ?? ''} metricStyle="number" className="h-5 w-7 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1 break-words text-xs">{chartPlaceholder(item.chartFamily).label}</span>
+      <span className="shrink-0 text-lg font-semibold tabular-nums">{item.count}</span>
+    </button>)}</div> : <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">所选对象在本轮数据版本中没有组件。</p>}
+    {group ? <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+      <p className="text-xs font-medium">{chartPlaceholder(group.chartFamily).label} · 共 {group.count} 个</p>
+      {components.isPending ? <Pending>正在读取对应组件…</Pending> : null}
+      {components.error ? <Notice error={components.error} /> : null}
+      {components.data ? <>
+        <ObjectList title="对应组件" rows={components.data.page.rows} selected={null} onSelect={onSelect} />
+        <div className="flex items-center justify-between gap-2"><span className="text-[10px] text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span>
+          <div className="flex gap-1"><Button type="button" variant="ghost" size="sm" aria-label="上一页对应组件" disabled={offset === 0} onClick={() => setOffset(offset - 20)}><ChevronLeft className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="sm" aria-label="下一页对应组件" disabled={!components.data.page.hasMore || offset + 20 > 10000} onClick={() => setOffset(offset + 20)}><ChevronRight className="size-4" /></Button></div>
+        </div>
+      </> : null}
+    </div> : null}
+  </section>;
+}
+
 function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; root: Row; onObjectSelect?: SelectObject }) {
   const layoutId = typeof root.properties.appId === 'string' ? root.properties.appId : '';
   const layout = useObjectRead(context, { objectKey: 'easyv-prototype-layout', objectId: layoutId }, !!layoutId);
@@ -87,7 +124,10 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
   const [metricStyle, setMetricStyle] = useState<MetricPreviewStyle>('number');
   const [relation, setRelation] = useState<Type['links'][number] | null>(null);
   const setFocus = (row: Row) => { updateFocus(row); setRelation(null); };
-  const detail = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId });
+  // 滚动发布时，旧 API 没有 dataContext；确认服务具备新契约后再请求构成统计。
+  const detail = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
+    includeComponentSummary: layout.data?.dataContext && (focus.reference.objectKey === 'easyv-prototype-block'
+      || focus.reference.objectKey === 'easyv-prototype-layout' && focus.properties.parseStatus === 'ok') ? true : undefined });
   const blockRows = blocks.data?.pages.flatMap((page) => page.page.rows) ?? [];
   const componentRows = components.data?.pages.flatMap((page) => page.page.rows) ?? [];
   const componentGeometry = components.data?.pages.some((page) => page.componentGeometry !== undefined)
@@ -186,6 +226,10 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
       </Button> : null}
       {detail.isPending ? <Pending>正在读取对象属性…</Pending> : null}
       {detail.error ? <Notice error={detail.error} /> : null}
+      {selected.reference.objectKey === 'easyv-prototype-layout' && selected.properties.parseStatus !== 'ok'
+        ? <p className="text-xs text-muted-foreground">原型结构未成功解析，暂无组件构成统计。解析状态与错误码见下方属性。</p> : null}
+      {detail.data?.componentSummary ? <ComponentComposition key={`${context.executionId}:${context.datasetVersionSetId}:${selected.reference.objectKey}:${selected.reference.objectId}`}
+        context={context} object={selected} summary={detail.data.componentSummary} onSelect={setFocus} /> : null}
       {type ? <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
         {type.properties.map((property) => <div key={property.key} className="contents"><dt className="text-muted-foreground">{property.label}</dt><dd className="break-all">{String(selected.properties[property.key] ?? '未提供')}</dd></div>)}
       </dl> : null}
@@ -198,7 +242,14 @@ function PrototypeDetail({ context, root, onObjectSelect }: { context: Context; 
         {related.data ? <><ObjectList title={relation.targetLabel} rows={related.data.page.rows} selected={selected} onSelect={setFocus} />
           {related.data.page.hasMore ? <p className="text-xs text-muted-foreground">显示前 20 个关联对象。完整区域和组件可在上方列表中继续加载。</p> : null}</> : null}
       </div> : null}
-      <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">版本与对象引用</summary><p className="mt-2 break-all">对象：{selected.reference.objectId}<br />产品版本：{selected.reference.productVersionId}<br />冻结集合：{context.datasetVersionSetId}</p></details>
+      <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">数据出处与版本</summary>
+        {detail.data?.dataContext ? <div className="mt-2 space-y-1 leading-5">
+          <p>集合捕获时间：{formatShanghaiDateTime(detail.data.dataContext.capturedAt)}（北京时间）</p>
+          <p>有效权限范围：{detail.data.dataContext.scopeDescription}</p>
+          <p>组件构成只统计所选原型或区域。集合捕获时间表示本轮数据版本的捕获时间；原型创建时间是源属性，均不代表组件最后编辑时间。</p>
+        </div> : null}
+        <p className="mt-2 break-all leading-5">对象：{selected.reference.objectId}<br />产品版本：{selected.reference.productVersionId}<br />冻结集合：{context.datasetVersionSetId}<br />来源执行：{context.executionId}</p>
+      </details>
     </section>
   </div>;
 }
