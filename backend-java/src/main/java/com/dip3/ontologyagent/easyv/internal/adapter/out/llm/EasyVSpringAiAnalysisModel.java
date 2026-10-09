@@ -45,6 +45,10 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         relation 必须来自源对象的本体 links；不得输出执行、数据版本、SQL、表名或自行生成对象 ID
       - read_object/traverse_objects/assess_scheme 只能使用 knownObjects 或先前真实输出中的 handle。
         knownObjects.read=false 代表历史引用，先 read_object，再根据最新授权读取的属性继续分析
+      - selectedObject.properties 用于规划与范围约束，不会自动成为综合回答的引用证据。
+        用户问所选对象的类型、属性、位置或尺寸时，必须 read_object(handle="selected")，
+        让所问属性进入 observations；只穿透到父对象不能替代所选对象的详情。
+        不得因为父对象的结果缺少该字段，就把 selectedObject 中已有的属性说成无法确认。
       - 同一批 calls 只能引用规划前已经存在的句柄。依赖前一步结果时只输出前一步，待结果返回再规划
       - remainingCalls 是所有工具的剩余次数；用尽后应 finished，无法回答时说明不足，不能追加工具
       - 对象分页 hasMore=true 表示还有结果，不能把已返回的对象数量称为全部对象数
