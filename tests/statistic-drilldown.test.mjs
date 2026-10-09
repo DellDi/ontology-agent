@@ -77,11 +77,11 @@ test('动态呈现 | 前端按正式图表类型分派，饼图不会被当作�
     const types = ['bar', 'line', 'pie'].map(chartType => {
       const renderedBlock = { kind: 'chart', payload: { chartType, series: [{ name: '数量', points: [{ label: 'A', value: 1 }] }] }, source: { sourceType: 'execution-render-block' } };
       const rendered = registry.renderChartBlock({ renderedBlock });
-      return rendered.props.children[0].type.name;
+      return rendered.props.children[0].props.chart.type.name;
     });
     const multi = registry.renderChartBlock({ renderedBlock: { kind: 'chart', payload: { chartType: 'bar', series: [
       { name: '数量', points: [{ label: 'A', value: 3 }] }, { name: '金额', points: [{ label: 'A', value: 9 }, { label: 'B', value: 7 }] }
-    ] }, source: { sourceType: 'execution-render-block' } } }).props.children[0];
+    ] }, source: { sourceType: 'execution-render-block' } } }).props.children[0].props.chart;
     const bars = multi.type(multi.props).props.children.props.children;
     const data = bars.props.data;
     const html = renderToStaticMarkup(React.createElement(table.DataTableBlock, {

@@ -5,12 +5,17 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Layers3, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 
+import {
+  EMPTY_CONTROLS, MAX_USER_FILTERS, reduceControls, requestScope,
+  type CollectionControls, type ControlsAction,
+} from '@/application/object-collection/collection-controls';
 import { projectPrototypeLayout } from '@/application/prototype-layout/project-layout';
 import { readAnalysisObjects } from '@/infrastructure/java-backend/object-read-client';
 import { javaObjectReadRequestSchema, type JavaObjectReadRequest, type JavaObjectReadResult } from '@/infrastructure/java-backend/object-read-contract';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatShanghaiDateTime } from '@/lib/format-datetime';
+import { ObjectCollectionControls } from './object-collection-controls';
 import { SchemeAssessmentPanel } from './scheme-assessment-panel';
 import { chartPlaceholder, ComponentGlyph, PrototypeComponentPreview, type MetricPreviewStyle } from './prototype-component-preview';
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
@@ -307,15 +312,28 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
 }) {
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<Row | null>(null);
-  const list = useObjectRead(context, { objectKey, filters, drilldownId, limit: 20, offset });
+  const [controls, setControls] = useState<CollectionControls>(EMPTY_CONTROLS);
+  const [knownType, setKnownType] = useState<Type | null>(null);
+  const maxFilters = drilldownId ? MAX_USER_FILTERS : Math.min(MAX_USER_FILTERS, 10 - (filters?.length ?? 0));
+  // 排序或筛选变化会改变集合：回到第一页并清除旧选中；无变化的操作不触发。
+  const change = (action: ControlsAction) => {
+    const next = reduceControls(controls, action, maxFilters);
+    if (next === controls) return;
+    setControls(next); setOffset(0); setSelected(null);
+  };
+  const list = useObjectRead(context, { objectKey, drilldownId, limit: 20, offset, ...requestScope({ filters, drilldownId }, controls) });
+  // 读取失败时仍保留上次的字段声明，用户才能移除导致失败的条件。
+  if (list.data && list.data.objectType !== knownType) setKnownType(list.data.objectType);
   const root = selected ?? list.data?.page.rows[0];
   const Detail = root ? viewOf(root.reference.objectKey).Detail : null;
   return <div className="space-y-5" data-testid="analysis-object-browser">
     <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p>
+    {knownType ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties}
+      controls={controls} maxFilters={maxFilters} onChange={change} /> : null}
     {list.isPending ? <Pending>正在读取本轮对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}
     {list.data ? <>
-      {!list.data.page.rows.length ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">当前范围没有可查看的对象</p><p className="mt-1 text-xs text-muted-foreground">可以调整分析条件后重新发起分析。</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}
+      {!list.data.page.rows.length ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}
       <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span><div className="flex gap-1">
         <Button type="button" size="sm" variant="ghost" aria-label="上一页对象" disabled={!offset || list.isFetching} onClick={() => { setOffset(offset - 20); setSelected(null); }}><ChevronLeft className="size-4" /></Button>
         <Button type="button" size="sm" variant="ghost" aria-label="下一页对象" disabled={!list.data.page.hasMore || offset >= 10000 || list.isFetching} onClick={() => { setOffset(offset + 20); setSelected(null); }}><ChevronRight className="size-4" /></Button>
