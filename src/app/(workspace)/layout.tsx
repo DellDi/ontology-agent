@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 import {
@@ -9,6 +10,8 @@ import {
 
 import { ingestionAccessSchema } from '@/infrastructure/java-backend/ingestion-schema';
 import { readJavaBackend } from '@/infrastructure/java-backend/read-client';
+import { getRuntimeEnvironment } from '@/infrastructure/java-backend/runtime-environment-client';
+import { environmentTitle } from '@/application/runtime-environment/presentation';
 import { canViewOntologyGovernance } from '@/domain/ontology/governance';
 import {
   latestExecutionSnapshot,
@@ -23,6 +26,12 @@ import { WORKSPACE_MENU } from '../_components/shell-menu-config';
 type WorkspaceLayoutProps = {
   children: ReactNode;
 };
+
+/** 标签页标题带环境前缀，并排打开本地与公司环境时一眼可分。 */
+export async function generateMetadata(): Promise<Metadata> {
+  const title = environmentTitle(await getRuntimeEnvironment());
+  return title ? { title } : {};
+}
 
 export default async function WorkspaceLayout({
   children,
@@ -110,6 +119,8 @@ export default async function WorkspaceLayout({
     sessionsLoadFailed = true;
   }
 
+  const environment = await getRuntimeEnvironment();
+
   // 侧栏折叠/宽度偏好：cookie 'c' 收起 | 'e.<px>' 展开宽（与 workspace-shell 写入逻辑一致）
   const sidebarPref = (await cookies()).get('dip3-ws-sidebar')?.value ?? '';
   const prefWidth = Number(sidebarPref.slice(2));
@@ -122,6 +133,7 @@ export default async function WorkspaceLayout({
   return (
     <WorkspaceShell
       adminItems={adminItems}
+      environment={environment}
       initialCollapsed={sidebarCollapsed}
       initialWidth={sidebarWidth}
       sessions={sidebarSessions}

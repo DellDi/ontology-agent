@@ -2,24 +2,28 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowUpRight, Palette, UserRound } from 'lucide-react';
+import { ArrowUpRight, Palette, Server, UserRound } from 'lucide-react';
 
 import { cn } from '@/app/_lib/cn';
 import { ThemeToggle } from '@/app/_components/theme-toggle';
+import { EnvironmentDetails } from '@/app/_components/environment-badge';
+import type { RuntimeEnvironmentView } from '@/application/runtime-environment/presentation';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
 
-type SectionId = 'general' | 'account';
+type SectionId = 'general' | 'account' | 'environment';
 
 const SECTIONS: { id: SectionId; label: string; icon: typeof Palette }[] = [
   { id: 'general', label: '常规', icon: Palette },
   { id: 'account', label: '账户', icon: UserRound },
+  { id: 'environment', label: '运行环境', icon: Server },
 ];
 
 export type WorkspaceSettingsDialogProps = {
+  environment: RuntimeEnvironmentView | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userDisplayName: string;
@@ -31,6 +35,7 @@ export type WorkspaceSettingsDialogProps = {
  * 小配置就近放这里；完整账号与能力信息仍在独立路由 /workspace/me。
  */
 export function WorkspaceSettingsDialog({
+  environment,
   open,
   onOpenChange,
   userDisplayName,
@@ -122,6 +127,12 @@ export function WorkspaceSettingsDialog({
                   查看完整个人中心
                   <ArrowUpRight aria-hidden className="size-3.5" />
                 </Link>
+              </div>
+            ) : null}
+
+            {section === 'environment' ? (
+              <div className="mt-4">
+                <EnvironmentDetails environment={environment} />
               </div>
             ) : null}
           </div>

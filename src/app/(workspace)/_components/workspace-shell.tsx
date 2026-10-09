@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/app/_lib/cn';
+import { EnvironmentBadge } from '@/app/_components/environment-badge';
+import type { RuntimeEnvironmentView } from '@/application/runtime-environment/presentation';
 import type { ShellMenuItem } from '@/app/_components/shell-menu-config';
 import {
   DropdownMenu,
@@ -38,6 +40,8 @@ export type WorkspaceSidebarSession = {
 export type WorkspaceShellProps = {
   /** 管理类入口（本体治理 / 数据接入等），收入用户菜单"管理"分组 */
   adminItems: ShellMenuItem[];
+  /** 当前连接的运行环境；null 表示无法读取，界面显示告警 */
+  environment: RuntimeEnvironmentView | null;
   /** 侧栏折叠初始态（服务端自 cookie 解析，避免 hydration 不一致） */
   initialCollapsed?: boolean;
   /** 侧栏展开初始宽度 px，由 layout 从 cookie 解析 */
@@ -326,6 +330,7 @@ function UserMenu({
 
 export function WorkspaceShell({
   adminItems,
+  environment,
   initialCollapsed = false,
   initialWidth,
   sessions,
@@ -405,8 +410,11 @@ export function WorkspaceShell({
         ) : (
           <>
             <div className="flex items-center justify-between px-4 pb-1 pt-4">
-              <span className="text-sm font-semibold tracking-[0.1em] text-primary">
-                DIP3 · 智慧数据
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-sm font-semibold tracking-[0.1em] text-primary">
+                  DIP3 · 智慧数据
+                </span>
+                <EnvironmentBadge environment={environment} />
               </span>
               <button
                 aria-label="收起侧栏"
@@ -473,12 +481,15 @@ export function WorkspaceShell({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 移动端顶栏（侧栏在 md 以下隐藏） */}
         <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
-          <Link
-            className="text-sm font-semibold tracking-[0.1em] text-primary"
-            href="/workspace"
-          >
-            DIP3 · 智慧数据
-          </Link>
+          <span className="flex min-w-0 items-center gap-2">
+            <Link
+              className="shrink-0 text-sm font-semibold tracking-[0.1em] text-primary"
+              href="/workspace"
+            >
+              DIP3 · 智慧数据
+            </Link>
+            <EnvironmentBadge environment={environment} />
+          </span>
           <button
             className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => setSettingsOpen(true)}
@@ -493,6 +504,7 @@ export function WorkspaceShell({
       </div>
 
       <WorkspaceSettingsDialog
+        environment={environment}
         onOpenChange={setSettingsOpen}
         open={settingsOpen}
         userDisplayName={userDisplayName}
