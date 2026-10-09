@@ -1,13 +1,14 @@
 package com.dip3.ontologyagent.easyv.internal.application;
 
 import com.dip3.ontologyagent.easyv.internal.application.EasyVSemanticAgent.ExecutedQuery;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import com.dip3.ontologyagent.semantic.api.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 
 /** 统计项到冻结对象范围的确定性绑定；由结果生成，随完成快照保存，读取时只接受绑定 ID。 */
 final class EasyVResultDrilldown {
-  private static final Set<String> OBJECTS = Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component");
+  private static final Set<String> OBJECTS = EasyVOntologyModel.READABLE_OBJECT_KEYS;
   private static final ObjectMapper JSON = new ObjectMapper();
   private EasyVResultDrilldown() {}
 

@@ -20,6 +20,7 @@
       "properties": {
         "objectKey": {
           "enum": [
+            "easyv-ai-application",
             "easyv-prototype-layout",
             "easyv-prototype-block",
             "easyv-prototype-component"
@@ -37,6 +38,7 @@
                 "properties": {
                   "objectKey": {
                     "enum": [
+                      "easyv-ai-application",
                       "easyv-prototype-layout",
                       "easyv-prototype-block",
                       "easyv-prototype-component"
@@ -152,6 +154,7 @@
       "properties": {
         "key": {
           "enum": [
+            "easyv-ai-application",
             "easyv-prototype-layout",
             "easyv-prototype-block",
             "easyv-prototype-component"
@@ -208,6 +211,7 @@
               },
               "targetObjectKey": {
                 "enum": [
+                  "easyv-ai-application",
                   "easyv-prototype-layout",
                   "easyv-prototype-block",
                   "easyv-prototype-component"

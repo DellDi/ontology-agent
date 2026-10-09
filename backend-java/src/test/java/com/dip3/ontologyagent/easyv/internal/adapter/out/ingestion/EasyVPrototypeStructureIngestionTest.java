@@ -454,6 +454,40 @@ class EasyVPrototypeStructureIngestionTest {
         PRODUCTS.get(0), "app-1", new SemanticQueryPort.AccessContext(missing, SemanticQueryPort.Scope.everything()))).code());
   }
 
+  @Test
+  void applicationObjectsUseTheSameFrozenReadPathWithMembershipScopeAndLayoutRelation() {
+    var versions = materializeAll(publish("application-read", rows(validJson("4"))), "application-read");
+    versions.put("easyv-ai-application", applicationVersion("application-read", false));
+    var reader = new PostgresObjectQueryAdapter(jdbc, SemanticModel.discover());
+    var all = new SemanticQueryPort.AccessContext(versions, SemanticQueryPort.Scope.everything());
+    var scoped = new SemanticQueryPort.AccessContext(versions,
+        SemanticQueryPort.Scope.restricted(Map.of("userId", List.of("16"))));
+    String application = "easyv-ai-application";
+    var order = List.of(new QueryIntent.Order("createdAt", QueryIntent.Direction.ASC));
+    var first = reader.query(new ObjectQueryPort.Query(application, List.of(), order, 2, 0), all);
+    assertEquals(List.of("app-1", "app-2"), first.rows().stream().map(r -> r.reference().objectId()).toList());
+    assertTrue(first.hasMore());
+    var next = reader.query(new ObjectQueryPort.Query(application, List.of(), order, 2, 2), all);
+    assertEquals(List.of("app-4", "app-5"), next.rows().stream().map(r -> r.reference().objectId()).toList());
+    assertTrue(!next.hasMore()); // app-3 is a tombstone: stored in facts but never a readable application
+    var own = reader.query(new ObjectQueryPort.Query(application, null, null, 50, 0), scoped);
+    assertEquals(List.of("app-1", "app-2", "app-4"), own.rows().stream().map(r -> r.reference().objectId()).toList());
+    assertEquals(jdbc.queryForObject("""
+        select count(*) from facts.easyv_ai_application
+        where product_version_id=? and user_id='16' and not is_deleted
+        """, Integer.class, versions.get(application)), own.rows().size());
+    var row = own.rows().getFirst();
+    assertEquals(versions.get(application), row.reference().productVersionId());
+    assertEquals("16", row.properties().get("userId"));
+    assertEquals("USER", row.properties().get("scopeType"));
+    assertEquals("OBJECT_NOT_FOUND", assertThrows(BackendException.class, () -> reader.require(application, "app-3", all)).code());
+    assertEquals("OBJECT_NOT_FOUND", assertThrows(BackendException.class, () -> reader.require(application, "app-5", scoped)).code());
+    var related = reader.related(PRODUCTS.get(0), "app-1", "application",
+        new ObjectQueryPort.Query(application, null, null, 50, 0), scoped);
+    assertEquals(List.of("app-1"), related.rows().stream().map(r -> r.reference().objectId()).toList());
+    assertEquals(versions.get(application), related.rows().getFirst().reference().productVersionId());
+  }
+
   private String applicationVersion(String suffix, boolean deleteFirst) {
     var time = LocalDateTime.parse("2026-09-04T09:00:00");
     List<SourceRow> rows = List.of(

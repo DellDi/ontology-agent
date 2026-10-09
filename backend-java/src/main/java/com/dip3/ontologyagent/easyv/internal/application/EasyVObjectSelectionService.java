@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.easyv.internal.application;
 
 import com.dip3.ontologyagent.auth.AuthSession;
 import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.semantic.api.*;
 import com.dip3.ontologyagent.support.BackendException;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Service;
 @Service
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public class EasyVObjectSelectionService {
-  private static final Set<String> OBJECTS = Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component");
+  private static final Set<String> OBJECTS = EasyVOntologyModel.READABLE_OBJECT_KEYS;
   private static final Set<String> PRODUCTS = Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component");
   private final ObjectQueryPort objects;
   private final DatasetVersionSetRegistry datasets;
@@ -27,7 +28,7 @@ public class EasyVObjectSelectionService {
   public record Selected(ResolvedScopeSnapshot scope, ObjectQueryPort.Row object) {}
 
   public Selected require(AuthSession viewer, ResolvedScopeSnapshot frozenScope, ObjectSelection selection) {
-    if (!OBJECTS.contains(selection.reference().objectKey())) throw new BackendException("OBJECT_SELECTION_INVALID", "当前选择只支持原型版式、区域与组件。");
+    if (!OBJECTS.contains(selection.reference().objectKey())) throw new BackendException("OBJECT_SELECTION_INVALID", "当前选择只支持 AI 应用、原型版式、区域与组件。");
     scopes.validateScope(frozenScope, viewer);
     var scope = EasyVScopeResolver.narrowScope(frozenScope, scopes.resolveScope(viewer));
     var versions = datasets.requireFrozen(selection.datasetVersionSetId(), PRODUCTS).productVersionIds();

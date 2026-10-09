@@ -115,6 +115,7 @@ public final class EasyVAgentTools {
         return new Prepared(tool, Map.copyOf(input), request(key, null, null, input), null);
       }
       var row = requireHandle(input.get("handle"));
+      requireObject(row.reference().objectKey());
       if (tool.equals("assess_scheme")) {
         if (!"easyv-prototype-block".equals(row.reference().objectKey())) throw invalid("assess_scheme 只能评估区域对象");
         return new Prepared(tool, Map.copyOf(input), null,

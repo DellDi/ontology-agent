@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.easyv.internal.application;
 
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.Highlight;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVSemanticAgent.ExecutedQuery;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import com.dip3.ontologyagent.semantic.api.CompiledSemanticQuery.Column;
 import com.dip3.ontologyagent.semantic.api.CompiledSemanticQuery.ColumnKind;
 import java.util.ArrayList;
@@ -41,12 +42,12 @@ final class EasyVRenderBlocks {
   /** 聚合结果的对象范围入口：只在属性过滤可精确保留时生成，不把 HAVING/TopN 当作对象筛选。 */
   static List<Map<String, Object>> objectBrowsers(List<ExecutedQuery> executed, SemanticModel model,
                                                 String datasetVersionSetId, Set<String> products) {
-    Set<String> prototypes = Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component");
-    if (!products.containsAll(prototypes) || !products.contains("easyv-ai-application")) return List.of();
+    Set<String> readable = EasyVOntologyModel.READABLE_OBJECT_KEYS;
+    if (!products.containsAll(readable)) return List.of();
     List<Map<String, Object>> blocks = new ArrayList<>();
     for (ExecutedQuery query : executed) {
       var compiled = query.compiled();
-      if (!prototypes.contains(compiled.objectKey())) continue;
+      if (!readable.contains(compiled.objectKey())) continue;
       var object = model.require(compiled.objectKey());
       List<QueryIntent.Filter> filters = EasyVResultDrilldown.objectFilters(compiled, object);
       if (filters == null) continue;
