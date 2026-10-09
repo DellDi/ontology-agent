@@ -126,6 +126,11 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
           {title}
         </p>
       ) : null}
+      {typeof block.payload.presentationReason === 'string' ? (
+        <p className={cn('mb-3 text-xs leading-5 text-muted-foreground', !flat && 'px-4 pt-2')}>
+          {block.payload.presentationReason}
+        </p>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-sm text-foreground">
           <thead className="sticky top-0 bg-secondary/40 backdrop-blur-sm">

@@ -7,7 +7,7 @@
  *   - 表格使用 DataTableBlock（sticky header、空态、数字右对齐、长文本换行）
  *   - 图表使用 recharts（BarChart / LineChart），自动适配 dark 主题
  *   - 关系图保留节点+关系列表式表达，但有空态与层级强化
- *   - chart kind 自动按 series 数与 hint 选择 Bar/Line，未来可暴露 payload.kind 显式指定
+ *   - chart kind 使用正式 chartType，避免按系列数重新猜测类型
  */
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 
@@ -17,7 +17,7 @@ import { BarChartBlock } from './charts/bar-chart-block';
 import { DataTableBlock } from './charts/data-table-block';
 import { EntityGraphBlock } from './charts/entity-graph-block';
 import { LineChartBlock } from './charts/line-chart-block';
-import { asItemArray } from './charts/recharts-shared';
+import { PieChartBlock } from './charts/pie-chart-block';
 import { resultDrilldownActions } from './result-drilldown';
 
 export function renderTableBlock(input: AnalysisInteractionUiRenderInput) {
@@ -44,15 +44,16 @@ export function renderChartBlock(input: AnalysisInteractionUiRenderInput) {
   } = input;
   const drilldown = resultDrilldownActions(input);
   const hint =
-    typeof renderedBlock.payload.chartKind === 'string'
-      ? renderedBlock.payload.chartKind
+    typeof renderedBlock.payload.chartType === 'string'
+      ? renderedBlock.payload.chartType
       : null;
-  const seriesCount = asItemArray(renderedBlock.payload.series).length;
-  const useLine = hint === 'line' || hint === 'trend' || seriesCount > 1;
+  const useLine = hint === 'line';
 
   return (
     <div className={className}>
-      {useLine ? (
+      {hint === 'pie' ? (
+        <PieChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
+      ) : useLine ? (
         <LineChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
       ) : (
         <BarChartBlock block={renderedBlock} flat={embedded} drilldown={drilldown} />
@@ -83,12 +84,7 @@ export function renderTable(block: AnalysisRenderedBlock) {
 }
 
 export function renderChart(block: AnalysisRenderedBlock) {
-  const seriesCount = asItemArray(block.payload.series).length;
-  return seriesCount > 1 ? (
-    <LineChartBlock block={block} />
-  ) : (
-    <BarChartBlock block={block} />
-  );
+  return renderChartBlock({ renderedBlock: block });
 }
 
 export function renderGraph(block: AnalysisRenderedBlock) {
