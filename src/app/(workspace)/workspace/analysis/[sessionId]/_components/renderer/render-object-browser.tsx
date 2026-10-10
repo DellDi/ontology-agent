@@ -15,6 +15,7 @@ import { javaObjectReadRequestSchema, type JavaObjectReadRequest, type JavaObjec
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatShanghaiDateTime } from '@/lib/format-datetime';
+import { objectRecordTitle, objectPropertyText, objectRecordSelectionLabel } from '@/application/object-collection/presentation';
 import { ObjectCollectionControls } from './object-collection-controls';
 import { SchemeAssessmentPanel } from './scheme-assessment-panel';
 import { chartPlaceholder, ComponentGlyph, PrototypeComponentPreview, type MetricPreviewStyle } from './prototype-component-preview';
@@ -59,16 +60,18 @@ function Pending({ children }: { children: string }) {
   return <p className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground" role="status"><Loader2 className="size-4 motion-safe:animate-spin" aria-hidden />{children}</p>;
 }
 function label(row: Row) {
-  return String(row.properties.componentId ?? row.properties.blockId ?? row.properties.appId ?? row.reference.objectId);
+  if (row.reference.objectKey === 'easyv-prototype-component') return chartPlaceholder(row.properties.chartFamily).label;
+  if (row.reference.objectKey === 'easyv-prototype-block') return regionLabel(row);
+  if (row.reference.objectKey === 'easyv-prototype-layout') return String(row.properties.layoutType || '原型版式');
+  return '记录';
 }
-type RowView = { title: (row: Row) => string; summary: (row: Row, type?: Type) => string };
+type RowView = { title: (row: Row, type?: Type) => string; summary: (row: Row, type?: Type) => string };
 const prototypeRows: RowView = { title: label,
   summary: (row) => String(row.properties.chartFamily ?? row.properties.blockSize ?? row.properties.parseStatus ?? '') };
-const metadataRows: RowView = { title: (row) => row.reference.objectId, summary: (row, type) => {
-  const time = type?.properties.find((property) => property.type === 'TIME');
-  const value = time ? row.properties[time.key] : null;
-  return time && typeof value === 'string' ? `${time.label} ${formatShanghaiDateTime(value)}` : '';
-} };
+const metadataRows: RowView = { title: (row, type) => objectRecordTitle(row.properties, type), summary: (row, type) =>
+  type?.properties.filter((property) => !property.identifier && !property.title && (property.prominent || property.type === 'TIME'))
+    .filter((property) => row.properties[property.key] != null)
+    .map((property) => objectPropertyText(property, row.properties[property.key])).join(' · ') ?? '' };
 
 function regionLabel(row: Row) {
   const id = String(row.properties.blockId ?? row.reference.objectId).replace(/^page-\d+__/, '');
@@ -86,7 +89,7 @@ function ObjectList({ title, rows, type, selected, onSelect, hasMore, loading, o
         key={row.reference.objectId} type="button" aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
         onClick={() => onSelect(row)} className={cn('flex w-full flex-col items-start gap-1 border-b border-border/50 px-3 py-2.5 text-left text-xs last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey && 'bg-primary/10 text-primary')}>
-        <span className="min-w-0 break-all font-medium">{viewOf(row.reference.objectKey).rows.title(row)}</span><span className="break-all text-muted-foreground">{viewOf(row.reference.objectKey).rows.summary(row, type)}</span>
+        <span className="min-w-0 break-all font-medium">{viewOf(row.reference.objectKey).rows.title(row, type)}</span><span className="break-all text-muted-foreground">{viewOf(row.reference.objectKey).rows.summary(row, type)}</span>
       </button>)}
     </div>
     {hasMore && onMore ? <Button type="button" variant="outline" size="sm" disabled={loading} onClick={onMore}>{loading ? '正在读取…' : '加载更多'}</Button> : null}
@@ -139,26 +142,30 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
   const [relation, setRelation] = useState<Type['links'][number] | null>(null);
   const selected = detail.data?.page.rows[0] ?? focus;
   const type: Type | undefined = detail.data?.objectType;
-  const title = viewOf(selected.reference.objectKey).rows.title(selected);
+  const title = viewOf(selected.reference.objectKey).rows.title(selected, type);
   const related = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
     relation: relation?.key, limit: 20 }, relation !== null);
+  const businessProperties = type?.properties.filter((property) => !property.identifier);
+  const primaryProperties = businessProperties?.filter((property) => property.prominent || property.title || property.type === 'TIME');
+  const otherProperties = businessProperties?.filter((property) => !primaryProperties?.includes(property));
+  const propertyList = (properties: Type['properties'] | undefined) => <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
+    {properties?.map((property) => <div key={property.key} className="contents"><dt className="text-muted-foreground">{property.label}</dt>
+      <dd className="whitespace-pre-wrap break-words leading-5">{objectPropertyText(property, selected.properties[property.key])}</dd></div>)}
+  </dl>;
+  const traceProperties = type?.properties.filter((property) => property.identifier || Object.keys(property.valueLabels ?? {}).length);
   return <section className="space-y-3 border-t border-border pt-4" aria-label="所选对象属性">
     <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {title}</h4>
     {onObjectSelect ? <Button type="button" size="sm" variant="outline" disabled={!detail.data?.page.rows[0] || !type}
       onClick={() => { if (detail.data?.page.rows[0] && type) onObjectSelect({ executionId: detail.data.executionId,
-        datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }, `${type.label} · ${title}`); }}>
+        datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }, objectRecordSelectionLabel(selected.properties, type)); }}>
       针对这个对象追问
     </Button> : null}
     {detail.isPending ? <Pending>正在读取对象属性…</Pending> : null}
     {detail.error ? <Notice error={detail.error} /> : null}
     {beforeProperties}
-    {type ? <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
-      {type.properties.map((property) => {
-        const value = selected.properties[property.key];
-        return <div key={property.key} className="contents"><dt className="text-muted-foreground">{property.label}</dt>
-          <dd className="break-all">{property.type === 'TIME' && typeof value === 'string' ? formatShanghaiDateTime(value) : String(value ?? '未提供')}</dd></div>;
-      })}
-    </dl> : null}
+    {type ? propertyList(primaryProperties) : null}
+    {otherProperties?.length ? <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">更多记录信息</summary>
+      <div className="mt-3">{propertyList(otherProperties)}</div></details> : null}
     {afterProperties}
     {type?.links.length ? <div className="flex flex-wrap gap-2">{type.links.map((link) => <Button key={link.key} type="button" variant="outline" size="sm"
       aria-pressed={relation?.key === link.key} onClick={() => setRelation(link)}>查看{link.targetLabel}</Button>)}</div> : null}
@@ -168,6 +175,10 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
         {related.data.page.hasMore ? <p className="text-xs text-muted-foreground">{hints?.relation ?? '仅显示前 20 个关联对象。'}</p> : null}</> : null}
     </div> : null}
     <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">数据出处与版本</summary>
+      <dl className="mt-3 grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-2">
+        {traceProperties?.map((property) => <div key={property.key} className="contents"><dt>{property.label}</dt>
+          <dd className="break-all">{String(selected.properties[property.key] ?? '未提供')}</dd></div>)}
+      </dl>
       {detail.data?.dataContext ? <div className="mt-2 space-y-1 leading-5">
         <p>集合捕获时间：{formatShanghaiDateTime(detail.data.dataContext.capturedAt)}（北京时间）</p>
         <p>有效权限范围：{detail.data.dataContext.scopeDescription}</p>
@@ -183,8 +194,30 @@ function GenericObjectDetail({ context, root, onObjectSelect }: ViewProps) {
   const detail = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId });
   return <div className="space-y-4">
     <ObjectDetailPanel key={`${focus.reference.objectKey}:${focus.reference.objectId}`} context={context} focus={focus} detail={detail}
-      onFocus={setFocus} onObjectSelect={onObjectSelect} />
+      onFocus={setFocus} onObjectSelect={onObjectSelect} beforeProperties={detail.data?.objectType.links.filter((link) => link.prominent)
+        .map((link) => <LinkedObjectPreview key={link.key} context={context} source={focus} link={link} />)} />
   </div>;
+}
+
+function LinkedObjectPreview({ context, source, link }: { context: Context; source: Row; link: Type['links'][number] }) {
+  const related = useObjectRead(context, { objectKey: source.reference.objectKey, objectId: source.reference.objectId,
+    relation: link.key, limit: 20 });
+  const [selected, setSelected] = useState<Row | null>(null);
+  const object = selected ?? related.data?.page.rows[0];
+  const detail = useObjectRead(context, { objectKey: link.targetObjectKey, objectId: object?.reference.objectId }, !!object);
+  const row = detail.data?.page.rows[0];
+  return <section className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" aria-label={link.targetLabel}>
+    <h5 className="text-xs font-semibold">{link.targetLabel}</h5>
+    {related.isPending || (object && detail.isPending) ? <Pending>正在读取关联信息…</Pending> : null}
+    {related.error ? <Notice error={related.error} /> : null}{detail.error ? <Notice error={detail.error} /> : null}
+    {related.data && !object ? <p className="text-xs text-muted-foreground">没有关联记录。</p> : null}
+    {related.data && related.data.page.rows.length > 1 ? <ObjectList title={link.targetLabel} rows={related.data.page.rows}
+      type={related.data.objectType} selected={object ?? null} onSelect={setSelected} /> : null}
+    {related.data?.page.hasMore ? <p className="text-xs text-muted-foreground">这里只显示前 20 条，可通过下方关联入口继续查看。</p> : null}
+    {row ? detail.data?.objectType.properties.filter((property) => property.prominent && !property.identifier).map((property) =>
+      <div key={property.key} className="space-y-1"><p className="text-xs text-muted-foreground">{property.label}</p>
+        <p className="whitespace-pre-wrap break-words text-sm leading-6">{objectPropertyText(property, row.properties[property.key])}</p></div>) : null}
+  </section>;
 }
 
 function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
@@ -217,7 +250,7 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
   if (!layoutId) return <p role="alert" className="text-sm text-destructive">对象缺少所属应用 ID，无法定位原型。</p>;
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
-      <span className="text-sm font-medium">原型 {layoutId}</span>
+      <span className="text-sm font-medium">原型结构</span>
       <Button type="button" variant="ghost" size="sm" onClick={() => { const row = layout.data?.page.rows[0]; if (row) setFocus(row); }} disabled={!layout.data}>版式属性</Button>
     </div>
     {layout.isPending || blocks.isPending ? <Pending>正在读取版式结构…</Pending> : null}
@@ -328,7 +361,7 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
   const Detail = root ? viewOf(root.reference.objectKey).Detail : null;
   return <div className="space-y-5" data-testid="analysis-object-browser">
     <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p>
-    {knownType ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties}
+    {knownType ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties.filter((property) => !property.identifier)}
       controls={controls} maxFilters={maxFilters} onChange={change} /> : null}
     {list.isPending ? <Pending>正在读取本轮对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}

@@ -1,5 +1,7 @@
 'use client';
 
+import { objectValueLabel } from '@/application/object-collection/presentation';
+
 import { useState } from 'react';
 
 import {
@@ -13,6 +15,8 @@ import {
   type StructuredTimeUnit,
 } from '@/application/analysis-message-projection/structured-adjustment';
 import {
+  filterOperatorLabel,
+  type SemanticUnderstandingFilter,
   type SemanticEditorCatalog,
   type SemanticQueryUnderstanding,
   type ResolvedQueryIntent,
@@ -105,10 +109,12 @@ function MemberChecklist({
 function QueryEditor({
   catalogObject,
   draft,
+  filterMetadata,
   onChange,
 }: {
   catalogObject: SemanticEditorCatalog['objects'][number] | undefined;
   draft: StructuredQueryDraft;
+  filterMetadata: SemanticUnderstandingFilter[];
   onChange: (patch: Partial<StructuredQueryDraft>) => void;
 }) {
   const allDataTime = draft.timeKind === 'all';
@@ -317,15 +323,17 @@ function QueryEditor({
         <fieldset className="space-y-1.5">
           <legend className="text-sm font-semibold text-foreground">过滤</legend>
           <div className="flex flex-wrap gap-1.5">
-            {draft.filters.map((filter, index) => (
-              <span
+            {draft.filters.map((filter, index) => {
+              const metadata = filterMetadata.find((item) => item.member === filter.member);
+              return (
+                <span
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground"
                 key={`${filter.member}-${index}`}
               >
-                {filter.member} {filter.operator}
-                {filter.values.length > 0 ? ` ${filter.values.join('、')}` : ''}
+                {metadata?.label ?? '筛选属性'} {filterOperatorLabel(filter.operator)}
+                {filter.values.length > 0 ? ` ${filter.values.map((value) => objectValueLabel(metadata, value)).join('、')}` : ''}
                 <button
-                  aria-label={`移除过滤 ${filter.member}`}
+                  aria-label={`移除过滤 ${metadata?.label ?? '筛选属性'}`}
                   className="text-muted-foreground hover:text-destructive"
                   onClick={() =>
                     onChange({
@@ -337,7 +345,8 @@ function QueryEditor({
                   ×
                 </button>
               </span>
-            ))}
+              );
+            })}
           </div>
         </fieldset>
       ) : null}
@@ -443,6 +452,7 @@ export function AnalysisUnderstandingEditor({
               <QueryEditor
                 catalogObject={catalogObject}
                 draft={draft}
+                filterMetadata={understanding.find((entry) => entry.id === draft.id)?.filters ?? []}
                 onChange={(patch) =>
                   setDrafts((current) => updateDraft(current, draft.id, patch))
                 }

@@ -88,7 +88,7 @@ class EasyVObjectSelectionServiceTest {
   }
 
   @Test void objectsOutsideTheReadableCatalogCannotBeSelected() {
-    var forgeTask = new ObjectSelection("execution-old", "set-old", new ObjectQueryPort.Reference("easyv-forge-task", "t", "tasks-old"));
+    var forgeTask = new ObjectSelection("execution-old", "set-old", new ObjectQueryPort.Reference("easyv-pipeline-node", "t", "tasks-old"));
     assertEquals("OBJECT_SELECTION_INVALID", assertThrows(BackendException.class, () -> service.require(viewer("PLATFORM_ADMIN"), all, forgeTask)).code());
     verifyNoInteractions(objects);
   }

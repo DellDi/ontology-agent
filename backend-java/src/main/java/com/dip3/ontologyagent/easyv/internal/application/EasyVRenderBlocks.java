@@ -43,12 +43,14 @@ final class EasyVRenderBlocks {
   static List<Map<String, Object>> objectBrowsers(List<ExecutedQuery> executed, SemanticModel model,
                                                 String datasetVersionSetId, Set<String> products) {
     Set<String> readable = EasyVOntologyModel.READABLE_OBJECT_KEYS;
-    if (!products.containsAll(readable)) return List.of();
+    if (!products.containsAll(Set.of("easyv-ai-application", "easyv-prototype-layout",
+        "easyv-prototype-block", "easyv-prototype-component"))) return List.of();
     List<Map<String, Object>> blocks = new ArrayList<>();
     for (ExecutedQuery query : executed) {
       var compiled = query.compiled();
       if (!readable.contains(compiled.objectKey())) continue;
       var object = model.require(compiled.objectKey());
+      if (!products.contains(object.productKey())) continue;
       List<QueryIntent.Filter> filters = EasyVResultDrilldown.objectFilters(compiled, object);
       if (filters == null) continue;
       blocks.add(Map.of("type", "object-browser", "title", query.label() + " · 对象范围", "role", "supporting",
@@ -66,41 +68,41 @@ final class EasyVRenderBlocks {
     List<Map<String, Object>> rows = query.result().rows();
     List<Map<String, Object>> compareRows = query.result().compareRows();
     String title = query.label();
-    if ("table".equals(viz)) return table(query, role, "按问题意图展示明细，保留原始字段与数值。");
+    if ("table".equals(viz)) return table(query, role, "按问题意图展示明细，保留原始字段与数值。", model);
     if (dimensions.isEmpty() && time == null && rows.size() == 1) {
       return kvList(title, role, measures, rows.getFirst(), compareRows.isEmpty() ? null : compareRows.getFirst());
     }
     if (rows.size() > EasyVSemanticAgent.EVIDENCE_ROW_CAP) {
-      return table(query, role, "结果较多，使用表格预览，避免将所有记录挤入图表。");
+      return table(query, role, "结果较多，使用表格预览，避免将所有记录挤入图表。", model);
     }
-    if ("none".equals(viz)) return table(query, role, "此结果作为支撑明细，不强制生成图表。");
-    if (!compareRows.isEmpty()) return table(query, role, "当前期与对比期分别列出，保留实际分组与数值。");
+    if ("none".equals(viz)) return table(query, role, "此结果作为支撑明细，不强制生成图表。", model);
+    if (!compareRows.isEmpty()) return table(query, role, "当前期与对比期分别列出，保留实际分组与数值。", model);
     boolean trend = time != null && dimensions.isEmpty();
     boolean categories = time == null && dimensions.size() == 1;
     if ((!trend && !categories) || measures.isEmpty()) {
-      return table(query, role, "多维结果或无数值指标，使用表格保留明细。");
+      return table(query, role, "多维结果或无数值指标，使用表格保留明细。", model);
     }
     Column axis = trend ? time : dimensions.getFirst();
     String type = viz == null ? (trend ? "line" : "bar") : viz;
     if (!Set.of("bar", "line", "pie").contains(type)
         || ("line".equals(type) && !trend) || ("bar".equals(type) && !categories)) {
-      return table(query, role, "建议的图表与结果形状不匹配，使用表格保留真实结果。");
+      return table(query, role, "建议的图表与结果形状不匹配，使用表格保留真实结果。", model);
     }
     if (viz == null) {
-      if (categories && measures.size() != 1) return table(query, role, "多个指标使用表格分别呈现，避免混用刻度。");
-      if (rows.size() < 2) return table(query, role, "仅有一个分组或时间点，使用明细呈现。");
+      if (categories && measures.size() != 1) return table(query, role, "多个指标使用表格分别呈现，避免混用刻度。", model);
+      if (rows.size() < 2) return table(query, role, "仅有一个分组或时间点，使用明细呈现。", model);
       if (categories && model.resolve(query.compiled().objectKey(), axis.key()).property().identifier()) {
-        return table(query, role, "分组字段是标识符，使用表格便于识别和查看对应对象。");
+        return table(query, role, "分组字段是标识符，使用表格便于识别和查看对应对象。", model);
       }
       if (categories && constant(measures, rows)) {
-        return table(query, role, "已返回分组的数值没有差异，使用明细便于查看对象。");
+        return table(query, role, "已返回分组的数值没有差异，使用明细便于查看对象。", model);
       }
     }
     if ("pie".equals(type) && (!categories || !pieEligible(query, measures, rows, model))) {
-      return table(query, role, "占比图需要完整分组和可相加的非负数值；当前结果不满足条件。");
+      return table(query, role, "占比图需要完整分组和可相加的非负数值；当前结果不满足条件。", model);
     }
-    Map<String, Object> chart = chart(title, role, type, axis, measures, rows);
-    return chart != null ? chart : table(query, role, "存在缺失或非数值数据，使用表格保留原值，不以零替代。");
+    Map<String, Object> chart = chart(title, role, type, axis, measures, rows, query.compiled().objectKey(), model);
+    return chart != null ? chart : table(query, role, "存在缺失或非数值数据，使用表格保留原值，不以零替代。", model);
   }
 
   private static boolean constant(List<Column> measures, List<Map<String, Object>> rows) {
@@ -144,23 +146,29 @@ final class EasyVRenderBlocks {
     return Map.of("type", "kv-list", "title", title, "role", role, "items", List.copyOf(items));
   }
 
+  private static String displayText(SemanticModel model, String objectKey, Column column, Object value) {
+    if (value == null || column.kind() != ColumnKind.DIMENSION) return text(value);
+    var labels = model.resolve(objectKey, column.key()).property().valueLabels();
+    return labels.isEmpty() ? text(value) : labels.getOrDefault(String.valueOf(value), "未配置显示名称");
+  }
+
   /** 任一数据点非有限数值时返回 null，由调用方退回表格。 */
   private static Map<String, Object> chart(String title, String role, String type, Column axis,
-                                           List<Column> measures, List<Map<String, Object>> rows) {
+                                           List<Column> measures, List<Map<String, Object>> rows, String objectKey, SemanticModel model) {
     if (measures.isEmpty() || ("pie".equals(type) && measures.size() != 1)) return null;
     List<Map<String, Object>> series = new ArrayList<>();
     for (Column measure : measures) {
       List<Map<String, Object>> points = new ArrayList<>();
       for (Map<String, Object> row : rows) {
         if (!(row.get(measure.key()) instanceof Number number) || !Double.isFinite(number.doubleValue())) return null;
-        points.add(Map.of("label", text(row.get(axis.key())), "value", number));
+        points.add(Map.of("label", displayText(model, objectKey, axis, row.get(axis.key())), "value", number));
       }
       series.add(Map.of("name", measure.label(), "points", List.copyOf(points)));
     }
     return Map.of("type", "chart", "title", title, "role", role, "chartType", type, "series", List.copyOf(series));
   }
 
-  private static Map<String, Object> table(ExecutedQuery query, String role, String reason) {
+  private static Map<String, Object> table(ExecutedQuery query, String role, String reason, SemanticModel model) {
     var columns = query.compiled().columns();
     var rows = query.result().rows();
     var compareRows = query.result().compareRows();
@@ -174,7 +182,7 @@ final class EasyVRenderBlocks {
       for (var row : (period == 0 ? rows : compareRows).stream().limit(EasyVSemanticAgent.EVIDENCE_ROW_CAP).toList()) {
         List<String> values = new ArrayList<>();
         if (comparing) values.add((period == 0 ? "当前期 · " : "对比期 · ") + range);
-        values.addAll(columns.stream().map(column -> text(row.get(column.key()))).toList());
+        values.addAll(columns.stream().map(column -> displayText(model, query.compiled().objectKey(), column, row.get(column.key()))).toList());
         cells.add(List.copyOf(values));
       }
     }

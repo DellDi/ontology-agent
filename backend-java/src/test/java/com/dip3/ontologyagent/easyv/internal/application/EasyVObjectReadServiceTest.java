@@ -55,6 +55,20 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void objectDescriptionCarriesDomainDisplayMetadataWithoutReplacingRawIdentity() {
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(APPLICATION, "app-1", "apps-old"),
+        Map.of("appId", "app-1", "scopeType", "USER"));
+    doReturn(new ObjectQueryPort.Page(APPLICATION, List.of(row), 20, 0, false)).when(objects).query(any(), any());
+    var result = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", APPLICATION,
+        null, null, null, null, 20, 0));
+    assertTrue(result.objectType().properties().stream().filter(p -> p.key().equals("appId")).findFirst().orElseThrow().identifier());
+    assertEquals(Map.of("USER", "个人", "TEAM", "团队", "SPACE", "空间"), result.objectType().properties().stream()
+        .filter(p -> p.key().equals("scopeType")).findFirst().orElseThrow().valueLabels());
+    assertEquals("USER", result.page().rows().getFirst().properties().get("scopeType"));
+    assertEquals("app-1", result.page().rows().getFirst().reference().objectId());
+  }
+
+  @Test
   void listUsesExactExecutionManifestWithoutSelectingLatest() {
     var result = service.read("session", admin, request(null, null, "set-old"));
     assertEquals("set-old", result.datasetVersionSetId());
@@ -240,7 +254,7 @@ class EasyVObjectReadServiceTest {
     assertEquals("AI 应用", list.objectType().label());
     assertTrue(list.objectType().properties().stream().anyMatch(property ->
         property.key().equals("createdAt") && property.type() == OntologyProperty.Type.TIME));
-    assertTrue(list.objectType().links().isEmpty(), "应用没有声明出边关系，不能补造");
+    assertTrue(list.objectType().links().stream().anyMatch(link -> link.key().equals("operations")), "应用没有声明出边关系，不能补造");
     verify(objects).query(argThat(query -> APPLICATION.equals(query.objectKey())),
         argThat(access -> "apps-old".equals(access.productVersions().get(APPLICATION))));
     var detail = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", APPLICATION, "app-1", null, null, null, null, null));
@@ -269,7 +283,7 @@ class EasyVObjectReadServiceTest {
 
   @Test
   void objectsOutsideTheReadableCatalogAndApplicationSummariesAreRejectedBeforeFacts() {
-    for (String key : List.of("easyv-forge-task", "easyv-generation-feedback", "easyv-prototype")) {
+    for (String key : List.of("easyv-pipeline-node", "easyv-scheme-library", "easyv-prototype")) {
       assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class, () -> service.read("session", admin,
           new EasyVObjectReadService.Request("execution", "set-old", key, null, null, null, null, null, null))).code(), key);
     }

@@ -1,3 +1,5 @@
+import { objectValueLabel } from '@/application/object-collection/presentation';
+
 /**
  * EasyV 语义查询轮次的展示与编辑模型：
  * `_understanding` → 「我的理解」文案；`_resolvedContext.queries` → 编辑器初始意图；
@@ -12,6 +14,7 @@ export type SemanticUnderstandingFilter = {
   label: string;
   operator: string;
   values: string[];
+  valueLabels?: Record<string, string>;
 };
 
 export type SemanticUnderstandingTime = {
@@ -95,7 +98,7 @@ export type UnderstandingDescription = {
   coverage: { tone: 'muted' | 'amber' | 'rose'; text: string };
 };
 
-function filterOperatorLabel(operator: string): string {
+export function filterOperatorLabel(operator: string): string {
   return OPERATOR_LABELS[operator] ?? operator;
 }
 
@@ -123,7 +126,7 @@ export function describeSemanticQuery(
   const filters = entry.filters.map((filter) => {
     const operator = filterOperatorLabel(filter.operator);
     return filter.values.length > 0
-      ? `过滤：${filter.label} ${operator} ${filter.values.join('、')}`
+      ? `过滤：${filter.label} ${operator} ${filter.values.map((value) => objectValueLabel(filter, value)).join('、')}`
       : `过滤：${filter.label} ${operator}`;
   });
 

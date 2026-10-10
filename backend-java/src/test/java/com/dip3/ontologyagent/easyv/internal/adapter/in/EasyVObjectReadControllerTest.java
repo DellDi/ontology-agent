@@ -58,11 +58,11 @@ class EasyVObjectReadControllerTest {
         "execution-old", "set-old", "ontology-old", new ObjectQueryPort.Page("easyv-prototype-layout", List.of(row), 1, 0, false),
         new EasyVObjectReadService.Structure("available", layout),
         new EasyVObjectReadService.ObjectTypeView("easyv-prototype-layout", "原型版式", List.of(
-            new EasyVObjectReadService.PropertyView("appId", "应用 ID", OntologyProperty.Type.STRING),
-            new EasyVObjectReadService.PropertyView("parseStatus", "解析状态", OntologyProperty.Type.STRING),
-            new EasyVObjectReadService.PropertyView("parseErrorCode", "解析错误代码", OntologyProperty.Type.STRING),
-            new EasyVObjectReadService.PropertyView("blockCount", "区域数", OntologyProperty.Type.NUMBER)),
-            List.of(new EasyVObjectReadService.LinkView("blocks", "easyv-prototype-block", "原型区域"))), Map.of(), null, new EasyVObjectReadService.DataContext(java.time.Instant.parse("2026-10-03T12:00:00Z"), "全部数据")));
+            new EasyVObjectReadService.PropertyView("appId", "应用 ID", OntologyProperty.Type.STRING, true, false, false, Map.of()),
+            new EasyVObjectReadService.PropertyView("parseStatus", "解析状态", OntologyProperty.Type.STRING, false, false, false, Map.of()),
+            new EasyVObjectReadService.PropertyView("parseErrorCode", "解析错误代码", OntologyProperty.Type.STRING, false, false, false, Map.of()),
+            new EasyVObjectReadService.PropertyView("blockCount", "区域数", OntologyProperty.Type.NUMBER, false, false, false, Map.of())),
+            List.of(new EasyVObjectReadService.LinkView("blocks", "easyv-prototype-block", "原型区域", false))), Map.of(), null, new EasyVObjectReadService.DataContext(java.time.Instant.parse("2026-10-03T12:00:00Z"), "全部数据")));
     String body = mvc.perform(post(PATH).contentType("application/json").content(BODY))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     var json = new JsonCodec();

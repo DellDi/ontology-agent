@@ -91,13 +91,25 @@ class EasyVAgentToolsTest {
     verify(objects).readDuringExecution(eq(context), eq(ALL), argThat(req -> req.objectId().equals("1:other")));
   }
 
-  @Test void selectedApplicationConstrainsPrototypeToolsWhileApplicationsStayOutsideTheToolCatalog() {
+  @Test void invalidPresenceFiltersAndRawTextFiltersAreRejectedBeforeFacts() {
+    var run = tools.open(context, ALL, versions, null, List.of());
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", BLOCK,
+        "filters", List.of(Map.of("member", "blockId", "operator", "SET", "values", List.of("a", "b"))))));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", "easyv-generation-feedback",
+        "filters", List.of(Map.of("member", "userInput", "operator", "CONTAINS", "values", List.of("原文"))))));
+    assertEquals(QueryIntent.Operator.EQUALS, run.prepare("query_objects", Map.of("objectKey", BLOCK,
+        "filters", List.of(Map.of("member", "blockId", "operator", "EQUALS", "values", List.of("a", "b")))))
+        .request().filters().getFirst().operator());
+    verifyNoInteractions(objects);
+  }
+
+  @Test void selectedApplicationConstrainsItsRelatedObjectsAndRejectsUndeclaredRelations() {
     var application = row("easyv-ai-application", "1", Map.of("appId", "1"));
     var run = tools.open(context, ALL, versions, application, List.of());
     assertEquals(new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS, List.of("1")),
         run.prepare("query_objects", Map.of("objectKey", COMPONENT)).request().filters().getFirst());
-    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", "easyv-ai-application")));
-    code("EASYV_PLAN_INVALID", () -> run.prepare("read_object", Map.of("handle", "selected")));
+    assertEquals("appId", run.prepare("query_objects", Map.of("objectKey", "easyv-ai-application")).request().filters().getFirst().member());
+    assertEquals("1", run.prepare("read_object", Map.of("handle", "selected")).request().objectId());
     code("EASYV_PLAN_INVALID", () -> run.prepare("traverse_objects", Map.of("handle", "selected", "relation", "components")));
     verifyNoInteractions(objects, assessments);
   }

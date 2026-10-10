@@ -39,6 +39,8 @@ import com.dip3.ontologyagent.tooling.GroundedConclusion;
 import com.dip3.ontologyagent.tooling.WorkflowResult;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -316,7 +318,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     blocks.addAll(EasyVRenderBlocks.objectBrowsers(executed, semantic, datasetVersionSetId,
         versionSet.productVersionIds().keySet()));
     blocks.addAll(objectResults.stream().map(tool -> tool.output().renderBlock()).toList());
-    return new WorkflowResult(planSnapshot(turn, scope, dataScope, executed, evidence, answer, performedSteps, callTrace), evidence,
+    return new WorkflowResult(planSnapshot(turn, scope, dataScope, executed, evidence, answer, performedSteps, callTrace, selectedObject), evidence,
         answer.markdown(), claims, blocks);
   }
 
@@ -767,9 +769,15 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       out.put("effectiveRange", coverage.effectiveFrom() + " 至 " + coverage.effectiveTo());
     }
     out.put("columns", query.compiled().columns().stream()
-        .map(column -> Map.of("key", column.key(), "label", column.label(), "kind", lower(column.kind()),
-            "identifier", column.kind() == CompiledSemanticQuery.ColumnKind.DIMENSION
-                && semantic.resolve(query.compiled().objectKey(), column.key()).property().identifier())).toList());
+        .map(column -> {
+          Map<String, Object> metadata = new LinkedHashMap<>();
+          metadata.put("key", column.key()); metadata.put("label", column.label()); metadata.put("kind", lower(column.kind()));
+          boolean dimension = column.kind() == CompiledSemanticQuery.ColumnKind.DIMENSION;
+          var property = dimension ? semantic.resolve(query.compiled().objectKey(), column.key()).property() : null;
+          metadata.put("identifier", property != null && property.identifier());
+          if (property != null && !property.valueLabels().isEmpty()) metadata.put("valueLabels", property.valueLabels());
+          return metadata;
+        }).toList());
     out.put("totalRows", rows.size());
     out.put("rows", evidence == null ? List.of() : evidence.rows());
     return out;
@@ -845,6 +853,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       entry.put("label", filterLabel(object, filter.member()));
       entry.put("operator", lower(filter.operator()));
       entry.put("values", filter.values());
+      var property = semantic.resolve(compiled.objectKey(), filter.member()).property();
+      if (property != null && !property.valueLabels().isEmpty()) entry.put("valueLabels", property.valueLabels());
       return (Map<String, Object>) entry;
     }).toList());
     String timePath = intent.time().dimension() == null || intent.time().dimension().isBlank()
@@ -930,7 +940,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
 
   private Map<String, Object> planSnapshot(AgentTurn turn, ResolvedScopeSnapshot scope, String dataScope,
                                            List<ExecutedQuery> executed, List<Evidence> evidence,
-                                           ComposedAnswer answer, List<Map<String, Object>> performedSteps, List<Map<String, Object>> callTrace) {
+                                           ComposedAnswer answer, List<Map<String, Object>> performedSteps, List<Map<String, Object>> callTrace,
+                                           ObjectQueryPort.Row selectedObject) {
     Map<String, Object> resolved = new LinkedHashMap<>(scope.values());
     resolved.put("dataScope", dataScope);
     resolved.put("queries", executed.stream().map(query -> {
@@ -951,7 +962,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     if (turn.effectiveContext().get("objectSelection") != null) {
       ObjectSelection selection = ObjectSelection.read(turn.effectiveContext().get("objectSelection"));
       plan.put("_objectSelection", selection.snapshot());
-      plan.put("_objectSelectionLabel", semantic.require(selection.reference().objectKey()).label() + " · " + selection.reference().objectId());
+      plan.put("_objectSelectionLabel", selectionLabel(selectedObject));
     }
     resolved.put("toolCalls", List.copyOf(callTrace));
     plan.put("_resolvedContext", Map.copyOf(resolved));
@@ -971,6 +982,21 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     if (turn.followUpId() != null) plan.put("_followUpId", turn.followUpId());
     if (turn.referencedExecutionId() != null) plan.put("_referencedExecutionId", turn.referencedExecutionId());
     return Map.copyOf(plan);
+  }
+
+  /** 标题来自已授权读取的对象与本体声明，不把主键作为用户可见名称。 */
+  private String selectionLabel(ObjectQueryPort.Row object) {
+    var type = semantic.require(object.reference().objectKey());
+    for (var property : type.properties()) {
+      var value = object.properties().get(property.key());
+      if (!property.title() || property.identifier() || value == null || value.toString().isBlank()) continue;
+      String title = property.valueLabels().isEmpty() ? value.toString()
+          : property.valueLabels().getOrDefault(value.toString(), "未配置显示名称");
+      return type.label().equals(title) ? title : type.label() + " · " + title;
+    }
+    var time = type.defaultTimeProperty() == null ? null : object.properties().get(type.defaultTimeProperty());
+    return time == null ? type.label() : type.label() + " · " + DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")
+        .withZone(EasyVOntologyModel.BUSINESS_ZONE).format(Instant.parse(time.toString()));
   }
 
   private static Map<String, Object> planStep(String id, int order, String kind, String title) {

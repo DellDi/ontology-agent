@@ -23,10 +23,10 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
 
   @Override
   public Page query(Query query, SemanticQueryPort.AccessContext access) {
-    return query(query, access, null);
+    return query(query, access, null, false);
   }
 
-  private Page query(Query query, SemanticQueryPort.AccessContext access, QueryIntent.Filter relationFilter) {
+  private Page query(Query query, SemanticQueryPort.AccessContext access, QueryIntent.Filter relationFilter, boolean detail) {
     if (query == null || query.limit() < 1 || query.limit() > 200 || query.offset() < 0
         || query.offset() > 10000 || query.filters().size() > 10 || query.order().size() > 4) {
       throw invalid("分页要求 limit=1..200、offset=0..10000，filters 最多 10 项、order 最多 4 项。");
@@ -41,18 +41,19 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     List<String> order = new ArrayList<>();
     for (QueryIntent.Order item : query.order()) {
       if (item == null || item.direction() == null) throw invalid("排序方向不能为空。");
-      order.add(expression(root.requireProperty(item.member()), "o") + " " + item.direction().name() + " NULLS LAST");
+      order.add(expression(queryProperty(root, item.member()), "o") + " " + item.direction().name() + " NULLS LAST");
     }
     // 主键是最后的确定性排序键；冻结事实不会在翻页期间改变。
     order.add(expression(root.primaryKey(), "o") + " ASC");
-    String columns = String.join(",", root.properties().stream().map(property ->
+    List<OntologyProperty> properties = root.properties().stream().filter(property -> detail || !property.detailOnly()).toList();
+    String columns = String.join(",", properties.stream().map(property ->
         expression(property, "o") + " AS \"" + property.key() + "\"").toList());
     String sql = "SELECT " + columns + " FROM " + root.table() + " o WHERE "
         + String.join(" AND ", where) + " ORDER BY " + String.join(",", order)
         + " LIMIT " + plan.parameter(query.limit() + 1) + " OFFSET " + plan.parameter(query.offset());
     List<Row> rows = jdbc.query(sql, plan.parameters, (result, index) -> {
       Map<String, Object> values = new LinkedHashMap<>();
-      for (OntologyProperty property : root.properties()) {
+      for (OntologyProperty property : properties) {
         Object value = result.getObject(property.key());
         if (value instanceof Timestamp time) value = time.toInstant().toString();
         values.put(property.key(), value);
@@ -70,7 +71,7 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     if (objectId == null || objectId.isBlank() || objectId.length() > 500) throw invalid("对象 ID 无效。");
     OntologyObjectType object = model.require(objectKey);
     Page page = query(new Query(objectKey, List.of(new QueryIntent.Filter(object.primaryKey().key(),
-        QueryIntent.Operator.EQUALS, List.of(objectId))), List.of(), 2, 0), access);
+        QueryIntent.Operator.EQUALS, List.of(objectId))), List.of(), 2, 0), access, null, true);
     if (page.rows().isEmpty()) throw new BackendException("OBJECT_NOT_FOUND", "对象不存在或不在授权范围内。");
     if (page.rows().size() != 1) throw new BackendException("OBJECT_IDENTITY_VIOLATION", "冻结数据中的对象主键不唯一。");
     return page.rows().getFirst();
@@ -88,7 +89,7 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     Object value = source.properties().get(link.sourceProperty());
     if (value == null) return new Page(query.objectKey(), List.of(), query.limit(), query.offset(), false);
     return query(query, access, new QueryIntent.Filter(link.targetProperty(),
-        QueryIntent.Operator.EQUALS, List.of(value.toString())));
+        QueryIntent.Operator.EQUALS, List.of(value.toString())), false);
   }
 
   private final class Plan {
@@ -157,7 +158,7 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     String parameters(List<String> values) { return String.join(",", values.stream().map(this::parameter).toList()); }
     String filter(OntologyObjectType root, QueryIntent.Filter filter) {
       if (filter == null || filter.operator() == null) throw invalid("过滤条件缺少成员或操作符。");
-      OntologyProperty property = root.requireProperty(filter.member());
+      OntologyProperty property = queryProperty(root, filter.member());
       String sql = expression(property, "o");
       var operator = filter.operator();
       boolean noValues = operator == QueryIntent.Operator.SET || operator == QueryIntent.Operator.NOT_SET;
@@ -182,6 +183,12 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
         default -> throw invalid("不支持的过滤操作。"); };
       return sql + comparison + values.getFirst();
     }
+  }
+
+  private static OntologyProperty queryProperty(OntologyObjectType object, String key) {
+    var property = object.requireProperty(key);
+    if (property.detailOnly()) throw invalid("原文只允许单对象详情读取，不能用于过滤或排序。");
+    return property;
   }
 
   private static Object convert(OntologyProperty.Type type, String value) {

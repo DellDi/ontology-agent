@@ -23,7 +23,10 @@
             "easyv-ai-application",
             "easyv-prototype-layout",
             "easyv-prototype-block",
-            "easyv-prototype-component"
+            "easyv-prototype-component",
+            "easyv-generation-feedback",
+            "easyv-quality-node",
+            "easyv-forge-task"
           ]
         },
         "rows": {
@@ -41,7 +44,10 @@
                       "easyv-ai-application",
                       "easyv-prototype-layout",
                       "easyv-prototype-block",
-                      "easyv-prototype-component"
+                      "easyv-prototype-component",
+                      "easyv-generation-feedback",
+                      "easyv-quality-node",
+                      "easyv-forge-task"
                     ]
                   },
                   "objectId": {
@@ -157,7 +163,10 @@
             "easyv-ai-application",
             "easyv-prototype-layout",
             "easyv-prototype-block",
-            "easyv-prototype-component"
+            "easyv-prototype-component",
+            "easyv-generation-feedback",
+            "easyv-quality-node",
+            "easyv-forge-task"
           ]
         },
         "label": {
@@ -190,6 +199,22 @@
                   "BOOLEAN",
                   "TIME"
                 ]
+              },
+              "identifier": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "boolean"
+              },
+              "prominent": {
+                "type": "boolean"
+              },
+              "valueLabels": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           }
@@ -214,12 +239,18 @@
                   "easyv-ai-application",
                   "easyv-prototype-layout",
                   "easyv-prototype-block",
-                  "easyv-prototype-component"
+                  "easyv-prototype-component",
+                  "easyv-generation-feedback",
+                  "easyv-quality-node",
+                  "easyv-forge-task"
                 ]
               },
               "targetLabel": {
                 "type": "string",
                 "minLength": 1
+              },
+              "prominent": {
+                "type": "boolean"
               }
             }
           }

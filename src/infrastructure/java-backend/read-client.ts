@@ -218,6 +218,7 @@ const understandingEntrySchema = z.strictObject({
     label: z.string().min(1),
     operator: z.string().min(1),
     values: z.array(z.string()),
+    valueLabels: z.record(z.string(), z.string()).optional(),
   })),
   time: z.strictObject({
     dimension: z.string().min(1),

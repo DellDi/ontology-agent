@@ -175,9 +175,9 @@ class DatabaseMigrationServiceTest {
                 """, Integer.class));
         assertEquals(1, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id='old-pipeline'", Integer.class));
         assertEquals(1, jdbc.queryForObject("select schema_version from ingestion.source_dataset_versions where id='old-pipeline-source'", Integer.class));
-        assertEquals(2, jdbc.queryForObject("select schema_version from ingestion.dataset_definitions where dataset_key='easyv-pipeline-node'", Integer.class));
+        assertEquals(3, jdbc.queryForObject("select schema_version from ingestion.dataset_definitions where dataset_key='easyv-pipeline-node'", Integer.class));
         assertEquals("RECONCILE", jdbc.queryForObject("select cursor_spec->>'strategy' from ingestion.dataset_definitions where dataset_key='easyv-pipeline-node'", String.class));
-        assertEquals("easyv-pipeline-node-v2", jdbc.queryForObject("select transform_ref from ingestion.data_product_definitions where product_key='easyv-pipeline-node'", String.class));
+        assertEquals("easyv-pipeline-node-v3", jdbc.queryForObject("select transform_ref from ingestion.data_product_definitions where product_key='easyv-pipeline-node'", String.class));
     }
 
     @Test
@@ -187,7 +187,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(26, applied, "新库应执行到 V26 组件几何");
+        assertEquals(27, applied, "新库应执行到 V27 质量证据");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -545,9 +545,15 @@ class DatabaseMigrationServiceTest {
                   and column_name in ('screen_structure_xml','screen_template_json',
                                       'screen_app_json','block_ids','warnings',
                                       'screen_prototype_json','output','show_message',
-                                      'intent','pages_progress','user_input','fail_reason',
+                                      'pages_progress','fail_reason',
                                       'description','remark','metadata')
-                """, Integer.class), "facts 不得落地大 JSON/XML、用户输入或描述字段");
+                """, Integer.class), "facts 不得落地原始大 JSON/XML 或未批准描述字段");
+        assertEquals(2, jdbc.queryForObject("""
+                select count(*) from information_schema.columns
+                where table_schema='facts' and
+                  ((table_name='easyv_pipeline_node' and column_name='intent') or
+                   (table_name='easyv_generation_feedback' and column_name='user_input'))
+                """, Integer.class), "V27 仅为已批准 P0 原话与意图新增列");
         assertEquals(1, jdbc.queryForObject("""
                 select count(*) from information_schema.columns
                 where table_schema='facts' and table_name='easyv_forge_generation_task'
@@ -601,7 +607,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(26, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(27, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -633,7 +639,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(26, applied, "旧库补全应记录 V1-V26（baseline 0 标记不计入）");
+        assertEquals(27, applied, "旧库补全应记录 V1-V27（baseline 0 标记不计入）");
     }
 
     @Test

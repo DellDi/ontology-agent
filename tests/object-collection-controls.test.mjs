@@ -41,6 +41,14 @@ test('集合控制 | 值按类型校验并规范化，不接受空值、非法�
   }
 });
 
+test('对象标题 | 追问使用声明标题，无名称时用真实时间并避免重复类型名', async () => {
+  const { objectRecordSelectionLabel } = await import('../src/application/object-collection/presentation.ts');
+  const type = {label:'AI 应用',properties:[{key:'appId',label:'应用 ID',type:'STRING',identifier:true},{key:'createdAt',label:'创建时间',type:'TIME'}]};
+  assert.equal(objectRecordSelectionLabel({appId:'internal-id',createdAt:'2026-09-10T03:20:08Z'},type),'AI 应用 · 2026/09/10 11:20:08');
+  assert.equal(objectRecordSelectionLabel({},type),'AI 应用');
+  assert.equal(objectRecordSelectionLabel({name:'算力资源容量'},{label:'大屏',properties:[{key:'name',label:'标题',type:'STRING',title:true}]}),'大屏 · 算力资源容量');
+});
+
 test('集合控制 | 变更产生新状态，重复或无变化的操作保持同一引用以免重置分页', () => {
   const filter = ok(buildFilter(by('blockCount'), 'GTE', '3'));
   const sorted = reduceControls(EMPTY_CONTROLS, { type: 'sort', order: { member: 'createdAt', direction: 'DESC' } });
@@ -91,4 +99,18 @@ test('集合控制 | 生成的请求同时满足 JSON Schema 与严格 Zod', asy
   const body = { executionId: 'execution-old', datasetVersionSetId: 'set-old', objectKey: 'easyv-prototype-layout', drilldownId: 'q1:0:count', limit: 20, offset: 0, ...scope };
   assert.equal(ajv.getSchema('object-read-request.schema.json')(body), true, ajv.errorsText());
   assert.equal(contracts.javaObjectReadRequestSchema.safeParse(body).success, true);
+});
+
+
+test('集合控制 | 同名字段由各对象自己解释，显示标签不进入查询', async () => {
+  const { objectValueLabel, objectRecordTitle } = await import('../src/application/object-collection/presentation.ts');
+  const delivery = { key: 'status', label: '交付状态', type: 'STRING', title: true, valueLabels: { SUCCESS: '已送达' } };
+  const inspection = { ...delivery, label: '检查结果', valueLabels: { SUCCESS: '检查通过' } };
+  assert.equal(objectValueLabel(delivery, 'SUCCESS'), '已送达');
+  assert.equal(objectValueLabel(inspection, 'SUCCESS'), '检查通过');
+  assert.equal(objectRecordTitle({ status: 'SUCCESS', id: '7' }, { label: '配送', properties: [delivery] }), '已送达');
+  assert.equal(objectValueLabel(delivery, 'NEW_STATUS'), '未配置显示名称');
+  const filter = ok(buildFilter(delivery, 'EQUALS', 'SUCCESS'));
+  assert.deepEqual(filter.values, ['SUCCESS']);
+  assert.equal(describeFilter(filter, [delivery]), '交付状态 等于 已送达');
 });

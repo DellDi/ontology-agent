@@ -8,6 +8,7 @@ import {
   type CollectionControls, type CollectionProperty, type ControlsAction, type FilterOperator,
 } from '@/application/object-collection/collection-controls';
 import { Button } from '@/components/ui/button';
+import { objectValueChoices } from '@/application/object-collection/presentation';
 
 const FIELD = 'h-9 min-w-0 rounded-md border border-input bg-card px-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60';
 
@@ -25,6 +26,7 @@ export function ObjectCollectionControls({ properties, controls, maxFilters, dis
   const [message, setMessage] = useState<string | null>(null);
   const active = (controls.order ? 1 : 0) + controls.filters.length;
   const full = controls.filters.length >= maxFilters;
+  const valueChoices = property ? objectValueChoices(property) : [];
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -57,7 +59,7 @@ export function ObjectCollectionControls({ properties, controls, maxFilters, dis
             {controls.order?.direction === 'DESC' ? '降序' : '升序'}
           </Button>
         </div>
-        <p className="text-[10px] leading-4 text-muted-foreground">无值的对象始终排在最后；排序相同时按对象 ID 保持稳定翻页。</p>
+        <p className="text-[10px] leading-4 text-muted-foreground">没有该项信息的记录排在最后。</p>
         <form className="flex flex-wrap items-end gap-2" onSubmit={submit}>
           <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted-foreground">筛选字段
             <select className={FIELD} disabled={disabled} value={property?.key ?? ''}
@@ -75,6 +77,8 @@ export function ObjectCollectionControls({ properties, controls, maxFilters, dis
             {property?.type === 'BOOLEAN'
               ? <select className={FIELD} disabled={disabled} value={value} onChange={(event) => setValue(event.target.value)}>
                 <option value="">请选择</option><option value="true">是</option><option value="false">否</option></select>
+              : valueChoices.length ? <select className={FIELD} disabled={disabled} value={value} onChange={(event) => setValue(event.target.value)}>
+                <option value="">请选择</option>{valueChoices.map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select>
               : <input className={`${FIELD} w-36`} disabled={disabled} value={value} onChange={(event) => setValue(event.target.value)}
                 type={property?.type === 'TIME' ? 'date' : 'text'} inputMode={property?.type === 'NUMBER' ? 'decimal' : undefined}
                 autoComplete="off" />}

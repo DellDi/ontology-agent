@@ -23,8 +23,8 @@ test('精确下钻 | AI 应用统计项与对象范围同属开放目录，目�
     assert.doesNotThrow(() => validateAnalysisExecutionStreamEvent(event(block)));
   }
   assert.equal(normalizeExecutionRenderBlock(browser, { sourceType: 'execution-render-block', sessionId: 'session-old', executionId: 'execution-old' }).payload.objectKey, 'easyv-ai-application');
-  for (const block of [{ ...application, drilldowns: [{ ...application.drilldowns[0], objectKey: 'easyv-forge-task' }] },
-    { ...browser, objectKey: 'easyv-forge-task' }]) {
+  for (const block of [{ ...application, drilldowns: [{ ...application.drilldowns[0], objectKey: 'easyv-scheme-library' }] },
+    { ...browser, objectKey: 'easyv-scheme-library' }]) {
     assert.throws(() => validateAnalysisExecutionStreamEvent(event(block)));
   }
 });

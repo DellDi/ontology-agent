@@ -76,8 +76,9 @@ public class EasyVObjectReadService {
     }
   }
   public record Structure(String status, Map<String, Object> layout) {}
-  public record PropertyView(String key, String label, OntologyProperty.Type type) {}
-  public record LinkView(String key, String targetObjectKey, String targetLabel) {}
+  public record PropertyView(String key, String label, OntologyProperty.Type type, boolean identifier,
+                             boolean title, boolean prominent, Map<String, String> valueLabels) {}
+  public record LinkView(String key, String targetObjectKey, String targetLabel, boolean prominent) {}
   public record ObjectTypeView(String key, String label, List<PropertyView> properties, List<LinkView> links) {}
   public record FamilyCount(String chartFamily, long count, QueryIntent.Filter filter) {}
   public record ComponentSummary(long total, List<FamilyCount> groups) {}
@@ -87,12 +88,13 @@ public class EasyVObjectReadService {
                        Map<String, Map<String, Object>> componentGeometry,
                        ComponentSummary componentSummary, DataContext dataContext) {}
 
-  private ObjectTypeView describe(String key) {
+  private ObjectTypeView describe(String key, boolean detail) {
     var object = model.require(key);
-    return new ObjectTypeView(key, object.label(), object.properties().stream()
-        .map(property -> new PropertyView(property.key(), property.label(), property.type())).toList(),
+    return new ObjectTypeView(key, object.label(), object.properties().stream().filter(property -> detail || !property.detailOnly())
+        .map(property -> new PropertyView(property.key(), property.label(), property.type(), property.identifier(),
+            property.title(), property.prominent(), property.valueLabels())).toList(),
         object.links().stream().filter(link -> OBJECTS.contains(link.targetObjectKey()))
-            .map(link -> new LinkView(link.key(), link.targetObjectKey(), model.require(link.targetObjectKey()).label())).toList());
+            .map(link -> new LinkView(link.key(), link.targetObjectKey(), model.require(link.targetObjectKey()).label(), link.prominent())).toList());
   }
 
   @Transactional(readOnly = true)
@@ -195,8 +197,16 @@ public class EasyVObjectReadService {
   }
 
   private Result readAuthorized(Request request, String ontologyVersionId, ResolvedScopeSnapshot scope, AuthSession viewer) {
-    var manifest = datasets.requireFrozen(request.datasetVersionSetId(),
-        Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component"));
+    var products = new HashSet<>(Set.of("easyv-ai-application", "easyv-prototype-layout",
+        "easyv-prototype-block", "easyv-prototype-component"));
+    var requestedType = model.require(request.objectKey());
+    products.add(requestedType.productKey());
+    if (request.relation() != null) {
+      String target = requestedType.requireLink(request.relation()).targetObjectKey();
+      requireObject(target);
+      products.add(model.require(target).productKey());
+    }
+    var manifest = datasets.requireFrozen(request.datasetVersionSetId(), products);
     var access = new SemanticQueryPort.AccessContext(manifest.productVersionIds(), EasyVScopeResolver.dataScope(scope));
     int limit = request.limit() == null ? 50 : request.limit();
     int offset = request.offset() == null ? 0 : request.offset();
@@ -233,7 +243,7 @@ public class EasyVObjectReadService {
     var summary = Boolean.TRUE.equals(request.includeComponentSummary())
         ? componentSummary(page.rows().getFirst(), access, manifest.capturedAt()) : null;
     return new Result(request.executionId(), request.datasetVersionSetId(), ontologyVersionId, page, structure,
-        describe(page.objectKey()), geometry, summary, new DataContext(manifest.capturedAt(), EasyVScopeResolver.dataScopeLabel(scope)));
+        describe(page.objectKey(), request.objectId() != null && request.relation() == null), geometry, summary, new DataContext(manifest.capturedAt(), EasyVScopeResolver.dataScopeLabel(scope)));
   }
 
   /** 全量按家族计数，关系约束与对象读取共用本体声明；不能按已加载的预览页数统计。 */
@@ -274,6 +284,6 @@ public class EasyVObjectReadService {
   }
 
   private static void requireObject(String key) {
-    if (key == null || !OBJECTS.contains(key)) throw new BackendException("OBJECT_QUERY_INVALID", "当前读取仅支持 AI 应用、原型版式、区域与组件。");
+    if (key == null || !OBJECTS.contains(key)) throw new BackendException("OBJECT_QUERY_INVALID", "对象类型不在正式读取目录中。");
   }
 }

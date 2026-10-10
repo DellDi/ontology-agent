@@ -25,6 +25,7 @@ import {
   type SemanticQueryUnderstanding,
 } from '@/application/analysis-message-projection/semantic-understanding';
 import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
+import { objectSelectionDisplayLabel } from '@/application/object-collection/presentation';
 import type { JavaAnalysisSession } from '@/infrastructure/java-backend';
 import { AnalysisUserMessage } from './analysis-user-message';
 import { AnalysisAssistantMessage } from './analysis-assistant-message';
@@ -122,7 +123,7 @@ export function AnalysisConversationShell({
   const latestCompletedKey = latestCompleted?.key ?? null;
   const [selectedObject, setSelectedObject] = useState<{ selection: AnalysisObjectSelection; label: string; completedKey: string | null } | null>(() =>
     lastTurn?.objectSelection ? { selection: lastTurn.objectSelection,
-      label: lastTurn.objectSelectionLabel ?? lastTurn.objectSelection.reference.objectId, completedKey: latestCompletedKey } : null);
+      label: objectSelectionDisplayLabel(lastTurn.objectSelectionLabel, lastTurn.objectSelection.reference.objectId), completedKey: latestCompletedKey } : null);
   // 已完成对象轮次沿同一引用更新来源执行；浏览对象不会自动改变追问范围。
   const latestSelection = latestCompleted?.objectSelection;
   const selection = selectedObject && latestSelection
@@ -325,7 +326,7 @@ export function AnalysisConversationShell({
                   ref={isLast ? lastTurnRef : undefined}
                 >
                   <AnalysisUserMessage questionText={turn.questionText} />
-                  {turn.objectSelection ? <p className="text-right text-xs text-muted-foreground">针对：{turn.objectSelectionLabel ?? turn.objectSelection.reference.objectId}</p> : null}
+                  {turn.objectSelection ? <p className="text-right text-xs text-muted-foreground">针对：{objectSelectionDisplayLabel(turn.objectSelectionLabel, turn.objectSelection.reference.objectId)}</p> : null}
                   {turn.kind === 'initial' && submissionError ? (
                     <div role="alert" data-testid="analysis-submission-error" className="space-y-3">
                       <EmptyState

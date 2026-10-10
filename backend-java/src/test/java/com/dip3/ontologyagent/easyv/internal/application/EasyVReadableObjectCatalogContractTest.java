@@ -23,15 +23,17 @@ class EasyVReadableObjectCatalogContractTest {
   void catalogOnlyContainsDeclaredObjectsWithFrozenProducts() {
     var model = SemanticModel.discover();
     for (String key : EasyVOntologyModel.READABLE_OBJECT_KEYS) {
-      assertEquals(key, model.require(key).productKey(), "读取冻结版本按产品 key 解析：" + key);
+      assertNotNull(model.require(key).productKey(), "读取冻结版本按对象声明的产品解析：" + key);
     }
-    assertEquals(Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component"),
+    assertEquals(Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component",
+            "easyv-generation-feedback", "easyv-quality-node", "easyv-forge-task"),
         EasyVOntologyModel.READABLE_OBJECT_KEYS);
   }
 
   @Test
   void everyContractEnumListingEasyVObjectsMatchesAnExplicitCatalog() throws IOException {
-    var catalogs = List.of(EasyVOntologyModel.READABLE_OBJECT_KEYS, EasyVAgentTools.OBJECTS, SUMMARY);
+    var catalogs = List.of(EasyVOntologyModel.READABLE_OBJECT_KEYS, EasyVAgentTools.OBJECTS, SUMMARY,
+        Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component"));
     Map<String, Integer> readable = new TreeMap<>();
     try (Stream<Path> files = Files.list(SCHEMAS)) {
       for (Path file : files.filter(path -> path.toString().endsWith(".schema.json")).toList()) {

@@ -47,29 +47,46 @@
       {
         "key": "appId",
         "label": "应用 ID",
-        "type": "STRING"
+        "type": "STRING",
+        "identifier": true,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
       },
       {
         "key": "parseStatus",
         "label": "解析状态",
-        "type": "STRING"
+        "type": "STRING",
+        "identifier": false,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
       },
       {
         "key": "parseErrorCode",
         "label": "解析错误代码",
-        "type": "STRING"
+        "type": "STRING",
+        "identifier": false,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
       },
       {
         "key": "blockCount",
         "label": "区域数",
-        "type": "NUMBER"
+        "type": "NUMBER",
+        "identifier": false,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
       }
     ],
     "links": [
       {
         "key": "blocks",
         "targetObjectKey": "easyv-prototype-block",
-        "targetLabel": "原型区域"
+        "targetLabel": "原型区域",
+        "prominent": false
       }
     ]
   },

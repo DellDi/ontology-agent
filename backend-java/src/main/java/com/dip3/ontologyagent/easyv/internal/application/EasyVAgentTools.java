@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 @Service
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public final class EasyVAgentTools {
-  public static final Set<String> OBJECTS = Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component");
+  public static final Set<String> OBJECTS = com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel.READABLE_OBJECT_KEYS;
   private static final ObjectMapper JSON = new ObjectMapper();
   private final EasyVObjectReadService objects;
   private final EasyVSchemeAssessmentService assessments;
@@ -142,7 +142,13 @@ public final class EasyVAgentTools {
         if (filter.member() == null || type.findProperty(filter.member()).isEmpty() || filter.operator() == null
             || filter.values() == null || filter.values().size() > 100 || filter.values().stream().anyMatch(v -> v == null || v.isBlank() || v.length() > 500)) throw invalid("对象过滤必须使用已声明属性和有效值");
       }
-      for (var item : order) if (item.member() == null || type.findProperty(item.member()).isEmpty() || item.direction() == null) throw invalid("对象排序必须使用已声明属性");
+      for (var filter : filters) {
+        if (type.requireProperty(filter.member()).detailOnly()) throw invalid("原文只允许 read_object，不接受列表筛选");
+        boolean presence = filter.operator() == QueryIntent.Operator.SET || filter.operator() == QueryIntent.Operator.NOT_SET;
+        if (presence ? !filter.values().isEmpty() : filter.values().isEmpty()) throw invalid("SET/NOT_SET 只判断是否存在且 values 必须为空；多值匹配使用 EQUALS");
+        if (!presence && filter.operator() != QueryIntent.Operator.EQUALS && filter.operator() != QueryIntent.Operator.NOT_EQUALS && filter.values().size() != 1) throw invalid("文本包含和大小比较只能有一个过滤值");
+      }
+      for (var item : order) if (item.member() == null || type.findProperty(item.member()).isEmpty() || type.requireProperty(item.member()).detailOnly() || item.direction() == null) throw invalid("对象排序必须使用已声明属性");
       var query = new ObjectQueryPort.Query(target, filters, order, limit, offset);
       if (selected != null && (id == null || relation != null)) query = selections.constrain(query, selected);
       if (query.filters().size() > (relation == null ? 10 : 9)) throw invalid("对象过滤没有足够空间保留所选范围与关系约束");
@@ -226,6 +232,7 @@ public final class EasyVAgentTools {
       observation.put("id", id); observation.put("tool", call.tool()); observation.put("label", label);
       observation.put("rows", rows); observation.put("hasMore", result.page().hasMore());
       observation.put("offset", result.page().offset()); observation.put("returnedRows", rows.size());
+      observation.put("objectType", result.objectType());
       if (result.structure() != null) observation.put("structureStatus", result.structure().status());
       List<QueryIntent.Filter> filters = call.request().filters();
       if (call.tool().equals("traverse_objects")) {
@@ -239,7 +246,8 @@ public final class EasyVAgentTools {
       Map<String, Object> block = Map.of("type", "object-browser", "title", label, "role", "supporting",
           "datasetVersionSetId", context.datasetVersionSetId(), "objectKey", result.page().objectKey(), "filters", filters,
           "scopeDescription", "工具读取的冻结对象范围，分页结果不代表全集。");
-      return new Output(label, rows, Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component"),
+      return new Output(label, rows, Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component",
+              "easyv-pipeline-node", "easyv-generation-feedback", "easyv-forge-task"),
           Collections.unmodifiableMap(observation), json.map(json.write(result)), block, result.page().rows().stream().map(ObjectQueryPort.Row::reference).toList());
     }
 
