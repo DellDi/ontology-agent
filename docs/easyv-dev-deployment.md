@@ -5,10 +5,10 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布（2026-10-09）
+## 当前发布（2026-10-10）
 
-- Web 为 `96ebb9c`，Java API/分析 Worker 为 `8a4b206`，均 healthy；独立 release-worker 保持 `8039482`。本批修正柱/折线缺失值、重复标签/同名系列及下钻坐标，并修正所选对象属性追问的证据读取。平台库 `ontology_agent_test` 沿用 V26，没有迁移或重采集。验收边界与当前证据见 [运行时 §14.11](./architecture/ontology-agent-runtime.md#1411-b7-下一批准确图形点位与多页集合2026-10-09)，九产品历史发布对账见 §12.3。
-- 当前 Java 发布目录 `/opt/ontology-agent-releases/8a4b206`，Web 构建目录 `/opt/ontology-agent-releases/96ebb9c`；`.env.easyv-dev` 沿用私有 `/opt/ontology-agent-release-private/chart-preview-57d159e.env`。私有配置中的历史镜像值仍保留，部署时必须显式指定下面的 Web/Java 镜像参数；脚本保证这些参数不被私有配置覆盖。旧 `/opt/ontology-agent` 是历史 checkout，不作为当前发布目录。
+- Web 为 `06ded4f`，Java API/分析 Worker 为 `8a4b206`，均 healthy；独立 release-worker 保持 `8039482`。本批只发布 Web 历史对象入口去重；柱/折线点位与所选对象属性追问修复沿用前批。平台库 `ontology_agent_test` 沿用 V26，没有迁移或重采集。当前验收见 [运行时 §14.12](./architecture/ontology-agent-runtime.md#1412-b7-历史与流式入口一致性2026-10-10)，九产品历史发布对账见 §12.3。
+- 当前 Web 构建/部署目录 `/opt/ontology-agent-releases/06ded4f`，Java 镜像仍来自 `/opt/ontology-agent-releases/8a4b206`；`.env.easyv-dev` 沿用私有 `/opt/ontology-agent-release-private/chart-preview-57d159e.env`。私有配置中的历史镜像值仍保留，部署必须显式指定 Web/Java 镜像参数；脚本保证这些参数不被私有配置覆盖。旧 `/opt/ontology-agent` 是历史 checkout，不作为当前发布目录。
 - Web 远端绑定 `127.0.0.1:3100`，Java 8080；保持 loopback。个人验证从本机 SSH 隧道访问 [工作台](http://127.0.0.1:3100/workspace)：
 
 ```bash
@@ -16,36 +16,36 @@ ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
   -L 127.0.0.1:3100:127.0.0.1:3100 easyv-dev
 ```
 
-本机 3100 隧道已启动；3000 为独立本地开发环境，两者数据库不同，具体见 [环境说明](./environments.md)。沿用上一批备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20261009173609.dump`（24MB），本批未改变 schema 或业务 facts。发布回执 `/opt/ontology-agent-releases/8a4b206/b76-deployment-report.json`，Web 回执在 `96ebb9c` 同名文件；Cube/Cube Store/Valkey/release-worker 容器 ID 和启动时间不变。公司使用 `dip3_session`，本地使用 `dip3_session_local`，可在同一浏览器同时登录。
+本机 3100 隧道已启动；3000 为独立本地开发环境，两者数据库不同，见 [环境说明](./environments.md)。沿用前批业务备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20261009173609.dump`（24MB），本批未改变 schema 或业务 facts。最新发布回执 `/opt/ontology-agent-releases/06ded4f/b77-deployment-report.json`：除 Web 外其他 6 个服务容器 ID 和启动时间不变。公司使用 `dip3_session`，本地使用 `dip3_session_local`，可同时登录。
 
-按影响范围仅更新相应应用服务。本批先发布独立 Web 图形修复，再发布 Java 规划规则，无新增跨服务接口依赖；以后涉及新接口时须按实际依赖安排顺序。
+用户明确授权后，于 2026-10-10 单独重置现有 5 个公司工作台账号口令，全部正常登录通过，角色/主体绑定不变。旧哈希私有备份 `/opt/ontology-agent-release-private/dev-account-password-backup-20261010.json`（0600）；5 条审计的关联 ID `a8e7cf6a-af11-495e-a5df-2eb4cb4890f2`。前批业务备份早于本次重置，不能用于判断当前口令。没有改产品密码规则、种子、源库或连接凭据；口令不入仓库。
+
+本批只更新 Web，无跨服务接口依赖：
 
 ```bash
-cd /opt/ontology-agent-releases/8a4b206
-ONTOLOGY_JAVA_IMAGE=ontology-agent-java:8a4b206 ONTOLOGY_WEB_IMAGE=ontology-agent-web:96ebb9c scripts/easyv-dev deploy backend
+cd /opt/ontology-agent-releases/06ded4f
+ONTOLOGY_JAVA_IMAGE=ontology-agent-java:8a4b206 ONTOLOGY_WEB_IMAGE=ontology-agent-web:06ded4f scripts/easyv-dev deploy web
+```
+
+回滚本批只需 Web 回到 `96ebb9c`，保留 Java `8a4b206`，无需恢复数据库：
+
+```bash
 ONTOLOGY_JAVA_IMAGE=ontology-agent-java:8a4b206 ONTOLOGY_WEB_IMAGE=ontology-agent-web:96ebb9c scripts/easyv-dev deploy web
 ```
 
-回滚到本批之前的 `34f7cbc`。只回滚一项时，另一项保留当前镜像；完整应用回滚如下，无需恢复数据库：
+独立采集容器本批未更新。需要重建现有容器时，先加载私有源配置并显式保留 `8039482` 镜像；API/Web 不携带源账号，脚本仅重建 release-worker：
 
 ```bash
-ONTOLOGY_JAVA_IMAGE=ontology-agent-java:8a4b206 ONTOLOGY_WEB_IMAGE=ontology-agent-web:34f7cbc scripts/easyv-dev deploy web
-ONTOLOGY_JAVA_IMAGE=ontology-agent-java:34f7cbc ONTOLOGY_WEB_IMAGE=ontology-agent-web:34f7cbc scripts/easyv-dev deploy backend
-```
-
-独立采集容器本批没有更新。需要重建现有采集容器时，先加载私有源配置并显式保留其 `8039482` 镜像；API/Web 不携带源账号，脚本仅重建 release-worker：
-
-```bash
-cd /opt/ontology-agent-releases/8a4b206
+cd /opt/ontology-agent-releases/06ded4f
 scripts/easyv-dev config
 scripts/easyv-dev health
 set -a
 . /opt/ontology-agent-release-private/source-reader.env
 set +a
-ONTOLOGY_JAVA_IMAGE=ontology-agent-java:8039482 ONTOLOGY_WEB_IMAGE=ontology-agent-web:96ebb9c scripts/easyv-dev release-worker
+ONTOLOGY_JAVA_IMAGE=ontology-agent-java:8039482 ONTOLOGY_WEB_IMAGE=ontology-agent-web:06ded4f scripts/easyv-dev release-worker
 ```
 
-本地真实快照的 453 个组件集合已完成 23 页浏览器遍历、HTTP/SQL 全量 ID 对账、筛选/排序及移动端验证。公司本轮完成真实折线/表格一致性及所选组件属性追问复验，仍需公司同规模账号验收。全部图形覆盖、跨领域复用、适配规则业务校准和历史原始生成输入认证尚未关闭，不将本次部署描述为通用完备或生成质量认证。
+公司 `acceptance-scoped` 已完成 **453 个组件、23 页**浏览器遍历；正常 API 全量 ID/顺序与同冻结集快照 SQL 一致，line 筛选/网格行降序 **94 条**对账、末页排序回第一页、选中对象追问和 390px 无横向溢出通过。验收会话 [31a995bd…](http://127.0.0.1:3100/workspace/analysis/31a995bd-3624-4a41-8c7e-41a5684246a2)。普通业务账号的历史 4 个同范围入口去重为 1 个，另一轮筛选入口保留，保存结论不变。全部图形覆盖、跨领域复用、适配规则业务校准和历史原始生成输入认证仍未关闭；新发现的结论字段误标及小屏退出入口留下一批修正。
 
 ## 运行边界
 
