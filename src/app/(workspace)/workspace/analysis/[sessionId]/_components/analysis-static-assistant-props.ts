@@ -4,6 +4,7 @@ import {
   type AnalysisRenderedBlock,
 } from '@/application/analysis-interaction';
 import {
+  dedupeRenderedBlocks,
   extractBusinessViews,
   type ConversationDiagnostics,
 } from '@/application/analysis-message-projection/conversation-view-model';
@@ -52,7 +53,8 @@ export function buildStaticAssistantProps(turn: ChatTurn, sessionId: string) {
       // 归因/明细仍可从结构化结论恢复。
     }
   }
-  const { metricCards, visualizations } = extractBusinessViews(blocks);
+  const resultBlocks = dedupeRenderedBlocks(blocks);
+  const { metricCards, visualizations } = extractBusinessViews(resultBlocks);
   return {
     status,
     headline: status === 'completed' ? '分析完成' : '分析过程中遇到问题',
@@ -61,9 +63,9 @@ export function buildStaticAssistantProps(turn: ChatTurn, sessionId: string) {
         ? '本轮分析未能完成，可以换个问法再试一次。'
         : undefined,
     toolActivities: [],
-    result: blocks.length
+    result: resultBlocks.length
       ? {
-          blocks,
+          blocks: resultBlocks,
           evidenceBlocks: [],
           reasoningBlocks: [],
           assumptionBlocks: [],
