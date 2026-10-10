@@ -7,6 +7,7 @@ import {
   type SemanticQueryUnderstanding,
 } from '@/application/analysis-message-projection/semantic-understanding';
 import type { ChatTurn } from './analysis-conversation-shell';
+import { objectSelectionDisplayLabel } from '@/application/object-collection/presentation';
 
 type JavaHistoryRound = JavaAnalysisSession['history'][number];
 
@@ -35,7 +36,7 @@ function roundMetadata(round: JavaHistoryRound, followUp?: JavaAnalysisSession["
   return {
     ...(selection ? { objectSelection: { ...selection,
       executionId: round.status === 'completed' && round.executionId ? round.executionId : selection.executionId },
-      objectSelectionLabel: plan?._objectSelectionLabel ?? selection.reference.objectId } : {}),
+      objectSelectionLabel: objectSelectionDisplayLabel(plan?._objectSelectionLabel, selection.reference.objectId) } : {}),
     understanding: plan?._understanding ?? null,
     editorCatalog: plan?._editorCatalog ?? null,
     clarification: plan?._clarification ?? null,
@@ -84,7 +85,7 @@ export function buildChatTurns(
       clarification: null,
       resolvedQueries: [],
       ...(followUp.mergedContext?.objectSelection ? {objectSelection: followUp.mergedContext.objectSelection,
-        objectSelectionLabel: followUp.mergedContext.objectSelection.reference.objectId} : {}),
+        objectSelectionLabel: '所选对象'} : {}),
     });
   }
 

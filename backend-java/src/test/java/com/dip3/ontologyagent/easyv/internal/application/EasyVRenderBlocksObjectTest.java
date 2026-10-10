@@ -149,11 +149,36 @@ class EasyVRenderBlocksObjectTest {
     var block = EasyVRenderBlocks.build(List.of(application), List.of(), model, "set-old").getFirst();
     assertEquals("easyv-ai-application", bindings(block).getFirst().get("objectKey"));
     assertEquals(List.of(), bindings(block).getFirst().get("filters"));
-    for (String other : List.of("easyv-prototype", "easyv-forge-task", "easyv-generation-feedback")) {
+    for (String other : List.of("easyv-prototype", "easyv-pipeline-node")) {
       var closed = query(other, List.of(), all);
       assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(closed), model, "set-old", PRODUCTS).isEmpty(), other);
       assertFalse(EasyVRenderBlocks.build(List.of(closed), List.of(), model, "set-old").getFirst().containsKey("drilldowns"), other);
     }
+  }
+
+  @Test
+  void qualityBrowserRequiresItsDeclaredProductRatherThanItsObjectKey() {
+    var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
+    var query = query("easyv-quality-node", List.of(), all);
+    assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(query), model, "set", PRODUCTS).isEmpty());
+    var products = new HashSet<>(PRODUCTS);
+    products.add("easyv-pipeline-node");
+    assertEquals("easyv-quality-node", EasyVRenderBlocks.objectBrowsers(List.of(query), model, "set", products)
+        .getFirst().get("objectKey"));
+    assertEquals("easyv-quality-node", bindings(EasyVRenderBlocks.build(List.of(query), List.of(), model, "set")
+        .getFirst()).getFirst().get("objectKey"));
+  }
+
+  @Test
+  void labelsAreForDisplayWhileDrilldownAndQueryKeepRawValues() {
+    var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
+    var query = grouped("easyv-quality-node", List.of("intent"), List.of(), all,
+        List.of(Map.of("intent", "OUT_OF_SCOPE", "count", 24)));
+    var block = EasyVRenderBlocks.build(List.of(query), List.of(), model, "set").getFirst();
+    assertEquals(List.of(List.of("当次被判为不支持", "24")), block.get("rows"));
+    assertEquals(List.of(new QueryIntent.Filter("intent", QueryIntent.Operator.EQUALS, List.of("OUT_OF_SCOPE"))),
+        bindings(block).getFirst().get("filters"));
+    assertEquals("OUT_OF_SCOPE", query.result().rows().getFirst().get("intent"));
   }
 
   private EasyVSemanticAgent.ExecutedQuery query(String object, List<QueryIntent.Filter> filters, TimeExpression time) {

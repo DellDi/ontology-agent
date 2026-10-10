@@ -18,13 +18,13 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
     page: { objectKey: objectType.key, rows: [row], limit: query.limit ?? 50, offset: 0, hasMore: false }, structure: null,
     dataContext: { capturedAt: '2026-10-08T02:00:00Z', scopeDescription: 'EasyV 用户 16 的数据' } });
   const application = (links) => ({ key: 'easyv-ai-application', label: 'AI 应用', links, properties: [
-    { key: 'appId', label: '应用 ID', type: 'STRING' }, { key: 'createdAt', label: '应用创建时间', type: 'TIME' },
-    { key: 'scopeType', label: '归属类型', type: 'STRING' }] });
+    { key: 'appId', label: '应用 ID', type: 'STRING', identifier: true }, { key: 'createdAt', label: '应用创建时间', type: 'TIME' },
+    { key: 'scopeType', label: '归属类型', type: 'STRING', valueLabels: { USER: '个人' } }] });
   const appRow = { reference: { objectKey: 'easyv-ai-application', objectId: 'app-1', productVersionId: 'apps-old' },
     properties: { appId: 'app-1', createdAt: '2026-10-08T01:00:00Z', scopeType: 'USER' } };
   const layoutRow = { reference: { objectKey: 'easyv-prototype-layout', objectId: 'app-1', productVersionId: 'layouts-old' },
     properties: { appId: 'app-1', parseStatus: 'ok' } };
-  const layoutType = { key: 'easyv-prototype-layout', label: '原型版式', links: [], properties: [{ key: 'appId', label: '应用 ID', type: 'STRING' }] };
+  const layoutType = { key: 'easyv-prototype-layout', label: '原型版式', links: [], properties: [{ key: 'appId', label: '应用 ID', type: 'STRING', identifier: true }] };
 
   const render = (objectKey) => renderToStaticMarkup(React.createElement(QueryClientProvider, { client },
     browser.renderObjectBrowserBlock({ renderedBlock: { kind: 'object-browser', payload: { datasetVersionSetId: 'set-old', objectKey, filters: [],
@@ -40,6 +40,30 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
   seedApplication([{ key: 'prototype', targetObjectKey: 'easyv-prototype-layout', targetLabel: '原型版式' }]); out.linked = render('easyv-ai-application');
   client.clear(); seed({ objectKey: 'easyv-prototype-layout', filters: [], limit: 20, offset: 0 }, layoutType, layoutRow);
   out.layout = render('easyv-prototype-layout');
+  client.clear();
+  const qualityRow = { reference: { objectKey: 'easyv-quality-node', objectId: '1123', productVersionId: 'pipeline-new' },
+    properties: { nodeId: '1123', taskId: 'task-secret-trace', appId: 'app-secret-trace', sessionId: 'session-secret-trace',
+      stepName: 'ChatExecution', intent: 'OUT_OF_SCOPE', status: 'SUCCESS', createdAt: '2026-09-08T08:50:46Z' } };
+  const qualityType = { key: 'easyv-quality-node', label: '需求与处理记录', links: [
+    { key: 'operations', targetObjectKey: 'easyv-generation-feedback', targetLabel: '用户操作', prominent: true }], properties: [
+    ...['nodeId', 'taskId', 'appId', 'sessionId'].map((key) => ({ key, label: key, type: 'STRING', identifier: true })),
+    { key: 'stepName', label: '处理环节', type: 'STRING', valueLabels: { ChatExecution: '对话处理' } },
+    { key: 'intent', label: '系统识别的诉求', type: 'STRING', title: true, valueLabels: { OUT_OF_SCOPE: '当次被判为不支持' } },
+    { key: 'status', label: '处理状态', type: 'STRING', prominent: true, valueLabels: { SUCCESS: '处理完成' } },
+    { key: 'createdAt', label: '发生时间', type: 'TIME' }] };
+  const operationType = { key: 'easyv-generation-feedback', label: '用户操作', links: [], properties: [
+    { key: 'actionType', label: '操作类型', type: 'STRING', title: true, valueLabels: { chatRefactor: '对话修改' } },
+    { key: 'userInput', label: '用户原话', type: 'STRING', prominent: true }] };
+  const operation = { reference: { objectKey: 'easyv-generation-feedback', objectId: '232', productVersionId: 'feedback-new' },
+    properties: { actionType: 'chatRefactor', userInput: '把算力存储监控改成单值占比图', userInputTruncated: false,
+      operatedAt: '2026-09-08T08:50:45Z' } };
+  seed({ objectKey: 'easyv-quality-node', filters: [], limit: 20, offset: 0 }, qualityType, qualityRow);
+  seed({ objectKey: 'easyv-quality-node', objectId: '1123' }, qualityType, qualityRow);
+  seed({ objectKey: 'easyv-quality-node', objectId: '1123', relation: 'operations', limit: 20 },
+    operationType, operation);
+  seed({ objectKey: 'easyv-generation-feedback', objectId: '232' },
+    operationType, operation);
+  out.quality = render('easyv-quality-node');
   client.clear(); out.pending = render('easyv-ai-application');
   const declared = application([]).properties;
   const controlsHtml = (state, maxFilters = 5) => renderToStaticMarkup(React.createElement(collection.ObjectCollectionControls,
@@ -54,8 +78,8 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
 test('对象浏览 | AI 应用复用通用集合与详情，属性来自声明，不进入原型专业视图', () => {
   const html = rendered.application;
   assert.match(html, /AI 应用 · 1/);
-  assert.match(html, /应用创建时间 2026\/10\/08 09:00:00/, '列表摘要来自第一个时间属性，按北京时间展示');
-  assert.match(html, /<dt[^>]*>归属类型<\/dt><dd[^>]*>USER<\/dd>/);
+  assert.match(html, /2026\/10\/08 09:00:00/, '列表摘要来自第一个时间属性，按北京时间展示');
+  assert.match(html, /<dt[^>]*>归属类型<\/dt><dd[^>]*>个人<\/dd>/);
   assert.match(html, /<dt[^>]*>应用创建时间<\/dt><dd[^>]*>2026\/10\/08 09:00:00<\/dd>/, 'TIME 属性不展示原始 ISO');
   assert.match(html, /针对这个对象追问/);
   assert.match(html, /数据出处与版本/);
@@ -68,7 +92,7 @@ test('对象浏览 | 关系入口随本体声明出现，无需新增渲染器',
 });
 
 test('对象浏览 | 原型对象仍使用专业组合', () => {
-  assert.match(rendered.layout, /原型 app-1/);
+  assert.match(rendered.layout, /原型结构/);
   assert.match(rendered.layout, /版式属性/);
 });
 
@@ -78,7 +102,7 @@ test('对象浏览 | 排序与筛选控件由声明的属性生成，默认折�
   assert.match(html, /<option value=""[^>]*>默认顺序<\/option>/);
   assert.match(html, /<option value="createdAt"[^>]*>应用创建时间<\/option>/);
   assert.doesNotMatch(html, /已启用的排序与筛选/);
-  assert.match(rendered.idle, /<option value="CONTAINS"[^>]*>包含<\/option>/, '首个属性为文本，默认提供文本算子');
+  assert.match(rendered.idle, /<option value="CONTAINS"[^>]*>包含<\/option>/, '独立控件仍按实际属性类型提供算子');
   assert.match(rendered.layout, /排序与筛选/, '原型集合沿用同一控件');
   assert.doesNotMatch(rendered.pending, /排序与筛选/, '尚未读到字段声明时不展示控件');
   assert.match(rendered.pending, /正在读取本轮对象/);
@@ -89,10 +113,24 @@ test('对象浏览 | 已启用的排序与筛选以可移除的条件展示，�
   assert.match(html, /排序与筛选 · 3/);
   assert.match(html, /按应用创建时间降序/);
   assert.match(html, /aria-label="取消排序"/);
-  assert.match(html, /aria-label="移除筛选：归属类型 等于 USER"/);
+  assert.match(html, /aria-label="移除筛选：归属类型 等于 个人"/);
   assert.match(html, /aria-label="移除筛选：应用创建时间 不早于 2026-10-08"/);
   assert.match(html, /清除全部/);
   assert.match(html, /aria-label="当前降序，切换为升序"/);
   assert.match(rendered.full, /筛选条件已达上限 1 项/);
   assert.match(rendered.full, /<button[^>]*type="submit"[^>]*disabled/);
+});
+
+
+test('对象浏览 | 质量记录以中文诉求和原话展示，技术身份只在折叠追溯区', () => {
+  const html = rendered.quality;
+  const main = html.split('<details class="text-xs text-muted-foreground">')[0];
+  assert.match(main, /当次被判为不支持/);
+  assert.match(main, /处理完成/);
+  assert.match(main, /用户原话/);
+  assert.match(main, /把算力存储监控改成单值占比图/);
+  assert.doesNotMatch(main, /task-secret-trace|app-secret-trace|session-secret-trace|>1123</);
+  assert.doesNotMatch(main, />ChatExecution<|>OUT_OF_SCOPE<|>SUCCESS</);
+  assert.match(html, /<details[^>]*><summary[^>]*>数据出处与版本/);
+  assert.match(html, /task-secret-trace/);
 });

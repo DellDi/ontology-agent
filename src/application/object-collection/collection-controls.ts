@@ -1,5 +1,7 @@
+import { objectValueLabel } from './presentation';
+
 export type CollectionPropertyType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'TIME';
-export type CollectionProperty = { key: string; label: string; type: CollectionPropertyType };
+export type CollectionProperty = { key: string; label: string; type: CollectionPropertyType; identifier?: boolean; title?: boolean; prominent?: boolean; valueLabels?: Record<string, string> };
 export type FilterOperator = 'EQUALS' | 'NOT_EQUALS' | 'CONTAINS' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'SET' | 'NOT_SET';
 export type CollectionFilter = { member: string; operator: FilterOperator; values: string[] };
 export type CollectionOrder = { member: string; direction: 'ASC' | 'DESC' };
@@ -75,7 +77,7 @@ export function describeFilter(filter: CollectionFilter, properties: CollectionP
   if (!needsValue(filter.operator)) return head;
   const value = filter.values[0] ?? '';
   if (property?.type === 'BOOLEAN') return `${head} ${value === 'true' ? '是' : '否'}`;
-  return `${head} ${property?.type === 'TIME' ? value.slice(0, 10) : value}`;
+  return `${head} ${property?.type === 'TIME' ? value.slice(0, 10) : objectValueLabel(property, value)}`;
 }
 
 const sameFilter = (a: CollectionFilter, b: CollectionFilter) =>

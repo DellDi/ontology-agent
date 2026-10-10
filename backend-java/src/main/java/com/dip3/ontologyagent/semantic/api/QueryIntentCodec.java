@@ -154,6 +154,10 @@ public final class QueryIntentCodec {
         item.put("label", property.label());
         item.put("type", lower(property.type()));
         item.put("identifier", property.identifier());
+        if (property.title()) item.put("title", true);
+        if (property.prominent()) item.put("prominent", true);
+        if (!property.valueLabels().isEmpty()) item.put("valueLabels", property.valueLabels());
+        if (property.detailOnly()) item.put("detailOnly", true);
         if (property.description() != null) item.put("description", property.description());
         return item;
       }).toList());

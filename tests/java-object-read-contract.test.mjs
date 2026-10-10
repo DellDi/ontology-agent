@@ -80,13 +80,13 @@ test('对象读取 | AI 应用与原型对象共用同一契约，目录外对�
   const listRequest = { ...request, objectKey: 'easyv-ai-application', objectId: null };
   assert.equal(ajv.getSchema('object-read-request.schema.json')(listRequest), true);
   assert.equal(javaObjectReadRequestSchema.safeParse(listRequest).success, true);
-  for (const body of [{ ...listRequest, objectKey: 'easyv-forge-task' },
+  for (const body of [{ ...listRequest, objectKey: 'easyv-scheme-library' },
     { ...request, objectKey: 'easyv-ai-application', includeComponentSummary: true }]) {
     assert.equal(ajv.getSchema('object-read-request.schema.json')(body), false);
     assert.equal(javaObjectReadRequestSchema.safeParse(body).success, false);
   }
   for (const mutate of [
-    (body) => { body.objectType.key = 'easyv-forge-task'; body.page.objectKey = 'easyv-forge-task'; body.page.rows[0].reference.objectKey = 'easyv-forge-task'; },
+    (body) => { body.objectType.key = 'easyv-scheme-library'; body.page.objectKey = 'easyv-scheme-library'; body.page.rows[0].reference.objectKey = 'easyv-scheme-library'; },
     (body) => { body.structure = { status: 'not_retained', layout: null }; },
     (body) => { body.componentSummary = { total: 0, groups: [] }; },
     (body) => { body.componentGeometry = { 'app-1': { status: 'missing', errorCode: 'COMPONENT_BOX_MISSING', box: null } }; },

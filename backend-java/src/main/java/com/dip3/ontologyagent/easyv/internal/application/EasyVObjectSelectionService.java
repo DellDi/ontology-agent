@@ -28,11 +28,13 @@ public class EasyVObjectSelectionService {
   public record Selected(ResolvedScopeSnapshot scope, ObjectQueryPort.Row object) {}
 
   public Selected require(AuthSession viewer, ResolvedScopeSnapshot frozenScope, ObjectSelection selection) {
-    if (!OBJECTS.contains(selection.reference().objectKey())) throw new BackendException("OBJECT_SELECTION_INVALID", "当前选择只支持 AI 应用、原型版式、区域与组件。");
+    if (!OBJECTS.contains(selection.reference().objectKey())) throw new BackendException("OBJECT_SELECTION_INVALID", "所选对象不在正式读取目录中。");
     scopes.validateScope(frozenScope, viewer);
     var scope = EasyVScopeResolver.narrowScope(frozenScope, scopes.resolveScope(viewer));
-    var versions = datasets.requireFrozen(selection.datasetVersionSetId(), PRODUCTS).productVersionIds();
     var type = model.require(selection.reference().objectKey());
+    var products = new HashSet<>(PRODUCTS);
+    products.add(type.productKey());
+    var versions = datasets.requireFrozen(selection.datasetVersionSetId(), products).productVersionIds();
     if (!selection.reference().productVersionId().equals(versions.get(type.productKey()))) {
       throw new BackendException("OBJECT_VERSION_MISMATCH", "所选对象的产品版本与来源冻结集合不一致。");
     }

@@ -94,6 +94,7 @@ public final class CubeModelGenerator {
     line(out, 8, "type", "string");
     out.append("        public: false\n");
     for (OntologyProperty property : object.properties()) {
+      if (property.detailOnly()) continue;
       out.append("      - name: ").append(quote(property.key())).append('\n');
       line(out, 8, "title", property.label());
       if (property.description() != null) line(out, 8, "description", property.description());

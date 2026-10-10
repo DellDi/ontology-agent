@@ -71,6 +71,19 @@ test('对象追问 | 快照拒绝伪造来源绑定与无引用标签', async ()
   assert.equal(readClient.javaExecutionSnapshotSchema.safeParse(fixture).success, false);
 });
 
+test('对象追问 | 历史主键标签与待执行引用不泄露身份，业务标签保留且真实引用不变', () => {
+  const round = {id:'r-id',kind:'follow-up',questionText:'这个大屏后来怎么改？',executionId:'execution-result',followUpId:'f-id',status:'completed',
+    conclusionState:null,planSnapshot:{_objectSelection:selection,_objectSelectionLabel:`原型区域 · ${selection.reference.objectId}`}};
+  const old = turnsModule.buildChatTurns({history:[round],followUps:[]},null)[0];
+  assert.equal(old.objectSelectionLabel,'原型区域');
+  assert.deepEqual(old.objectSelection.reference,selection.reference);
+  const modern = turnsModule.buildChatTurns({history:[{...round,planSnapshot:{...round.planSnapshot,_objectSelectionLabel:'原型区域 · 算力资源容量'}}],followUps:[]},null)[0];
+  assert.equal(modern.objectSelectionLabel,'原型区域 · 算力资源容量');
+  const pending = turnsModule.buildChatTurns({history:[],followUps:[{id:'f-pending',questionText:'回看',resultExecutionId:null,mergedContext:{objectSelection:selection}}]},null)[0];
+  assert.equal(pending.objectSelectionLabel,'所选对象');
+  assert.deepEqual(pending.objectSelection,selection);
+});
+
 
 test('对象追问 | 历史助手实际组件入口携带该轮执行，不能借用当前轮', () => {
   const block = {type:'object-browser',title:'对象范围',role:'supporting',objectKey:'easyv-prototype-layout',

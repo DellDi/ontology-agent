@@ -736,8 +736,31 @@ class EasyVSemanticAgentTest {
     var request = ArgumentCaptor.forClass(PlanRequest.class); verify(model, times(2)).plan(request.capture());
     assertEquals(row.reference(), request.getAllValues().getFirst().selectedObject().get("reference"));
     assertEquals(selection.snapshot(), workflow.plan().get("_objectSelection"));
-    assertEquals("原型区域 · a:b", workflow.plan().get("_objectSelectionLabel"));
+    assertEquals("原型区域", workflow.plan().get("_objectSelectionLabel"));
     assertEquals("easyv-set-1", workflow.evidence().getFirst().provenance().datasetVersionSetId());
+  }
+
+  @Test
+  void selectedObjectLabelUsesDeclaredTitleOrBusinessTimeWithoutExposingIdentity() {
+    for (var scenario : List.of(
+        Map.of("key", "easyv-ai-application", "properties", Map.of("appId", "app-internal", "createdAt", "2026-09-10T03:20:08Z"),
+            "expected", "AI 应用 · 2026/09/10 11:20:08"),
+        Map.of("key", "easyv-quality-node", "properties", Map.of("nodeId", "node-internal", "intent", "BLOCK_ADD_METRIC"),
+            "expected", "需求与处理记录 · 新增指标"))) {
+      var key = (String) scenario.get("key");
+      var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-0", "easyv-set-1",
+          new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference(key, "internal-id", "v-" + key));
+      @SuppressWarnings("unchecked") var properties = (Map<String, Object>) scenario.get("properties");
+      var row = new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(selection.reference(), properties);
+      when(selections.requireDuringExecution(any(), eq(ALL), eq(selection))).thenReturn(new EasyVObjectSelectionService.Selected(ALL, row));
+      when(selections.constrain(any(QueryIntent.class), eq(row))).thenAnswer(call -> call.getArgument(0));
+      when(model.plan(any())).thenReturn(ready(COUNT_QUERY)).thenReturn(finished());
+      when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 1)));
+      when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+      var workflow = run(followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot())), ALL);
+      assertEquals(scenario.get("expected"), workflow.plan().get("_objectSelectionLabel"));
+      assertEquals(selection.snapshot(), workflow.plan().get("_objectSelection"));
+    }
   }
 
   @Test

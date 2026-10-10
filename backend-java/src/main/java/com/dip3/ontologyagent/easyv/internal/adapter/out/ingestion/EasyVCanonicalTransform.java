@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.adapter.out.ingestion;
 
 import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser;
+import com.dip3.ontologyagent.easyv.internal.domain.GenerationQualityEvidenceParser;
 import com.dip3.ontologyagent.easyv.internal.domain.GenerationScoreSnapshotParser;
 import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Block;
 import com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.Component;
@@ -55,15 +56,30 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
     public PreparedProduct prepare(Context context) {
         requireRegistration(context);
         SourceInput input = context.inputs().get("source");
-        if (input == null || context.inputs().size() != 1
+        if (input == null || context.inputs().size() != (kind == Kind.PIPELINE ? 2 : 1)
                 || !kind.datasetKey.equals(input.dataset().datasetKey())) {
             throw new IllegalArgumentException(kind.productKey
                     + " requires exactly one matching source input");
         }
 
+        Map<String, String> taskApplications = new LinkedHashMap<>();
+        if (kind == Kind.PIPELINE) {
+            SourceInput operations = context.inputs().get("operations");
+            if (operations == null || !"easyv-generation-feedback".equals(operations.dataset().datasetKey())) {
+                throw new IllegalArgumentException("pipeline quality evidence requires the declared operations input");
+            }
+            Columns operationColumns = new Columns(operations);
+            for (SourceRow operation : operations.rows()) {
+                String task = operationColumns.nullableText(operation, "task_id");
+                String app = operationColumns.nullableText(operation, "app_id");
+                if (task == null || task.isBlank() || app == null || app.isBlank()) continue;
+                String previous = taskApplications.putIfAbsent(task, app);
+                if (previous != null && !previous.equals(app)) throw new IllegalArgumentException("one task belongs to multiple EasyV applications");
+            }
+        }
         Columns columns = new Columns(input);
         List<List<Object>> rows = input.rows().stream()
-                .flatMap(row -> map(context.productVersionId(), input.sourceVersionId(), columns, row).stream())
+                .flatMap(row -> map(context.productVersionId(), input.sourceVersionId(), columns, row, taskApplications).stream())
                 .sorted(Comparator.<List<Object>, Comparable<Object>>comparing(row -> (Comparable<Object>) row.get(3))
                         .thenComparing(row -> kind == Kind.PROTOTYPE_BLOCK ? (String) row.get(5)
                                 : kind == Kind.PROTOTYPE_COMPONENT ? (String) row.get(6) : ""))
@@ -86,7 +102,7 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
     }
 
     private List<List<Object>> map(String productVersionId, String sourceVersionId,
-                                   Columns values, SourceRow row) {
+                                   Columns values, SourceRow row, Map<String, String> taskApplications) {
         List<Object> prefix = List.of(productVersionId, kind.datasetKey, sourceVersionId);
         return switch (kind) {
             case APPLICATION -> List.of(joined(prefix,
@@ -100,6 +116,8 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                     values.longValue(row, "id"), values.text(row, "app_id"),
                     values.instant(row, "create_time"), values.instant(row, "update_time")));
             case PIPELINE -> {
+                var quality = GenerationQualityEvidenceParser.parse(values.text(row, "branch"),
+                        values.text(row, "step_name"), values.value(row, "output"));
                 var snapshot = GenerationScoreSnapshotParser.parse(values.text(row, "step_name"),
                         values.text(row, "task_id"), values.value(row, "output"));
                 yield List.of(joined(prefix,
@@ -107,7 +125,12 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                     values.text(row, "step_name"), values.text(row, "branch"),
                     values.text(row, "status"), values.nullableLong(row, "duration_ms"),
                     values.instant(row, "create_time"), snapshot.status(), snapshot.errorCode(),
-                    snapshot.snapshot() == null ? null : json.write(snapshot.snapshot())));
+                    snapshot.snapshot() == null ? null : json.write(snapshot.snapshot()),
+                    taskApplications.get(values.text(row, "task_id")),
+                    values.nullableText(row, "session_id"), values.nullableText(row, "intent"),
+                    quality.targetBlockId(), quality.industryCategory(), quality.audienceType(),
+                    quality.status(), quality.errorCode(),
+                    quality.evidence() == null ? null : json.write(quality.evidence())));
             }
             case FORGE -> List.of(joined(prefix,
                     values.uuid(row, "id"), values.text(row, "task_id"),
@@ -133,7 +156,11 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                         values.text(row, "ai_action_type"), result, rating,
                         values.nullableText(row, "app_id"),
                         values.nullableText(row, "task_id"),
-                        values.nullableBoolean(row, "is_save_as_edit")));
+                        values.nullableBoolean(row, "is_save_as_edit"),
+                        boundedText(values.nullableText(row, "user_input")), textHash(values.nullableText(row, "user_input")),
+                        textTruncated(values.nullableText(row, "user_input")),
+                        boundedText(values.nullableText(row, "fail_reason")), textHash(values.nullableText(row, "fail_reason")),
+                        textTruncated(values.nullableText(row, "fail_reason"))));
             }
             case PROTOTYPE_LAYOUT, PROTOTYPE_BLOCK, PROTOTYPE_COMPONENT ->
                     structureRows(prefix, values, row);
@@ -200,6 +227,19 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
         return text.length() <= 4000 ? text : text.substring(0, 4000);
     }
 
+    private static String boundedText(String value) {
+        if (value == null || !textTruncated(value)) return value;
+        return value.substring(0, value.offsetByCodePoints(0, GenerationQualityEvidenceParser.TEXT_LIMIT));
+    }
+
+    private static Boolean textTruncated(String value) {
+        return value == null ? null : value.codePointCount(0, value.length()) > GenerationQualityEvidenceParser.TEXT_LIMIT;
+    }
+
+    private static String textHash(String value) {
+        return value == null ? null : digest("SHA-256", value.getBytes(StandardCharsets.UTF_8));
+    }
+
     private String md5(Object value) {
         String canonical = value == null ? "" : json.write(value);
         return digest("MD5", canonical.getBytes(StandardCharsets.UTF_8));
@@ -260,12 +300,14 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    app_id,created_at,updated_at) values (?,?,?,?,?,?,?)
                 """),
-        PIPELINE("easyv-pipeline-node", "easyv_pipeline_node", "easyv-pipeline-node-v2", """
+        PIPELINE("easyv-pipeline-node", "easyv_pipeline_node", "easyv-pipeline-node-v3", """
                 insert into facts.easyv_pipeline_node
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    task_id,step_name,branch,status,duration_ms,created_at,
-                   score_snapshot_status,score_snapshot_error_code,score_snapshot)
-                values (?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb)
+                   score_snapshot_status,score_snapshot_error_code,score_snapshot,
+                   app_id,session_id,intent,target_block_id,industry_category,audience_type,
+                   quality_evidence_status,quality_evidence_error_code,quality_evidence)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?,?,?::jsonb)
                 """),
         FORGE("easyv-forge-task", "easyv_forge_generation_task", "easyv-forge-task-v2", """
                 insert into facts.easyv_forge_generation_task
@@ -275,11 +317,13 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                 values (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """),
         FEEDBACK("easyv-generation-feedback", "easyv_generation_feedback",
-                "easyv-generation-feedback-v1", """
+                "easyv-generation-feedback-v2", """
                 insert into facts.easyv_generation_feedback
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    space_id,user_id,operated_at,ai_action_type,execute_result,rating,app_id,task_id,
-                   is_save_as_edit) values (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   is_save_as_edit,user_input,user_input_hash,user_input_truncated,
+                   failure_reason,failure_reason_hash,failure_reason_truncated)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """),
         PROTOTYPE_LAYOUT("easyv-prototype-layout", "easyv-prototype-task", "easyv_prototype_layout",
                 "easyv-prototype-layout-v2", """

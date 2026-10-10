@@ -165,7 +165,12 @@ public final class SemanticQueryCompiler {
   private SemanticModel.ResolvedMember resolve(
       OntologyObjectType root, String path, List<String> violations, String field) {
     try {
-      return model.resolve(root.key(), path);
+      var member = model.resolve(root.key(), path);
+      if (member.property().detailOnly()) {
+        violations.add(field + " 中的原文只能通过单对象详情读取：" + path);
+        return null;
+      }
+      return member;
     } catch (BackendException error) {
       violations.add(field + " 中的成员路径无效：" + path + "（可用属性与关系见目录）");
       return null;

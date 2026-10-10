@@ -7,6 +7,16 @@ cubes:
     meta:
       ontologyObject: "easyv-ai-application"
       productKey: "easyv-ai-application"
+    joins:
+      - name: "EasyvFeedback"
+        relationship: "one_to_many"
+        sql: "{CUBE}.app_id = {EasyvFeedback}.app_id"
+      - name: "EasyvPrototypeLayout"
+        relationship: "one_to_one"
+        sql: "{CUBE}.app_id = {EasyvPrototypeLayout}.app_id"
+      - name: "EasyvQualityNode"
+        relationship: "one_to_many"
+        sql: "{CUBE}.app_id = {EasyvQualityNode}.app_id"
     dimensions:
       - name: "productVersionId"
         sql: "{CUBE}.product_version_id"

@@ -61,5 +61,12 @@
     "scopeMembers": {
       "userId": "EasyvApplication.userId"
     }
+  },
+  "EasyvQualityNode": {
+    "productKey": "easyv-pipeline-node",
+    "requiredMembers": ["EasyvApplication.appId"],
+    "scopeMembers": {
+      "userId": "EasyvApplication.userId"
+    }
   }
 }

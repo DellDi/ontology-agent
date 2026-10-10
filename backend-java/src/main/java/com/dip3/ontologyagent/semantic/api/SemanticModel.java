@@ -124,12 +124,12 @@ public final class SemanticModel {
     OntologyObjectType object = require(objectKey);
     List<ResolvedMember> members = new ArrayList<>();
     for (OntologyProperty property : object.properties()) {
-      members.add(new ResolvedMember(property.key(), object, property));
+      if (!property.detailOnly()) members.add(new ResolvedMember(property.key(), object, property));
     }
     for (OntologyLink link : object.links()) {
       OntologyObjectType target = require(link.targetObjectKey());
       for (OntologyProperty property : target.properties()) {
-        members.add(new ResolvedMember(link.key() + "." + property.key(), target, property));
+        if (!property.detailOnly()) members.add(new ResolvedMember(link.key() + "." + property.key(), target, property));
       }
     }
     return List.copyOf(members);

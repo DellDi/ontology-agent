@@ -87,9 +87,9 @@ class EasyVCanonicalTransformTest {
 
     @Test
     void scoreSnapshotsAreWhitelistedReproducibleAndVersionedWhenMutableSourceContextChanges() {
-        String source = publishPipeline("score-first", scoreOutput("metric-a"), 2, "PipelineCompleted");
+        String source = publishPipeline("score-first", scoreOutput("metric-a"), 3, "PipelineCompleted");
         String first = materializePipeline("score-first", source);
-        String repeated = materializePipeline("score-repeat", source);
+        String repeated = materializePipeline("score-repeat", source, "version-easyv-generation-feedback-score-first");
         assertEquals(pipelineHash(first), pipelineHash(repeated));
         String snapshot = jdbc.queryForObject("select score_snapshot::text from facts.easyv_pipeline_node where product_version_id=?",
                 String.class, first);
@@ -99,8 +99,8 @@ class EasyVCanonicalTransformTest {
         assertFalse(snapshot.contains("不应保留"));
         assertEquals("available_unverified", jdbc.queryForObject(
                 "select score_snapshot_status from facts.easyv_pipeline_node where product_version_id=?", String.class, first));
-        assertEquals(2, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?", Integer.class, first));
-        String changed = materializePipeline("score-edited", publishPipeline("score-edited", scoreOutput("metric-edited"), 2, "PipelineCompleted"));
+        assertEquals(3, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?", Integer.class, first));
+        String changed = materializePipeline("score-edited", publishPipeline("score-edited", scoreOutput("metric-edited"), 3, "PipelineCompleted"));
         assertNotEquals(pipelineHash(first), pipelineHash(changed), "源端原行的 create_time 不变，RECONCILE 仍捕获快照编辑");
         assertEquals("metric-a", jdbc.queryForObject("""
                 select score_snapshot #>> '{filledBlocks,0,bindings,0,metricId}'
@@ -111,35 +111,35 @@ class EasyVCanonicalTransformTest {
                 from facts.easyv_pipeline_node where product_version_id=?
                 """, String.class, changed));
         assertThrows(DataAccessException.class, () -> jdbc.update("update facts.easyv_pipeline_node set score_snapshot=null where product_version_id=?", first));
-        assertEquals("easyv-pipeline-node-v2", jdbc.queryForObject(
-                "select transform_ref from ingestion.data_product_version_lineage where product_version_id=?", String.class, first));
+        assertEquals("easyv-pipeline-node-v3", jdbc.queryForObject(
+                "select transform_ref from ingestion.data_product_version_lineage where product_version_id=? and input_key='source'", String.class, first));
     }
 
     @Test
     void missingAndInvalidScoreSnapshotsRemainLocatableWithoutDroppingPipelineFacts() {
-        String missing = materializePipeline("score-missing", publishPipeline("score-missing", null, 2, "PipelineCompleted"));
+        String missing = materializePipeline("score-missing", publishPipeline("score-missing", null, 3, "PipelineCompleted"));
         assertEquals("missing", jdbc.queryForObject("select score_snapshot_status from facts.easyv_pipeline_node where product_version_id=?", String.class, missing));
         assertEquals("PIPELINE_OUTPUT_MISSING", jdbc.queryForObject("select score_snapshot_error_code from facts.easyv_pipeline_node where product_version_id=?", String.class, missing));
         Object malformed = Map.of("output", Map.of("raw", List.of("wrong-shape")));
-        String invalid = materializePipeline("score-invalid", publishPipeline("score-invalid", malformed, 2, "PipelineCompleted"));
+        String invalid = materializePipeline("score-invalid", publishPipeline("score-invalid", malformed, 3, "PipelineCompleted"));
         assertEquals("invalid", jdbc.queryForObject("select score_snapshot_status from facts.easyv_pipeline_node where product_version_id=?", String.class, invalid));
         assertEquals("SCORE_OBJECT_INVALID", jdbc.queryForObject("select score_snapshot_error_code from facts.easyv_pipeline_node where product_version_id=?", String.class, invalid));
         assertNull(jdbc.queryForObject("select score_snapshot::text from facts.easyv_pipeline_node where product_version_id=?", String.class, invalid));
-        String other = materializePipeline("score-other", publishPipeline("score-other", malformed, 2, "Step6"));
+        String other = materializePipeline("score-other", publishPipeline("score-other", malformed, 3, "Step6"));
         assertEquals("not_applicable", jdbc.queryForObject("select score_snapshot_status from facts.easyv_pipeline_node where product_version_id=?", String.class, other));
         assertEquals(3L, count("facts.easyv_pipeline_node"));
     }
 
     @Test
     void scoreMaterializationRejectsTheOldSourceSchemaBeforeDecoding() {
-        jdbc.update("update ingestion.dataset_definitions set schema_version=1,column_contract=column_contract - 7 where dataset_key='easyv-pipeline-node'");
+        jdbc.update("update ingestion.dataset_definitions set schema_version=1,column_contract=column_contract - 9 - 8 - 7 where dataset_key='easyv-pipeline-node'");
         String source;
         try {
             source = publishPipeline("score-v1", null, 1, "PipelineCompleted");
         } finally {
             jdbc.update("""
-                    update ingestion.dataset_definitions set schema_version=2,
-                    column_contract=column_contract || '[{"name":"output","type":"JSON","nullable":true}]'::jsonb
+                    update ingestion.dataset_definitions set schema_version=3,
+                    column_contract=column_contract || '[{"name":"output","type":"JSON","nullable":true},{"name":"session_id","type":"STRING","nullable":true},{"name":"intent","type":"STRING","nullable":true}]'::jsonb
                     where dataset_key='easyv-pipeline-node'
                     """);
         }
@@ -150,33 +150,43 @@ class EasyVCanonicalTransformTest {
     }
 
     private String publishPipeline(String suffix, Object output, int schemaVersion, String step) {
+        LocalDateTime created = LocalDateTime.parse("2026-09-04T09:00:00");
+        SourceRow node = schemaVersion == 1
+                ? row(3L, "pipeline-task-1", step, "MAIN", "SUCCESS", 120L, created)
+                : row(3L, "pipeline-task-1", step, "MAIN", "SUCCESS", 120L, created, output, "session-1", null);
+        String version = publishRows("easyv-pipeline-node", suffix, List.of(node));
+        publishRows("easyv-generation-feedback", suffix, List.of(sourceRow("easyv-generation-feedback")));
+        return version;
+    }
+
+    private String publishRows(String key, String suffix, List<SourceRow> rows) {
         DatasetDefinition dataset = sourceCatalog.loadActiveSource("easyv").datasets().stream()
-                .filter(d -> d.datasetKey().equals("easyv-pipeline-node")).findFirst().orElseThrow();
-        String run = "pipeline-source-" + suffix;
-        String version = "pipeline-source-version-" + suffix;
+                .filter(d -> d.datasetKey().equals(key)).findFirst().orElseThrow();
+        String run = "source-" + key + "-" + suffix;
+        String version = "version-" + key + "-" + suffix;
         persistence.createSourceRun(new IngestionPersistencePort.SourceRunRequest(run, "easyv", IngestionRun.Mode.RECONCILE,
                 IngestionRun.TriggerType.BOOTSTRAP, "test", "trace-" + suffix, Map.of("snapshot", suffix)));
         persistence.startSourceRun(run);
         persistence.reserveSourceVersions(new IngestionPersistencePort.SourceVersionReservation(run, List.of(
-                new IngestionPersistencePort.SourceDatasetReservation(version, dataset.datasetKey(), null, Map.of("snapshot", suffix), schemaVersion))));
-        LocalDateTime created = LocalDateTime.parse("2026-09-04T09:00:00");
-        SourceRow row = schemaVersion == 1
-                ? row(3L, "pipeline-task-1", step, "MAIN", "SUCCESS", 120L, created)
-                : row(3L, "pipeline-task-1", step, "MAIN", "SUCCESS", 120L, created, output);
-        var receipt = persistence.appendSourceBatch(new IngestionPersistencePort.SourceBatchAppend(version, 1, 1, codec.encode(dataset, List.of(row))));
+                new IngestionPersistencePort.SourceDatasetReservation(version, key, null, Map.of("snapshot", suffix), dataset.schemaVersion()))));
+        var receipt = persistence.appendSourceBatch(new IngestionPersistencePort.SourceBatchAppend(version, 1, rows.size(), codec.encode(dataset, rows)));
         persistence.publishSourceSnapshot(new IngestionPersistencePort.SourcePublication(run, List.of(
-                new IngestionPersistencePort.SourceDatasetPublication(dataset.datasetKey(), 1, 1,
+                new IngestionPersistencePort.SourceDatasetPublication(key, 1, rows.size(),
                         SourceBatchManifest.aggregate(List.of(receipt)).contentHash(), Map.of("complete", true)))));
         return version;
     }
 
     private String materializePipeline(String suffix, String source) {
+        return materializePipeline(suffix, source, "version-easyv-generation-feedback-" + suffix);
+    }
+
+    private String materializePipeline(String suffix, String source, String operations) {
         JsonCodec json = new JsonCodec();
         ProductMaterializer materializer = new ProductMaterializer(new ProductCatalogPostgresAdapter(jdbc, json, sourceCatalog),
                 new CanonicalProductTransformRegistry(List.of(new EasyVCanonicalTransform(EasyVCanonicalTransform.Kind.PIPELINE, jdbc, json))), codec, persistence);
         return materializer.materialize(new ProductMaterializer.Command("pipeline-run-" + suffix, "easyv-pipeline-node", "pipeline-product-" + suffix,
                 ProductMaterializationRun.Mode.FULL, ProductMaterializationRun.TriggerType.BOOTSTRAP,
-                "test", "trace-" + suffix, Map.of("source", source))).id();
+                "test", "trace-" + suffix, Map.of("source", source, "operations", operations))).id();
     }
 
     private String pipelineHash(String version) {
@@ -212,7 +222,7 @@ class EasyVCanonicalTransformTest {
                     ProductMaterializationRun.Mode.FULL,
                     ProductMaterializationRun.TriggerType.BOOTSTRAP,
                     "test", "trace-" + productKey,
-                    Map.of("source", sourceVersions.get(productKey))));
+                    inputs(productKey, sourceVersions)));
             productVersions.put(productKey, published.id());
         }
 
@@ -229,7 +239,7 @@ class EasyVCanonicalTransformTest {
         assertEquals(1L, count("facts.easyv_forge_generation_task"));
         assertEquals(1L, count("facts.easyv_generation_feedback"));
         assertEquals(5L, count("ingestion.data_product_versions"));
-        assertEquals(5L, count("ingestion.data_product_version_lineage"));
+        assertEquals(6L, count("ingestion.data_product_version_lineage"));
         assertEquals(1L, jdbc.queryForObject(
                 "select count(*) from facts.easyv_pipeline_task where outcome='completed'", Long.class));
         assertEquals(1L, jdbc.queryForObject(
@@ -257,6 +267,103 @@ class EasyVCanonicalTransformTest {
                 .stream().allMatch(hash -> hash.matches("[0-9a-f]{64}")));
         assertThrows(DataAccessException.class, () -> jdbc.update(
                 "update facts.easyv_ai_application set scope_type='changed'"));
+    }
+
+    @Test
+    void rawTextIsOnlyReadableInAuthorizedDetailsAndNeverInListsFiltersOrCube() {
+        Map<String, String> sources = publishSourceSnapshot();
+        JsonCodec json = new JsonCodec();
+        var materializer = new ProductMaterializer(new ProductCatalogPostgresAdapter(jdbc, json, sourceCatalog),
+                new CanonicalProductTransformRegistry(Arrays.stream(EasyVCanonicalTransform.Kind.values())
+                        .map(kind -> (CanonicalProductTransform) new EasyVCanonicalTransform(kind, jdbc, json)).toList()), codec, persistence);
+        Map<String, String> versions = new LinkedHashMap<>();
+        for (String key : sources.keySet()) {
+            versions.put(key, materializer.materialize(new ProductMaterializer.Command("quality-run-" + key, key,
+                    "quality-version-" + key, ProductMaterializationRun.Mode.FULL,
+                    ProductMaterializationRun.TriggerType.BOOTSTRAP, "test", "quality-test", inputs(key, sources))).id());
+        }
+        var model = com.dip3.ontologyagent.semantic.api.SemanticModel.discover();
+        var objects = new com.dip3.ontologyagent.semantic.internal.adapter.out.postgres.PostgresObjectQueryAdapter(jdbc, model);
+        var access = new com.dip3.ontologyagent.semantic.api.SemanticQueryPort.AccessContext(versions,
+                com.dip3.ontologyagent.semantic.api.SemanticQueryPort.Scope.everything());
+        String key = "easyv-generation-feedback";
+        var listed = objects.query(new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Query(key, null, null, 20, 0), access);
+        assertFalse(listed.rows().getFirst().properties().containsKey("userInput"));
+        var detail = objects.require(key, "5", access);
+        assertEquals("用户真实诉求", detail.properties().get("userInput"));
+        assertEquals(false, detail.properties().get("userInputTruncated"));
+        assertEquals("源端失败原因", detail.properties().get("failureReason"));
+        var other = new com.dip3.ontologyagent.semantic.api.SemanticQueryPort.AccessContext(versions,
+                com.dip3.ontologyagent.semantic.api.SemanticQueryPort.Scope.restricted(Map.of("userId", List.of("999"))));
+        assertThrows(com.dip3.ontologyagent.support.BackendException.class, () -> objects.require(key, "5", other));
+        var filter = new com.dip3.ontologyagent.semantic.api.QueryIntent.Filter("userInput",
+                com.dip3.ontologyagent.semantic.api.QueryIntent.Operator.CONTAINS, List.of("诉求"));
+        assertThrows(com.dip3.ontologyagent.support.BackendException.class, () -> objects.query(
+                new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Query(key, List.of(filter), null, 20, 0), access));
+        assertThrows(com.dip3.ontologyagent.support.BackendException.class, () -> objects.query(
+                new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Query(key, null,
+                    List.of(new com.dip3.ontologyagent.semantic.api.QueryIntent.Order("userInput",
+                        com.dip3.ontologyagent.semantic.api.QueryIntent.Direction.ASC)), 20, 0), access));
+        String yaml = com.dip3.ontologyagent.semantic.api.CubeModelGenerator.generate(model).get("model/easyv/EasyvFeedback.yml");
+        assertFalse(yaml.contains("name: \"userInput\""));
+        var intent = new com.dip3.ontologyagent.semantic.api.QueryIntent(key, List.of("count"), List.of("userInput"), List.of(),
+                new com.dip3.ontologyagent.semantic.api.QueryIntent.TimeSpec(null,
+                    new com.dip3.ontologyagent.semantic.api.TimeExpression("全部", com.dip3.ontologyagent.semantic.api.TimeExpression.Kind.ALL,
+                        null, null, null, null, null, null), null), null, List.of(), null);
+        assertFalse(new com.dip3.ontologyagent.semantic.api.SemanticQueryCompiler(model).compile(intent, Instant.now()).violations().isEmpty());
+        assertEquals(2, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?", Integer.class, versions.get(key)));
+    }
+
+    @Test
+    void qualityNodesKeepMultipleIntentsAndTextTruncationIsExplicit() {
+        var sources = new LinkedHashMap<>(publishSourceSnapshot());
+        String original = "😀".repeat(4001);
+        String operations = publishRows("easyv-generation-feedback", "multi", List.of(row(51L, 22L, 11L,
+                Instant.parse("2026-09-04T01:00:00Z"), "chatRefactor", 1, null, "app-1", "round-1", false, original, "失败".repeat(3000))));
+        LocalDateTime time = LocalDateTime.parse("2026-09-04T09:00:00");
+        String nodes = publishRows("easyv-pipeline-node", "multi", List.of(
+                row(61L, "round-1", "ChatExecution", "CHAT", "SUCCESS", null, time,
+                    Map.of("blockId", "left_1"), "chat-session", "BLOCK_ADD_METRIC"),
+                row(62L, "round-1", "ChatExecution", "CHAT", "FAILED", null, time,
+                    Map.of(), "chat-session", "BLOCK_REPLACE_TITLE")));
+        JsonCodec json = new JsonCodec();
+        var materializer = new ProductMaterializer(new ProductCatalogPostgresAdapter(jdbc, json, sourceCatalog),
+                new CanonicalProductTransformRegistry(Arrays.stream(EasyVCanonicalTransform.Kind.values())
+                    .map(kind -> (CanonicalProductTransform) new EasyVCanonicalTransform(kind, jdbc, json)).toList()), codec, persistence);
+        sources.put("easyv-generation-feedback", operations);
+        sources.put("easyv-pipeline-node", nodes);
+        Map<String, String> versions = new LinkedHashMap<>();
+        for (String key : List.of("easyv-ai-application", "easyv-generation-feedback", "easyv-pipeline-node")) {
+            versions.put(key, materializer.materialize(new ProductMaterializer.Command("multi-run-" + key, key,
+                    "multi-version-" + key, ProductMaterializationRun.Mode.FULL, ProductMaterializationRun.TriggerType.BOOTSTRAP,
+                    "test", "multi-test", inputs(key, sources))).id());
+        }
+        var model = com.dip3.ontologyagent.semantic.api.SemanticModel.discover();
+        var objects = new com.dip3.ontologyagent.semantic.internal.adapter.out.postgres.PostgresObjectQueryAdapter(jdbc, model);
+        var access = new com.dip3.ontologyagent.semantic.api.SemanticQueryPort.AccessContext(versions,
+                com.dip3.ontologyagent.semantic.api.SemanticQueryPort.Scope.everything());
+        var operation = objects.require("easyv-generation-feedback", "51", access);
+        String text = (String) operation.properties().get("userInput");
+        assertEquals(4000, text.codePointCount(0, text.length()));
+        assertEquals(true, operation.properties().get("userInputTruncated"));
+        assertEquals(true, operation.properties().get("failureReasonTruncated"));
+        String expectedHash = java.util.HexFormat.of().formatHex(digest(original));
+        assertEquals(expectedHash, operation.properties().get("userInputHash"));
+        var related = objects.related("easyv-generation-feedback", "51", "qualityNodes",
+                new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Query("easyv-quality-node", null, null, 20, 0), access);
+        assertEquals(2, related.rows().size());
+        assertEquals(List.of("BLOCK_ADD_METRIC", "BLOCK_REPLACE_TITLE"), related.rows().stream().map(r -> r.properties().get("intent")).toList());
+        assertEquals("left_1", related.rows().getFirst().properties().get("targetBlockId"));
+        assertNull(related.rows().getLast().properties().get("targetBlockId"));
+        assertTrue(related.rows().stream().allMatch(r -> "app-1".equals(r.properties().get("appId"))));
+        var differentAccount = new com.dip3.ontologyagent.semantic.api.SemanticQueryPort.AccessContext(versions,
+                com.dip3.ontologyagent.semantic.api.SemanticQueryPort.Scope.restricted(Map.of("userId", List.of("999"))));
+        assertThrows(com.dip3.ontologyagent.support.BackendException.class, () -> objects.require("easyv-quality-node", "61", differentAccount));
+    }
+
+    private static byte[] digest(String text) {
+        try { return java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new AssertionError(e); }
     }
 
     private Map<String, String> publishSourceSnapshot() {
@@ -293,6 +400,12 @@ class EasyVCanonicalTransformTest {
         return Collections.unmodifiableMap(versionIds);
     }
 
+    private static Map<String, String> inputs(String product, Map<String, String> sources) {
+        return product.equals("easyv-pipeline-node")
+                ? Map.of("source", sources.get(product), "operations", sources.get("easyv-generation-feedback"))
+                : Map.of("source", sources.get(product));
+    }
+
     private static SourceRow sourceRow(String datasetKey) {
         LocalDateTime created = LocalDateTime.parse("2026-09-04T09:00:00");
         LocalDateTime updated = LocalDateTime.parse("2026-09-04T09:05:00");
@@ -301,7 +414,7 @@ class EasyVCanonicalTransformTest {
                     11L, 22L, 33L, "user", created, updated, "0");
             case "easyv-prototype-task" -> row(2L, "app-1", null, null, created, updated);
             case "easyv-pipeline-node" -> row(3L, "pipeline-task-1",
-                    "PipelineCompleted", "MAIN", "SUCCESS", 120L, created, null);
+                    "PipelineCompleted", "MAIN", "SUCCESS", 120L, created, null, "session-1", null);
             case "easyv-forge-task" -> row(UUID.fromString(
                             "00000000-0000-0000-0000-000000000004"),
                     "forge-task-1", "app-1", "failed",
@@ -310,7 +423,7 @@ class EasyVCanonicalTransformTest {
                     created, updated, created, updated);
             case "easyv-generation-feedback" -> row(5L, 22L, 11L,
                     Instant.parse("2026-09-04T01:00:00Z"), "generate", 1, 5,
-                    "app-1", null, true);
+                    "app-1", null, true, "用户真实诉求", "源端失败原因");
             default -> throw new IllegalArgumentException("unexpected dataset " + datasetKey);
         };
     }
