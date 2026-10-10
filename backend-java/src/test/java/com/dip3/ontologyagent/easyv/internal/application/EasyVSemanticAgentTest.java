@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -158,6 +159,12 @@ class EasyVSemanticAgentTest {
     var planned = ArgumentCaptor.forClass(PlanRequest.class); verify(model, times(4)).plan(planned.capture());
     assertEquals("o1", planned.getAllValues().get(1).knownObjects().getFirst().get("handle"));
     assertEquals("o2", ((List<Map<String, Object>>) planned.getAllValues().get(2).observations().get(1).get("rows")).getFirst().get("handle"));
+    var composed = ArgumentCaptor.forClass(ComposeRequest.class);
+    verify(model).compose(composed.capture(), any());
+    var answerRows = (List<Map<String, Object>>) composed.getValue().results().getFirst().get("rows");
+    assertFalse(answerRows.getFirst().containsKey("handle"));
+    assertEquals("a", answerRows.getFirst().get("objectId"));
+    assertEquals("o1", result.evidence().get(1).rows().getFirst().get("handle"));
     assertEquals(List.of(), ((Map<?, ?>) result.plan().get("_resolvedContext")).get("queries"));
     assertEquals(3, ((List<?>) ((Map<?, ?>) result.plan().get("_resolvedContext")).get("toolCalls")).size());
     var json = new com.dip3.ontologyagent.support.JsonCodec();
@@ -166,6 +173,45 @@ class EasyVSemanticAgentTest {
     assertTrue(!result.plan().containsKey("_understanding") && !result.plan().containsKey("_editorCatalog"));
     assertEquals("scheme-comparison", result.renderBlocks().getLast().get("type"));
     verify(recorder).succeedWhileLeased(eq("child-assess_scheme-q3"), anyMap(), eq("execution-1"), eq("worker-1"));
+  }
+
+  @Test
+  void terminalObjectPageCorrectsThePlanWithoutReadingAnotherPage() {
+    var objects = mock(EasyVObjectReadService.class);
+    var scopes = mock(EasyVScopeResolver.class);
+    var semantic = SemanticModel.discover();
+    when(scopes.executionPrincipal(any())).thenReturn(principal());
+    when(scopes.resolveScope(any())).thenReturn(ALL);
+    var realTools = new EasyVAgentTools(objects, mock(EasyVSchemeAssessmentService.class),
+        new EasyVObjectSelectionService(null, null, null, semantic), scopes, semantic,
+        new com.dip3.ontologyagent.support.JsonCodec());
+    agent = new EasyVSemanticAgent(model, semantic, new SemanticQueryCompiler(semantic), queries, datasets, recorder, selections, realTools);
+    String key = "easyv-prototype-component";
+    when(objects.readDuringExecution(any(), eq(ALL), any())).thenAnswer(call -> {
+      EasyVObjectReadService.Request request = call.getArgument(2);
+      var rows = java.util.stream.IntStream.range(request.offset(), request.offset() == 0 ? 50 : 63)
+          .mapToObj(i -> new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(
+              new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference(key, "a:c" + i, "v-" + key),
+              Map.<String, Object>of("componentId", "c" + i))).toList();
+      return new EasyVObjectReadService.Result("execution-1", "easyv-set-1", "easyv-v2",
+          new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Page(key, rows, request.limit(), request.offset(), request.offset() == 0), null,
+          new EasyVObjectReadService.ObjectTypeView(key, "组件", List.of(), List.of()), Map.of(), null, null);
+    });
+    when(model.plan(any())).thenReturn(
+        new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_objects", "input", Map.of("objectKey", key))), null, List.of()),
+        new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_objects", "input", Map.of("objectKey", key, "offset", 50))), null, List.of()),
+        new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_objects", "input", Map.of("objectKey", key, "offset", 100))), null, List.of()),
+        finished());
+    when(model.compose(any(), any())).thenReturn(new ComposedAnswer("已读到最后一个组件 c62。",
+        List.of(new Citation("q2", 12, "componentId")), List.of(), List.of(), List.of()));
+    var result = run(initialTurn(), ALL);
+    verify(objects, times(2)).readDuringExecution(any(), eq(ALL), any());
+    var planned = ArgumentCaptor.forClass(PlanRequest.class);
+    verify(model, times(4)).plan(planned.capture());
+    assertTrue(planned.getAllValues().getLast().violations().getFirst().contains("hasMore=false"));
+    assertEquals(List.of("easyv-data-scope", "easyv-query:q1", "easyv-query:q2"), result.evidence().stream().map(e -> e.source()).toList());
+    assertEquals(13, result.evidence().getLast().rows().size());
+    assertTrue(events.stream().noneMatch("tool-failed"::equals));
   }
 
   @Test

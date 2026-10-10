@@ -137,6 +137,43 @@ class EasyVAgentToolsTest {
     code("OBJECT_VERSION_MISMATCH", () -> run.execute("q1", run.prepare("query_objects", Map.of("objectKey", LAYOUT))));
   }
 
+  @Test void terminalPageRejectsOnlyOffsetsBeyondTheSameQueryRangeBeforeFacts() {
+    var run = tools.open(context, ALL, versions, null, List.of());
+    var component = row(COMPONENT, "1:c", Map.of("componentId", "c"));
+    var terminal = new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old",
+        new ObjectQueryPort.Page(COMPONENT, List.of(component), 50, 50, false), null,
+        new EasyVObjectReadService.ObjectTypeView(COMPONENT, "组件", List.of(), List.of()), Map.of(), null, null);
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(terminal);
+    run.execute("q1", run.prepare("query_objects", Map.of("objectKey", COMPONENT, "offset", 50)));
+    clearInvocations(objects);
+    for (int offset : List.of(51, 100, 150)) {
+      code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", COMPONENT, "offset", offset)));
+    }
+    // 可以重读已存在的行；不同过滤、排序或对象不继承这个末页结论。
+    assertNotNull(run.prepare("query_objects", Map.of("objectKey", COMPONENT, "offset", 50, "limit", 1)));
+    assertNotNull(run.prepare("query_objects", Map.of("objectKey", COMPONENT, "offset", 100,
+        "filters", List.of(Map.of("member", "chartFamily", "operator", "EQUALS", "values", List.of("line"))))));
+    assertNotNull(run.prepare("query_objects", Map.of("objectKey", COMPONENT, "offset", 100,
+        "order", List.of(Map.of("member", "gridRow", "direction", "DESC")))));
+    assertNotNull(run.prepare("query_objects", Map.of("objectKey", BLOCK, "offset", 100)));
+    verifyNoInteractions(objects);
+  }
+
+  @Test void terminalEmptyPageAlsoRejectsAPreparedLaterPageBeforeReadingFacts() {
+    var run = tools.open(context, ALL, versions, null, List.of());
+    var first = run.prepare("query_objects", Map.of("objectKey", COMPONENT));
+    var later = run.prepare("query_objects", Map.of("objectKey", COMPONENT, "offset", 50));
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(
+        new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old",
+            new ObjectQueryPort.Page(COMPONENT, List.of(), 50, 0, false), null,
+            new EasyVObjectReadService.ObjectTypeView(COMPONENT, "组件", List.of(), List.of()), Map.of(), null, null));
+    run.execute("q1", first);
+    clearInvocations(objects);
+    code("EASYV_PLAN_INVALID", () -> run.execute("q2", later));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", COMPONENT)));
+    verifyNoInteractions(objects);
+  }
+
   @Test void paginationAndUnassessableScoresStayExplicit() {
     var selected = row(BLOCK, "1:b", Map.of("appId", "1", "blockKey", "1:b"));
     var run = tools.open(context, ALL, versions, selected, List.of());

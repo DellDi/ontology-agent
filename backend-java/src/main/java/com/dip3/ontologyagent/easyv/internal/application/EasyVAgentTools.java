@@ -59,6 +59,8 @@ public final class EasyVAgentTools {
     private ResolvedScopeSnapshot scope;
     private final Map<String, ObjectQueryPort.Row> handles = new LinkedHashMap<>();
     private final Map<ObjectQueryPort.Reference, String> byReference = new LinkedHashMap<>();
+    private final List<TerminalPage> terminalPages = new ArrayList<>();
+    private record TerminalPage(EasyVObjectReadService.Request request, int endOffset) {}
     private int nextHandle = 1;
     private boolean scopeResolved;
 
@@ -144,12 +146,29 @@ public final class EasyVAgentTools {
       var query = new ObjectQueryPort.Query(target, filters, order, limit, offset);
       if (selected != null && (id == null || relation != null)) query = selections.constrain(query, selected);
       if (query.filters().size() > (relation == null ? 10 : 9)) throw invalid("对象过滤没有足够空间保留所选范围与关系约束");
-      return new EasyVObjectReadService.Request(context.executionId(), context.datasetVersionSetId(), key, id, relation,
+      var request = new EasyVObjectReadService.Request(context.executionId(), context.datasetVersionSetId(), key, id, relation,
           query.filters(), query.order(), id != null && relation == null ? 1 : limit, offset);
+      requirePage(request);
+      return request;
+    }
+
+    private void requirePage(EasyVObjectReadService.Request request) {
+      for (var terminal : terminalPages) {
+        var previous = terminal.request();
+        if (request.objectKey().equals(previous.objectKey())
+            && Objects.equals(request.objectId(), previous.objectId())
+            && Objects.equals(request.relation(), previous.relation())
+            && request.filters().equals(previous.filters()) && request.order().equals(previous.order())
+            && request.offset() >= terminal.endOffset()) {
+          throw invalid("该对象范围已返回 hasMore=false，末页结束位置为 " + terminal.endOffset()
+              + "；不能继续查询 offset=" + request.offset() + "。已有足够结果时应 finished，需要其他范围时请明确更改查询。");
+        }
+      }
     }
 
     public Output execute(String id, Prepared call) {
       var scope = currentScope();
+      if (call.request() != null) requirePage(call.request());
       if (call.input().containsKey("handle")) {
         var known = requireHandle(call.input().get("handle"));
         var detailRequest = new EasyVObjectReadService.Request(context.executionId(), context.datasetVersionSetId(),
@@ -199,6 +218,9 @@ public final class EasyVAgentTools {
         values.put("handle", register(row)); values.put("objectId", row.reference().objectId());
         return Collections.unmodifiableMap(values);
       }).toList();
+      if (!result.page().hasMore() && (call.tool().equals("query_objects") || call.tool().equals("traverse_objects"))) {
+        terminalPages.add(new TerminalPage(call.request(), result.page().offset() + rows.size()));
+      }
       String label = result.objectType().label() + (call.tool().equals("traverse_objects") ? " · 关联对象" : " · 对象读取");
       Map<String, Object> observation = new LinkedHashMap<>();
       observation.put("id", id); observation.put("tool", call.tool()); observation.put("label", label);
