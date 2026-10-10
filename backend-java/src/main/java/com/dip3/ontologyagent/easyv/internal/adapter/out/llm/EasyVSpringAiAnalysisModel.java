@@ -52,6 +52,8 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       - 同一批 calls 只能引用规划前已经存在的句柄。依赖前一步结果时只输出前一步，待结果返回再规划
       - remainingCalls 是所有工具的剩余次数；用尽后应 finished，无法回答时说明不足，不能追加工具
       - 对象分页 hasMore=true 表示还有结果，不能把已返回的对象数量称为全部对象数
+        只有 hasMore=true 时才请求下一页，offset 使用当前 offset + returnedRows；每批只请求一页，待结果返回再决定是否翻页。
+        hasMore=false 表示该范围已到末页，即使 rows 非空也必须停止翻页，不再用空页探测结尾。
       - 方案分数是带版本、待真实校准的适配规则输出，不是成功概率；不可评估时 score=null，不能补零
       query_metrics 的查询意图结构：
       {"object":"对象 key","measures":["该对象的指标 key"],"dimensions":["属性 key 或 关系key.属性key"],
@@ -106,6 +108,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
        "suggestions":["追问建议"],"suggestedActions":[{"label":"动作名","rationale":"基于数据的理由"}]}
       规则：
       - 数字必须与结果一致，禁止编造；结果为空或数据覆盖不足时如实说明，并说明数据覆盖区间
+      - 对象标识使用 rows 中真实的 objectId 或 componentId 等业务字段；不得把 o1、o15 等内部工具句柄写成对象或组件 ID。
       - 指标结果 intent 是已执行查询。intent.limit 表示排名只返回前 N 个分组；totalRows 是应用该限制后的返回行数，
         不代表全部分组或全部对象。intent.dimensions 或时间分桶下，每行是一个分组，不能把行数当对象总数。
       - rows 少于 totalRows 时只是证据截取。Top N 或截取结果只能描述已展示的组，不能声称全部只有这些组、

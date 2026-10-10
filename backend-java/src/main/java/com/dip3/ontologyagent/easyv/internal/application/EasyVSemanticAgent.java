@@ -248,7 +248,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       long nextStarted = System.nanoTime();
       try {
         List<Evidence> currentEvidence = evidence(executed, objectResults, ontology, datasetVersionSetId, versionSet, dataScope);
-        List<Map<String, Object>> observations = projections(executed, objectResults, currentEvidence);
+        List<Map<String, Object>> observations = projections(executed, objectResults, currentEvidence, true);
         compiled = plan(turn, selectedObject, observations, MAX_QUERIES - executed.size(), MAX_TOOL_CALLS - performedCalls.size(), deadline, objectRun, versionSet);
         for (ToolCall call : compiled) if (performedCalls.stream().anyMatch(previous -> previous.tool().equals(call.tool()) && previous.identity().equals(call.identity()))) {
           throw new BackendException("AGENT_TOOL_REPEATED", "EasyV 规划重复了本轮已执行的调用，请明确新的分析范围。");
@@ -275,7 +275,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       for (int attempt = 1; attempt <= 2 && references == null; attempt += 1) {
         try {
           answer = model.compose(new ComposeRequest(turn.questionText(), dataScope,
-              projections(executed, objectResults, evidence), violations, remainingMillis(deadline)), sink);
+              projections(executed, objectResults, evidence, false), violations, remainingMillis(deadline)), sink);
           remainingMillis(deadline);
           objectRun.currentScope();
         } catch (BackendException error) {
@@ -717,7 +717,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     return new Evidence.Provenance(ontology.versionId(), datasetVersionSetId, versionSet.capturedAt(), versions);
   }
 
-  private List<Map<String, Object>> projections(List<ExecutedQuery> executed, List<ExecutedTool> objectResults, List<Evidence> evidence) {
+  private List<Map<String, Object>> projections(List<ExecutedQuery> executed, List<ExecutedTool> objectResults, List<Evidence> evidence, boolean includeHandles) {
     Map<String, Evidence> bySource = new LinkedHashMap<>();
     evidence.forEach(item -> bySource.put(item.source(), item));
     List<Map<String, Object>> out = new ArrayList<>();
@@ -732,7 +732,19 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
             bySource.get(QUERY_EVIDENCE_PREFIX + query.id() + COMPARE_SUFFIX)));
       }
     }
-    out.addAll(objectResults.stream().map(tool -> tool.output().observation()).toList());
+    for (var tool : objectResults) {
+      if (includeHandles) out.add(tool.output().observation());
+      else {
+        // 句柄仅供规划调用工具；回答使用真实业务字段，审计与证据保留原始结果。
+        Map<String, Object> observation = new LinkedHashMap<>(tool.output().observation());
+        observation.put("rows", tool.output().rows().stream().limit(EVIDENCE_ROW_CAP).map(row -> {
+          Map<String, Object> values = new LinkedHashMap<>(row);
+          values.remove("handle");
+          return values;
+        }).toList());
+        out.add(observation);
+      }
+    }
     out.sort(java.util.Comparator.comparingInt(item -> Integer.parseInt(((String) item.get("id")).split(":")[0].substring(1))));
     return out;
   }
