@@ -490,13 +490,13 @@ export function WorkspaceShell({
             </Link>
             <EnvironmentBadge environment={environment} />
           </span>
-          <button
-            className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => setSettingsOpen(true)}
-            type="button"
-          >
-            设置
-          </button>
+          <UserMenu
+            adminItems={adminItems}
+            collapsed
+            onOpenSettings={() => setSettingsOpen(true)}
+            userDisplayName={userDisplayName}
+            userId={userId}
+          />
         </header>
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 has-[.fill-viewport]:flex has-[.fill-viewport]:flex-col has-[.fill-viewport]:overflow-hidden has-[.fill-viewport]:p-0 sm:px-6">
           {children}
