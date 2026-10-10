@@ -303,7 +303,7 @@ function buildRenderedBlockSemanticKey(block: AnalysisRenderedBlock): string {
   });
 }
 
-function dedupeRenderedBlocks(
+export function dedupeRenderedBlocks(
   blocks: readonly AnalysisRenderedBlock[],
 ): AnalysisRenderedBlock[] {
   const seen = new Set<string>();

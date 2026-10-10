@@ -31,10 +31,65 @@ const IMPORTS = `
   import vmModule from './src/application/analysis-message-projection/conversation-view-model.ts';
   import turnsModule from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-chat-turns.ts';
   import mapperModule from './src/application/ai-runtime/runtime-projection-mapper.ts';
+  import staticModule from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-static-assistant-props.ts';
   const { buildConversationViewModel } = vmModule;
   const { buildChatTurns } = turnsModule;
   const { buildAiRuntimeProjection } = mapperModule;
+  const { buildStaticAssistantProps } = staticModule;
 `;
+
+const objectBrowser = {
+  type: 'object-browser', title: '原型图表组件 · 对象读取', role: 'supporting',
+  datasetVersionSetId: 'set-1', objectKey: 'easyv-prototype-component', filters: [],
+  scopeDescription: '工具读取的冻结对象范围，分页结果不代表全集。',
+};
+
+test('Story 12.7 | 分页读取同一范围的入口在流式、完成、历史轮保持一个，原始块不改写', async () => {
+  const blocks = Array.from({ length: 5 }, () => ({ ...objectBrowser }));
+  const events = blocks.map((block, index) => buildEvent({ sequence: index + 1, renderBlocks: [block] }));
+  const result = await runTsSnippet(`
+    ${IMPORTS}
+    const blocks = ${JSON.stringify(blocks)};
+    const conclusion = { causes: [{ id: 'answer', title: '分析完成', summary: '分页读取结果' }], renderBlocks: blocks };
+    const events = ${JSON.stringify(events)};
+    const live = (fallbackConclusion) => buildConversationViewModel({ questionText: '查看全部组件', events,
+      projection: buildAiRuntimeProjection({ sessionId: 'session-1', executionId: 'exec-1', events, fallbackConclusion }),
+      hasConnectionIssue: false }).assistantMessage.result.blocks.filter((block) => block.kind === 'object-browser');
+    const historical = buildStaticAssistantProps({ status: 'completed', executionId: 'exec-1', conclusionState: conclusion }, 'session-1');
+    console.log(JSON.stringify({ counts: [live(null).length, live(conclusion).length, historical.result.blocks.length],
+      source: historical.result.blocks[0].source, rawCount: conclusion.renderBlocks.length }));
+  `);
+  assert.deepEqual(result.counts, [1, 1, 1]);
+  assert.equal(result.rawCount, 5, '不能删除持久化结果中的分页工具证据');
+  assert.equal(result.source.executionId, 'exec-1');
+  assert.equal(result.source.sessionId, 'session-1');
+  assert.equal(result.source.blockIndex, 0, '保留首个入口的原始来源');
+});
+
+test('Story 12.7 | 历史入口去重保留不同筛选、对象类型、冻结版本与轮次', async () => {
+  const blocks = [objectBrowser, { ...objectBrowser },
+    { ...objectBrowser, filters: [{ member: 'chartFamily', operator: 'EQUALS', values: ['line'] }] },
+    { ...objectBrowser, objectKey: 'easyv-prototype-block' },
+    { ...objectBrowser, datasetVersionSetId: 'set-2' }];
+  const result = await runTsSnippet(`
+    ${IMPORTS}
+    const blocks = ${JSON.stringify(blocks)};
+    const before = JSON.stringify(blocks);
+    const project = (executionId) => buildStaticAssistantProps({ status: 'completed', executionId,
+      conclusionState: { causes: [], renderBlocks: blocks } }, 'session-1').result.blocks;
+    console.log(JSON.stringify({ rounds: [project('exec-1'), project('exec-2')], unchanged: before === JSON.stringify(blocks) }));
+  `);
+  for (const [index, blocks] of result.rounds.entries()) {
+    assert.equal(blocks.length, 4);
+    assert.deepEqual(blocks.map((block) => block.payload.filters), [[],
+      [{ member: 'chartFamily', operator: 'EQUALS', values: ['line'] }], [], []]);
+    assert.deepEqual(blocks.map((block) => block.payload.objectKey), [
+      'easyv-prototype-component', 'easyv-prototype-component', 'easyv-prototype-block', 'easyv-prototype-component']);
+    assert.deepEqual(blocks.map((block) => block.payload.datasetVersionSetId), ['set-1', 'set-1', 'set-1', 'set-2']);
+    assert.ok(blocks.every((block) => block.source.executionId === `exec-${index + 1}`));
+  }
+  assert.equal(result.unchanged, true);
+});
 
 function buildEvent(overrides = {}) {
   return {
