@@ -138,6 +138,11 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       sections 按用户提问顺序组织：最初需求展示完整原话和可读理解摘录，不将某项要求归纳到其他项；
       修改诉求优先用 records 展示已执行指标统计中的分类维度与数量，行选择覆盖已返回的统计分组，业务名称来自 columns.valueLabels；
       没有独立分类统计时才用 counts 按阶段与分类汇总已读明细，不用明细截取替代已有统计。原话样例用 excerpt，样例不代表全部诉求。
+      用户要看具体例子及处理结果时，使用同一详情记录的 example，把时间、操作类型、日志结果与原话/失败原因放在一起：
+      {"kind":"example","query":"详情查询 id","row":0,"fields":["时间 key","操作类型 key","结果 key"],
+       "excerpts":[{"field":"原话 key","quote":"连续原文"},{"field":"失败原因 key","quote":"连续原文"}]}
+      example 只能选择同一查询、同一行；fields 只选非正文的可读属性，excerpts 只选有值的原文，不能拼入其他记录的原因或处理状态。
+      有不同情况的已读详情时分别选例；没有读到某类样例时不能声称已覆盖。分类统计与日志结果分别呈现，日志成功不等于诉求满足。
       另存用 records 展示全部已读生成反馈的时间与标记。
       counts 只计本次查询实际返回的行，不是全集；字段只选本体中有业务名称的分类。
       records 只选择业务名称、已配置业务名称的分类、数字、布尔、时间；原话和理解正文必须用 excerpt。
@@ -368,6 +373,11 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     boolean excerpt = false;
     for (var item : sections) {
       if (!(item instanceof Map<?, ?> section)) throw invalidReview();
+      if ("example".equals(section.get("kind"))) {
+        answer.append(renderExample(section, results, citations));
+        excerpt = true;
+        continue;
+      }
       if ("excerpt".equals(section.get("kind"))) {
         if (!section.keySet().equals(Set.of("kind", "source")) || !(section.get("source") instanceof Map<?, ?> source)) throw invalidReview();
         answer.append(renderExcerpt(source, results, citations));
@@ -427,6 +437,35 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     if (hasTextEvidence(results) && !excerpt) throw new BackendException("EASYV_ANSWER_INVALID", "已读取原文的记录回看缺少原文摘录。");
     return answer.append("分类和处理记录不能证明屏幕已按诉求改变；另存标记只对应当时的反馈，不能据此确认最终版本是否另存。\n\n数据范围：")
         .append(literal(dataScope)).toString();
+  }
+
+  private static String renderExample(Map<?, ?> section, List<Map<String, Object>> results, List<Citation> citations) {
+    if (!section.keySet().equals(Set.of("kind", "query", "row", "fields", "excerpts"))
+        || !(section.get("row") instanceof Number row) || row.doubleValue() != row.intValue()
+        || !(section.get("fields") instanceof List<?> fields) || fields.isEmpty()
+        || !(section.get("excerpts") instanceof List<?> excerpts) || excerpts.isEmpty()) throw invalidReview();
+    var result = results.stream().filter(r -> Objects.equals(r.get("id"), section.get("query")))
+        .findFirst().orElseThrow(EasyVSpringAiAnalysisModel::invalidReview);
+    var rows = maps(result.get("rows"));
+    if (!"read_object".equals(result.get("tool")) || !(result.get("objectType") instanceof ObjectTypeView type)
+        || row.intValue() < 0 || row.intValue() >= rows.size()) throw invalidReview();
+    var values = rows.get(row.intValue());
+    StringBuilder answer = new StringBuilder("**").append(literal(type.label())).append(" · 记录样例**\n\n");
+    Set<String> selected = new java.util.HashSet<>();
+    for (var field : fields) {
+      if (!(field instanceof String key) || !selected.add(key) || strings(result.get("textFields")).contains(key)) throw invalidReview();
+      var property = reviewProperty(result, key);
+      Object value = values.get(key);
+      answer.append(literal(property.label())).append("：").append(reviewValue(property, value)).append("  \n");
+      if (value != null && (!(value instanceof String text) || !text.isBlank())) citations.add(new Citation(text(result.get("id")), row.intValue(), key));
+    }
+    answer.append("\n");
+    for (var item : excerpts) {
+      if (!(item instanceof Map<?, ?> source) || !source.keySet().equals(Set.of("field", "quote"))
+          || !(source.get("field") instanceof String field) || !selected.add(field) || !(source.get("quote") instanceof String quote)) throw invalidReview();
+      answer.append(renderExcerpt(Map.of("query", result.get("id"), "row", row.intValue(), "field", field, "quote", quote), results, citations));
+    }
+    return answer.append("---\n\n").toString();
   }
 
   private static PropertyView reviewProperty(Map<String, Object> result, String field) {
