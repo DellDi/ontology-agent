@@ -24,6 +24,8 @@ import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import com.dip3.ontologyagent.semantic.api.OntologyProperty.Type;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
+import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -712,6 +714,26 @@ class EasyVSpringAiAnalysisModelTest {
 
     assertEquals("AGENT_PROVIDER_FAILURE",
         assertThrows(BackendException.class, () -> model.plan(request(List.of()))).code());
+  }
+
+  @Test
+  void transportTimeoutExplainsIncompleteAnswerAndPreservesTheFailureCause() {
+    for (var cause : List.of(new InterruptedIOException("timeout"), new SocketTimeoutException("Read timed out"))) {
+      var failure = new IllegalStateException("provider stream failed", cause);
+      when(stream.content()).thenReturn(Flux.error(failure));
+      var error = assertThrows(BackendException.class,
+          () -> model.compose(new ComposeRequest("几个候选？", "全部数据", List.of(), List.of(), 1000), ignored -> {}));
+      assertEquals("AGENT_PROVIDER_FAILURE", error.code());
+      assertEquals("分析服务等待模型回答超时，本次未取得完整答案。", error.getMessage());
+      assertEquals(failure, error.getCause());
+    }
+  }
+
+  @Test
+  void interruptedTransportIsNotReportedAsTimeout() {
+    when(stream.content()).thenReturn(Flux.error(new IllegalStateException(new InterruptedIOException("cancelled"))));
+    var error = assertThrows(BackendException.class, () -> model.plan(request(List.of())));
+    assertEquals("EasyV 分析模型调用失败。", error.getMessage());
   }
 
   @Test

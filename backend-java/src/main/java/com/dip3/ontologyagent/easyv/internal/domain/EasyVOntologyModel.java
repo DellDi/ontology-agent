@@ -170,8 +170,10 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
           OntologyProperty.identifier("blockId", "区域 ID", "布局树中的区域标识", "block_id"),
           new OntologyProperty("position", "区域位置", "区域在版式中的位置标识（如 left_1）", Type.STRING,
               "regexp_replace({CUBE}.block_id, '^.*?__', '')", false),
-          OntologyProperty.column("containerTag", "所在容器", "Sider / Header / Footer 等容器类型", Type.STRING, "container_tag"),
-          OntologyProperty.column("gridDirection", "容器排布方向", "horizontal / vertical", Type.STRING, "grid_direction"),
+          OntologyProperty.column("containerTag", "所在容器", "区域所在的页面容器", Type.STRING, "container_tag")
+              .display(false, false, Map.of("Sider", "侧栏", "Header", "顶部", "Footer", "底部", "Content", "主体")),
+          OntologyProperty.column("gridDirection", "容器排布方向", "区域内组件的排布方向", Type.STRING, "grid_direction")
+              .display(false, false, Map.of("horizontal", "横向", "vertical", "纵向")),
           OntologyProperty.column("blockTypeId", "区域类型", "区域规格类型（决定可用图表方案集合）", Type.STRING, "block_type_id"),
           new OntologyProperty("blockSize", "区域尺寸", "small / medium / large；页眉页脚等区域源端未标注时为“未标注”",
               Type.STRING, "coalesce({CUBE}.block_size, '未标注')", false),
@@ -208,7 +210,12 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
           OntologyProperty.column("gridCol", "网格列", "组件在区域网格中的起始列", Type.NUMBER, "grid_col"),
           OntologyProperty.column("gridRow", "网格行", "组件在区域网格中的起始行", Type.NUMBER, "grid_row"),
           OntologyProperty.column("chartFamily", "图表族", "line / donut / horizontal-bar / single-value-metric 等",
-              Type.STRING, "chart_family"),
+              Type.STRING, "chart_family").display(false, false, Map.ofEntries(
+                  Map.entry("single-value-metric", "单值指标"), Map.entry("line", "折线图"),
+                  Map.entry("area", "面积图"), Map.entry("bar", "柱状图"), Map.entry("horizontal-bar", "条形图"),
+                  Map.entry("pie", "饼图"), Map.entry("donut", "环形图"), Map.entry("radar", "雷达图"),
+                  Map.entry("bubble", "气泡图"), Map.entry("table", "表格"), Map.entry("map", "地图"),
+                  Map.entry("word-cloud", "词云"), Map.entry("gantt", "甘特图"))),
           OntologyProperty.identifier("libraryComponentId", "组件库 ID", "EasyV 组件库中的组件标识", "library_component_id"),
           OntologyProperty.column("sceneType", "分析场景", "总览指标 / 趋势分析 / 对比排行 / 占比结构 等", Type.STRING, "scene_type"),
           OntologyProperty.column("sourceType", "数据来源类型", "AI 生成 / CSV 文件", Type.STRING, "source_type"),

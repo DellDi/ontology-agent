@@ -88,6 +88,26 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void prototypeDisplayNamesTravelWithMetadataAndKeepSourceValuesForFiltering() {
+    var valuesByType = Map.of(
+        "easyv-prototype-block", Map.of("containerTag", "Sider", "gridDirection", "vertical"),
+        "easyv-prototype-component", Map.of("chartFamily", "single-value-metric"));
+    var labels = Map.of("containerTag", "侧栏", "gridDirection", "纵向", "chartFamily", "单值指标");
+    for (var entry : valuesByType.entrySet()) {
+      var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(entry.getKey(), "object-1", "source-version"),
+          new java.util.LinkedHashMap<>(entry.getValue()));
+      doReturn(new ObjectQueryPort.Page(entry.getKey(), List.of(row), 20, 0, false)).when(objects).query(any(), any());
+      var result = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", entry.getKey(),
+          null, null, null, null, 20, 0));
+      assertEquals(row, result.page().rows().getFirst());
+      for (var property : entry.getValue().entrySet()) {
+        var metadata = result.objectType().properties().stream().filter(p -> p.key().equals(property.getKey())).findFirst().orElseThrow();
+        assertEquals(labels.get(property.getKey()), metadata.valueLabels().get(property.getValue()));
+      }
+    }
+  }
+
+  @Test
   void understandingDetailReusesBusinessPresentationAndRetainsExactSources() {
     String key = "easyv-quality-node";
     String themes = """
