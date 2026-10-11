@@ -4,6 +4,7 @@ import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.ObjectTypeView;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.PropertyView;
 import com.dip3.ontologyagent.semantic.api.OntologyProperty;
+import com.dip3.ontologyagent.semantic.api.OntologyLink;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -55,6 +56,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         查看用户需求与理解：先读取操作反馈原话，再沿 qualityNodes 读取同任务的全部生成理解/修改节点；同任务可有多个意图，不能只取最后一条。
         列表省略 userInput、failureReason 和 Step1 文案是读取边界，不代表未保存；逐轮分析必须读取对应操作和节点的单条详情。
         调用预算不足时说明哪些轮次尚未读取，不能把未读取的原话说成缺失或只有哈希。
+        用户问失败之后又做了什么时，预留详情读取次数给失败与后续操作各至少一个样例，不能只读失败原话。
+        先以失败记录时间限定后续操作列表，已有足够节点分类时不再重复拉取整批节点；不要先查全部节点，再为同一时间段重查。
+        在 remainingCalls 内优先取得后续操作原话及日志结果，时间接近或相同分类不证明是重试；完整逐条过程不足时明确只展示已读样例。
       - easyv-quality-node 同时包含 Step1 和 ChatExecution。统计修改意图、修改任务或修改失败时必须过滤 stepName=ChatExecution；
         Step1 是生成理解，其 intent 为空，不能算作“未分类修改”。排除 ACK/CLARIFY/OUT_OF_SCOPE 不能替代阶段过滤。
       - 查看、列举或打开原型/区域/组件时使用对象工具；指标统计不能替代对象列表或详情。
@@ -140,9 +144,22 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       没有独立分类统计时才用 counts 按阶段与分类汇总已读明细，不用明细截取替代已有统计。原话样例用 excerpt，样例不代表全部诉求。
       用户要看具体例子及处理结果时，使用同一详情记录的 example，把时间、操作类型、日志结果与原话/失败原因放在一起：
       {"kind":"example","query":"详情查询 id","row":0,"fields":["时间 key","操作类型 key","结果 key"],
-       "excerpts":[{"field":"原话 key","quote":"连续原文"},{"field":"失败原因 key","quote":"连续原文"}]}
+       "excerpts":[{"field":"原话 key"},{"field":"失败原因 key"}]}
+      样例优先展示整字段原话/原因，只选择 field，由系统直接读取源文，尤其不要重新抄写组件引用、反斜线、引号或多行文本。
+      仅确需短摘录时才额外传 quote，内容必须是该字段的连续原文，并按 JSON 正确转义。
       example 只能选择同一查询、同一行；fields 只选非正文的可读属性，excerpts 只选有值的原文，不能拼入其他记录的原因或处理状态。
+      样例已有相关处理节点的查询结果时，必须加 related，清楚标明当时的分类与状态：
+      "related":[{"relation":"源记录 relationships 中的关系 key","query":"目标对象查询 id","fields":["处理环节 key","诉求分类 key","状态 key"]}]
+      系统用该正式关系核对连接值，并展示目标查询中匹配的全部行；不能自行指定另一行、靠时间接近或同一应用拼接分类。
+      关联查询可能经过筛选或分页，不代表同一请求的全部处理记录；多节点不能只选最后一条。没有真实匹配结果时不添加 related。
       有不同情况的已读详情时分别选例；没有读到某类样例时不能声称已覆盖。分类统计与日志结果分别呈现，日志成功不等于诉求满足。
+      用户问“失败之后又做了什么、后来成功了吗”时，先读取失败及其后的操作详情，再使用 timeline：
+      {"answer":{"kind":"record-review","sections":[
+        {"kind":"timeline","timeField":"操作记录时间 key","entries":[上面的 example 对象,上面的 example 对象]}]},
+       "citations":[],"highlights":[],"suggestions":["追问建议"],"suggestedActions":[]}
+      timeline 与 example 都是 record-review.sections 内的条目，不能放到 answer.kind。
+      每个 example 的 fields 必须包含 timeField，来自同一对象类型。系统按真实时间排序已读样例，不能写自由因果说明。
+      时间顺序不证明属于同一诉求或重试；操作日志时间可能是完成结算时间，不是用户提交时间。不能把后来记录成功当成之前需求已解决。
       另存用 records 展示全部已读生成反馈的时间与标记。
       counts 只计本次查询实际返回的行，不是全集；字段只选本体中有业务名称的分类。
       records 只选择业务名称、已配置业务名称的分类、数字、布尔、时间；原话和理解正文必须用 excerpt。
@@ -282,9 +299,11 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       throw new BackendException("EASYV_ANSWER_INVALID", "已读取原文的回答必须使用原文对照或记录回看，禁止自由摘要。");
     }
     String answer = specification instanceof Map<?, ?> structured
-        ? "record-review".equals(structured.get("kind"))
-            ? renderReview(structured, request.results(), citations, request.dataScope())
-            : renderComparison(structured, request.results(), citations)
+        ? switch (String.valueOf(structured.get("kind"))) {
+            case "record-review" -> renderReview(structured, request.results(), citations, request.dataScope());
+            case "source-comparison" -> renderComparison(structured, request.results(), citations);
+            default -> throw new BackendException("EASYV_ANSWER_INVALID", "answer.kind 只能是 record-review 或 source-comparison；timeline 与 example 必须放在 record-review.sections 中。");
+          }
         : text(specification);
     if (answer == null) {
       throw new BackendException("EASYV_ANSWER_INVALID", "EasyV 回答缺少 answer 文本。");
@@ -373,6 +392,11 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     boolean excerpt = false;
     for (var item : sections) {
       if (!(item instanceof Map<?, ?> section)) throw invalidReview();
+      if ("timeline".equals(section.get("kind"))) {
+        answer.append(renderTimeline(section, results, citations));
+        excerpt = true;
+        continue;
+      }
       if ("example".equals(section.get("kind"))) {
         answer.append(renderExample(section, results, citations));
         excerpt = true;
@@ -440,7 +464,8 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
   }
 
   private static String renderExample(Map<?, ?> section, List<Map<String, Object>> results, List<Citation> citations) {
-    if (!section.keySet().equals(Set.of("kind", "query", "row", "fields", "excerpts"))
+    if (!"example".equals(section.get("kind")) || !(section.keySet().equals(Set.of("kind", "query", "row", "fields", "excerpts"))
+        || section.keySet().equals(Set.of("kind", "query", "row", "fields", "excerpts", "related")))
         || !(section.get("row") instanceof Number row) || row.doubleValue() != row.intValue()
         || !(section.get("fields") instanceof List<?> fields) || fields.isEmpty()
         || !(section.get("excerpts") instanceof List<?> excerpts) || excerpts.isEmpty()) throw invalidReview();
@@ -460,12 +485,93 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       if (value != null && (!(value instanceof String text) || !text.isBlank())) citations.add(new Citation(text(result.get("id")), row.intValue(), key));
     }
     answer.append("\n");
+    if (section.containsKey("related")) answer.append(renderRelated(section.get("related"), result, values, results, citations));
     for (var item : excerpts) {
-      if (!(item instanceof Map<?, ?> source) || !source.keySet().equals(Set.of("field", "quote"))
-          || !(source.get("field") instanceof String field) || !selected.add(field) || !(source.get("quote") instanceof String quote)) throw invalidReview();
+      if (!(item instanceof Map<?, ?> source) || !(source.get("field") instanceof String field) || !selected.add(field)) throw invalidReview();
+      String quote;
+      if (source.keySet().equals(Set.of("field")) && values.get(field) instanceof String original) quote = original;
+      else if (source.keySet().equals(Set.of("field", "quote")) && source.get("quote") instanceof String chosen) quote = chosen;
+      else throw invalidReview();
       answer.append(renderExcerpt(Map.of("query", result.get("id"), "row", row.intValue(), "field", field, "quote", quote), results, citations));
     }
     return answer.append("---\n\n").toString();
+  }
+
+  private static String renderTimeline(Map<?, ?> section, List<Map<String, Object>> results, List<Citation> citations) {
+    if (!section.keySet().equals(Set.of("kind", "timeField", "entries"))
+        || !(section.get("timeField") instanceof String timeField)
+        || !(section.get("entries") instanceof List<?> entries) || entries.isEmpty()) throw invalidReview();
+    Map<Map<?, ?>, OffsetDateTime> times = new LinkedHashMap<>();
+    Set<List<Object>> selected = new java.util.HashSet<>();
+    String objectKey = null;
+    for (var item : entries) {
+      if (!(item instanceof Map<?, ?> entry) || !(entry.get("row") instanceof Number row)
+          || row.doubleValue() != row.intValue() || !strings(entry.get("fields")).contains(timeField)
+          || !(entry.get("query") instanceof String query) || !selected.add(List.of(query, row.intValue()))) throw invalidReview();
+      var result = results.stream().filter(r -> Objects.equals(r.get("id"), query)).findFirst().orElseThrow(EasyVSpringAiAnalysisModel::invalidReview);
+      if (!(result.get("objectType") instanceof ObjectTypeView type)
+          || reviewProperty(result, timeField).type() != OntologyProperty.Type.TIME
+          || (objectKey != null && !objectKey.equals(type.key()))) throw invalidReview();
+      objectKey = type.key();
+      var rows = maps(result.get("rows"));
+      if (row.intValue() < 0 || row.intValue() >= rows.size() || !(rows.get(row.intValue()).get(timeField) instanceof String timestamp)) throw invalidReview();
+      try { times.put(entry, OffsetDateTime.parse(timestamp)); }
+      catch (DateTimeParseException error) { throw invalidReview(); }
+    }
+    StringBuilder answer = new StringBuilder("以下按记录时间排列已读样例。时间先后不能证明是同一诉求的重试，也不能确认之前的需求已解决；操作日志时间可能是完成结算时间。\n\n");
+    times.entrySet().stream().sorted(java.util.Comparator.comparing(e -> e.getValue().toInstant()))
+        .forEach(e -> answer.append(renderExample(e.getKey(), results, citations)));
+    return answer.append("本次展示 ").append(times.size()).append(" 个已读样例，不代表期间的全部操作。\n\n").toString();
+  }
+
+  private static String renderRelated(Object specification, Map<String, Object> source, Map<?, ?> sourceRow,
+                                      List<Map<String, Object>> results, List<Citation> citations) {
+    if (!(specification instanceof List<?> related) || related.isEmpty()) throw invalidReview();
+    StringBuilder answer = new StringBuilder();
+    Set<List<String>> selected = new java.util.HashSet<>();
+    for (var item : related) {
+      if (!(item instanceof Map<?, ?> selection) || !selection.keySet().equals(Set.of("relation", "query", "fields"))
+          || !(selection.get("relation") instanceof String relation) || !(selection.get("query") instanceof String query)
+          || !selected.add(List.of(relation, query))
+          || !(selection.get("fields") instanceof List<?> fields) || fields.isEmpty()) throw invalidReview();
+      var target = results.stream().filter(r -> Objects.equals(r.get("id"), selection.get("query")))
+          .findFirst().orElseThrow(EasyVSpringAiAnalysisModel::invalidReview);
+      if (!(target.get("objectType") instanceof ObjectTypeView type)
+          || !Set.of("query_objects", "read_object", "traverse_objects").contains(target.get("tool"))) throw invalidReview();
+      if (!(source.get("relationships") instanceof List<?> links)) throw invalidReview();
+      var link = links.stream().filter(l -> l instanceof OntologyLink relationship
+          && relationship.key().equals(selection.get("relation")) && relationship.targetObjectKey().equals(type.key()))
+          .map(OntologyLink.class::cast).findFirst().orElseThrow(EasyVSpringAiAnalysisModel::invalidReview);
+      Object sourceValue = sourceRow.get(link.sourceProperty());
+      if (sourceValue == null || String.valueOf(sourceValue).isBlank()) throw invalidReview();
+      List<PropertyView> properties = new ArrayList<>();
+      Set<String> chosen = new java.util.HashSet<>();
+      for (var field : fields) {
+        if (!(field instanceof String key) || !chosen.add(key) || strings(target.get("textFields")).contains(key)) throw invalidReview();
+        properties.add(reviewProperty(target, key));
+      }
+      var rows = maps(target.get("rows"));
+      int matched = 0;
+      answer.append("**关联的").append(literal(type.label())).append("**\n\n| ")
+          .append(String.join(" | ", properties.stream().map(p -> literal(p.label())).toList()))
+          .append(" |\n|").append(" --- |".repeat(properties.size())).append("\n");
+      for (int row = 0; row < rows.size(); row++) {
+        Object targetValue = rows.get(row).get(link.targetProperty());
+        if (targetValue == null || !String.valueOf(sourceValue).equals(String.valueOf(targetValue))) continue;
+        matched++;
+        List<String> values = new ArrayList<>();
+        for (var property : properties) {
+          Object value = rows.get(row).get(property.key());
+          values.add(reviewValue(property, value));
+          if (value != null && (!(value instanceof String text) || !text.isBlank())) citations.add(new Citation(text(target.get("id")), row, property.key()));
+        }
+        answer.append("| ").append(String.join(" | ", values)).append(" |\n");
+      }
+      if (matched == 0) throw invalidReview();
+      answer.append("\n本次查询找到 ").append(matched)
+          .append(" 条关联记录；不代表该请求的全部处理过程。\n\n");
+    }
+    return answer.toString();
   }
 
   private static PropertyView reviewProperty(Map<String, Object> result, String field) {

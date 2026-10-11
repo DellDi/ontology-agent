@@ -233,6 +233,8 @@ public final class EasyVAgentTools {
       observation.put("rows", rows); observation.put("hasMore", result.page().hasMore());
       observation.put("offset", result.page().offset()); observation.put("returnedRows", rows.size());
       observation.put("objectType", result.objectType());
+      // 回答核对跨记录关联时复用正式本体关系，不让模型自行推断连接字段。
+      observation.put("relationships", semantic.require(result.page().objectKey()).links());
       observation.put("textFields", semantic.require(result.page().objectKey()).properties().stream()
           .filter(com.dip3.ontologyagent.semantic.api.OntologyProperty::detailOnly)
           .map(com.dip3.ontologyagent.semantic.api.OntologyProperty::key).toList());

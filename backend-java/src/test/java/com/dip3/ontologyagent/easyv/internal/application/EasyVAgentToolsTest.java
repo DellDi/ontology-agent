@@ -81,6 +81,20 @@ class EasyVAgentToolsTest {
     assertFalse(fields.contains("nodeId"));
   }
 
+  @Test void relatedRecordEvidenceCarriesOnlyDeclaredOntologyConnections() {
+    var withFeedback = new LinkedHashMap<>(versions);
+    withFeedback.put("easyv-generation-feedback", "feedback-old");
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference("easyv-generation-feedback", "9", "feedback-old"),
+        Map.of("operationId", "9", "appId", "1", "taskId", "task-1"));
+    var run = tools.open(context, ALL, withFeedback, row, List.of());
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(result("easyv-generation-feedback", row, false));
+    var output = run.execute("q1", run.prepare("read_object", Map.of("handle", "selected")));
+    assertEquals(model.require("easyv-generation-feedback").links(), output.observation().get("relationships"));
+    var links = (List<?>) output.observation().get("relationships");
+    assertTrue(links.contains(new OntologyLink("qualityNodes", "easyv-quality-node", "taskId", "taskId", OntologyLink.Cardinality.ONE_TO_MANY)));
+    assertFalse(output.renderBlock().containsKey("relationships"));
+  }
+
   @Test void strictInputsRejectForgedIdsVersionsHandlesAndRelationsBeforeFacts() {
     var run = tools.open(context, ALL, versions, null, List.of());
     for (var input : List.<Map<String, Object>>of(Map.of("objectKey", LAYOUT, "objectId", "invented"), Map.of("objectKey", LAYOUT, "productVersionId", "new"),
