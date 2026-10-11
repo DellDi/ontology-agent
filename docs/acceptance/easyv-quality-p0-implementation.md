@@ -216,3 +216,6 @@ Git `11c7425` 已记录上述实现与回归。空字段协议修正后的执行
 42 个引用逐字段匹配，四条详情的原话、日志结果、时间及实际引用的失败原因与同冻结本地 SQL 独立对账；75 条对话节点/3 条失败/14 条不支持的独立分类统计也已对账。第四条源 SQL 失败原因为 null，模型观察为空串，本次没有引用或显示该空字段。浏览器确认成组展示及北京时间。同记录呈现通过，样例标题尚未逐条标明关联节点分类；分类准确性、实际能力边界、完整未满足判断、重试后效果及真人评审继续保留，不由日志状态推断。
 
 私有证据 `.codex-runtime/quality-b-examples-{before-verification,verification,sql-check}.json`、`quality-b-local/unhandled*.json`、`quality-p0-ux/11-b-record-examples.png` 仅本机保存。发布前已完成本地验证，只需更新 backend 和检查健康；不重复公司同题、不迁移或补采。原有架构文档编辑及图片删除继续保留。
+
+
+发布回执（2026-10-11）：应用提交 `603a06ab097310175636bf8a92756f6c96267622`，Java backend/分析 Worker 镜像 `ontology-agent-java:quality-b-record-examples-603a06a`，发布目录 `/opt/ontology-agent-releases/quality-b-record-examples-603a06a`。源归档 SHA-256 `78ef3371bbef9d8533c1c627c99f1db17fc5ac50100e903c95dd765b7a3e704a` 与已测 JAR SHA-256 `db26b330a119fe227c9ebea9fa98f0d2832a1d34b9cc84089a1188a7cf509638` 均经服务器核对，镜像 OCI revision 与提交一致。7 个服务核对只有 backend 的容器 ID、启动时间和镜像变化，其他 6 个容器保持；backend/Web/Cube healthy，正式 `/actuator/health/easyv` 返回 UP。采集 Worker 保持 `quality-b-review-2ee0d0183a`，运行中但无独立健康探针。私有回执 `.codex-runtime/quality-b-examples-deployment-report.json`、`quality-b-examples-health.json`。无迁移、补采、源权限变更、公司同题复验或 Git push；本地用户原有改动未纳入提交。
