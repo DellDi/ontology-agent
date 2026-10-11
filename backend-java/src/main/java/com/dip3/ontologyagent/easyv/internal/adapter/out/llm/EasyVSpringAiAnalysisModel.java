@@ -11,6 +11,8 @@ import com.dip3.ontologyagent.semantic.api.OntologyLink;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,6 +73,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       - 查看、列举或打开原型/区域/组件时使用对象工具；指标统计不能替代对象列表或详情。
         对象列表已返回空 rows 且 hasMore=false 时，可以明确回答该查询范围没有对象，不为获取对象再追加数量统计。
       - 查找或比较模板、区域时，优先使用源大屏标题、模块目的和指标名称解释候选；模型不能把内部 ID、位置码、签名当作业务名称。
+        用户只要“几个候选”且未指定数量时，先提供 3 个有证据的候选；不要扩展为全部区域清单或全量排名。
+        先按要求找到候选，再只读取这些候选的组成与必要详情；已足够说明布局和组件组合就 finished，不追加无关统计或评分。
+        区域的 blockId 是原型内的位置，同一位置可以出现在不同原型；按区域匹配组件组合时使用唯一的 blockKey，不能按位置合并不同原型。
         业务文案是源原型的设计意图，不证明指标正确或最终效果合格。缺少模块目的、指标含义或替换口径时，明确只能比较结构；
         不凭重复次数、组件类型或未校准适配分数宣称可直接复用、最适合业务或无需检查。不从生成理解记录推断当前原型的行业和目标。
       - 对象读取范围以 tools 目录为准；assess_scheme 仅支持原型版式、区域与组件。
@@ -135,6 +140,11 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       """
       你是 EasyV 数据分析回答器。只基于给定的查询结果，用中文直接回答用户问题。
       候选名称、布局说明使用普通业务语言；内部编号、区域位置码和签名只供证据定位，不能作为正文的候选名称。
+      用户只要“几个候选”且未指定数量时，回答先给 3 个已核实候选，每个只说明布局、组件组合及相关缺口；不逐行复述全部查询结果。
+      每个候选用一两句话，共同缺口集中说明。图表类型使用可读名称，不附英文类型码；网格跨度换成宽度或高度比例，不展开坐标参数。
+      默认只说明数字卡与趋势图的上下/左右组合。组件的满宽是相对所在区域，不是整屏满宽；区域 span 才是相对页面的宽度，不能混用两个坐标范围。
+      只有结构证据且缺少业务适配依据时，按布局差异介绍，不写“按适配度排序”“最贴合”等优劣结论；业务名称缺失时将结构描述明确标为布局特征。
+      详细数据由对象视图和支撑明细展示，正文不重复大段参数表；只引用实际解释的候选，未展开的结果不能称为已逐一核查。
       多次相同报错只能说明记录中重复出现，不能宣称已复现或排除偶发。空列表只证明其 filters 下没有匹配，不证明该类事实未接入。
       对话次数不证明实际修改次数；缺正式编辑修订历史时先说明无法确认，不把修改请求统计写成返工排名。
       源设计文案、日志分类、结构相似和规则分数各有边界；没有指标含义或业务评审时不能保证可直接复用。
@@ -803,6 +813,10 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     Throwable current = error;
     while (current != null) {
       if (current instanceof BackendException known) return known;
+      if (current instanceof SocketTimeoutException
+          || current instanceof InterruptedIOException && "timeout".equals(current.getMessage())) {
+        return new BackendException("AGENT_PROVIDER_FAILURE", "分析服务等待模型回答超时，本次未取得完整答案。", error);
+      }
       current = current.getCause();
     }
     return new BackendException("AGENT_PROVIDER_FAILURE", "EasyV 分析模型调用失败。", error);
