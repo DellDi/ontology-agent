@@ -136,7 +136,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         {"kind":"records","query":"查询 id","fields":["时间 key","另存标记 key"],"rows":[0,1]}]},
        "citations":[],"highlights":[],"suggestions":["追问建议"],"suggestedActions":[]}
       sections 按用户提问顺序组织：最初需求展示完整原话和可读理解摘录，不将某项要求归纳到其他项；
-      修改诉求用 counts 按阶段与分类汇总已读记录，或 records 展示已读记录；另存用 records 展示全部已读生成反馈的时间与标记。
+      修改诉求优先用 records 展示已执行指标统计中的分类维度与数量，行选择覆盖已返回的统计分组，业务名称来自 columns.valueLabels；
+      没有独立分类统计时才用 counts 按阶段与分类汇总已读明细，不用明细截取替代已有统计。原话样例用 excerpt，样例不代表全部诉求。
+      另存用 records 展示全部已读生成反馈的时间与标记。
       counts 只计本次查询实际返回的行，不是全集；字段只选本体中有业务名称的分类。
       records 只选择业务名称、已配置业务名称的分类、数字、布尔、时间；原话和理解正文必须用 excerpt。
       这些形式只选择来源与字段，不接受自由标题、正文或摘要，业务标签、值与数量由系统生成。禁止遗漏原文却返回自由归纳。
@@ -380,9 +382,10 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       var fields = strings(section.get("fields"));
       if (fields.isEmpty() || fields.size() != ((List<?>) section.get("fields")).size() || rows.isEmpty()) throw invalidReview();
       var properties = fields.stream().map(field -> reviewProperty(result, field)).toList();
-      if (counts && properties.stream().anyMatch(p -> p.valueLabels().isEmpty())) throw invalidReview();
+      boolean metrics = !(result.get("objectType") instanceof ObjectTypeView);
+      if (counts && (metrics || properties.stream().anyMatch(p -> p.valueLabels().isEmpty()))) throw invalidReview();
       answer.append("**").append(literal(result.get("objectType") instanceof ObjectTypeView type ? type.label() : text(result.get("label"))))
-          .append(counts ? " · 已读记录统计**\n\n" : " · 已读记录**\n\n");
+          .append(counts ? " · 已读记录统计**\n\n" : metrics ? " · 统计结果**\n\n" : " · 已读记录**\n\n");
       answer.append("| ").append(String.join(" | ", properties.stream().map(p -> literal(p.label())).toList()));
       if (counts) answer.append(" | 记录数");
       answer.append(" |\n|").append(" --- |".repeat(fields.size() + (counts ? 1 : 0))).append("\n");
@@ -405,9 +408,21 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         else answer.append("| ").append(String.join(" | ", values)).append(" |\n");
       }
       if (counts) groups.forEach((values, count) -> answer.append("| ").append(String.join(" | ", values)).append(" | ").append(count).append(" |\n"));
-      answer.append("\n本表基于本次读到的 ").append(rows.size()).append(" 条记录");
-      if (!counts) answer.append("，展示其中 ").append(selected.size()).append(" 条");
-      answer.append("；不代表未读取的记录。\n\n");
+      if (metrics) {
+        answer.append("\n本表展示本次统计返回的 ").append(rows.size()).append(" 行中的 ").append(selected.size())
+            .append(" 行；每行是统计结果，不是对象明细条数。\n");
+        if (result.get("intent") instanceof Map<?, ?> intent && intent.get("limit") instanceof Number limit) {
+          answer.append("排名范围：前 ").append(limit.intValue()).append(" 组，不能据此计算全部对象数量或占比。\n");
+        }
+        if (result.get("totalRows") instanceof Number total && rows.size() < total.intValue()) {
+          answer.append("统计结果已截取，另有 ").append(total.intValue() - rows.size()).append(" 行未提供给本次回答。\n");
+        }
+        answer.append("统计时间范围：").append(literal(text(result.get("range")))).append("。\n\n");
+      } else {
+        answer.append("\n本表基于本次读到的 ").append(rows.size()).append(" 条记录");
+        if (!counts) answer.append("，展示其中 ").append(selected.size()).append(" 条");
+        answer.append("；不代表未读取的记录。\n\n");
+      }
     }
     if (hasTextEvidence(results) && !excerpt) throw new BackendException("EASYV_ANSWER_INVALID", "已读取原文的记录回看缺少原文摘录。");
     return answer.append("分类和处理记录不能证明屏幕已按诉求改变；另存标记只对应当时的反馈，不能据此确认最终版本是否另存。\n\n数据范围：")
@@ -420,6 +435,14 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     }
     for (var column : maps(result.get("columns"))) {
       if (!Objects.equals(field, column.get("key")) || Boolean.TRUE.equals(column.get("identifier"))) continue;
+      if (column.get("valueLabels") instanceof Map<?, ?> labels && !labels.isEmpty()) {
+        Map<String, String> names = new LinkedHashMap<>();
+        for (var entry : labels.entrySet()) {
+          if (!(entry.getKey() instanceof String key) || !(entry.getValue() instanceof String label)) throw invalidReview();
+          names.put(key, label);
+        }
+        return new PropertyView(field, text(column.get("label")), OntologyProperty.Type.STRING, false, false, false, names);
+      }
       if (maps(result.get("rows")).stream().allMatch(row -> row.get(field) == null || row.get(field) instanceof Number)) {
         return new PropertyView(field, text(column.get("label")), OntologyProperty.Type.NUMBER, false, false, false, Map.of());
       }
