@@ -5,7 +5,32 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布（2026-10-11）
+## 当前发布：原型业务语义（2026-10-11）
+
+用户明确批准后，基于提交 `d699c66224d3f6178d4e50853922946592c002fa` 发布 `quality-b-semantics-d699c66`。Java/Web 同提交源归档构建，已测 JAR 与归档 SHA-256 在服务器一致；两镜像 OCI revision 均为该完整提交。Web 服务器生产构建通过。发布目录 `/opt/ontology-agent-releases/quality-b-semantics-d699c66`，回执 `deployment-report.json`。
+
+- 维护前无 queued/processing 分析或发布任务。先完成镜像构建和平台全量备份，再停止 Web/backend/release-worker；以同版 migrate 校验 28 项并执行 V28，随后正式 `RECONCILE` 发布，再更新 Cube/backend/Web 和 release-worker。Web/backend/Cube healthy，EasyV health UP；发布 Worker running（无 health probe）。Valkey、Cube Store router/worker 三个容器 ID 与启动时间保持。
+- 平台备份 `/opt/ontology-agent-backups/quality-b-semantics-d699c66/ontology-agent-ontology_agent_test-20261011231703.dump`（34MB、0600；父目录 0700）。未恢复数据库、未重置账号。V28 checksum `-1303083422` 与本地一致。
+- 2026-10-11 23:18:51（北京时间）正式冻结 `ingest-aff69356-fd8e-4798-a863-5c8f7b00da70`，采集运行 `412bdb33-6a43-34d1-b196-9e493dd573d1` completed/reconcile。9 产品全部 published；layout schema3/v3、block schema4/v4、component schema3/v3 血缘引用同一原型源版本。应用 132、原型 124、区域 801、组件 1670、方案 70、节点 4862、生成任务 165、反馈 1148。
+- 124 原型全部解析成功、无绑定歧义失败；124 页有标题，85 条主视觉内容；801 区域有页面/区域标题、模块名与说明，605 有交互说明；1670 组件有指标名与含义，1633 有看点、1576 有单位、1600 有聚合口径。空值如实保留，覆盖率不代表业务正确率；行业分类未从标题推断。
+- 全部旧冻结版本的九类 facts 行数与内容指纹前后一致（新增列排除后对账），未回填旧语义。API/Web 无源凭据，release-worker 沿用 `ontology_agent_ingest` 且 requireReadonlyRole=true；未写 EasyV 源库，保留既有删除生命周期。Cube 配置挂载已更新到本次发布目录。
+- 公司仅验证健康与本次变化的来源/权限/版本链路。正式平台只读快照 `20261011T152000Z-b-semantics` 更新到本地，五集合逐表核对通过，三场景业务解释继续在本地验证；完整 B 门禁仍见运行架构记录 §14。
+
+私有部署环境仍为 `/opt/ontology-agent-release-private/chart-preview-57d159e.env`，源配置仅由采集进程加载 `/opt/ontology-agent-release-private/source-reader.env`。复用正式脚本：
+
+```bash
+cd /opt/ontology-agent-releases/quality-b-semantics-d699c66
+export EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env
+export ONTOLOGY_JAVA_IMAGE=ontology-agent-java:quality-b-semantics-d699c66
+export ONTOLOGY_WEB_IMAGE=ontology-agent-web:quality-b-semantics-d699c66
+# 本次已完成：migrate → ingest RECONCILE → deploy cube backend web → release-worker。
+# ingest/release-worker 需在进程内加载既有私有只读源配置；再次采集会新增冻结版本。
+scripts/easyv-dev health
+```
+
+本次 schema 与采集版本已改变，下面旧批次的镜像回退命令只是历史记录，不能当作本次完整回退方案。部署辅助脚本在服务更新后生成回执时遇服务器 Python 3.6 不支持 `text=True`；改用既有 `universal_newlines=True`，只补生成回执，没有重复迁移、采集或更新服务。
+
+## 前批发布：对象详情（2026-10-11，历史记录）
 
 - Web 与 Java API/分析 Worker 已更新为 `quality-b-detail-e99b432`，Web/backend/Cube healthy；独立 release-worker 保持 `quality-b-review-2ee0d0183a`（running，无 health probe）。本批修正支撑对象详情及关联预览仍直接显示理解 JSON/组件引用的问题，业务内容复用后端呈现，原始字段与冻结引用保留。146 项相关 Java 测试及 package、Web 174 项通过/5 项可选容器跳过、TypeScript 与生产构建通过；6 条本地真实详情经同冻结 SQL 核对，浏览器展开源文一致。只进行公司健康检查，不重复同题。平台库沿用 V27，未迁移或补采；真实约束样例、分类校准、实际屏幕效果与真人评审仍待闭环，见 [质量实施记录](./acceptance/easyv-quality-p0-implementation.md)。
 - 本次发布目录 `/opt/ontology-agent-releases/quality-b-detail-e99b432`；源归档与已测 JAR 哈希经服务器核对，Java/Web 镜像 revision 为 `e99b4325a67b70ac0dfaabf379efa142d8f07a12`，Web 在服务器以同一归档构建。`.env.easyv-dev` 仍使用私有 `/opt/ontology-agent-release-private/chart-preview-57d159e.env`；发布显式指定实际 Web/Java 镜像。七服务回执确认只有 Web/backend 更换，其余五个服务容器与启动时间保持，Cube 挂载沿用原发布。旧 `/opt/ontology-agent` 是历史 checkout，不作为当前发布目录。
