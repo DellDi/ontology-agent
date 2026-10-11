@@ -95,5 +95,6 @@
   "dataContext": {
     "capturedAt": "2026-10-03T12:00:00Z",
     "scopeDescription": "全部数据"
-  }
+  },
+  "propertyPresentations": {}
 }

@@ -13,8 +13,9 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
 
   const base = { executionId: 'execution-old', datasetVersionSetId: 'set-old' };
   const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
-  const seed = (query, objectType, row) => client.setQueryData(['analysis-object', 'session-old', { ...base, ...query }], {
+  const seed = (query, objectType, row, propertyPresentations) => client.setQueryData(['analysis-object', 'session-old', { ...base, ...query }], {
     ...base, ontologyVersionId: 'ontology-old', objectType,
+    propertyPresentations,
     page: { objectKey: objectType.key, rows: [row], limit: query.limit ?? 50, offset: 0, hasMore: false }, structure: null,
     dataContext: { capturedAt: '2026-10-08T02:00:00Z', scopeDescription: 'EasyV 用户 16 的数据' } });
   const application = (links) => ({ key: 'easyv-ai-application', label: 'AI 应用', links, properties: [
@@ -64,6 +65,27 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
   seed({ objectKey: 'easyv-generation-feedback', objectId: '232' },
     operationType, operation);
   out.quality = render('easyv-quality-node');
+  const selectedInput = '$_({"id":"private-region","label":"算力监控","componentId":"private-component","componentLabel":"CPU平均利用率"})删除';
+  operation.properties.userInput = selectedInput;
+  seed({ objectKey: 'easyv-generation-feedback', objectId: '232' }, operationType, operation, {
+    userInput: { items: [{ label: '用户原话', value: '【算力监控 / CPU平均利用率】删除' }], notice: '选中对象以源名称显示。' },
+  });
+  out.linkedPresentation = render('easyv-quality-node');
+  client.clear();
+  const understandingType = { ...qualityType, links: [], properties: [...qualityType.properties,
+    { key: 'themes', label: '生成模块与约束', type: 'STRING' }] };
+  const understandingRow = { ...qualityRow, properties: { ...qualityRow.properties,
+    stepName: 'Step1', intent: null, themes: '[{"themeId":"private-theme","businessModule":"算力监控"}]' } };
+  seed({ objectKey: 'easyv-quality-node', filters: [], limit: 20, offset: 0 }, understandingType, understandingRow);
+  seed({ objectKey: 'easyv-quality-node', objectId: '1123' }, understandingType, understandingRow, {
+    themes: { items: [{ label: '模块', value: '算力监控' }, { label: '用户要求（系统标记）', value: '展示 CPU 趋势 <img src=x onerror=run()>' }],
+      notice: '这是系统当时的理解，是否正确仍需核对。' },
+  });
+  out.understanding = render('easyv-quality-node');
+  seed({ objectKey: 'easyv-quality-node', objectId: '1123' }, understandingType, understandingRow, {
+    themes: { items: [], notice: '格式无法识别，未生成业务解释；请展开源记录核对。' },
+  });
+  out.invalidUnderstanding = render('easyv-quality-node');
   client.clear(); out.pending = render('easyv-ai-application');
   const declared = application([]).properties;
   const controlsHtml = (state, maxFilters = 5) => renderToStaticMarkup(React.createElement(collection.ObjectCollectionControls,
@@ -85,6 +107,30 @@ test('对象浏览 | AI 应用复用通用集合与详情，属性来自声明�
   assert.match(html, /数据出处与版本/);
   assert.doesNotMatch(html, /版式属性|结构示意|原型区域列表|查看原型版式/);
   assert.doesNotMatch(html, /查看/, '没有声明关系时不补造关系入口');
+});
+
+test('对象详情 | 业务结构来自后端，完整源记录默认折叠，内容按文本安全呈现', () => {
+  const html = rendered.understanding;
+  const main = html.slice(0, html.indexOf('查看完整源记录'));
+  assert.match(main, /算力监控/);
+  assert.match(main, /用户要求（系统标记）/);
+  assert.match(main, /是否正确仍需核对/);
+  assert.doesNotMatch(main, /private-theme|businessModule|themeId/);
+  assert.match(html, /&lt;img src=x onerror=run\(\)&gt;/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /private-theme/);
+  assert.match(html, /<details class="text-xs"><summary[^>]*>查看完整源记录/);
+  assert.doesNotMatch(html, /<details[^>]*open/);
+  assert.match(rendered.invalidUnderstanding, /格式无法识别，未生成业务解释/);
+  assert.match(rendered.invalidUnderstanding, /private-theme/, 'unrecognized source remains available to inspect');
+});
+
+test('对象关联预览 | 复用同一属性呈现，不把选中组件的技术引用铺进正文', () => {
+  const html = rendered.linkedPresentation;
+  const main = html.slice(0, html.indexOf('查看完整源记录'));
+  assert.match(main, /【算力监控 \/ CPU平均利用率】删除/);
+  assert.doesNotMatch(main, /private-region|private-component|componentLabel/);
+  assert.match(html, /private-component/, 'exact source is retained in a disclosure');
 });
 
 test('对象浏览 | 关系入口随本体声明出现，无需新增渲染器', () => {

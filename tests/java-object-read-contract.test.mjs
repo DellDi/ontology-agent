@@ -204,3 +204,39 @@ test('组件构成 | 请求统计后不能接受缺失统计或属于其他对�
     await assert.rejects(invoke(), /缺少统计或数据出处，或与所选对象不一致/);
   }
 });
+
+test('对象详情 | 业务呈现绑定同一授权文本属性，原始源值保留且不接受执行内容', () => {
+  const result = { ...detail, structure: null, propertyPresentations: {
+    themes: { items: [{ label: '模块', value: '算力监控' }], notice: '这是系统当时的理解，仍需核对。' },
+  }, objectType: { key: 'easyv-quality-node', label: '需求与处理记录', links: [], properties: [
+    { key: 'themes', label: '生成模块与约束', type: 'STRING' },
+    { key: 'nodeId', label: '节点 ID', type: 'STRING', identifier: true },
+  ] }, page: { objectKey: 'easyv-quality-node', rows: [{
+    reference: { objectKey: 'easyv-quality-node', objectId: 'node-1', productVersionId: 'nodes-old' },
+    properties: { themes: '[{"businessModule":"算力监控"}]', nodeId: 'node-1' },
+  }], limit: 1, offset: 0, hasMore: false } };
+  assert.equal(ajv.getSchema('object-read-result.schema.json')(result), true, ajv.errorsText());
+  assert.equal(javaObjectReadResultSchema.safeParse(result).success, true);
+  for (const mutate of [
+    (body) => { body.propertyPresentations.themes.items[0].html = '<script>run()</script>'; },
+    (body) => { body.propertyPresentations.themes.notice = ''; },
+    (body) => { body.propertyPresentations.themes.items[0].value = ''; },
+  ]) {
+    const body = structuredClone(result); mutate(body);
+    assert.equal(ajv.getSchema('object-read-result.schema.json')(body), false);
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, false);
+  }
+  for (const mutate of [
+    (body) => { body.propertyPresentations.nodeId = body.propertyPresentations.themes; },
+    (body) => { body.propertyPresentations.notDeclared = body.propertyPresentations.themes; },
+    (body) => { delete body.page.rows[0].properties.themes; },
+    (body) => { body.page.rows.push(body.page.rows[0]); body.page.limit = 2; },
+    (body) => { body.objectType.properties[0].type = 'NUMBER'; },
+  ]) {
+    const body = structuredClone(result); mutate(body);
+    assert.equal(javaObjectReadResultSchema.safeParse(body).success, false);
+  }
+  result.propertyPresentations.themes.items = [];
+  result.propertyPresentations.themes.notice = '格式无法识别，请展开源记录核对。';
+  assert.equal(javaObjectReadResultSchema.safeParse(result).success, true, 'invalid source is diagnosed without a fabricated interpretation');
+});

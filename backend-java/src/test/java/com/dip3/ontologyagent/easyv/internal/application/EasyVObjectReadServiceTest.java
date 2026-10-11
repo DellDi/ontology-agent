@@ -69,6 +69,74 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void understandingDetailReusesBusinessPresentationAndRetainsExactSources() {
+    String key = "easyv-quality-node";
+    String themes = """
+        [{"themeId":"internal-theme","businessModule":"算力监控","constraints":[{"text":"展示 CPU 趋势","origin":"USER"}]}]
+        """.strip();
+    var values = Map.<String, Object>of("screenObjective", "{\"primaryGoal\":\"监测运行状态\"}", "themes", themes,
+        "interactionRequests", "[{\"rawInstruction\":\"按机构筛选\",\"supported\":false,\"unsupportedReason\":\"模板未提供筛选入口\"}]",
+        "truncatedFields", "[\"themes[0].constraints[0].text\"]");
+    var original = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(key, "node-1", "nodes-old"), values);
+    when(objects.require(eq(key), eq("node-1"), any())).thenReturn(original);
+    var result = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", key, "node-1", null, null, null, null, null));
+    assertEquals(original, result.page().rows().getFirst(), "source properties and reference must not be rewritten");
+    var modules = result.propertyPresentations().get("themes");
+    assertTrue(modules.notice().contains("已被截断"));
+    assertTrue(modules.items().stream().anyMatch(item -> item.label().contains("用户要求") && item.value().equals("展示 CPU 趋势")));
+    assertFalse(modules.items().toString().contains("internal-theme"));
+    assertTrue(result.propertyPresentations().get("screenObjective").notice().contains("未标记截断"));
+    assertTrue(result.propertyPresentations().get("interactionRequests").items().stream()
+        .anyMatch(item -> item.value().equals("模板未提供筛选入口")));
+  }
+
+  @Test
+  void invalidUnderstandingShowsDiagnosticWithoutInventingBusinessText() {
+    String key = "easyv-quality-node";
+    var original = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(key, "node-1", "nodes-old"),
+        Map.of("themes", "[{", "screenObjective", "{\"primaryGoal\":\"监测运行状态\"}"));
+    when(objects.require(eq(key), eq("node-1"), any())).thenReturn(original);
+    var result = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", key, "node-1", null, null, null, null, null));
+    assertEquals(original, result.page().rows().getFirst());
+    assertTrue(result.propertyPresentations().get("themes").items().isEmpty());
+    assertTrue(result.propertyPresentations().get("themes").notice().contains("格式无法识别"));
+    assertTrue(result.propertyPresentations().get("screenObjective").notice().contains("内容完整性待核实"));
+  }
+
+  @Test
+  void userInputDetailUsesSourceNamesAndReportsTruncationOrUnresolvedSelection() {
+    String key = "easyv-generation-feedback";
+    String original = "$_({\"id\":\"internal-id\",\"label\":\"算力监控\",\"componentId\":\"private-component\",\"componentLabel\":\"CPU平均利用率\"})删除";
+    for (String input : List.of(original, "$_({\"label\":\"算力监控\",\"componentId\":\"private-component\"})删除")) {
+      var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(key, "operation-1", "feedback-old"),
+          Map.of("userInput", input, "userInputTruncated", true));
+      when(objects.require(eq(key), eq("operation-1"), any())).thenReturn(row);
+      var result = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", key, "operation-1", null, null, null, null, null));
+      assertEquals(input, result.page().rows().getFirst().properties().get("userInput"));
+      var display = result.propertyPresentations().get("userInput");
+      assertTrue(display.notice().contains("原话已被截断"));
+      if (input.equals(original)) assertEquals("【算力监控 / CPU平均利用率】删除", display.items().getFirst().value());
+      else {
+        assertTrue(display.items().isEmpty(), "missing component name cannot broaden a component selection to the region");
+        assertTrue(display.notice().contains("引用标记缺少名称"));
+      }
+    }
+  }
+
+  @Test
+  void listsAndRelationshipPagesNeverReceiveDetailPresentations() {
+    String key = "easyv-quality-node";
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(key, "node-1", "nodes-old"), Map.of("themes", "[]"));
+    doReturn(new ObjectQueryPort.Page(key, List.of(row), 50, 0, false)).when(objects).query(any(), any());
+    var list = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", key, null, null, null, null, null, null));
+    assertTrue(list.propertyPresentations().isEmpty());
+    when(objects.related(eq(key), eq("node-1"), eq("operations"), any(), any()))
+        .thenReturn(new ObjectQueryPort.Page("easyv-generation-feedback", List.of(), 50, 0, false));
+    var related = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", key, "node-1", "operations", null, null, null, null));
+    assertTrue(related.propertyPresentations().isEmpty());
+  }
+
+  @Test
   void listUsesExactExecutionManifestWithoutSelectingLatest() {
     var result = service.read("session", admin, request(null, null, "set-old"));
     assertEquals("set-old", result.datasetVersionSetId());

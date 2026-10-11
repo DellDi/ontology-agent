@@ -62,6 +62,10 @@ export const javaObjectReadResultSchema = z.object({
   executionId: z.string().min(1),
   datasetVersionSetId: z.string().min(1),
   ontologyVersionId: z.string().min(1),
+  propertyPresentations: z.record(z.string().min(1), z.object({
+    items: z.array(z.object({ label: z.string().min(1), value: z.string().min(1) }).strict()),
+    notice: z.string().min(1),
+  }).strict()).nullable().optional(),
   componentGeometry: z.record(z.string(), javaComponentGeometrySchema).optional(),
   componentSummary: z.object({
     total: z.number().int().min(0),
@@ -96,6 +100,14 @@ export const javaObjectReadResultSchema = z.object({
     z.object({ status: z.literal('parse_failed'), layout: z.null() }).strict(),
   ]).nullable(),
 }).strict().superRefine((result, context) => {
+  if (result.propertyPresentations && Object.keys(result.propertyPresentations).length) {
+    const row = result.page.rows[0];
+    if (result.page.rows.length !== 1 || Object.keys(result.propertyPresentations).some((field) =>
+      !result.objectType.properties.some((property) => property.key === field && property.type === 'STRING' && !property.identifier)
+        || typeof row?.properties[field] !== 'string' || !String(row.properties[field]).trim())) {
+      context.addIssue({ code: 'custom', message: '业务呈现必须对应单个授权对象中的非标识文本属性及完整源值。' });
+    }
+  }
   if (result.componentSummary) {
     const summary = result.componentSummary;
     if (result.page.rows.length !== 1 || !summaryObjectKeys.includes(result.page.objectKey)

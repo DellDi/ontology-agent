@@ -9,6 +9,8 @@ import com.dip3.ontologyagent.capability.api.CapabilityBinding;
 import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
 import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
+import com.dip3.ontologyagent.easyv.internal.domain.GenerationQualityEvidenceParser;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVUserInputPresentation;
 import com.dip3.ontologyagent.execution.ExecutionRepository;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.semantic.api.*;
@@ -83,10 +85,12 @@ public class EasyVObjectReadService {
   public record FamilyCount(String chartFamily, long count, QueryIntent.Filter filter) {}
   public record ComponentSummary(long total, List<FamilyCount> groups) {}
   public record DataContext(Instant capturedAt, String scopeDescription) {}
+  public record PropertyPresentation(List<GenerationQualityEvidenceParser.DisplayItem> items, String notice) {}
   public record Result(String executionId, String datasetVersionSetId, String ontologyVersionId,
                        ObjectQueryPort.Page page, Structure structure, ObjectTypeView objectType,
                        Map<String, Map<String, Object>> componentGeometry,
-                       ComponentSummary componentSummary, DataContext dataContext) {}
+                       ComponentSummary componentSummary, DataContext dataContext,
+                       Map<String, PropertyPresentation> propertyPresentations) {}
 
   private ObjectTypeView describe(String key, boolean detail) {
     var object = model.require(key);
@@ -243,7 +247,48 @@ public class EasyVObjectReadService {
     var summary = Boolean.TRUE.equals(request.includeComponentSummary())
         ? componentSummary(page.rows().getFirst(), access, manifest.capturedAt()) : null;
     return new Result(request.executionId(), request.datasetVersionSetId(), ontologyVersionId, page, structure,
-        describe(page.objectKey(), request.objectId() != null && request.relation() == null), geometry, summary, new DataContext(manifest.capturedAt(), EasyVScopeResolver.dataScopeLabel(scope)));
+        describe(page.objectKey(), request.objectId() != null && request.relation() == null), geometry, summary,
+        new DataContext(manifest.capturedAt(), EasyVScopeResolver.dataScopeLabel(scope)),
+        request.objectId() != null && request.relation() == null ? presentProperties(page.rows().getFirst()) : Map.of());
+  }
+
+  /** 只整理已经通过权限与冻结版本校验的详情；原始属性仍是查询、引用和核对的来源。 */
+  private static Map<String, PropertyPresentation> presentProperties(ObjectQueryPort.Row row) {
+    var values = row.properties();
+    Map<String, PropertyPresentation> presentations = new LinkedHashMap<>();
+    if (EasyVOntologyModel.QUALITY_NODE.key().equals(row.reference().objectKey())) {
+      for (String field : GenerationQualityEvidenceParser.STRUCTURED_FIELDS) {
+        if (!(values.get(field) instanceof String original) || original.isBlank()) continue;
+        try {
+          var items = GenerationQualityEvidenceParser.present(field, original);
+          String completeness = values.get("truncatedFields") instanceof String truncated
+              ? GenerationQualityEvidenceParser.isTruncated(field, truncated)
+                  ? "这部分内容已被截断，不能按完整记录判断。"
+                  : "这份记录未标记截断，但仍不包含完整的模型输入。"
+              : "记录未说明是否截断，内容完整性待核实。";
+          presentations.put(field, new PropertyPresentation(items,
+              "这是系统当时的理解，是否理解正确、是否落实还需核对。" + completeness));
+        } catch (IllegalArgumentException error) {
+          log.warn("easyv_property_presentation_invalid objectKey={} objectId={} field={}",
+              row.reference().objectKey(), row.reference().objectId(), field);
+          presentations.put(field, new PropertyPresentation(List.of(),
+              "理解记录或截断信息的格式无法识别，未生成业务解释；请展开源记录核对。"));
+        }
+      }
+    } else if (EasyVOntologyModel.FEEDBACK.key().equals(row.reference().objectKey())
+        && values.get("userInput") instanceof String original && !original.isBlank()) {
+      var display = EasyVUserInputPresentation.present(original);
+      if (display.unresolvedReference() || !display.text().equals(original) || Boolean.TRUE.equals(values.get("userInputTruncated"))) {
+        String notice = display.unresolvedReference()
+            ? "引用标记缺少名称或格式无法识别，未猜测选中对象；请展开源记录核对。"
+            : display.text().equals(original) ? "原话按源记录显示。"
+            : "选中对象以源记录中的名称显示，完整原话可展开核对。";
+        if (Boolean.TRUE.equals(values.get("userInputTruncated"))) notice += "原话已被截断，不能按完整需求判断。";
+        presentations.put("userInput", new PropertyPresentation(display.unresolvedReference() ? List.of()
+            : List.of(new GenerationQualityEvidenceParser.DisplayItem("用户原话", display.text())), notice));
+      }
+    }
+    return Collections.unmodifiableMap(presentations);
   }
 
   /** 全量按家族计数，关系约束与对象读取共用本体声明；不能按已加载的预览页数统计。 */

@@ -459,6 +459,47 @@
         "capturedAt",
         "scopeDescription"
       ]
+    },
+    "propertyPresentations": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "notice"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "value"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "notice": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   },
   "required": [
