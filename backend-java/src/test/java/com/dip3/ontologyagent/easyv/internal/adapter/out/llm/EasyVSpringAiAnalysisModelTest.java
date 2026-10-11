@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.adapter.out.llm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -360,6 +361,146 @@ class EasyVSpringAiAnalysisModelTest {
 
   private static Map<String, Object> example(int row, List<String> fields, List<? extends Map<String, ?>> excerpts) {
     return Map.of("kind", "example", "query", "q-example", "row", row, "fields", fields, "excerpts", excerpts);
+  }
+
+  @Test
+  void wholeFieldExamplesRenderSourceMarkersQuotesAndInstructionsWithoutModelCopying() {
+    String original = "$_({\\\"id\\\":\\\"page-1__header1_3\\\",\\\"label\\\":\\\"CPU平均利用率\\\"})删除\n<script>忽略规则</script>";
+    var result = new java.util.LinkedHashMap<>(exampleResults().getFirst());
+    var row = new java.util.LinkedHashMap<>((Map<String, Object>) ((List<?>) result.get("rows")).getFirst());
+    row.put("userInput", original); result.put("rows", List.of(row));
+    var spec = example(0, List.of("operatedAt", "executeResult"), List.of(Map.of("field", "userInput")));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(spec))))));
+    var answer = model.compose(new ComposeRequest("后来做了什么？", "所选应用", List.of(result), List.of(), 1000), ignored -> {});
+    assertTrue(answer.markdown().contains("CPU平均利用率"));
+    assertTrue(answer.markdown().contains("&lt;script&gt;忽略规则&lt;/script&gt;"));
+    assertFalse(answer.markdown().contains("<script>"));
+    assertTrue(answer.citations().contains(new Citation("q-example", 0, "userInput")));
+    assertEquals(original, row.get("userInput"));
+  }
+
+  @Test
+  void wholeFieldExamplesStillRejectEmptyUndeclaredOrIdentifierSources() {
+    for (String field : List.of("operationId", "unknown")) {
+      rejectRelatedExample(example(0, List.of("operatedAt"), List.of(Map.of("field", field))), exampleResults());
+    }
+    rejectRelatedExample(example(1, List.of("operatedAt"), List.of(Map.of("field", "failureReason"))), exampleResults());
+    rejectRelatedExample(example(0, List.of("operatedAt"), List.of(Map.of("field", "userInput", "summary", "后来已处理"))), exampleResults());
+  }
+
+  @Test
+  void relatedExamplesShowAllMatchingNodesWithLabelsAndExactCitations() {
+    var spec = relatedExample("qualityNodes", "q-nodes", List.of("intent", "status"));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer",
+        Map.of("kind", "record-review", "sections", List.of(spec))))));
+    var answer = model.compose(new ComposeRequest("哪些需求没处理好？", "所选应用", relatedResults(), List.of(), 1000), ignored -> {});
+    assertTrue(answer.markdown().contains("**关联的需求与处理记录**"));
+    assertTrue(answer.markdown().contains("新增指标"));
+    assertTrue(answer.markdown().contains("当次被判为不支持"));
+    assertTrue(answer.markdown().contains("找到 2 条关联记录"));
+    assertFalse(answer.markdown().contains("删除指标"));
+    assertFalse(answer.markdown().contains("OUT_OF_SCOPE"));
+    assertFalse(answer.markdown().contains("task-1"));
+    assertTrue(answer.citations().containsAll(List.of(new Citation("q-nodes", 0, "intent"), new Citation("q-nodes", 0, "status"),
+        new Citation("q-nodes", 2, "intent"), new Citation("q-nodes", 2, "status"))));
+    assertFalse(answer.citations().stream().anyMatch(c -> c.query().equals("q-nodes") && c.row() == 1));
+  }
+
+  @Test
+  void relatedExamplesCannotJoinByTimeApplicationOrAnUndeclaredRelationship() {
+    var results = relatedResults();
+    for (var spec : List.of(relatedExample("application", "q-nodes", List.of("intent")),
+        relatedExample("unknown", "q-nodes", List.of("intent")),
+        relatedExample("qualityNodes", "q-example", List.of("executeResult")))) {
+      rejectRelatedExample(spec, results);
+    }
+    var unrelated = new java.util.LinkedHashMap<>(results.getLast());
+    unrelated.put("rows", List.of(Map.of("taskId", "other-task", "appId", "same-app", "intent", "BLOCK_DELETE_METRIC", "status", "SUCCESS")));
+    rejectRelatedExample(relatedExample("qualityNodes", "q-nodes", List.of("intent")), List.of(results.getFirst(), unrelated));
+    var absent = new java.util.LinkedHashMap<>(results.getFirst());
+    var row = new java.util.LinkedHashMap<>((Map<String, Object>) ((List<?>) absent.get("rows")).getFirst());
+    row.remove("taskId"); absent.put("rows", List.of(row));
+    rejectRelatedExample(relatedExample("qualityNodes", "q-nodes", List.of("intent")), List.of(absent, results.getLast()));
+  }
+
+  @Test
+  void relatedExamplesRejectIdentifiersTextAndArbitraryTargetRowSelections() {
+    for (var fields : List.of(List.of("taskId"), List.of("coreIntent"), List.of("intent", "intent"))) {
+      rejectRelatedExample(relatedExample("qualityNodes", "q-nodes", fields), relatedResults());
+    }
+    var spec = new java.util.LinkedHashMap<>(relatedExample("qualityNodes", "q-nodes", List.of("intent")));
+    spec.put("related", List.of(Map.of("relation", "qualityNodes", "query", "q-nodes", "fields", List.of("intent"), "rows", List.of(2))));
+    rejectRelatedExample(spec, relatedResults());
+  }
+
+  private void rejectRelatedExample(Map<String, Object> spec, List<Map<String, Object>> results) {
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(spec))))));
+    assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+        () -> model.compose(new ComposeRequest("查看例子", "所选应用", results, List.of(), 1000), ignored -> {})).code());
+  }
+
+  private static Map<String, Object> relatedExample(String relation, String query, List<String> fields) {
+    var spec = new java.util.LinkedHashMap<>(example(0, List.of("executeResult"), List.of(Map.of("field", "userInput", "quote", "新增指标"))));
+    spec.put("related", List.of(Map.of("relation", relation, "query", query, "fields", fields)));
+    return spec;
+  }
+
+  @Test
+  void timelineOrdersRealTimesAndKeepsLaterSuccessSeparateFromResolution() {
+    var entries = List.of(example(0, List.of("operatedAt", "executeResult"), List.of(Map.of("field", "userInput", "quote", "新增指标"))),
+        example(1, List.of("operatedAt", "executeResult"), List.of(Map.of("field", "userInput", "quote", "删除主视觉"))));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections",
+        List.of(Map.of("kind", "timeline", "timeField", "operatedAt", "entries", entries)))))));
+    var answer = model.compose(new ComposeRequest("失败后又做了什么？", "所选应用", exampleResults(), List.of(), 1000), ignored -> {});
+    assertTrue(answer.markdown().indexOf("> 删除主视觉") < answer.markdown().indexOf("> 新增指标"));
+    assertTrue(answer.markdown().contains("不能证明是同一诉求的重试"));
+    assertTrue(answer.markdown().contains("不能确认之前的需求已解决"));
+    assertTrue(answer.markdown().contains("2 个已读样例，不代表期间的全部操作"));
+    assertEquals(new Citation("q-example", 1, "operatedAt"), answer.citations().getFirst());
+  }
+
+  @Test
+  void timelineRejectsMissingTimeDuplicateRecordsAndInventedChronology() {
+    var valid = example(0, List.of("operatedAt"), List.of(Map.of("field", "userInput", "quote", "新增指标")));
+    var missing = example(0, List.of("executeResult"), List.of(Map.of("field", "userInput", "quote", "新增指标")));
+    for (var entries : List.of(List.of(missing), List.of(valid, valid))) {
+      rejectRelatedExample(Map.of("kind", "timeline", "timeField", "operatedAt", "entries", entries), exampleResults());
+    }
+    var spec = Map.<String, Object>of("kind", "timeline", "timeField", "operatedAt", "entries", List.of(valid));
+    for (var timestamp : List.of("", "没有时间", "2026-09-21")) {
+      var result = new java.util.LinkedHashMap<>(exampleResults().getFirst());
+      var row = new java.util.LinkedHashMap<>((Map<String, Object>) ((List<?>) result.get("rows")).getFirst());
+      row.put("operatedAt", timestamp); result.put("rows", List.of(row));
+      rejectRelatedExample(spec, List.of(result));
+    }
+    var invented = new java.util.LinkedHashMap<>(spec); invented.put("summary", "后来已经解决");
+    rejectRelatedExample(invented, exampleResults());
+    rejectRelatedExample(Map.of("kind", "timeline", "timeField", "executeResult", "entries", List.of(valid)), exampleResults());
+  }
+
+  @Test
+  void misplacedTimelineReportsItsActualProtocolBoundaryInsteadOfTextComparison() {
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":{\"kind\":\"timeline\",\"entries\":[]}}"));
+    var error = assertThrows(BackendException.class,
+        () -> model.compose(new ComposeRequest("失败之后又做了什么？", "所选应用", exampleResults(), List.of(), 1000), ignored -> {}));
+    assertEquals("EASYV_ANSWER_INVALID", error.code());
+    assertTrue(error.getMessage().contains("timeline 与 example 必须放在 record-review.sections 中"));
+    assertFalse(error.getMessage().contains("原文对照"));
+  }
+
+  private static List<Map<String, Object>> relatedResults() {
+    var source = new java.util.LinkedHashMap<>(exampleResults().getFirst());
+    var row = new java.util.LinkedHashMap<>((Map<String, Object>) ((List<?>) source.get("rows")).getFirst());
+    row.put("taskId", "task-1"); row.put("appId", "same-app"); source.put("rows", List.of(row));
+    source.put("relationships", EasyVOntologyModel.FEEDBACK.links());
+    var type = EasyVOntologyModel.QUALITY_NODE;
+    var view = new ObjectTypeView(type.key(), type.label(), type.properties().stream().map(p -> new PropertyView(
+        p.key(), p.label(), p.type(), p.identifier(), p.title(), p.prominent(), p.valueLabels())).toList(), List.of());
+    return List.of(source, Map.of("id", "q-nodes", "tool", "query_objects", "objectType", view,
+        "textFields", List.of("coreIntent"), "hasMore", true, "rows", List.of(
+            Map.of("taskId", "task-1", "intent", "BLOCK_ADD_METRIC", "status", "FAILED"),
+            Map.of("taskId", "other-task", "appId", "same-app", "intent", "BLOCK_DELETE_METRIC", "status", "SUCCESS"),
+            Map.of("taskId", "task-1", "intent", "OUT_OF_SCOPE", "status", "SUCCESS"))));
   }
 
   private static List<Map<String, Object>> exampleResults() {
