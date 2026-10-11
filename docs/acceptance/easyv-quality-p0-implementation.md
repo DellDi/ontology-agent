@@ -258,3 +258,16 @@ Git `11c7425` 已记录上述实现与回归。空字段协议修正后的执行
 
 
 发布回执（2026-10-11）：应用提交 `b722d117bf922fd8dcd079aee85f32cc3f610c45`，Java backend/分析 Worker 镜像 `ontology-agent-java:quality-b-linked-review-b722d11`，发布目录 `/opt/ontology-agent-releases/quality-b-linked-review-b722d11`。源归档 SHA-256 `2797ba768b9348a4133c8d61de1f4e2cd446c88e9819e502058b007e719324bd` 与已测 JAR SHA-256 `94fdb769bbb223d9b6d503702ee8d45dbc3f7655f46ea313ebf023e955a5b275` 经服务器核对，OCI revision 与应用提交一致。独立核对 7 个服务，只有 backend 的容器 ID、启动时间与镜像变化，其他 6 个服务保持；backend/Web/Cube healthy，正式 `/actuator/health/easyv` 返回 UP。release-worker 仍为 `quality-b-review-2ee0d0183a`，运行中且无独立健康探针。当前 Web 和 Cube 保持原发布，平台库仍沿用 V27；没有迁移、补采、源权限变化或公司业务题复验。仅 backend 可回退至 `quality-b-record-examples-603a06a`。私有回执 `quality-b-related-deployment-report.json`、`quality-b-related-health.json`。截图补充 `quality-p0-ux/14-b-variety-statistics.png`；用户原有架构 §3 编辑及两张图片删除未纳入本批，未执行 Git push。
+
+
+## B 原话引用名称与不同修改诉求（2026-10-11）
+
+本批继续 B，处理上一批正文直接露出组件引用 JSON 的真实缺口，不新增在线配置、前端领域枚举、公开字段或模型调用阶段。只读核对源端 `BlockReferenceParser` / `SelectionAnchorParser`：`$_(JSON)` 的 `label` 是区域名称，`componentLabel` 是选中指标名称；仅展示区域名称会扩大指标级请求的对象范围。
+
+沿 EasyV 域增加当前原话呈现函数，只替换已读操作原话中完整、可解析且有名称的引用标记，保留相邻文字和顺序；标题明确选中对象以名称显示。完整源字段放在“查看完整源记录”中，引用仍指向未经修改的原字段；实际事实、冻结数据与其他文本属性不改。缺少名称、非法 JSON 或未闭合时明确提示并保留源记录，不猜名称或静默剥除。Markdown/HTML 字面转义沿用已有函数；Web 复用现有 Streamdown 的原生折叠支持。
+
+`EasyVUserInputPresentationTest`、`EasyVSpringAiAnalysisModelTest`、`EasyVSemanticAgentTest`、`EasyVCubeModelDriftTest`、`EasyVAgentToolsTest`、`EasyVObjectReadServiceTest` 共 **121 项测试通过**，Java package 通过。覆盖指标范围不被扩大、多个引用、名称里的括号/引号/反斜线、格式或名称缺失的明确诊断、短摘录仍可展开完整源字段、HTML 不执行及源引用不变。无前端代码修改，不重复 Web 构建。
+
+本地公司快照自然题：“这个大屏改图表、删指标和改布局时，用户分别说了什么？给我看看真实例子和当时的处理记录。”执行 `4400da14-a303-3037-a364-d52f5768293d`，追问 `3f7400fe-c62d-4b8c-abae-93a280d42edf` 完成。四个详情样例分别为“【容量调度 / 容量调度任务状态】改成地图”“选择:甘特图”“【综合监控 / 存储总容量】删除指标”“切换成凹型”，关联实际更换图表类型、删除指标、更换整屏布局分类及处理状态。**28 个引用逐字段匹配；152 个对象字段与同冻结只读本地 SQL 一致**。79 条全环节节点/81 条操作仅用于范围对账，未当作四个样例的请求数或业务代表性认证。
+
+浏览器确认两条带引用的原话默认显示名称，两处源记录默认折叠；展开后 DOM 文字与实际完整原话一致，再收起恢复名称视图。私有截图 `quality-p0-ux/15-b-object-reference-names.png`、`16-b-original-source-expanded.png`；来源与验证资料 `quality-b-source-names-{sql,verification}.json`、`quality-b-local/business*.json` 不入仓库。不同业务诉求样例读取通过，但这些分类与成功日志不能认证实际屏幕变化、能力边界、全局样例代表性或用户满意。对象详情中的原始字段和历史已保存回答不被回写；系统理解 JSON 的可读呈现与真实效果证据仍按下一批推进。

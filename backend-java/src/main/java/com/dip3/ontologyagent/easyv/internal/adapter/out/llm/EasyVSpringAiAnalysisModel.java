@@ -3,6 +3,8 @@ package com.dip3.ontologyagent.easyv.internal.adapter.out.llm;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.ObjectTypeView;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.PropertyView;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVUserInputPresentation;
 import com.dip3.ontologyagent.semantic.api.OntologyProperty;
 import com.dip3.ontologyagent.semantic.api.OntologyLink;
 import com.dip3.ontologyagent.support.BackendException;
@@ -367,10 +369,25 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
           || !(rows.get(row.intValue()).get(property.key()) instanceof String original) || original.isEmpty()) break;
       validateQuotedCitation(source, row.intValue(), quote, results);
       citations.add(new Citation(text(source.get("query")), row.intValue(), property.key()));
+      if (EasyVOntologyModel.FEEDBACK.key().equals(type.key()) && "userInput".equals(property.key())) {
+        var display = EasyVUserInputPresentation.present(quote);
+        if (display.unresolvedReference()) {
+          return "**" + literal(property.label()) + "**\n\n引用标记缺少名称或格式无法识别，以下保留源记录，未猜测选中对象。\n\n"
+              + quotedText(quote);
+        }
+        if (!display.text().equals(quote)) {
+          return "**" + literal(property.label()) + "（选中对象以名称显示）**\n\n" + quotedText(display.text())
+              + "<details><summary>查看完整源记录</summary>\n\n" + quotedText(original) + "</details>\n\n";
+        }
+      }
       return "**" + literal(property.label()) + "**\n\n> "
           + literal(quote).replace("\n", "  \n> ") + "\n\n";
     }
     throw new BackendException("EASYV_ANSWER_INVALID", "原文摘录必须引用已读对象详情中有值的非标识、非分类文本属性。");
+  }
+
+  private static String quotedText(String value) {
+    return "> " + literal(value).replace("\n", "  \n> ") + "\n\n";
   }
 
   private static boolean hasTextEvidence(List<Map<String, Object>> results) {
