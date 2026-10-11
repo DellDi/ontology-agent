@@ -195,4 +195,7 @@ Git `11c7425` 已记录上述实现与回归。空字段协议修正后的执行
 
 本地公司快照冻结集 `ingest-28e1685f-e234-41db-a14f-da50a27d4f24`，自然问题“这个大屏生成后，用户都要求改什么？每类有多少次，给我看看几个真实例子。”执行 `635a3f04-bca7-3018-b1df-a845aa4f814b` 完成。选中应用的对话处理统计返回 12 类、合计 75 条处理记录（不含 4 条生成前理解，不能与历史全环节 79 条混用）；新增指标为 12 条记录/8 次请求，澄清 22/20、当次不支持 14/14。正文使用独立统计，没有改用 50 条截取明细的计数。36 个统计值引用及 3 个用户原话引用与实际来源逐字段匹配，浏览器确认中文分类及独立列值。
 
-本次 3 条原话均为新增指标类，只通过样例忠实度，不证明跨分类代表性或分类准确性。原话中的组件引用语法、重复支撑图表及推荐追问可能暗示“最终另存”或已知实际变化的已有缺口另行保留；不由统计修正关闭。证据 `.codex-runtime/quality-b-metric-review-verification.json`、`quality-b-local/categories*.json`、`quality-p0-ux/09-b-metric-review.png` 仅本机保存。当前已完成本地验证，下一步只更新 backend 并检查健康，不重复公司业务题、不迁移或补采。
+本次 3 条原话均为新增指标类，只通过样例忠实度，不证明跨分类代表性或分类准确性。原话中的组件引用语法、重复支撑图表及推荐追问可能暗示“最终另存”或已知实际变化的已有缺口另行保留；不由统计修正关闭。证据 `.codex-runtime/quality-b-metric-review-verification.json`、`quality-b-local/categories*.json`、`quality-p0-ux/09-b-metric-review.png` 仅本机保存。发布前已完成本地验证，发布范围仅 backend 和健康检查，不重复公司业务题、不迁移或补采。
+
+
+发布回执（2026-10-11）：应用提交 `cf18339b2dd8397e81eaa43d274594c10ead2fd6`，Java backend/分析 Worker 镜像 `ontology-agent-java:quality-b-metric-review-cf18339`，发布目录 `/opt/ontology-agent-releases/quality-b-metric-review-cf18339`。源归档 SHA-256 `e0dddbe5d80c651b2065aa2d6d270209aba142cb9cfb36f97fdb8ce811eaa2c3` 与已测 JAR SHA-256 `f9ec3b289de2bb1c64571f480a545d8e486fe9b8d448b049e0631bf052494cb2` 经服务器核对，镜像 OCI revision 与提交一致。发布前后 7 个服务核对，仅 backend 的容器 ID/启动时间及镜像变化；其余 6 个容器保持。backend/Web/Cube healthy，正式 `/actuator/health/easyv` 返回 UP。采集 Worker 仍为 `quality-b-review-2ee0d0183a`，运行中且没有独立健康探针。本机私有回执 `.codex-runtime/quality-b-metric-review-deployment-report.json` 和 `quality-b-metric-review-health.json`；未迁移、补采、修改源权限、重复公司同题或 push。
