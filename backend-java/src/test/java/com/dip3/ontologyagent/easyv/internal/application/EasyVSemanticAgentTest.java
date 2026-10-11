@@ -625,10 +625,29 @@ class EasyVSemanticAgentTest {
   }
 
   @Test
-  void invalidCitationCorrectionIncludesActualNonEmptyRowFields() {
+  void sourceReviewViolationUsesExistingCorrectionWithoutRepeatingTheQuery() {
     when(model.plan(any())).thenReturn(ready(COUNT_QUERY), finished());
     when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 3)));
-    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "structureStatus"))),
+    when(model.compose(any(), any()))
+        .thenThrow(new BackendException("EASYV_ANSWER_INVALID", "原话核对未通过：存储指标未写明环形图。"))
+        .thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
+
+    run(initialTurn(), ALL);
+
+    var requests = ArgumentCaptor.forClass(ComposeRequest.class);
+    verify(model, times(2)).compose(requests.capture(), any());
+    assertTrue(requests.getAllValues().getLast().violations().getFirst().contains("存储指标未写明环形图"));
+    verify(queries, times(1)).execute(any(), any());
+  }
+
+  @Test
+  void invalidCitationCorrectionIncludesActualNonEmptyRowFields() {
+    when(model.plan(any())).thenReturn(ready(COUNT_QUERY), finished());
+    var row = new java.util.LinkedHashMap<String, Object>();
+    row.put("count", 3);
+    row.put("interactionRequests", null);
+    when(queries.execute(any(), any())).thenReturn(result(row));
+    when(model.compose(any(), any())).thenReturn(answer(List.of(new Citation("q1", 0, "interactionRequests"))),
         answer(List.of(new Citation("q1", 0, "count"))));
     run(initialTurn(), ALL);
     var requests = ArgumentCaptor.forClass(ComposeRequest.class);

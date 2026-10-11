@@ -89,8 +89,8 @@ cubes:
         sql: "{CUBE}.failure_reason_hash"
         type: "string"
       - name: "operatedAt"
-        title: "操作时间"
-        description: "用户操作时间"
+        title: "操作记录时间"
+        description: "操作日志落库时间，不等于用户提交或生成开始时间；生成结束结算时可晚于同任务的理解节点"
         sql: "{CUBE}.operated_at"
         type: "time"
     measures:
@@ -158,13 +158,13 @@ cubes:
         sql: "round(100.0 * {successCount} / nullif({count}, 0), 2)"
         type: "number"
       - name: "operatedAtCoverageFrom"
-        title: "操作时间（最早）"
+        title: "操作记录时间（最早）"
         sql: "extract(epoch from min({CUBE}.operated_at))"
         type: "number"
         meta:
           coverage: "true"
       - name: "operatedAtCoverageTo"
-        title: "操作时间（最晚）"
+        title: "操作记录时间（最晚）"
         sql: "extract(epoch from max({CUBE}.operated_at))"
         type: "number"
         meta:

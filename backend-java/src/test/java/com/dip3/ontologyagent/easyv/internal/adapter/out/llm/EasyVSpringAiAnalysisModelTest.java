@@ -113,6 +113,57 @@ class EasyVSpringAiAnalysisModelTest {
   }
 
   @Test
+  void sourceReviewRejectsGeneralizedRequirementsWithoutPublishingTheDraft() {
+    when(stream.content()).thenReturn(Flux.just("""
+        {"answer":"三项指标均要求环形占比图和模拟数据","citations":[]}
+        """), Flux.just("""
+        {"violations":["存储利用率原话仅描述数值总览，未要求环形占比图或模拟数据"]}
+        """));
+    List<String> partials = new ArrayList<>();
+    var error = assertThrows(BackendException.class,
+        () -> model.compose(new ComposeRequest("需求有哪些差异？", "所选应用", sourceResults(), List.of(), 1000), partials::add));
+    assertEquals("EASYV_ANSWER_INVALID", error.code());
+    assertTrue(error.getMessage().contains("存储利用率"));
+    assertTrue(partials.isEmpty());
+  }
+
+  @Test
+  void sourceReviewUsesOnlyReadDetailsAndPublishesTheVerifiedAnswer() {
+    when(stream.content()).thenReturn(Flux.just("""
+        {"answer":"CPU和内存要求环形占比图；存储原话仅描述数值总览","citations":[{"query":"q2","row":0,"field":"userInput"}]}
+        """), Flux.just("{\"violations\":[]}"));
+    List<String> partials = new ArrayList<>();
+    var answer = model.compose(new ComposeRequest("需求有哪些差异？", "所选应用", sourceResults(), List.of(), 1000), partials::add);
+    assertEquals(List.of(answer.markdown()), partials);
+    var inputs = ArgumentCaptor.forClass(String.class);
+    verify(prompt, org.mockito.Mockito.times(2)).user(inputs.capture());
+    var review = new JsonCodec().map(inputs.getAllValues().get(1));
+    assertEquals(answer.markdown(), review.get("answer"));
+    assertEquals(sourceResults().subList(1, 3), review.get("sources"));
+    var systems = ArgumentCaptor.forClass(String.class);
+    verify(prompt, org.mockito.Mockito.times(2)).system(systems.capture());
+    assertTrue(systems.getAllValues().stream().allMatch(value -> value.toLowerCase(java.util.Locale.ROOT).contains("json")));
+  }
+
+  @Test
+  void malformedSourceReviewFailsInsteadOfAcceptingTheAnswer() {
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"草稿\",\"citations\":[]}"),
+        Flux.just("{\"violations\":\"通过\"}"));
+    List<String> partials = new ArrayList<>();
+    var error = assertThrows(BackendException.class,
+        () -> model.compose(new ComposeRequest("q", "所选应用", sourceResults(), List.of(), 1000), partials::add));
+    assertEquals("EASYV_ANSWER_INVALID", error.code());
+    assertTrue(partials.isEmpty());
+  }
+
+  private static List<Map<String, Object>> sourceResults() {
+    return List.of(Map.of("id", "q1", "tool", "list_objects", "rows", List.of(Map.of("count", 50))),
+        Map.of("id", "q2", "tool", "read_object", "rows", List.of(Map.of("userInput",
+            "CPU 利用率：环形占比图，模拟数据\n内存利用率：环形占比图，模拟数据\n存储利用率：数值总览"))),
+        Map.of("id", "q3", "tool", "read_object", "rows", List.of(Map.of("coreIntent", "监控算力资源"))));
+  }
+
+  @Test
   void malformedAnswerPreservesParseReasonAndLocationForTheExistingCorrectionTurn() {
     when(stream.content()).thenReturn(Flux.just("{\"answer\":\"第一行\n第二行\",\"citations\":[]}"));
     var error = assertThrows(BackendException.class,
