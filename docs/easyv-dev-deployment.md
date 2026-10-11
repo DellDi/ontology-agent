@@ -7,6 +7,8 @@ Cube 与 Neo4j 作为 Property 投影运行。
 
 ## 当前发布：原型业务语义（2026-10-11）
 
+当前 backend 已追加发布为 `quality-b-explain-ab58198`（提交 `ab58198f3c6a8f6bd3992ca6028220486f02cf1b`），修正候选不足凑数、未读内容作为建议依据、系列/槽位及共同单位比较的解释边界。源归档与已测 JAR 哈希核对、OCI revision、公司 backend/Web/Cube health 均通过；回执 `/opt/ontology-agent-releases/quality-b-explain-ab58198/deployment-report.json` 确认只更换 backend，其他六服务 ID/镜像/启动时间保持。Web 与 release-worker 仍为下述 `quality-b-semantics-d699c66`，Cube 配置也保持下述目录，未重复迁移或采集。业务解释在本地三场景完成复验，101 对象行、326 业务字段与同冻结 SQL 一致；详情默认显示业务名与说明，保留可展开的内部记录信息。该核对不代表完整 B 或实际编辑效果已通过。
+
 用户明确批准后，基于提交 `d699c66224d3f6178d4e50853922946592c002fa` 发布 `quality-b-semantics-d699c66`。Java/Web 同提交源归档构建，已测 JAR 与归档 SHA-256 在服务器一致；两镜像 OCI revision 均为该完整提交。Web 服务器生产构建通过。发布目录 `/opt/ontology-agent-releases/quality-b-semantics-d699c66`，回执 `deployment-report.json`。
 
 - 维护前无 queued/processing 分析或发布任务。先完成镜像构建和平台全量备份，再停止 Web/backend/release-worker；以同版 migrate 校验 28 项并执行 V28，随后正式 `RECONCILE` 发布，再更新 Cube/backend/Web 和 release-worker。Web/backend/Cube healthy，EasyV health UP；发布 Worker running（无 health probe）。Valkey、Cube Store router/worker 三个容器 ID 与启动时间保持。
