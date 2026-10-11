@@ -304,7 +304,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       }
       if (references == null) {
         throw new BackendException("EASYV_ANSWER_UNGROUNDED",
-            "EasyV 回答未能引用有效的数据点：" + String.join("；", violations) + "。");
+            "EasyV 回答的证据核对未通过：" + String.join("；", violations) + "。");
       }
     } catch (RuntimeException error) {
       progress.emit("step-completed", done(composeStep, composeStarted, "failed"), null);
