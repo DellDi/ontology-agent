@@ -625,18 +625,18 @@ class EasyVSemanticAgentTest {
   }
 
   @Test
-  void sourceReviewViolationUsesExistingCorrectionWithoutRepeatingTheQuery() {
+  void invalidModelOutputUsesExistingCorrectionWithoutRepeatingTheQuery() {
     when(model.plan(any())).thenReturn(ready(COUNT_QUERY), finished());
     when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 3)));
     when(model.compose(any(), any()))
-        .thenThrow(new BackendException("EASYV_ANSWER_INVALID", "原话核对未通过：存储指标未写明环形图。"))
+        .thenThrow(new BackendException("EASYV_ANSWER_INVALID", "EasyV 模型输出 JSON 解析失败：存在未转义换行。"))
         .thenReturn(answer(List.of(new Citation("q1", 0, "count"))));
 
     run(initialTurn(), ALL);
 
     var requests = ArgumentCaptor.forClass(ComposeRequest.class);
     verify(model, times(2)).compose(requests.capture(), any());
-    assertTrue(requests.getAllValues().getLast().violations().getFirst().contains("存储指标未写明环形图"));
+    assertTrue(requests.getAllValues().getLast().violations().getFirst().contains("存在未转义换行"));
     verify(queries, times(1)).execute(any(), any());
   }
 
