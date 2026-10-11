@@ -184,7 +184,7 @@ class EasyVAgentToolsTest {
     var component = row(COMPONENT, "1:c", Map.of("componentId", "c"));
     var terminal = new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old",
         new ObjectQueryPort.Page(COMPONENT, List.of(component), 50, 50, false), null,
-        new EasyVObjectReadService.ObjectTypeView(COMPONENT, "组件", List.of(), List.of()), Map.of(), null, null);
+        new EasyVObjectReadService.ObjectTypeView(COMPONENT, "组件", List.of(), List.of()), Map.of(), null, null, Map.of());
     when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(terminal);
     run.execute("q1", run.prepare("query_objects", Map.of("objectKey", COMPONENT, "offset", 50)));
     clearInvocations(objects);
@@ -208,7 +208,7 @@ class EasyVAgentToolsTest {
     when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(
         new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old",
             new ObjectQueryPort.Page(COMPONENT, List.of(), 50, 0, false), null,
-            new EasyVObjectReadService.ObjectTypeView(COMPONENT, "组件", List.of(), List.of()), Map.of(), null, null));
+            new EasyVObjectReadService.ObjectTypeView(COMPONENT, "组件", List.of(), List.of()), Map.of(), null, null, Map.of()));
     run.execute("q1", first);
     clearInvocations(objects);
     code("EASYV_PLAN_INVALID", () -> run.execute("q2", later));
@@ -267,7 +267,7 @@ class EasyVAgentToolsTest {
   private ObjectQueryPort.Row row(String key, String id, Map<String, Object> properties) { return new ObjectQueryPort.Row(new ObjectQueryPort.Reference(key, id, versions.get(key)), properties); }
   private EasyVObjectReadService.Result result(String key, ObjectQueryPort.Row row, boolean more) {
     return new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old", new ObjectQueryPort.Page(key, List.of(row), 50, 0, more), null,
-        new EasyVObjectReadService.ObjectTypeView(key, model.require(key).label(), List.of(), List.of()), Map.of(), null, null);
+        new EasyVObjectReadService.ObjectTypeView(key, model.require(key).label(), List.of(), List.of()), Map.of(), null, null, Map.of());
   }
   private static EasyVSchemeAssessmentService.Result assessmentFixture() throws Exception {
     Path path = Path.of("../contracts/backend/fixtures/scheme-assessment.json");

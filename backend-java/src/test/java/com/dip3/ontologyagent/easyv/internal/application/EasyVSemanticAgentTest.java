@@ -140,7 +140,7 @@ class EasyVSemanticAgentTest {
       var row = request.relation() == null && request.objectKey().equals("easyv-prototype-layout") ? layout : block;
       return new EasyVObjectReadService.Result("execution-1", "easyv-set-1", "easyv-v2",
           new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Page(row.reference().objectKey(), List.of(row), 50, 0, false), null,
-          new EasyVObjectReadService.ObjectTypeView(row.reference().objectKey(), semantic.require(row.reference().objectKey()).label(), List.of(), List.of()), Map.of(), null, null);
+          new EasyVObjectReadService.ObjectTypeView(row.reference().objectKey(), semantic.require(row.reference().objectKey()).label(), List.of(), List.of()), Map.of(), null, null, Map.of());
     });
     when(assessments.assessDuringExecution(any(), eq(ALL), any())).thenAnswer(call -> {
       var context = call.<com.dip3.ontologyagent.capability.api.CapabilityExecutionContext>getArgument(0);
@@ -195,7 +195,7 @@ class EasyVSemanticAgentTest {
               Map.<String, Object>of("componentId", "c" + i))).toList();
       return new EasyVObjectReadService.Result("execution-1", "easyv-set-1", "easyv-v2",
           new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Page(key, rows, request.limit(), request.offset(), request.offset() == 0), null,
-          new EasyVObjectReadService.ObjectTypeView(key, "组件", List.of(), List.of()), Map.of(), null, null);
+          new EasyVObjectReadService.ObjectTypeView(key, "组件", List.of(), List.of()), Map.of(), null, null, Map.of());
     });
     when(model.plan(any())).thenReturn(
         new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "query_objects", "input", Map.of("objectKey", key))), null, List.of()),

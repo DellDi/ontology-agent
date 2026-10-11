@@ -135,6 +135,22 @@ function ComponentComposition({ context, object, summary, onSelect }: {
 type DetailQuery = ReturnType<typeof useObjectRead>;
 type ViewProps = { context: Context; root: Row; onObjectSelect?: SelectObject };
 
+function PropertyContent({ property, value, presentation }: {
+  property: Type['properties'][number]; value: Row['properties'][string];
+  presentation?: NonNullable<JavaObjectReadResult['propertyPresentations']>[string];
+}) {
+  if (!presentation) return objectPropertyText(property, value);
+  return <div className="space-y-3">
+    <p className="text-xs leading-5 text-muted-foreground">{presentation.notice}</p>
+    <dl className="space-y-3">{presentation.items.map((item, index) => <div key={index} className="space-y-1">
+      <dt className="font-medium">{item.label}</dt><dd className="whitespace-pre-wrap break-words">{item.value}</dd>
+    </div>)}</dl>
+    <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">查看完整源记录</summary>
+      <p className="mt-2 whitespace-pre-wrap break-all leading-5">{String(value)}</p>
+    </details>
+  </div>;
+}
+
 function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hints, beforeProperties, afterProperties }: {
   context: Context; focus: Row; detail: DetailQuery; onFocus: (row: Row) => void; onObjectSelect?: SelectObject;
   hints?: { relation?: string; provenance?: string }; beforeProperties?: ReactNode; afterProperties?: ReactNode;
@@ -149,8 +165,14 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
   const primaryProperties = businessProperties?.filter((property) => property.prominent || property.title || property.type === 'TIME');
   const otherProperties = businessProperties?.filter((property) => !primaryProperties?.includes(property));
   const propertyList = (properties: Type['properties'] | undefined) => <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
-    {properties?.map((property) => <div key={property.key} className="contents"><dt className="text-muted-foreground">{property.label}</dt>
-      <dd className="whitespace-pre-wrap break-words leading-5">{objectPropertyText(property, selected.properties[property.key])}</dd></div>)}
+    {properties?.map((property) => {
+      const presentation = detail.data?.propertyPresentations?.[property.key];
+      return <div key={property.key} className={presentation ? 'col-span-2 space-y-2 rounded-lg border border-border p-3' : 'contents'}>
+        <dt className={presentation ? 'font-semibold' : 'text-muted-foreground'}>{property.label}</dt>
+        <dd className="whitespace-pre-wrap break-words leading-5"><PropertyContent property={property}
+          value={selected.properties[property.key]} presentation={presentation} /></dd>
+      </div>;
+    })}
   </dl>;
   const traceProperties = type?.properties.filter((property) => property.identifier || Object.keys(property.valueLabels ?? {}).length);
   return <section className="space-y-3 border-t border-border pt-4" aria-label="所选对象属性">
@@ -216,7 +238,8 @@ function LinkedObjectPreview({ context, source, link }: { context: Context; sour
     {related.data?.page.hasMore ? <p className="text-xs text-muted-foreground">这里只显示前 20 条，可通过下方关联入口继续查看。</p> : null}
     {row ? detail.data?.objectType.properties.filter((property) => property.prominent && !property.identifier).map((property) =>
       <div key={property.key} className="space-y-1"><p className="text-xs text-muted-foreground">{property.label}</p>
-        <p className="whitespace-pre-wrap break-words text-sm leading-6">{objectPropertyText(property, row.properties[property.key])}</p></div>) : null}
+        <div className="whitespace-pre-wrap break-words text-sm leading-6"><PropertyContent property={property}
+          value={row.properties[property.key]} presentation={detail.data?.propertyPresentations?.[property.key]} /></div></div>) : null}
   </section>;
 }
 
