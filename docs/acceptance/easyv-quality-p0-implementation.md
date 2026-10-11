@@ -310,4 +310,10 @@ Web 在既有详情请求内通用消费附件，较长内容占详情面板全�
 - 浏览器打开“银保经营总览”的理解详情，可读目标、5 个模块、两条交互诉求及源原因；展开交互源记录与接口字段逐字一致，恢复默认折叠。完整源 JSON 仍可核对，不用生成成功认证诉求满足。截图、API/SQL 核对回执仅在忽略目录 `.codex-runtime/quality-b-detail*`。
 - Java 146 项相关测试及 package 通过；Web 174 项通过、5 项可选容器测试跳过；TypeScript、生产构建通过，全仓 lint 无错误、9 项既有警告，改动文件 lint 无警告。新测试覆盖同记录源值保持、模块约束归属/截断、格式诊断、缺组件名称、列表读取边界、附件绑定及文本转义，既有权限/版本/工具与回答回归通过。
 
-本地快照仍无模块约束真实样例；其呈现仅有契约测试证据。分类校准、真实屏幕效果、最终采纳、完整模型输入及真人价值评审继续开放。本批不声称完成整个 B，不实施配置后台、来源事件时间线或 C 动作。公司发布回执在通过后追加。
+本地快照仍无模块约束真实样例；其呈现仅有契约测试证据。分类校准、真实屏幕效果、最终采纳、完整模型输入及真人价值评审继续开放。本批不声称完成整个 B，不实施配置后台、来源事件时间线或 C 动作。本批公司 Web 与 Java API/分析 Worker 已发布 `quality-b-detail-e99b432`，backend/Web/Cube healthy，正式 EasyV 健康为 UP。独立采集 Worker 保持原发布；未迁移、补采或重复公司业务问题。
+
+公司发布回执：
+
+- Git `e99b4325a67b70ac0dfaabf379efa142d8f07a12`，发布目录 `/opt/ontology-agent-releases/quality-b-detail-e99b432`；源归档 SHA-256 `4e2376d4e1f20a1cdad1c2e6037de0ee489af2febb8a40385d0eaaecdc27b709`，已测 JAR SHA-256 `650eded56dfa0e8c4aa50c6bc1c6354bf8245fd1fdff96cc328ab8959edb5f1e`，服务器复核一致。Java 与 Web 镜像 revision 均为该提交；Web 由同一源归档在服务器构建，Java 使用本地已测 JAR。
+- 因对象读取响应新增附件，先发布可接受既有 API 的 Web，再发布 backend；七服务前后回执确认仅 Web/backend 更换，其余五个服务的容器 ID、镜像与启动时间不变，Cube 挂载及 V27 不变。回执 `/opt/ontology-agent-releases/quality-b-detail-e99b432/deployment-report.json`。
+- 回退顺序：先 backend 还原 `quality-b-understanding-2de1c60`，再 Web 还原 `quality-b-review-8b0725d724`，无需恢复数据库。完整发布命令见部署文档；发布只验证健康，没有重复公司同题。

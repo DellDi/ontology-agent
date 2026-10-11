@@ -7,8 +7,8 @@ Cube 与 Neo4j 作为 Property 投影运行。
 
 ## 当前发布（2026-10-11）
 
-- Web 保持 `quality-b-review-8b0725d724`，Java API/分析 Worker 更新为 `quality-b-understanding-2de1c60`，Web/backend/Cube healthy；独立 release-worker 保持 `quality-b-review-2ee0d0183a`（running，无 health probe）。本批只更新 backend 的系统理解内容呈现、整字段原文选择及最初记录取数，完整源记录折叠保留；平台库沿用 V27，没有迁移或补采。133 项相关测试、Java package 通过；本地公司快照的目标/七个模块与交互要求两条自然题，15 个引用、102 个来源字段及浏览器展开原文核对通过。快照没有模块约束记录，该部分仅契约测试通过；不完整 JSON 失败与 JSON 片段可读性未通过记录保留。系统理解准确性、实际屏幕效果与真人角色校准继续保留门禁，历史回答不回写；发布后只检查健康，不重复公司同题。完整模型输入与最终采纳仍未认证，见 [质量实施记录](./acceptance/easyv-quality-p0-implementation.md)。
-- Java 本次发布目录 `/opt/ontology-agent-releases/quality-b-understanding-2de1c60`；源归档与已测 JAR 哈希经服务器核对，镜像 revision 为 `2de1c605eb3787350108c4a8691e87c2c0f748b7`。`.env.easyv-dev` 仍使用私有 `/opt/ontology-agent-release-private/chart-preview-57d159e.env`；发布必须显式指定实际 Web/Java 镜像，防止私有配置中历史值覆盖。Cube 挂载沿用原发布；除 backend 外，其他 6 个服务容器未更换。旧 `/opt/ontology-agent` 是历史 checkout，不作为当前发布目录。
+- Web 与 Java API/分析 Worker 已更新为 `quality-b-detail-e99b432`，Web/backend/Cube healthy；独立 release-worker 保持 `quality-b-review-2ee0d0183a`（running，无 health probe）。本批修正支撑对象详情及关联预览仍直接显示理解 JSON/组件引用的问题，业务内容复用后端呈现，原始字段与冻结引用保留。146 项相关 Java 测试及 package、Web 174 项通过/5 项可选容器跳过、TypeScript 与生产构建通过；6 条本地真实详情经同冻结 SQL 核对，浏览器展开源文一致。只进行公司健康检查，不重复同题。平台库沿用 V27，未迁移或补采；真实约束样例、分类校准、实际屏幕效果与真人评审仍待闭环，见 [质量实施记录](./acceptance/easyv-quality-p0-implementation.md)。
+- 本次发布目录 `/opt/ontology-agent-releases/quality-b-detail-e99b432`；源归档与已测 JAR 哈希经服务器核对，Java/Web 镜像 revision 为 `e99b4325a67b70ac0dfaabf379efa142d8f07a12`，Web 在服务器以同一归档构建。`.env.easyv-dev` 仍使用私有 `/opt/ontology-agent-release-private/chart-preview-57d159e.env`；发布显式指定实际 Web/Java 镜像。七服务回执确认只有 Web/backend 更换，其余五个服务容器与启动时间保持，Cube 挂载沿用原发布。旧 `/opt/ontology-agent` 是历史 checkout，不作为当前发布目录。
 - Web 远端绑定 `127.0.0.1:3100`，Java 8080；保持 loopback。个人验证从本机 SSH 隧道访问 [工作台](http://127.0.0.1:3100/workspace)：
 
 ```bash
@@ -16,21 +16,23 @@ ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
   -L 127.0.0.1:3100:127.0.0.1:3100 easyv-dev
 ```
 
-本机 3100 隧道已启动；3000 为独立本地开发环境，两者数据库不同，见 [环境说明](./environments.md)。沿用前批业务备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20261009173609.dump`（24MB），本批未改变 schema 或业务 facts。最新发布回执 `/opt/ontology-agent-releases/quality-b-understanding-2de1c60/deployment-report.json`：除 backend 外其他 6 个服务容器 ID 和启动时间不变。公司使用 `dip3_session`，本地使用 `dip3_session_local`，可同时登录。
+本机 3100 隧道已启动；3000 为独立本地开发环境，两者数据库不同，见 [环境说明](./environments.md)。沿用前批业务备份 `/opt/ontology-agent-backups/ontology-agent-ontology_agent_test-20261009173609.dump`（24MB），本批未改变 schema 或业务 facts。最新发布回执 `/opt/ontology-agent-releases/quality-b-detail-e99b432/deployment-report.json`：除 Web/backend 外其他 5 个服务容器 ID 和启动时间不变。公司使用 `dip3_session`，本地使用 `dip3_session_local`，可同时登录。
 
 用户明确授权后，于 2026-10-10 单独重置现有 5 个公司工作台账号口令，全部正常登录通过，角色/主体绑定不变。旧哈希私有备份 `/opt/ontology-agent-release-private/dev-account-password-backup-20261010.json`（0600）；5 条审计的关联 ID `a8e7cf6a-af11-495e-a5df-2eb4cb4890f2`。前批业务备份早于本次重置，不能用于判断当前口令。没有改产品密码规则、种子、源库或连接凭据；口令不入仓库。
 
-本批只更新 backend，公开回答契约与 Cube schema 保持：
+本批对象读取响应增加业务呈现附件，公开回答契约与 Cube schema 保持。先发布 Web，再更新 backend：
 
 ```bash
-cd /opt/ontology-agent-releases/quality-b-understanding-2de1c60
-EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env ONTOLOGY_JAVA_IMAGE=ontology-agent-java:quality-b-understanding-2de1c60 ONTOLOGY_WEB_IMAGE=ontology-agent-web:quality-b-review-8b0725d724 scripts/easyv-dev deploy backend
+cd /opt/ontology-agent-releases/quality-b-detail-e99b432
+EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env ONTOLOGY_JAVA_IMAGE=ontology-agent-java:quality-b-understanding-2de1c60 ONTOLOGY_WEB_IMAGE=ontology-agent-web:quality-b-detail-e99b432 scripts/easyv-dev deploy web
+EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env ONTOLOGY_JAVA_IMAGE=ontology-agent-java:quality-b-detail-e99b432 ONTOLOGY_WEB_IMAGE=ontology-agent-web:quality-b-detail-e99b432 scripts/easyv-dev deploy backend
 ```
 
-回退本批只需将 backend 还原为 `quality-b-source-names-202d259`，Web 保持当前镜像，无需恢复数据库：
+回退先还原 backend，再还原 Web，无需恢复数据库：
 
 ```bash
-EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env ONTOLOGY_JAVA_IMAGE=ontology-agent-java:quality-b-source-names-202d259 ONTOLOGY_WEB_IMAGE=ontology-agent-web:quality-b-review-8b0725d724 scripts/easyv-dev deploy backend
+EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env ONTOLOGY_JAVA_IMAGE=ontology-agent-java:quality-b-understanding-2de1c60 ONTOLOGY_WEB_IMAGE=ontology-agent-web:quality-b-detail-e99b432 scripts/easyv-dev deploy backend
+EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env ONTOLOGY_JAVA_IMAGE=ontology-agent-java:quality-b-understanding-2de1c60 ONTOLOGY_WEB_IMAGE=ontology-agent-web:quality-b-review-8b0725d724 scripts/easyv-dev deploy web
 ```
 
 独立采集容器本批未更新；若单独重建，必须沿用私有源配置与其实际 `quality-b-review-2ee0d0183a` 镜像，不由本次 backend 发布顺带变更采集进程。API/Web 不携带源账号。以下保留此前 B7 批次验收记录：
