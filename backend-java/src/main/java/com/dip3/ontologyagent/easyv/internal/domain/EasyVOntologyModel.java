@@ -307,7 +307,8 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
               "prototypeGeneration=生成或整屏重做；promptCompletion=需求润色；chatRefactor=对话轮次（含闲聊、澄清、不支持，非有效修改）；metricGeneration=指标池扩充；appGeneration=组合生成/另存反馈", Type.STRING, "ai_action_type").display(true, false, OPERATION_TYPES),
           OntologyProperty.identifier("taskId", "操作任务 ID", "关联节点的任务；一个任务可有多个执行节点，不把节点数当轮次", "task_id"),
           new OntologyProperty("executeResult", "执行结果", "源端操作结果，混合业务执行与积分结算；成功不证明诉求满足", Type.STRING,
-              "case {CUBE}.execute_result when 1 then '记录成功' when 0 then '记录失败' end", false),
+              "case {CUBE}.execute_result when 1 then '记录成功' when 0 then '记录失败' end", false)
+              .display(false, false, Map.of("记录成功", "日志记为成功", "记录失败", "日志记为失败")),
           OntologyProperty.column("rating", "评分", "整屏评分 1-5；单轮赞/踩为 4/2，两类不可混作满意度，未评分为空", Type.NUMBER, "rating"),
           OntologyProperty.column("saveAsEdit", "是否另存编辑", "该条生成反馈的另存标记；只更新当时最近 appGeneration 行。有过另存不代表最终版本已另存，也不等于满意", Type.BOOLEAN, "is_save_as_edit"),
           OntologyProperty.column("userInputTruncated", "用户原话已截断", "null 为旧冻结版本未采；true 表示只保留前 4000 字符", Type.BOOLEAN, "user_input_truncated"),

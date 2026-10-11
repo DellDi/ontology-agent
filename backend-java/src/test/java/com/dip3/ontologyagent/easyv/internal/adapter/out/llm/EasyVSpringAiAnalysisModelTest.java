@@ -19,6 +19,7 @@ import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.Plan
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.PlanStatus;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.ObjectTypeView;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.PropertyView;
+import com.dip3.ontologyagent.easyv.internal.domain.EasyVOntologyModel;
 import com.dip3.ontologyagent.semantic.api.OntologyProperty.Type;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
@@ -302,6 +303,75 @@ class EasyVSpringAiAnalysisModelTest {
     return Map.of("kind", "record-review", "sections", List.of(excerpt(),
         Map.of("kind", "counts", "query", "q2", "fields", List.of("phase", "intent")),
         Map.of("kind", "records", "query", "q3", "fields", List.of("recordedAt", "saved"), "rows", List.of(0,1))));
+  }
+
+  @Test
+  void examplesKeepOriginalReasonAndLogResultWithinTheSameDetailRecord() {
+    var failure = example(0, List.of("operatedAt", "executeResult"), List.of(
+        Map.of("field", "userInput", "quote", "新增指标"),
+        Map.of("field", "failureReason", "quote", "该模块的布局放不下再加 1 个图表")));
+    var recorded = example(1, List.of("operatedAt", "executeResult"), List.of(Map.of("field", "userInput", "quote", "删除主视觉")));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer",
+        Map.of("kind", "record-review", "sections", List.of(failure, recorded))))));
+    var partials = new ArrayList<String>();
+    var answer = model.compose(new ComposeRequest("哪些需求没处理好？", "所选应用", exampleResults(), List.of(), 1000), partials::add);
+    assertTrue(answer.markdown().contains("2026-09-21 15:50:16（北京时间）"));
+    assertTrue(answer.markdown().contains("执行结果：日志记为失败"));
+    assertTrue(answer.markdown().contains("执行结果：日志记为成功"));
+    assertTrue(answer.markdown().contains("**操作失败原因**\n\n> 该模块的布局放不下再加 1 个图表"));
+    assertTrue(answer.markdown().contains("**用户原话**\n\n> 删除主视觉"));
+    assertEquals(List.of(new Citation("q-example", 0, "operatedAt"), new Citation("q-example", 0, "executeResult"),
+        new Citation("q-example", 0, "userInput"), new Citation("q-example", 0, "failureReason"),
+        new Citation("q-example", 1, "operatedAt"), new Citation("q-example", 1, "executeResult"),
+        new Citation("q-example", 1, "userInput")), answer.citations());
+    assertTrue(partials.isEmpty());
+    assertTrue(!answer.markdown().contains("internal-id"));
+  }
+
+  @Test
+  void exampleRejectsQuotesOrSourceAddressesFromAnotherRecord() {
+    for (var source : List.of(Map.of("field", "userInput", "quote", "删除主视觉"),
+        Map.of("field", "userInput", "quote", "新增指标", "query", "q-other", "row", 1))) {
+      when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections",
+          List.of(example(0, List.of("operatedAt"), List.of(source))))))));
+      assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+          () -> model.compose(new ComposeRequest("查看例子", "所选应用", exampleResults(), List.of(), 1000), ignored -> {})).code());
+    }
+  }
+
+  @Test
+  void exampleCannotTurnListRowsIdentifiersOrUnquotedTextIntoRecordEvidence() {
+    var sources = List.of(Map.of("field", "userInput", "quote", "新增指标"));
+    for (var fields : List.of(List.of("operationId"), List.of("failureReason"), List.of("operatedAt", "operatedAt"))) {
+      when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections",
+          List.of(example(0, fields, sources)))))));
+      assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+          () -> model.compose(new ComposeRequest("查看例子", "所选应用", exampleResults(), List.of(), 1000), ignored -> {})).code());
+    }
+    var spec = new java.util.LinkedHashMap<>(example(0, List.of("operatedAt"), sources));
+    spec.put("row", 0.5);
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(spec))))));
+    assertThrows(BackendException.class, () -> model.compose(new ComposeRequest("查看例子", "所选应用", exampleResults(), List.of(), 1000), ignored -> {}));
+    var listed = new java.util.LinkedHashMap<>(exampleResults().getFirst()); listed.put("tool", "query_objects");
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections",
+        List.of(example(0, List.of("operatedAt"), sources)))))));
+    assertThrows(BackendException.class, () -> model.compose(new ComposeRequest("查看例子", "所选应用", List.of(listed), List.of(), 1000), ignored -> {}));
+  }
+
+  private static Map<String, Object> example(int row, List<String> fields, List<? extends Map<String, ?>> excerpts) {
+    return Map.of("kind", "example", "query", "q-example", "row", row, "fields", fields, "excerpts", excerpts);
+  }
+
+  private static List<Map<String, Object>> exampleResults() {
+    var type = EasyVOntologyModel.FEEDBACK;
+    var view = new ObjectTypeView(type.key(), type.label(), type.properties().stream().map(p -> new PropertyView(
+        p.key(), p.label(), p.type(), p.identifier(), p.title(), p.prominent(), p.valueLabels())).toList(), List.of());
+    return List.of(Map.of("id", "q-example", "tool", "read_object", "objectType", view,
+        "textFields", type.properties().stream().filter(p -> p.detailOnly()).map(p -> p.key()).toList(), "rows", List.of(
+            Map.of("operationId", "internal-id", "operatedAt", "2026-09-21T07:50:16Z", "executeResult", "记录失败",
+                "userInput", "新增指标", "failureReason", "该模块的布局放不下再加 1 个图表"),
+            Map.of("operationId", "internal-id-2", "operatedAt", "2026-09-21T07:07:04Z", "executeResult", "记录成功",
+                "userInput", "删除主视觉", "failureReason", ""))));
   }
 
   private static List<Map<String, Object>> reviewResults() {
