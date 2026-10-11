@@ -175,6 +175,61 @@ class EasyVSpringAiAnalysisModelTest {
   }
 
   @Test
+  void reviewUsesPublishedCategoryNamesAndMetricValuesInsteadOfCountingSampleRows() {
+    var results = new ArrayList<>(reviewResults());
+    results.add(metricResult(Map.of("dimensions", List.of("category")), 2));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(excerpt(),
+        Map.of("kind", "records", "query", "q4", "fields", List.of("category", "count"), "rows", List.of(0,1))))))));
+    var answer = model.compose(new ComposeRequest("统计分类并看原话", "所选对象", results, List.of(), 1000), ignored -> {});
+    assertTrue(answer.markdown().contains("| 需要补充说明 | 22 |"));
+    assertTrue(answer.markdown().contains("| 当次被判为不支持 | 14 |"));
+    assertTrue(answer.markdown().contains("**需求分类数量 · 统计结果**"));
+    assertTrue(answer.markdown().contains("每行是统计结果，不是对象明细条数"));
+    assertTrue(answer.markdown().contains("统计时间范围：全部时间"));
+    assertTrue(!answer.markdown().contains("CLARIFY") && !answer.markdown().contains("OUT_OF_SCOPE"));
+    assertEquals(List.of(new Citation("q1", 0, "requestText"), new Citation("q4", 0, "category"), new Citation("q4", 0, "count"),
+        new Citation("q4", 1, "category"), new Citation("q4", 1, "count")), answer.citations());
+  }
+
+  @Test
+  void reviewKeepsRankingTruncationAndSelectedGroupCoverageExplicit() {
+    var results = new ArrayList<>(reviewResults());
+    results.add(metricResult(Map.of("dimensions", List.of("category"), "limit", 5), 5));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(excerpt(),
+        Map.of("kind", "records", "query", "q4", "fields", List.of("category", "count"), "rows", List.of(0))))))));
+    var answer = model.compose(new ComposeRequest("看排名", "当前对象", results, List.of(), 1000), ignored -> {});
+    assertTrue(answer.markdown().contains("返回的 2 行中的 1 行"));
+    assertTrue(answer.markdown().contains("排名范围：前 5 组"));
+    assertTrue(answer.markdown().contains("另有 3 行未提供"));
+    assertTrue(!answer.markdown().contains("共 22") && !answer.markdown().contains("2 条记录"));
+  }
+
+  @Test
+  void reviewCannotCountMetricGroupsAsObjectsOrDisplayIdentifiersAndUnmappedCodes() {
+    var results = new ArrayList<>(reviewResults());
+    var metric = new java.util.LinkedHashMap<>(metricResult(Map.of(), 2));
+    metric.put("columns", List.of(Map.of("key", "category", "label", "分类", "identifier", true, "valueLabels", Map.of("CLARIFY", "需要补充说明")),
+        Map.of("key", "count", "label", "处理记录数"), Map.of("key", "raw", "label", "未知分类")));
+    metric.put("rows", List.of(Map.of("category", "CLARIFY", "count", 22, "raw", "internal-code")));results.add(metric);
+    for (var section : List.of(
+        Map.of("kind", "counts", "query", "q4", "fields", List.of("count")),
+        Map.of("kind", "records", "query", "q4", "fields", List.of("category", "count"), "rows", List.of(0)),
+        Map.of("kind", "records", "query", "q4", "fields", List.of("raw", "count"), "rows", List.of(0)))) {
+      when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(excerpt(), section))))));
+      assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+          () -> model.compose(new ComposeRequest("回看", "当前对象", results, List.of(), 1000), ignored -> {})).code());
+    }
+  }
+
+  private static Map<String, Object> metricResult(Map<String, Object> intent, int totalRows) {
+    return Map.of("id", "q4", "label", "需求分类数量", "intent", intent, "range", "全部时间", "totalRows", totalRows,
+        "columns", List.of(Map.of("key", "category", "label", "系统识别的诉求", "identifier", false,
+            "valueLabels", Map.of("CLARIFY", "需要补充说明", "OUT_OF_SCOPE", "当次被判为不支持")),
+            Map.of("key", "count", "label", "处理记录数")),
+        "rows", List.of(Map.of("category", "CLARIFY", "count", 22), Map.of("category", "OUT_OF_SCOPE", "count", 14)));
+  }
+
+  @Test
   void ordinaryObjectPropertiesKeepTheirExistingAnswerWithoutBeingMistakenForSourceText() {
     var type = new ObjectTypeView("component", "组件", List.of(
         new PropertyView("name", "名称", Type.STRING, false, true, true, Map.of()),
