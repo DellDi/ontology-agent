@@ -28,6 +28,11 @@ cubes:
         type: "string"
         primary_key: true
         public: true
+      - name: "pageTitle"
+        title: "大屏标题"
+        description: "源原型只有一页时的页面标题；多页需读取页面与主视觉详情"
+        sql: "CASE WHEN jsonb_array_length({CUBE}.page_semantics)=1 THEN {CUBE}.page_semantics->0->>'title' END"
+        type: "string"
       - name: "parseStatus"
         title: "解析状态"
         description: "ok / invalid_xml / invalid_json / inconsistent；非 ok 的原型没有区域、组件与签名"

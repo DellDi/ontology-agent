@@ -19,12 +19,16 @@ class EasyVRenderBlocksPresentationTest {
       var block = render(query(LAYOUT, List.of(dimension), List.of("count"), 3, null,
           List.of(Map.of(dimension, "opaque-a", "count", 3), Map.of(dimension, "opaque-b", "count", 1))), null);
       assertEquals("table", block.get("type"));
-      assertTrue(block.get("presentationReason").toString().contains("标识符"));
+      assertTrue(block.get("presentationReason").toString().contains("数据标识"));
+      assertEquals(List.of(0), block.get("identifierColumns"));
+      assertEquals("table", render(query(LAYOUT, List.of(dimension), List.of("count"), 3, null,
+          List.of(Map.of(dimension, "opaque-a", "count", 3), Map.of(dimension, "opaque-b", "count", 1))), "bar").get("type"));
       var bindings = (List<?>) block.get("drilldowns");
       var first = (EasyVResultDrilldown.Binding) bindings.getFirst();
       assertEquals(1, first.column());
       assertEquals(List.of(new QueryIntent.Filter(dimension, QueryIntent.Operator.EQUALS, List.of("opaque-a"))), first.filters());
       assertEquals("set-old", block.get("datasetVersionSetId"));
+      assertFalse(first.scopeDescription().contains("opaque-a"));
     }
   }
 

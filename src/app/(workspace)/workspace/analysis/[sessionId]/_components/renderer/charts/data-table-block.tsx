@@ -70,6 +70,9 @@ function formatCellValue(text: string): string {
 
 export function DataTableBlock({ block, className, flat = false, drilldown }: DataTableBlockProps) {
   const { columns, rows } = extractTableData(block);
+  const identifierColumns = new Set(
+    Array.isArray(block.payload.identifierColumns) ? block.payload.identifierColumns : [],
+  );
   const title =
     typeof block.title === 'string' && block.title.trim().length > 0
       ? block.title
@@ -169,7 +172,12 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
                         'break-words whitespace-pre-wrap',
                       )}
                     >
-                      {drilldown?.has(rowIndex, cellIndex) ? <button type="button"
+                      {identifierColumns.has(cellIndex) ? (
+                        <details className="text-xs text-muted-foreground">
+                          <summary className="cursor-pointer">数据出处</summary>
+                          <span className="mt-2 block break-all font-mono">{displayValue}</span>
+                        </details>
+                      ) : drilldown?.has(rowIndex, cellIndex) ? <button type="button"
                         aria-label={`查看第 ${rowIndex + 1} 行${columns[cellIndex]}的支撑对象`}
                         onClick={() => drilldown.open(rowIndex, cellIndex)}
                         className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

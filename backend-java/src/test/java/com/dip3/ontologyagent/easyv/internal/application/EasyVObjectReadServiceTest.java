@@ -69,6 +69,25 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void prototypePagePresentationUsesAuthorizedSourceWithoutChangingTheFrozenRow() {
+    String source = "[{\"pageId\":\"internal-page\",\"title\":\"订单经营大屏\",\"contents\":[{\"id\":\"internal-main\",\"title\":\"区域销售\",\"description\":\"比较区域规模\",\"metrics\":[]}]}]";
+    var original = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(LAYOUT, "app-1", "layouts-old"),
+        Map.of("pageTitle", "订单经营大屏", "pageSemantics", source, "parseStatus", "ok"));
+    when(objects.require(eq(LAYOUT), eq("app-1"), any())).thenReturn(original);
+    var result = service.read("session", admin, request("app-1", null, "set-old"));
+    assertEquals(original, result.page().rows().getFirst());
+    var presentation = result.propertyPresentations().get("pageSemantics");
+    assertTrue(presentation.items().stream().anyMatch(item -> item.value().equals("区域销售")));
+    assertFalse(presentation.items().toString().contains("internal-"));
+    assertTrue(presentation.notice().contains("设计文案"));
+    assertEquals(source, result.page().rows().getFirst().properties().get("pageSemantics"));
+    when(objects.require(eq(LAYOUT), eq("app-1"), any())).thenReturn(new ObjectQueryPort.Row(original.reference(), Map.of("pageSemantics", "[{")));
+    var invalid = service.read("session", admin, request("app-1", null, "set-old"));
+    assertTrue(invalid.propertyPresentations().get("pageSemantics").items().isEmpty());
+    assertTrue(invalid.propertyPresentations().get("pageSemantics").notice().contains("格式无法识别"));
+  }
+
+  @Test
   void understandingDetailReusesBusinessPresentationAndRetainsExactSources() {
     String key = "easyv-quality-node";
     String themes = """

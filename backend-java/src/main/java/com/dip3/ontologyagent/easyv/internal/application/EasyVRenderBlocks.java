@@ -79,6 +79,9 @@ final class EasyVRenderBlocks {
     if (!compareRows.isEmpty()) return table(query, role, "当前期与对比期分别列出，保留实际分组与数值。", model);
     boolean trend = time != null && dimensions.isEmpty();
     boolean categories = time == null && dimensions.size() == 1;
+    if (categories && model.resolve(query.compiled().objectKey(), dimensions.getFirst().key()).property().identifier()) {
+      return table(query, role, "按同一数据标识分组；可点击数量查看对象，标识值在数据出处中核对。", model);
+    }
     if ((!trend && !categories) || measures.isEmpty()) {
       return table(query, role, "多维结果或无数值指标，使用表格保留明细。", model);
     }
@@ -91,9 +94,6 @@ final class EasyVRenderBlocks {
     if (viz == null) {
       if (categories && measures.size() != 1) return table(query, role, "多个指标使用表格分别呈现，避免混用刻度。", model);
       if (rows.size() < 2) return table(query, role, "仅有一个分组或时间点，使用明细呈现。", model);
-      if (categories && model.resolve(query.compiled().objectKey(), axis.key()).property().identifier()) {
-        return table(query, role, "分组字段是标识符，使用表格便于识别和查看对应对象。", model);
-      }
       if (categories && constant(measures, rows)) {
         return table(query, role, "已返回分组的数值没有差异，使用明细便于查看对象。", model);
       }
@@ -189,8 +189,18 @@ final class EasyVRenderBlocks {
     int returned = rows.size() + (comparing ? compareRows.size() : 0);
     String preview = returned > cells.size()
         ? " 本查询返回 " + returned + " 个结果行，当前预览 " + cells.size() + " 行；结果行数不是全量对象数。" : "";
-    return Map.of("type", "table", "title", query.label(), "role", role, "presentationReason", reason + preview,
-        "columns", List.copyOf(labels), "rows", List.copyOf(cells));
+    Map<String, Object> table = new LinkedHashMap<>(Map.of("type", "table", "title", query.label(), "role", role,
+        "presentationReason", reason + preview, "columns", List.copyOf(labels), "rows", List.copyOf(cells)));
+    List<Integer> identifiers = new ArrayList<>();
+    for (int index = 0; index < columns.size(); index++) {
+      var column = columns.get(index);
+      if (column.kind() == ColumnKind.DIMENSION
+          && model.resolve(query.compiled().objectKey(), column.key()).property().identifier()) {
+        identifiers.add(index + (comparing ? 1 : 0));
+      }
+    }
+    if (!identifiers.isEmpty()) table.put("identifierColumns", List.copyOf(identifiers));
+    return table;
   }
 
   private static String text(Object value) {

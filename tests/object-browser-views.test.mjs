@@ -86,6 +86,20 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
     themes: { items: [], notice: '格式无法识别，未生成业务解释；请展开源记录核对。' },
   });
   out.invalidUnderstanding = render('easyv-quality-node');
+  for (const [key, titleField, title] of [
+    ['easyv-prototype-layout', 'screenHeadingFromDomain', '订单经营大屏'],
+    ['easyv-prototype-block', 'moduleHeadingFromDomain', '销售概览'],
+    ['easyv-prototype-component', 'metricHeadingFromDomain', '月度收入'],
+  ]) {
+    client.clear();
+    const row = { reference: { objectKey: key, objectId: 'private-object', productVersionId: 'private-version' },
+      properties: { appId: 'app-1', blockId: 'private-block', chartFamily: 'line', [titleField]: title } };
+    const type = { key, label: '原型对象', links: [], properties: [
+      { key: titleField, label: '源业务名称', type: 'STRING', title: true },
+      { key: 'appId', label: '应用 ID', type: 'STRING', identifier: true }] };
+    seed({ objectKey: key, filters: [], limit: 20, offset: 0 }, type, row);
+    out[key] = render(key);
+  }
   client.clear(); out.pending = render('easyv-ai-application');
   const declared = application([]).properties;
   const controlsHtml = (state, maxFilters = 5) => renderToStaticMarkup(React.createElement(collection.ObjectCollectionControls,
@@ -179,4 +193,13 @@ test('对象浏览 | 质量记录以中文诉求和原话展示，技术身份�
   assert.doesNotMatch(main, />ChatExecution<|>OUT_OF_SCOPE<|>SUCCESS</);
   assert.match(html, /<details[^>]*><summary[^>]*>数据出处与版本/);
   assert.match(html, /task-secret-trace/);
+});
+
+
+test('原型列表 | 三类对象共用本体标题，不按前端字段名猜业务含义', () => {
+  for (const [key, title] of [['easyv-prototype-layout', '订单经营大屏'], ['easyv-prototype-block', '销售概览'], ['easyv-prototype-component', '月度收入']]) {
+    assert.match(rendered[key], new RegExp(title));
+    const main = rendered[key].split('数据出处与版本')[0];
+    assert.doesNotMatch(main.replace(/<[^>]*>/g, ''), /private-object|private-version/);
+  }
 });

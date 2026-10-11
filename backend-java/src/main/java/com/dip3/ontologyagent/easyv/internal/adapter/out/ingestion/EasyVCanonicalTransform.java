@@ -182,14 +182,15 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                     ok ? parsed.blocks().size() : null, ok ? parsed.componentCount() : null,
                     parsed.layoutSignature(), parsed.schemeSignature(), parsed.countSignature(),
                     parsed.chartSignature(), createdAt, values.instant(row, "update_time"),
-                    ok ? json.write(parsed.layoutStructure()) : null));
+                    ok ? json.write(parsed.layoutStructure()) : null, ok ? json.write(parsed.pages()) : null));
             case PROTOTYPE_BLOCK -> {
                 for (Block block : parsed.blocks()) {
                     result.add(joined(prefix, sourceId, appId, block.blockId(), block.containerTag(),
                             block.containerId(), block.gridDirection(), block.blockTypeId(),
                             block.blockSize(), block.span(), block.weight(), block.schemeId(),
                             block.components().size(), createdAt, block.metricBindingStatus(),
-                            block.metricBindings() == null ? null : json.write(block.metricBindings()), block.titlePresent()));
+                            block.metricBindings() == null ? null : json.write(block.metricBindings()), block.titlePresent(), block.pageId(), block.pageTitle(),
+                            block.title(), block.businessModule(), block.moduleDescription(), block.interactionDescription()));
                 }
             }
             case PROTOTYPE_COMPONENT -> {
@@ -199,7 +200,8 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                                 component.componentId(), component.chartFamily(),
                                 component.libraryComponentId(), component.sceneType(),
                                 component.sourceType(), component.gridCol(), component.gridRow(),
-                                component.gridColSpan(), component.gridRowSpan(), createdAt, json.write(component.geometry())));
+                                component.gridColSpan(), component.gridRowSpan(), createdAt, json.write(component.geometry()), component.semantics().name(), component.semantics().description(),
+                                component.semantics().insight(), component.semantics().unit(), component.semantics().aggregationRule()));
                     }
                 }
             }
@@ -326,28 +328,28 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                 values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """),
         PROTOTYPE_LAYOUT("easyv-prototype-layout", "easyv-prototype-task", "easyv_prototype_layout",
-                "easyv-prototype-layout-v2", """
+                "easyv-prototype-layout-v3", """
                 insert into facts.easyv_prototype_layout
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    app_id,parse_status,parse_error_code,parse_error_detail,layout_type,block_count,
                    component_count,layout_signature,scheme_signature,count_signature,chart_signature,
-                   created_at,updated_at,layout_structure) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb)
+                   created_at,updated_at,layout_structure,page_semantics) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?::jsonb)
                 """),
         PROTOTYPE_BLOCK("easyv-prototype-block", "easyv-prototype-task", "easyv_prototype_block",
-                "easyv-prototype-block-v3", """
+                "easyv-prototype-block-v4", """
                 insert into facts.easyv_prototype_block
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    app_id,block_id,container_tag,container_id,grid_direction,block_type_id,block_size,
-                   span,weight,scheme_id,component_count,created_at,metric_binding_status,metric_bindings,title_present)
-                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?)
+                   span,weight,scheme_id,component_count,created_at,metric_binding_status,metric_bindings,title_present,page_id,page_title,block_title,business_module,module_description,interaction_description)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?)
                 """),
         PROTOTYPE_COMPONENT("easyv-prototype-component", "easyv-prototype-task",
-                "easyv_prototype_component", "easyv-prototype-component-v2", """
+                "easyv_prototype_component", "easyv-prototype-component-v3", """
                 insert into facts.easyv_prototype_component
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    app_id,block_id,component_id,chart_family,library_component_id,scene_type,
-                   source_type,grid_col,grid_row,grid_col_span,grid_row_span,created_at,geometry)
-                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb)
+                   source_type,grid_col,grid_row,grid_col_span,grid_row_span,created_at,geometry,metric_name,metric_description,metric_insight,metric_unit,aggregation_rule)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?)
                 """);
 
         private final String productKey;

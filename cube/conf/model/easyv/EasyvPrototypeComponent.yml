@@ -25,6 +25,16 @@ cubes:
         type: "string"
         primary_key: true
         public: true
+      - name: "metricName"
+        title: "指标名称"
+        description: "源组件中的指标名称，不代表指标已核实"
+        sql: "{CUBE}.metric_name"
+        type: "string"
+      - name: "metricUnit"
+        title: "指标单位"
+        description: "通过明确且唯一的指标绑定读取；未保存或绑定不明确时为空"
+        sql: "{CUBE}.metric_unit"
+        type: "string"
       - name: "appId"
         title: "应用 ID"
         description: "组件所属应用"

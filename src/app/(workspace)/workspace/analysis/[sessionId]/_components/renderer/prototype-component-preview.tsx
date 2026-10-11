@@ -64,9 +64,9 @@ export function ComponentGlyph({ family, metricStyle = 'number', className }: { 
   </svg>;
 }
 
-export function PrototypeComponentPreview({ rows, geometry, metricStyle = 'number', selected, onSelect, thumbnail = false }: {
+export function PrototypeComponentPreview({ rows, geometry, metricStyle = 'number', selected, onSelect, thumbnail = false, getLabel }: {
   rows: Row[]; geometry?: Record<string, PrototypeComponentGeometry>; metricStyle?: MetricPreviewStyle;
-  selected?: string; onSelect?: (row: Row) => void; thumbnail?: boolean;
+  selected?: string; onSelect?: (row: Row) => void; thumbnail?: boolean; getLabel?: (row: Row) => string;
 }) {
   const { items, diagnostics } = projectPrototypeComponents(rows, geometry);
   const unsupported = [...new Set(rows.map((row) => row.properties.chartFamily).filter((family) => !Object.hasOwn(charts, String(family))))];
@@ -79,8 +79,9 @@ export function PrototypeComponentPreview({ rows, geometry, metricStyle = 'numbe
         </span>;
         const style = { left: `${item.x}%`, top: `${item.y}%`, width: `${item.width}%`, height: `${item.height}%` };
         const row = rows.find((candidate) => candidate.reference.objectId === item.objectId)!;
-        return onSelect ? <button key={item.objectId} type="button" aria-label={`选择组件 ${row.properties.componentId ?? item.objectId}`} aria-pressed={selected === item.objectId}
-          title={`${chartPlaceholder(item.chartFamily).label} · ${row.properties.componentId ?? item.objectId}`} onClick={() => onSelect(row)}
+        const componentLabel = getLabel?.(row) ?? chartPlaceholder(item.chartFamily).label;
+        return onSelect ? <button key={item.objectId} type="button" aria-label={`选择组件 ${componentLabel}`} aria-pressed={selected === item.objectId}
+          title={componentLabel} onClick={() => onSelect(row)}
           className="absolute p-0.5 hover:brightness-95 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" style={style}>{content}</button>
           : <span key={item.objectId} className="absolute p-px" style={style}>{content}</span>;
       })}
