@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.adapter.out.ingestion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -129,7 +130,7 @@ class EasyVPrototypeStructureIngestionTest {
         select layout_structure #>> '{children,0,children,0,children,0,children,1,attributes,id}'
         from facts.easyv_prototype_layout where app_id='app-1'
         """, String.class));
-    assertEquals(2, jdbc.queryForObject(
+    assertEquals(3, jdbc.queryForObject(
         "select schema_version from ingestion.data_product_versions where id=?", Integer.class,
         versions.get("easyv-prototype-layout")));
     assertEquals(0L, jdbc.queryForObject("""
@@ -160,10 +161,66 @@ class EasyVPrototypeStructureIngestionTest {
     assertEquals(0L, jdbc.queryForObject("""
         select count(*) from information_schema.columns where table_schema='facts'
           and table_name like 'easyv_prototype_%'
-          and column_name in ('title','name','description','desc','metric_name','files')
-        """, Long.class), "facts 不应有自由文本列");
+          and column_name in ('files','source_columns','config','raw_json')
+        """, Long.class), "facts 不保留任意配置、文件与源列");
     assertThrows(DataAccessException.class, () -> jdbc.update(
         "update facts.easyv_prototype_block set scheme_id='changed'"));
+  }
+
+  @Test
+  void businessSemanticsAreFrozenWhitelistedAndReadThroughTheExistingOntology() {
+    Map<String, Object> value = new LinkedHashMap<>(validJson("4"));
+    var page = new LinkedHashMap<>((Map<String, Object>) value.get("page-1"));
+    value.put("page-1", page);
+    page.put("title", "订单经营大屏");
+    page.put("contents", List.of(Map.of("id", "main", "title", "区域销售", "desc", "比较区域销售规模", "fileName", "不保存")));
+    var blocks = (Map<String, Object>) page.get("blocks");
+    var left = new LinkedHashMap<>((Map<String, Object>) blocks.get("page-1__left_1"));
+    left.put("title", "销售概览");
+    left.put("businessModule", "经营总览");
+    left.put("moduleDescription", "查看收入规模和趋势");
+    left.put("boundMetricIds", List.of("revenue"));
+    left.put("boundMetrics", List.of(Map.of("metricId", "revenue", "unit", "万元", "aggregationRule", "销售金额求和")));
+    var component = new LinkedHashMap<>((Map<String, Object>) ((List<?>) left.get("components")).getFirst());
+    component.put("metricName", "月度收入");
+    component.put("desc", "按订单月份汇总收入");
+    component.put("insight", "关注连续回落");
+    left.put("components", List.of(component));
+    blocks.put("page-1__left_1", left);
+    var first = materializeAll(publish("business-semantics", rows(value)), "business-semantics");
+    first.put("easyv-ai-application", applicationVersion("business-semantics", false));
+    var reader = new PostgresObjectQueryAdapter(jdbc, SemanticModel.discover());
+    var access = new SemanticQueryPort.AccessContext(first, SemanticQueryPort.Scope.restricted(Map.of("userId", List.of("16"))));
+    var layout = reader.require(PRODUCTS.getFirst(), "app-1", access);
+    assertEquals("订单经营大屏", layout.properties().get("pageTitle"));
+    assertTrue(layout.properties().get("pageSemantics").toString().contains("区域销售"));
+    assertFalse(layout.properties().get("pageSemantics").toString().contains("不保存"));
+    var block = reader.related(PRODUCTS.getFirst(), "app-1", "blocks",
+        new ObjectQueryPort.Query(PRODUCTS.get(1), List.of(new QueryIntent.Filter("blockTitle", QueryIntent.Operator.EQUALS, List.of("销售概览"))), List.of(), 20, 0), access).rows().getFirst();
+    assertEquals("订单经营大屏", block.properties().get("pageTitle"));
+    assertFalse(block.properties().containsKey("moduleDescription"), "正文不进入列表");
+    var detail = reader.require(PRODUCTS.get(1), block.reference().objectId(), access);
+    assertEquals("查看收入规模和趋势", detail.properties().get("moduleDescription"));
+    var chart = reader.related(PRODUCTS.get(1), block.reference().objectId(), "components",
+        new ObjectQueryPort.Query(PRODUCTS.get(2), List.of(), List.of(), 20, 0), access).rows().getFirst();
+    assertEquals("月度收入", chart.properties().get("metricName"));
+    assertEquals("万元", chart.properties().get("metricUnit"));
+    assertFalse(chart.properties().containsKey("metricDescription"));
+    var chartDetail = reader.require(PRODUCTS.get(2), chart.reference().objectId(), access);
+    assertEquals("按订单月份汇总收入", chartDetail.properties().get("metricDescription"));
+    assertEquals("销售金额求和", chartDetail.properties().get("aggregationRule"));
+    left.put("moduleDescription", "查看销售目标的完成情况");
+    component.put("desc", "按结算月份汇总收入");
+    page.put("title", "销售目标大屏");
+    var newer = materializeAll(publish("business-semantics-new", rows(value)), "business-semantics-new");
+    for (String product : PRODUCTS) assertNotEquals(contentHash(first.get(product)), contentHash(newer.get(product)));
+    for (String signature : List.of("layout_signature", "scheme_signature", "count_signature", "chart_signature")) {
+      assertEquals(signatureOf(first.get(PRODUCTS.getFirst()), signature), signatureOf(newer.get(PRODUCTS.getFirst()), signature));
+    }
+    assertEquals(layout, reader.require(PRODUCTS.getFirst(), "app-1", access), "旧冻结语义保持不变");
+    assertEquals(chartDetail, reader.require(PRODUCTS.get(2), chart.reference().objectId(), access));
+    assertThrows(BackendException.class, () -> reader.require(PRODUCTS.get(2), chart.reference().objectId(),
+        new SemanticQueryPort.AccessContext(first, SemanticQueryPort.Scope.restricted(Map.of("userId", List.of("999"))))));
   }
 
   @Test
@@ -188,7 +245,7 @@ class EasyVPrototypeStructureIngestionTest {
     var bindings = new JsonCodec().list(jdbc.queryForObject(bindingsSql, String.class, first.get(PRODUCTS.get(1))));
     assertEquals(List.of(Map.of("slotIndex", 0, "componentId", "c1", "metricId", "metric-a",
         "chartFamily", "line", "sceneType", "总览指标", "sourceType", "AI")), bindings);
-    assertEquals(3, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",
+    assertEquals(4, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",
         Integer.class, first.get(PRODUCTS.get(1))));
     left.put("boundMetricIds", List.of("metric-b"));
     var changed = materializeAll(publish("binding-changed", rows(bound)), "binding-changed");
@@ -235,7 +292,7 @@ class EasyVPrototypeStructureIngestionTest {
     assertEquals(originalGeometry, structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of(objectId)));
     assertTrue(structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of("not-authorized")).isEmpty());
     assertTrue(structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of()).isEmpty());
-    assertEquals(2,jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",Integer.class,changed.get(PRODUCTS.get(2))));
+    assertEquals(3,jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",Integer.class,changed.get(PRODUCTS.get(2))));
     var viewer=new com.dip3.ontologyagent.auth.AuthSession("test","1","用户",new com.dip3.ontologyagent.auth.AccessScope("org",List.of(),List.of(),List.of("PLATFORM_ADMIN")),java.time.Instant.MAX);
     reader.audit("assessment-evidence","session-test",viewer,Map.of("input",original,"ruleVersion","easyv-adaptation-v1"));
     assertEquals("easyv-adaptation-v1",jdbc.queryForObject("select payload->>'ruleVersion' from platform.audit_events where id='assessment-evidence'",String.class));

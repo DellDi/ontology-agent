@@ -65,7 +65,10 @@ final class EasyVResultDrilldown {
         if (text != null && (text.isBlank() || text.length() > 500)) { valid = false; break; }
         filters.add(new QueryIntent.Filter(dimension.key(), value == null ? QueryIntent.Operator.NOT_SET : QueryIntent.Operator.EQUALS,
             value == null ? List.of() : List.of(text)));
-        groups.add(dimension.label() + "：" + (value == null ? "未提供" : text));
+        var property = object.findProperty(dimension.key()).orElseThrow();
+        groups.add(property.identifier() ? "按" + dimension.label() + "分组"
+            : dimension.label() + "：" + (value == null ? "未提供"
+                : property.valueLabels().getOrDefault(text, text)));
       }
       if (!valid || filters.size() > 10) continue;
       int column;

@@ -90,6 +90,7 @@ export type ExecutionTableBlock = ExecutionStatisticContext & {
   columns: string[];
   rows: string[][];
   presentationReason?: string;
+  identifierColumns?: number[];
   role?: ExecutionRenderBlockRole;
 };
 
@@ -712,6 +713,13 @@ function validateRenderBlock(
         ),
       };
     case 'table':
+      if (candidate.identifierColumns !== undefined && (!Array.isArray(candidate.identifierColumns)
+          || candidate.identifierColumns.length === 0
+          || new Set(candidate.identifierColumns).size !== candidate.identifierColumns.length
+          || candidate.identifierColumns.some((index) => !Number.isInteger(index) || index < 0
+            || !Array.isArray(candidate.columns) || index >= candidate.columns.length))) {
+        throw new InvalidAnalysisExecutionStreamEventError('table.identifierColumns 必须是有效且不重复的列坐标。');
+      }
       if (!isStringArray(candidate.columns)) {
         throw new InvalidAnalysisExecutionStreamEventError(
           'table.columns 必须是字符串数组。',
@@ -731,6 +739,7 @@ function validateRenderBlock(
         columns: candidate.columns,
         rows: candidate.rows,
         presentationReason: assertOptionalString(candidate.presentationReason, 'table.presentationReason'),
+        identifierColumns: candidate.identifierColumns as number[] | undefined,
       };
     case 'chart':
       return validateChartBlock(candidate);

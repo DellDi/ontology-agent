@@ -56,6 +56,7 @@ test('精确下钻 | 缺版本、坏坐标和未知对象类型被拒绝', () =>
 
 test('动态呈现 | 表格说明与精确下钻在实时和历史投影保持一致', () => {
   const block = { type: 'table', title: '版式分组', columns: ['版式签名', '原型数'], rows: [['hash-a', '1']],
+    identifierColumns: [0],
     presentationReason: '已返回分组没有数值差异，使用明细便于查看对象。',
     ...context, drilldowns: [{ ...binding, column: 1 }] };
   const validated = validateAnalysisExecutionStreamEvent(event(block)).renderBlocks[0];
@@ -63,9 +64,33 @@ test('动态呈现 | 表格说明与精确下钻在实时和历史投影保持�
   const live = normalizeExecutionRenderBlock(validated, source);
   const saved = normalizeExecutionRenderBlock(JSON.parse(JSON.stringify(block)), source);
   assert.equal(live.payload.presentationReason, block.presentationReason);
+  assert.deepEqual(live.payload.identifierColumns, [0]);
   assert.deepEqual(live.payload, saved.payload);
   const invalid = { ...block, presentationReason: { reason: 'bad' } };
   assert.throws(() => validateAnalysisExecutionStreamEvent(event(invalid)));
+  for (const identifierColumns of [[], [-1], [2], [0, 0], ['0']]) {
+    assert.throws(() => validateAnalysisExecutionStreamEvent(event({ ...block, identifierColumns })));
+  }
+});
+
+test('统计表 | 标识值默认折叠，业务文字和数量保留，数量下钻坐标不变', () => {
+  const result = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import table from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/charts/data-table-block.tsx';
+    const html = renderToStaticMarkup(React.createElement(table.DataTableBlock, {
+      block: { kind: 'table', source: { sourceType: 'execution-render-block' },
+        payload: { columns: ['数据分组', '业务名称', '数量'], rows: [['opaque-hash', '经营概览', '7']], identifierColumns: [0] } },
+      drilldown: { has: (row, col) => row === 0 && col === 2, open: () => {} }
+    }));
+    console.log(JSON.stringify(html));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
+  const html = JSON.parse(result);
+  assert.match(html, /<details[^>]*><summary[^>]*>数据出处<\/summary><span[^>]*>opaque-hash<\/span><\/details>/);
+  assert.doesNotMatch(html, /<details[^>]*open/);
+  assert.match(html, /经营概览/);
+  assert.match(html, /查看第 1 行数量的支撑对象/);
+  assert.match(html, /7<span/);
 });
 
 test('动态呈现 | 前端按正式图表类型分派，饼图不会被当作柱图，非法占比数据被拒绝', () => {

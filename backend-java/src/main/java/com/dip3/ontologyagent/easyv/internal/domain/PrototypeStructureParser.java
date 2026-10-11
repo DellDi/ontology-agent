@@ -27,7 +27,7 @@ import org.xml.sax.InputSource;
 /**
  * 原型结构解析：布局 XML 提供版式骨架，原型 JSON 提供方案与图表组件。
  *
- * <p>只提取结构化事实（标识、类别、几何、计数），标题、描述、指标名称等自由文本一律不进入结果。
+ * <p>保留结构事实和源导出明确提供的页面、模块、指标语义；不读取任意配置或推断业务含义。
  * 解析失败不抛出，而是返回带状态与可定位错误码的结果，使无效结构在事实层可见、可统计，
  * 不被静默丢弃，也不被兜底成空结构。
  */
@@ -60,16 +60,23 @@ public final class PrototypeStructureParser {
   public record Component(
       String componentId, String chartFamily, String libraryComponentId, String sceneType,
       String sourceType, Integer gridCol, Integer gridRow, Integer gridColSpan, Integer gridRowSpan,
-      PrototypeComponentGeometry.Parsed geometry) {}
+      PrototypeComponentGeometry.Parsed geometry, MetricSemantics semantics) {}
 
-  /** Export 将 components 与 boundMetricIds 按 slotIndex 排序后同序输出；不保留指标自由文本。 */
+  /** Export 将 components 与 boundMetricIds 按 slotIndex 排序后同序输出；绑定引用与业务文案分开保留。 */
   public record MetricBinding(int slotIndex, String componentId, String metricId,
       String chartFamily, String sceneType, String sourceType) {}
+
+  public record MetricSemantics(String name, String description, String insight, String unit, String aggregationRule) {}
+
+  public record MainMetric(String id, String name, String description, String sceneType, String sourceType) {}
+  public record MainContent(String id, String title, String description, List<MainMetric> metrics) {}
+  public record PageSemantics(String pageId, String title, List<MainContent> contents) {}
 
   public record Block(
       String blockId, String containerTag, String containerId, String gridDirection,
       String blockTypeId, String blockSize, String span, Integer weight, String schemeId,
-      List<Component> components, String metricBindingStatus, List<MetricBinding> metricBindings, Boolean titlePresent) {}
+      List<Component> components, String metricBindingStatus, List<MetricBinding> metricBindings, Boolean titlePresent, String pageId, String pageTitle,
+      String title, String businessModule, String moduleDescription, String interactionDescription) {}
 
   /** 画布所需的源结构；子节点顺序决定布局，不保留名称、描述或其他自由文本。 */
   public record LayoutNode(String tag, Map<String, String> attributes, List<LayoutNode> children) {}
@@ -77,7 +84,7 @@ public final class PrototypeStructureParser {
   public record Parsed(
       Status status, String errorCode, String errorDetail, String layoutType, List<Block> blocks,
       String layoutSignature, String schemeSignature, String countSignature, String chartSignature,
-      LayoutNode layoutStructure) {
+      LayoutNode layoutStructure, List<PageSemantics> pages) {
     public int componentCount() {
       return blocks.stream().mapToInt(block -> block.components().size()).sum();
     }
@@ -103,6 +110,10 @@ public final class PrototypeStructureParser {
       return failed(Status.INVALID_JSON, failure.code, failure.getMessage(), layoutType);
     }
 
+    List<PageSemantics> pages;
+    try { pages = pageSemantics((Map<?, ?>) prototypeJson); }
+    catch (ParseFailure failure) { return failed(Status.INVALID_JSON, failure.code, failure.getMessage(), layoutType); }
+
     List<Block> blocks = new ArrayList<>();
     Set<String> seenComponents = new HashSet<>();
     Set<String> xmlIds = new LinkedHashSet<>();
@@ -122,7 +133,10 @@ public final class PrototypeStructureParser {
     try {
       for (Element element : xmlBlocks) {
         String id = element.getAttribute("id");
-        blocks.add(block(element, id, jsonBlocks.get(id), seenComponents));
+        PageSemantics page = pages.stream().filter(candidate ->
+            ((Map<?, ?>) ((Map<?, ?>) prototypeJson).get(candidate.pageId())).get("blocks") instanceof Map<?, ?> entries
+                && entries.containsKey(id)).findFirst().orElseThrow();
+        blocks.add(block(element, id, jsonBlocks.get(id), seenComponents, page));
       }
     } catch (ParseFailure failure) {
       Status status = failure.code.startsWith("XML_") ? Status.INVALID_XML : Status.INVALID_JSON;
@@ -135,7 +149,7 @@ public final class PrototypeStructureParser {
     String chartCanon = countCanon + "#" + lines(blocks, block -> position(block.blockId()) + "="
         + block.components().stream().map(Component::chartFamily).sorted().collect(Collectors.joining(",")));
     return new Parsed(Status.OK, null, null, layoutType, List.copyOf(blocks),
-        sha256(layoutCanon), sha256(schemeCanon), sha256(countCanon), sha256(chartCanon), layoutNode(root));
+        sha256(layoutCanon), sha256(schemeCanon), sha256(countCanon), sha256(chartCanon), layoutNode(root), pages);
   }
 
   private static LayoutNode layoutNode(Element element) {
@@ -153,7 +167,7 @@ public final class PrototypeStructureParser {
   }
 
   private static Parsed failed(Status status, String code, String detail, String layoutType) {
-    return new Parsed(status, code, truncate(detail), layoutType, List.of(), null, null, null, null, null);
+    return new Parsed(status, code, truncate(detail), layoutType, List.of(), null, null, null, null, null, List.of());
   }
 
   private static Element readXml(String xml) {
@@ -192,7 +206,7 @@ public final class PrototypeStructureParser {
     return merged;
   }
 
-  private static Block block(Element element, String id, Object jsonBlock, Set<String> seenComponents) {
+  private static Block block(Element element, String id, Object jsonBlock, Set<String> seenComponents, PageSemantics page) {
     if (!(jsonBlock instanceof Map<?, ?> content)) {
       throw new ParseFailure("BLOCK_INVALID", "区域内容不是对象: " + id);
     }
@@ -203,7 +217,10 @@ public final class PrototypeStructureParser {
       throw new ParseFailure("COMPONENT_INVALID", "components 不是数组: " + id);
     }
     if (rawComponents instanceof List<?> list) {
-      for (Object raw : list) components.add(component(id, raw, seenComponents));
+      for (int slot = 0; slot < list.size(); slot++) {
+        Map<?, ?> metric = boundMetric(content, slot, list.size());
+        components.add(component(id, list.get(slot), seenComponents, metric));
+      }
     }
     Object rawMetricIds = content.get("boundMetricIds");
     String bindingStatus = rawMetricIds == null ? "not_retained" : "invalid";
@@ -227,10 +244,12 @@ public final class PrototypeStructureParser {
         blankToNull(element.getAttribute("span")), weight(id, element.getAttribute("weight")),
         content.get("schemeId") == null ? null : String.valueOf(content.get("schemeId")),
         List.copyOf(components), bindingStatus, bindings, content.get("title") == null ? false
-            : content.get("title") instanceof String title ? !title.isBlank() : null);
+            : content.get("title") instanceof String title ? !title.isBlank() : null,
+        page.pageId(), page.title(), businessText(content, "title", id), businessText(content, "businessModule", id),
+        sourceText(content, "moduleDescription"), sourceText(content, "interactionDescription"));
   }
 
-  private static Component component(String blockId, Object raw, Set<String> seen) {
+  private static Component component(String blockId, Object raw, Set<String> seen, Map<?, ?> metric) {
     if (!(raw instanceof Map<?, ?> map)) throw new ParseFailure("COMPONENT_INVALID", "组件不是对象: " + blockId);
     String id = text(map.get("id"));
     String family = text(map.get("chartFamily"));
@@ -242,7 +261,99 @@ public final class PrototypeStructureParser {
         ? g : Map.of();
     return new Component(id, family, text(map.get("componentId")), text(map.get("sceneType")),
         text(map.get("sourceType")), integer(grid.get("col")), integer(grid.get("row")),
-        integer(grid.get("colSpan")), integer(grid.get("rowSpan")), PrototypeComponentGeometry.parse(map.get("config")));
+        integer(grid.get("colSpan")), integer(grid.get("rowSpan")), PrototypeComponentGeometry.parse(map.get("config")),
+        new MetricSemantics(sourceText(map, "metricName"), sourceText(map, "desc"), sourceText(map, "insight"),
+            sourceText(metric, "unit"), sourceText(metric, "aggregationRule")));
+  }
+
+  private static List<PageSemantics> pageSemantics(Map<?, ?> root) {
+    List<PageSemantics> pages = new ArrayList<>();
+    for (var entry : root.entrySet()) {
+      if (!(entry.getKey() instanceof String id) || !id.startsWith("page-")) continue;
+      if (!(entry.getValue() instanceof Map<?, ?> page)) throw new ParseFailure("PAGE_INVALID", "页面不是对象: " + id);
+      List<MainContent> contents = null;
+      if (page.get("contents") != null) {
+        if (!(page.get("contents") instanceof List<?> list)) throw new ParseFailure("MAIN_CONTENT_INVALID", "主视觉不是数组: " + id);
+        contents = new ArrayList<>();
+        for (Object raw : list) {
+          if (!(raw instanceof Map<?, ?> content)) throw new ParseFailure("MAIN_CONTENT_INVALID", "主视觉不是对象: " + id);
+          List<MainMetric> metrics = null;
+          if (content.get("metrics") != null) {
+            if (!(content.get("metrics") instanceof List<?> values)) throw new ParseFailure("MAIN_CONTENT_INVALID", "主视觉指标不是数组: " + id);
+            metrics = new ArrayList<>();
+            for (Object value : values) {
+              if (!(value instanceof Map<?, ?> metric)) throw new ParseFailure("MAIN_CONTENT_INVALID", "主视觉指标不是对象: " + id);
+              metrics.add(new MainMetric(sourceText(metric, "id"), sourceText(metric, "metricsName"),
+                  sourceText(metric, "desc"), sourceText(metric, "sceneType"), sourceText(metric, "sourceType")));
+            }
+            metrics = List.copyOf(metrics);
+          }
+          contents.add(new MainContent(sourceText(content, "id"), sourceText(content, "title"), sourceText(content, "desc"), metrics));
+        }
+        contents = List.copyOf(contents);
+      }
+      pages.add(new PageSemantics(id, sourceText(page, "title"), contents));
+    }
+    return List.copyOf(pages);
+  }
+
+  /** 只有同序 ID 与组件数量一致且完整指标 ID 唯一时才读取单位/口径，不以名称或距离猜绑定。 */
+  private static Map<?, ?> boundMetric(Map<?, ?> block, int slot, int count) {
+    if (!(block.get("boundMetricIds") instanceof List<?> ids) || ids.size() != count
+        || ids.stream().anyMatch(value -> !(value instanceof String id) || id.isBlank())
+        || !(block.get("boundMetrics") instanceof List<?> metrics)) return Map.of();
+    var matches = metrics.stream().filter(Map.class::isInstance).map(value -> (Map<?, ?>) value)
+        .filter(metric -> ids.get(slot).equals(metric.get("metricId"))).toList();
+    if (matches.size() > 1) throw new ParseFailure("METRIC_BINDING_AMBIGUOUS", "完整指标 ID 重复，不能确定组件绑定");
+    return matches.isEmpty() ? Map.of() : matches.getFirst();
+  }
+
+  private static String businessText(Map<?, ?> source, String key, String objectId) {
+    String value = sourceText(source, key);
+    return objectId.equals(value) ? null : value; // 上游 export 的 blockId 兜底不是业务名称。
+  }
+
+  private static String sourceText(Map<?, ?> source, String key) {
+    Object value = source.get(key);
+    if (value == null) return null;
+    if (!(value instanceof String text)) throw new ParseFailure("SEMANTIC_TEXT_INVALID", "业务文案不是文本: " + key);
+    return text.isBlank() ? null : text;
+  }
+
+  /** 详情复用已有文本呈现契约，主视觉和普通图表分开；原 JSON 仍可核对。 */
+  public static List<GenerationQualityEvidenceParser.DisplayItem> presentPages(String original) {
+    List<Map<String, Object>> pages;
+    try { pages = new com.dip3.ontologyagent.support.JsonCodec().list(original); }
+    catch (com.dip3.ontologyagent.support.BackendException error) { throw new IllegalArgumentException("页面文案不可读取", error); }
+    List<GenerationQualityEvidenceParser.DisplayItem> items = new ArrayList<>();
+    for (Map<String, Object> page : pages) {
+      items.add(new GenerationQualityEvidenceParser.DisplayItem("页面", Objects.requireNonNullElse(sourceText(page, "title"), "未记录页面标题")));
+      if (page.get("contents") == null) {
+        items.add(new GenerationQualityEvidenceParser.DisplayItem("主视觉", "此版本未记录主视觉内容"));
+      } else if (page.get("contents") instanceof List<?> contents) {
+        if (contents.isEmpty()) items.add(new GenerationQualityEvidenceParser.DisplayItem("主视觉", "源页面未配置主视觉内容"));
+        for (Object raw : contents) {
+          if (!(raw instanceof Map<?, ?> content)) throw new IllegalArgumentException("主视觉文案不是对象");
+          items.add(new GenerationQualityEvidenceParser.DisplayItem("主视觉", Objects.requireNonNullElse(sourceText(content, "title"), "未记录主视觉标题")));
+          addItem(items, content, "description", "主视觉说明");
+          if (content.get("metrics") instanceof List<?> metrics) {
+            for (Object value : metrics) {
+              if (!(value instanceof Map<?, ?> metric)) throw new IllegalArgumentException("主视觉指标不是对象");
+              items.add(new GenerationQualityEvidenceParser.DisplayItem("主视觉指标", Objects.requireNonNullElse(sourceText(metric, "name"), "未记录指标名称")));
+              addItem(items, metric, "description", "指标含义");
+              addItem(items, metric, "sceneType", "分析场景");
+              addItem(items, metric, "sourceType", "源记录的来源类型");
+            }
+          } else if (content.get("metrics") != null) throw new IllegalArgumentException("主视觉指标不是数组");
+        }
+      } else throw new IllegalArgumentException("主视觉内容不是数组");
+    }
+    return List.copyOf(items);
+  }
+
+  private static void addItem(List<GenerationQualityEvidenceParser.DisplayItem> items, Map<?, ?> source, String key, String label) {
+    String value = sourceText(source, key);
+    if (value != null) items.add(new GenerationQualityEvidenceParser.DisplayItem(label, value));
   }
 
   private static Integer weight(String blockId, String value) {
@@ -320,11 +431,11 @@ public final class PrototypeStructureParser {
     }
   }
 
-  private static final class ParseFailure extends RuntimeException {
+  private static final class ParseFailure extends IllegalArgumentException {
     private final String code;
 
     private ParseFailure(String code, String message) {
-      super(message, null, false, false);
+      super(message);
       this.code = code;
     }
   }

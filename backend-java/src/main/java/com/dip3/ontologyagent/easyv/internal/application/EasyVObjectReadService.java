@@ -256,6 +256,19 @@ public class EasyVObjectReadService {
   private static Map<String, PropertyPresentation> presentProperties(ObjectQueryPort.Row row) {
     var values = row.properties();
     Map<String, PropertyPresentation> presentations = new LinkedHashMap<>();
+    if (EasyVOntologyModel.PROTOTYPE_LAYOUT.key().equals(row.reference().objectKey())
+        && values.get("pageSemantics") instanceof String original && !original.isBlank()) {
+      try {
+        presentations.put("pageSemantics", new PropertyPresentation(
+            com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.presentPages(original),
+            "这是源原型的设计文案，不代表实际数据、最终渲染或业务适用性已核实。"));
+      } catch (IllegalArgumentException error) {
+        log.warn("easyv_property_presentation_invalid objectKey={} objectId={} field=pageSemantics",
+            row.reference().objectKey(), row.reference().objectId());
+        presentations.put("pageSemantics", new PropertyPresentation(List.of(),
+            "页面文案格式无法识别，未生成业务解释；请展开源记录核对。"));
+      }
+    }
     if (EasyVOntologyModel.QUALITY_NODE.key().equals(row.reference().objectKey())) {
       for (String field : GenerationQualityEvidenceParser.STRUCTURED_FIELDS) {
         if (!(values.get(field) instanceof String original) || original.isBlank()) continue;

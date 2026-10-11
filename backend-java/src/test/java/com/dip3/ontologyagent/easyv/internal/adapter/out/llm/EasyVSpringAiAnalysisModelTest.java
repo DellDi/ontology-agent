@@ -232,6 +232,31 @@ class EasyVSpringAiAnalysisModelTest {
   }
 
   @Test
+  void prototypeDesignDescriptionsSupportComparisonWithoutChangingUserRequestReviewRules() {
+    var type = new ObjectTypeView("easyv-prototype-component", "图表组件", List.of(
+        new PropertyView("metricDescription", "指标含义", Type.STRING, false, false, true, Map.of())), List.of());
+    var results = List.<Map<String, Object>>of(Map.of("id", "q1", "tool", "read_object", "objectType", type,
+        "textFields", List.of("metricDescription"), "rows", List.of(Map.of("metricDescription", "按订单月份汇总收入"))));
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"该组件设计为按订单月份汇总收入，仍需核对替换指标的统计口径。\",\"citations\":[{\"query\":\"q1\",\"row\":0,\"field\":\"metricDescription\",\"quote\":\"按订单月份汇总收入\"}]}"));
+    assertTrue(model.compose(new ComposeRequest("选模板要注意什么？", "当前组件", results, List.of(), 1000), ignored -> {}).markdown().contains("统计口径"));
+  }
+
+  @Test
+  void prototypePageExcerptShowsBusinessContentAndPreservesTheExactSource() {
+    String source = "[{\"pageId\":\"private-page\",\"title\":\"经营大屏\",\"contents\":[{\"id\":\"private-main\",\"title\":\"区域销售\",\"description\":\"比较各区域的规模\",\"metrics\":[]}]}]";
+    var type = new ObjectTypeView("easyv-prototype-layout", "原型版式", List.of(
+        new PropertyView("pageSemantics", "页面与主视觉", Type.STRING, false, false, true, Map.of())), List.of());
+    var results = List.<Map<String, Object>>of(Map.of("id", "q1", "tool", "read_object", "objectType", type,
+        "textFields", List.of("pageSemantics"), "rows", List.of(Map.of("pageSemantics", source))));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(
+        Map.of("kind", "excerpt", "source", Map.of("query", "q1", "row", 0, "field", "pageSemantics"))))))));
+    String answer = model.compose(new ComposeRequest("看看页面的主视觉说明", "当前原型", results, List.of(), 1000), ignored -> {}).markdown();
+    assertTrue(answer.contains("区域销售"));
+    assertFalse(answer.substring(0, answer.indexOf("<details>")).contains("private-"));
+    assertTrue(answer.contains("private\\-main"));
+  }
+
+  @Test
   void ordinaryObjectPropertiesKeepTheirExistingAnswerWithoutBeingMistakenForSourceText() {
     var type = new ObjectTypeView("component", "组件", List.of(
         new PropertyView("name", "名称", Type.STRING, false, true, true, Map.of()),

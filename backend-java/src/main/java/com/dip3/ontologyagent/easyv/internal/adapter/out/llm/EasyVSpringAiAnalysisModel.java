@@ -65,8 +65,14 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         在 remainingCalls 内优先取得后续操作原话及日志结果，时间接近或相同分类不证明是重试；完整逐条过程不足时明确只展示已读样例。
       - easyv-quality-node 同时包含 Step1 和 ChatExecution。统计修改意图、修改任务或修改失败时必须过滤 stepName=ChatExecution；
         Step1 是生成理解，其 intent 为空，不能算作“未分类修改”。排除 ACK/CLARIFY/OUT_OF_SCOPE 不能替代阶段过滤。
+      - 问生成任务失败原因时，以应用生成任务的失败任务统计和任务详情回答；操作反馈的日志失败是另一口径，不能替代生成任务原因排名。
+        问反复修改、实际返工时，chatRefactor 对话轮次包含澄清、闲聊与不支持，不是实际编辑或返工次数；缺正式修订事件就明确无法确认，
+        可单独提供“记录的修改请求”作为排查线索，不能以“反复修改的原型”标题包装对话次数。
       - 查看、列举或打开原型/区域/组件时使用对象工具；指标统计不能替代对象列表或详情。
         对象列表已返回空 rows 且 hasMore=false 时，可以明确回答该查询范围没有对象，不为获取对象再追加数量统计。
+      - 查找或比较模板、区域时，优先使用源大屏标题、模块目的和指标名称解释候选；模型不能把内部 ID、位置码、签名当作业务名称。
+        业务文案是源原型的设计意图，不证明指标正确或最终效果合格。缺少模块目的、指标含义或替换口径时，明确只能比较结构；
+        不凭重复次数、组件类型或未校准适配分数宣称可直接复用、最适合业务或无需检查。不从生成理解记录推断当前原型的行业和目标。
       - 对象读取范围以 tools 目录为准；assess_scheme 仅支持原型版式、区域与组件。
         relation 必须来自源对象的本体 links；不得输出执行、数据版本、SQL、表名或自行生成对象 ID
       - read_object/traverse_objects/assess_scheme 只能使用 knownObjects 或先前真实输出中的 handle。
@@ -128,6 +134,10 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
   private static final String COMPOSER_PROMPT =
       """
       你是 EasyV 数据分析回答器。只基于给定的查询结果，用中文直接回答用户问题。
+      候选名称、布局说明使用普通业务语言；内部编号、区域位置码和签名只供证据定位，不能作为正文的候选名称。
+      多次相同报错只能说明记录中重复出现，不能宣称已复现或排除偶发。空列表只证明其 filters 下没有匹配，不证明该类事实未接入。
+      对话次数不证明实际修改次数；缺正式编辑修订历史时先说明无法确认，不把修改请求统计写成返工排名。
+      源设计文案、日志分类、结构相似和规则分数各有边界；没有指标含义或业务评审时不能保证可直接复用。
       只能输出一个 JSON 对象，answer 必须是第一个字段。没有已读对象原文时，普通统计回答使用 markdown 文本：
       {"answer":"markdown 回答","citations":[{"query":"查询 id","row":行下标,"field":"列 key","quote":"文本字段的连续原文"}],
        "highlights":[{"query":"查询 id","viz":"bar|line|pie|table|none"}],
@@ -388,6 +398,21 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
           throw new BackendException("EASYV_ANSWER_INVALID", "结构化理解摘录须为单个业务文本值中的连续文字，不能含 JSON 字段名或内部编号；可仅选择 query、row、field 展示完整字段。", error);
         }
       }
+      if (EasyVOntologyModel.PROTOTYPE_LAYOUT.key().equals(type.key()) && "pageSemantics".equals(property.key())) {
+        try {
+          var items = com.dip3.ontologyagent.easyv.internal.domain.PrototypeStructureParser.presentPages(original);
+          if (!quote.equals(original) && items.stream().noneMatch(item -> item.value().contains(quote))) {
+            throw new IllegalArgumentException("excerpt is not business text");
+          }
+          if (quote.equals(original)) {
+            StringBuilder answer = new StringBuilder("**页面与主视觉**\n\n这是源原型的设计文案，不代表实际数据或最终效果已核实。\n\n");
+            for (var item : items) answer.append("**").append(literal(item.label())).append("**\n\n").append(quotedText(item.value()));
+            return answer.append("<details><summary>查看完整源记录</summary>\n\n").append(quotedText(original)).append("</details>\n\n").toString();
+          }
+        } catch (IllegalArgumentException error) {
+          throw new BackendException("EASYV_ANSWER_INVALID", "页面文案须选完整字段或单个业务文本的连续摘录，不能展示 JSON 字段名与标识。", error);
+        }
+      }
       if (EasyVOntologyModel.FEEDBACK.key().equals(type.key()) && "userInput".equals(property.key())) {
         var display = EasyVUserInputPresentation.present(quote);
         if (display.unresolvedReference()) {
@@ -431,6 +456,8 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
   private static boolean hasTextEvidence(List<Map<String, Object>> results) {
     return results.stream().anyMatch(result -> "read_object".equals(result.get("tool"))
         && result.get("objectType") instanceof ObjectTypeView type
+        && !Set.of(EasyVOntologyModel.PROTOTYPE_LAYOUT.key(), EasyVOntologyModel.PROTOTYPE_BLOCK.key(),
+            EasyVOntologyModel.PROTOTYPE_COMPONENT.key()).contains(type.key())
         && type.properties().stream().anyMatch(property -> property.type() == OntologyProperty.Type.STRING
             && strings(result.get("textFields")).contains(property.key())
             && !property.identifier() && property.valueLabels().isEmpty()

@@ -186,6 +186,7 @@ function payloadFromRenderBlock(block: ExecutionRenderBlock) {
         columns: block.columns,
         rows: block.rows,
         presentationReason: block.presentationReason,
+        identifierColumns: block.identifierColumns,
         role: block.role,
         datasetVersionSetId: block.datasetVersionSetId,
         drilldowns: block.drilldowns,

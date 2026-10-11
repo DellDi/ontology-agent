@@ -1,6 +1,7 @@
 package com.dip3.ontologyagent.easyv.internal.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -77,6 +78,75 @@ class PrototypeStructureParserTest {
         Map.entry("page-1__left_2", block("2", component("c3", "donut", 1, 1))),
         Map.entry("page-1__foot_1", block("42", component("c4", "horizontal-bar", 1, 1))),
         Map.entry("page-1__right_1", block("4", component("c5", "line", 1, 1))));
+  }
+
+  @Test
+  void retainsReviewedBusinessSemanticsWithoutChangingStructuralSignatures() {
+    Parsed before = PrototypeStructureParser.parse(XML, validJson());
+    Map<String, Object> value = validJson();
+    var page = (Map<String, Object>) value.get("page-1");
+    page.put("title", "订单经营大屏");
+    page.put("contents", List.of(Map.of("id", "content-main", "title", "区域销售分布", "desc", "展示不同区域的销售规模",
+        "fileName", "不保存文件", "config", Map.of("script", "不保存脚本"), "metrics", List.of(Map.of(
+            "id", "main-region", "metricsName", "区域销售额", "desc", "按区域汇总金额", "sourceType", "CSV", "sourceColumns", List.of("不保存源列"))))));
+    var block = (Map<String, Object>) ((Map<?, ?>) page.get("blocks")).get("page-1__left_1");
+    block.put("title", "销售概览");
+    block.put("businessModule", "经营总览");
+    block.put("moduleDescription", "同时查看销售规模和变化趋势");
+    block.put("interactionDescription", "按区域筛选趋势");
+    var component = (Map<String, Object>) ((List<?>) block.get("components")).getFirst();
+    component.put("metricName", "月度销售额");
+    component.put("desc", "按订单月份汇总销售金额");
+    component.put("insight", "识别增长与回落");
+    block.put("boundMetricIds", List.of("trend", "total"));
+    block.put("boundMetrics", List.of(Map.of("metricId", "total", "unit", "笔"),
+        Map.of("metricId", "trend", "unit", "万元", "aggregationRule", "销售金额求和", "sourceColumns", List.of("不保存源列"))));
+    Parsed after = PrototypeStructureParser.parse(XML, value);
+    assertEquals(Status.OK, after.status());
+    assertEquals(before.layoutSignature(), after.layoutSignature());
+    assertEquals(before.schemeSignature(), after.schemeSignature());
+    assertEquals(before.countSignature(), after.countSignature());
+    assertEquals(before.chartSignature(), after.chartSignature());
+    Block parsed = after.blocks().getFirst();
+    assertEquals("订单经营大屏", parsed.pageTitle());
+    assertEquals("page-1", parsed.pageId());
+    assertEquals("销售概览", parsed.title());
+    assertEquals("经营总览", parsed.businessModule());
+    assertEquals("同时查看销售规模和变化趋势", parsed.moduleDescription());
+    assertEquals("按区域筛选趋势", parsed.interactionDescription());
+    assertEquals(new PrototypeStructureParser.MetricSemantics("月度销售额", "按订单月份汇总销售金额", "识别增长与回落", "万元", "销售金额求和"),
+        parsed.components().getFirst().semantics());
+    String original = new JsonCodec().write(after.pages());
+    assertTrue(original.contains("区域销售额"));
+    assertFalse(original.contains("不保存"));
+    var items = PrototypeStructureParser.presentPages(original);
+    assertTrue(items.stream().anyMatch(item -> item.value().equals("订单经营大屏")));
+    assertTrue(items.stream().anyMatch(item -> item.value().equals("区域销售额")));
+    assertFalse(items.stream().anyMatch(item -> item.value().equals("main-region")));
+    assertThrows(UnsupportedOperationException.class, () -> after.pages().clear());
+  }
+
+  @Test
+  void doesNotInventNamesOrAttachUnitsWithoutAnUnambiguousSourceBinding() {
+    Map<String, Object> value = validJson();
+    var block = (Map<String, Object>) ((Map<?, ?>) ((Map<?, ?>) value.get("page-1")).get("blocks")).get("page-1__left_1");
+    block.put("title", "page-1__left_1");
+    block.put("businessModule", "page-1__left_1");
+    block.put("boundMetrics", List.of(Map.of("metricId", "trend", "name", "不能猜给组件的名字", "unit", "万元")));
+    Block parsed = PrototypeStructureParser.parse(XML, value).blocks().getFirst();
+    assertNull(parsed.title());
+    assertNull(parsed.businessModule());
+    assertNull(parsed.components().getFirst().semantics().name());
+    assertNull(parsed.components().getFirst().semantics().unit());
+    block.put("boundMetricIds", List.of("trend", "total"));
+    block.put("boundMetrics", List.of(Map.of("metricId", "trend", "unit", "万元"), Map.of("metricId", "trend", "unit", "元")));
+    Parsed ambiguous = PrototypeStructureParser.parse(XML, value);
+    assertEquals(Status.INVALID_JSON, ambiguous.status());
+    assertEquals("METRIC_BINDING_AMBIGUOUS", ambiguous.errorCode());
+    block.put("boundMetrics", List.of());
+    block.put("moduleDescription", Map.of("text", "不接受未经声明的对象"));
+    assertEquals("SEMANTIC_TEXT_INVALID", PrototypeStructureParser.parse(XML, value).errorCode());
+    assertThrows(IllegalArgumentException.class, () -> PrototypeStructureParser.presentPages("[{\"contents\":\"invalid\"}]"));
   }
 
   @Test
