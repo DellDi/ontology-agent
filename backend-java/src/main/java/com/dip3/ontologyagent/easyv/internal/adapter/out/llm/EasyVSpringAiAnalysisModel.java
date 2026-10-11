@@ -2,6 +2,7 @@ package com.dip3.ontologyagent.easyv.internal.adapter.out.llm;
 
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel;
 import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.ObjectTypeView;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.PropertyView;
 import com.dip3.ontologyagent.semantic.api.OntologyProperty;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
@@ -16,6 +17,10 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.function.Consumer;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.concurrent.TimeoutException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -115,7 +120,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
   private static final String COMPOSER_PROMPT =
       """
       你是 EasyV 数据分析回答器。只基于给定的查询结果，用中文直接回答用户问题。
-      只能输出一个 JSON 对象，answer 必须是第一个字段。普通统计与回看回答使用 markdown 文本：
+      只能输出一个 JSON 对象，answer 必须是第一个字段。没有已读对象原文时，普通统计回答使用 markdown 文本：
       {"answer":"markdown 回答","citations":[{"query":"查询 id","row":行下标,"field":"列 key","quote":"文本字段的连续原文"}],
        "highlights":[{"query":"查询 id","viz":"bar|line|pie|table|none"}],
        "suggestions":["追问建议"],"suggestedActions":[{"label":"动作名","rationale":"基于数据的理由"}]}
@@ -124,11 +129,22 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         {"left":{"query":"查询 id","row":行下标,"field":"原话属性 key","quote":"该项名称及要求的连续原文"},
          "right":{"query":"查询 id","row":行下标,"field":"理解属性 key","quote":"对应的可读业务内容连续原文"}}]},
        "citations":[],"highlights":[],"suggestions":["追问建议"],"suggestedActions":[]}
-      原文对照只选择已读对象详情中的非标识 STRING 属性；不选分类码、JSON 字段名或工具句柄作为业务内容。
+      输入 textEvidenceRequired=true 时，普通回看也必须使用可核对的记录对象，禁止自由摘要及自拟结论：
+      {"answer":{"kind":"record-review","sections":[
+        {"kind":"excerpt","source":{"query":"查询 id","row":0,"field":"原话属性 key","quote":"连续原文"}},
+        {"kind":"counts","query":"查询 id","fields":["阶段 key","诉求分类 key"]},
+        {"kind":"records","query":"查询 id","fields":["时间 key","另存标记 key"],"rows":[0,1]}]},
+       "citations":[],"highlights":[],"suggestions":["追问建议"],"suggestedActions":[]}
+      sections 按用户提问顺序组织：最初需求展示完整原话和可读理解摘录，不将某项要求归纳到其他项；
+      修改诉求用 counts 按阶段与分类汇总已读记录，或 records 展示已读记录；另存用 records 展示全部已读生成反馈的时间与标记。
+      counts 只计本次查询实际返回的行，不是全集；字段只选本体中有业务名称的分类。
+      records 只选择业务名称、已配置业务名称的分类、数字、布尔、时间；原话和理解正文必须用 excerpt。
+      这些形式只选择来源与字段，不接受自由标题、正文或摘要，业务标签、值与数量由系统生成。禁止遗漏原文却返回自由归纳。
+      原文对照只选择已读对象详情中 textFields 声明的原文属性；不选分类码、JSON 字段名或工具句柄作为业务内容。
       每个 pair 分别给两份记录中的连续摘录，不拼接、不改写、不概括，按项提供名称及其要求；没有对应摘录时不要编造。
       两边的业务名称、正文和来源引用由系统生成；pairs 不接受自拟标题、分析结论或缺失判定，不能额外添加摘要字段。
       规则：
-      - 面向业务人员，先直接回答发现与可采取的行动，再给具体用户诉求、时间和处理结果。不要把查询过程当成正文。
+      - 面向业务人员。普通统计回答直接说明发现与可采取的行动；原文回看只提供可核对的摘录和记录，不生成自由摘要。不要把查询过程当成正文。
         属性与分类的业务名称以结果 columns.valueLabels 或 objectType.properties.valueLabels 为准；不自行猜测业务码含义。
         未配置业务名称的分类只说明“未提供业务名称”，正文不输出原始分类码；已有核心意图等文本明确描述受众时可以引用该文本。
         正文、表格、标题和追问建议不列应用/任务/操作/会话 ID、哈希或工具句柄；这些由系统的来源入口追溯。
@@ -161,7 +177,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         以这些组的计数之和声称全量总数，或据此计算全集占比。全量数量、占比及无重复等全局结论必须有覆盖全集的独立查询证据；
         没有该证据时明确尚未统计全量，仍回答已有排名，不编造全量数字。若存在同范围的无分组全量统计，使用其指标值并引用该查询。
       - 面向业务用户使用“前 N 组”“排名范围”“尚未统计全量”等文案，不输出 intent、limit、totalRows 等内部字段名。
-      - citations 列出回答中每个关键数字对应的数据点（query 为结果 id，row 为 rows 下标，field 为列 key）；
+      - 原文对照与记录回看必须使用 citations=[]、highlights=[]、suggestedActions=[]；来源引用由程序生成，不额外添加处置建议。
+        以下 citations/highlights/suggestedActions 规则只适用于没有已读原文的普通统计回答。
+      - 普通统计的 citations 列出回答中每个关键数字对应的数据点（query 为结果 id，row 为 rows 下标，field 为列 key）；
         有非空结果时至少一个，所有结果 rows 为空时返回 []，不得编造行或把列表长度当作结果字段引用
       - field 必须实际存在于所引用的 rows[row]，且其值为数字、布尔值或非空文本；null、数组、对象不能作为引用值。
         columns 声明属性不代表该行有值。描述缺少某项内容时引用该行已有的 evidenceStatus/coreIntent 等实际非空依据，
@@ -176,7 +194,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         pie 仅适用于完整分组、单个可相加的非负指标；Top N、证据截取、比率、均值不能作为全集占比。
         none 表示不作为主要呈现，系统仍保留支撑明细。未返回的分组不能被描述为与已返回组一样。
       - suggestions 为 2-3 个用户下一步最可能追问的问题，必须能由目录内数据回答，不出现字段 key 或技术术语
-      - suggestedActions 为 0-2 个基于结论的业务处置建议，无事可办时输出空数组，rationale 必须引用具体数字
+      - 普通统计回答的 suggestedActions 为 0-2 个基于结论的业务处置建议，无事可办时输出空数组，rationale 必须引用具体数字
       - 回答注明数据范围（输入 dataScope）
       - 若输入含 violations，说明上一次输出未通过校验，必须逐条修正后重新输出
       """;
@@ -233,6 +251,8 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     input.put("question", request.question());
     input.put("dataScope", request.dataScope());
     input.put("results", request.results());
+    boolean textEvidenceRequired = hasTextEvidence(request.results());
+    input.put("textEvidenceRequired", textEvidenceRequired);
     if (!request.violations().isEmpty()) input.put("violations", request.violations());
     StringBuilder content = new StringBuilder(json.write(input));
     for (var result : request.results()) {
@@ -247,11 +267,18 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         }
       }
     }
-    Map<String, Object> parsed = parseJson(stream(COMPOSER_PROMPT, content.toString(), partialAnswer,
+    Map<String, Object> parsed = parseJson(stream(COMPOSER_PROMPT, content.toString(), textEvidenceRequired ? ignored -> {} : partialAnswer,
         request.remainingMillis()), "EASYV_ANSWER_INVALID");
     List<Citation> citations = new ArrayList<>();
-    String answer = parsed.get("answer") instanceof Map<?, ?> comparison
-        ? renderComparison(comparison, request.results(), citations) : text(parsed.get("answer"));
+    Object specification = parsed.get("answer");
+    if (textEvidenceRequired && !(specification instanceof Map<?, ?>)) {
+      throw new BackendException("EASYV_ANSWER_INVALID", "已读取原文的回答必须使用原文对照或记录回看，禁止自由摘要。");
+    }
+    String answer = specification instanceof Map<?, ?> structured
+        ? "record-review".equals(structured.get("kind"))
+            ? renderReview(structured, request.results(), citations, request.dataScope())
+            : renderComparison(structured, request.results(), citations)
+        : text(specification);
     if (answer == null) {
       throw new BackendException("EASYV_ANSWER_INVALID", "EasyV 回答缺少 answer 文本。");
     }
@@ -265,6 +292,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     for (Map<?, ?> item : maps(parsed.get("highlights"))) {
       String viz = text(item.get("viz"));
       highlights.add(new Highlight(text(item.get("query")), viz == null ? "none" : viz.toLowerCase(Locale.ROOT)));
+    }
+    if (specification instanceof Map<?, ?> && !maps(parsed.get("suggestedActions")).isEmpty()) {
+      throw new BackendException("EASYV_ANSWER_INVALID", "原文与记录回看不接受未经核对的处置结论。");
     }
     List<SuggestedAction> actions = new ArrayList<>();
     for (Map<?, ?> item : maps(parsed.get("suggestedActions"))) {
@@ -306,18 +336,122 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       var property = type.properties().stream().filter(p -> p.key().equals(source.get("field")))
           .findFirst().orElse(null);
       var rows = maps(result.get("rows"));
-      if (property == null || property.identifier() || property.type() != OntologyProperty.Type.STRING
+      if (property == null || !strings(result.get("textFields")).contains(property.key()) || property.identifier() || property.type() != OntologyProperty.Type.STRING
           || !property.valueLabels().isEmpty() || row.intValue() < 0 || row.intValue() >= rows.size()
           || !(rows.get(row.intValue()).get(property.key()) instanceof String original) || original.isEmpty()) break;
       validateQuotedCitation(source, row.intValue(), quote, results);
       citations.add(new Citation(text(source.get("query")), row.intValue(), property.key()));
-      // 按业务原文排版；Markdown/HTML 留作字面文本，不成为回答控件。
-      String literal = quote.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-      literal = Pattern.compile("[\\\\`*_\\[\\]#.!|+~\\-]").matcher(literal).replaceAll("\\\\$0");
-      return "**" + property.label() + "**\n\n> "
-          + literal.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "  \n> ") + "\n\n";
+      return "**" + literal(property.label()) + "**\n\n> "
+          + literal(quote).replace("\n", "  \n> ") + "\n\n";
     }
     throw new BackendException("EASYV_ANSWER_INVALID", "原文摘录必须引用已读对象详情中有值的非标识、非分类文本属性。");
+  }
+
+  private static boolean hasTextEvidence(List<Map<String, Object>> results) {
+    return results.stream().anyMatch(result -> "read_object".equals(result.get("tool"))
+        && result.get("objectType") instanceof ObjectTypeView type
+        && type.properties().stream().anyMatch(property -> property.type() == OntologyProperty.Type.STRING
+            && strings(result.get("textFields")).contains(property.key())
+            && !property.identifier() && property.valueLabels().isEmpty()
+            && maps(result.get("rows")).stream().anyMatch(row -> row.get(property.key()) instanceof String text && !text.isBlank())));
+  }
+
+  private static String renderReview(Map<?, ?> review, List<Map<String, Object>> results,
+                                     List<Citation> citations, String dataScope) {
+    if (!review.keySet().equals(Set.of("kind", "sections"))
+        || !(review.get("sections") instanceof List<?> sections) || sections.isEmpty()) {
+      throw new BackendException("EASYV_ANSWER_INVALID", "记录回看只接受 kind 与非空 sections，禁止自由摘要。");
+    }
+    StringBuilder answer = new StringBuilder();
+    boolean excerpt = false;
+    for (var item : sections) {
+      if (!(item instanceof Map<?, ?> section)) throw invalidReview();
+      if ("excerpt".equals(section.get("kind"))) {
+        if (!section.keySet().equals(Set.of("kind", "source")) || !(section.get("source") instanceof Map<?, ?> source)) throw invalidReview();
+        answer.append(renderExcerpt(source, results, citations));
+        excerpt = true;
+        continue;
+      }
+      boolean counts = "counts".equals(section.get("kind"));
+      if ((!counts && !"records".equals(section.get("kind")))
+          || !section.keySet().equals(counts ? Set.of("kind", "query", "fields") : Set.of("kind", "query", "fields", "rows"))) throw invalidReview();
+      var result = results.stream().filter(r -> Objects.equals(r.get("id"), section.get("query"))).findFirst().orElseThrow(EasyVSpringAiAnalysisModel::invalidReview);
+      var rows = maps(result.get("rows"));
+      var fields = strings(section.get("fields"));
+      if (fields.isEmpty() || fields.size() != ((List<?>) section.get("fields")).size() || rows.isEmpty()) throw invalidReview();
+      var properties = fields.stream().map(field -> reviewProperty(result, field)).toList();
+      if (counts && properties.stream().anyMatch(p -> p.valueLabels().isEmpty())) throw invalidReview();
+      answer.append("**").append(literal(result.get("objectType") instanceof ObjectTypeView type ? type.label() : text(result.get("label"))))
+          .append(counts ? " · 已读记录统计**\n\n" : " · 已读记录**\n\n");
+      answer.append("| ").append(String.join(" | ", properties.stream().map(p -> literal(p.label())).toList()));
+      if (counts) answer.append(" | 记录数");
+      answer.append(" |\n|").append(" --- |".repeat(fields.size() + (counts ? 1 : 0))).append("\n");
+      Map<List<String>, Integer> groups = new LinkedHashMap<>();
+      List<?> selected = counts ? java.util.stream.IntStream.range(0, rows.size()).boxed().toList()
+          : section.get("rows") instanceof List<?> indexes ? indexes : List.of();
+      if (selected.isEmpty()) throw invalidReview();
+      Set<Integer> visited = new java.util.HashSet<>();
+      for (var index : selected) {
+        if (!(index instanceof Number number) || number.doubleValue() != number.intValue()
+            || number.intValue() < 0 || number.intValue() >= rows.size() || !visited.add(number.intValue())) throw invalidReview();
+        int row = number.intValue();
+        List<String> values = new ArrayList<>();
+        for (var property : properties) {
+          Object value = rows.get(row).get(property.key());
+          values.add(reviewValue(property, value));
+          if (value != null && (!(value instanceof String text) || !text.isBlank())) citations.add(new Citation(text(result.get("id")), row, property.key()));
+        }
+        if (counts) groups.merge(values, 1, Integer::sum);
+        else answer.append("| ").append(String.join(" | ", values)).append(" |\n");
+      }
+      if (counts) groups.forEach((values, count) -> answer.append("| ").append(String.join(" | ", values)).append(" | ").append(count).append(" |\n"));
+      answer.append("\n本表基于本次读到的 ").append(rows.size()).append(" 条记录");
+      if (!counts) answer.append("，展示其中 ").append(selected.size()).append(" 条");
+      answer.append("；不代表未读取的记录。\n\n");
+    }
+    if (hasTextEvidence(results) && !excerpt) throw new BackendException("EASYV_ANSWER_INVALID", "已读取原文的记录回看缺少原文摘录。");
+    return answer.append("分类和处理记录不能证明屏幕已按诉求改变；另存标记只对应当时的反馈，不能据此确认最终版本是否另存。\n\n数据范围：")
+        .append(literal(dataScope)).toString();
+  }
+
+  private static PropertyView reviewProperty(Map<String, Object> result, String field) {
+    if (result.get("objectType") instanceof ObjectTypeView type) {
+      return type.properties().stream().filter(p -> p.key().equals(field) && !p.identifier()).findFirst().orElseThrow(EasyVSpringAiAnalysisModel::invalidReview);
+    }
+    for (var column : maps(result.get("columns"))) {
+      if (!Objects.equals(field, column.get("key")) || Boolean.TRUE.equals(column.get("identifier"))) continue;
+      if (maps(result.get("rows")).stream().allMatch(row -> row.get(field) == null || row.get(field) instanceof Number)) {
+        return new PropertyView(field, text(column.get("label")), OntologyProperty.Type.NUMBER, false, false, false, Map.of());
+      }
+    }
+    throw invalidReview();
+  }
+
+  private static String reviewValue(PropertyView property, Object value) {
+    if (value == null || "".equals(value)) return "未记录";
+    if (!property.valueLabels().isEmpty()) return literal(property.valueLabels().getOrDefault(String.valueOf(value), "未提供业务名称"));
+    if (property.type() == OntologyProperty.Type.BOOLEAN && value instanceof Boolean flag) return flag ? "是" : "否";
+    if (property.type() == OntologyProperty.Type.NUMBER && value instanceof Number) return literal(String.valueOf(value));
+    if (property.type() == OntologyProperty.Type.TIME && value instanceof String timestamp) {
+      try {
+        return OffsetDateTime.parse(timestamp).atZoneSameInstant(ZoneId.of("Asia/Shanghai"))
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "（北京时间）";
+      } catch (DateTimeParseException error) {
+        throw new BackendException("EASYV_ANSWER_INVALID", "记录回看的时间属性不能解析：" + property.key(), error);
+      }
+    }
+    if (property.type() == OntologyProperty.Type.STRING && property.title() && value instanceof String text) return literal(text);
+    throw new BackendException("EASYV_ANSWER_INVALID", "记录正文必须使用连续原文摘录，不能混入记录表：" + property.key());
+  }
+
+  private static BackendException invalidReview() {
+    return new BackendException("EASYV_ANSWER_INVALID", "记录回看的来源、字段或行选择无效；不接受自由标题、正文或摘要。");
+  }
+
+  private static String literal(String text) {
+    String escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    return Pattern.compile("[\\\\`*_\\[\\]#.!|+~\\-]").matcher(escaped).replaceAll("\\\\$0")
+        .replace("\r\n", "\n").replace("\r", "\n");
   }
 
   /** 文本引用协议：校验逐字引文；位置、权限与非文本值仍由应用层统一校验。 */
