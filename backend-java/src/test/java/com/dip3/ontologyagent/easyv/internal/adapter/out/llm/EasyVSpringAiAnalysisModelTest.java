@@ -364,6 +364,66 @@ class EasyVSpringAiAnalysisModelTest {
   }
 
   @Test
+  void wholeFieldExcerptsAvoidJsonCopyingWhileShortExcerptsCannotExposeJsonKeysOrIdentifiers() {
+    String original = "[{\"themeId\":\"theme_1\",\"businessModule\":\"CPU利用率监控\"}]";
+    var result = new java.util.LinkedHashMap<>(relatedResults().getLast());
+    result.put("tool", "read_object"); result.put("textFields", List.of("themes", "truncatedFields"));
+    result.put("rows", List.of(Map.of("themes", original, "truncatedFields", "[]")));
+    for (String quote : List.of("", "CPU利用率监控", "theme_1", "\"businessModule\":\"CPU利用率监控\"")) {
+      var source = new java.util.LinkedHashMap<String, Object>(Map.of("query", "q-nodes", "row", 0, "field", "themes"));
+      if (!quote.isEmpty()) source.put("quote", quote);
+      when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections",
+          List.of(Map.of("kind", "excerpt", "source", source)))))));
+      if (quote.equals("theme_1") || quote.startsWith("\"businessModule")) {
+        assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+            () -> model.compose(new ComposeRequest("看看模块", "所选应用", List.of(result), List.of(), 1000), ignored -> {})).code());
+      } else {
+        var answer = model.compose(new ComposeRequest("看看模块", "所选应用", List.of(result), List.of(), 1000), ignored -> {});
+        assertTrue(answer.markdown().contains("CPU利用率监控"));
+        assertFalse(answer.markdown().split("<details>")[0].contains("theme_1"));
+        assertTrue(answer.citations().contains(new Citation("q-nodes", 0, "themes")));
+      }
+    }
+  }
+
+  @Test
+  void understandingShowsModuleNamesAndExactRequirementsWithFullSourceAndTruncationCitation() {
+    String source = "[{\"themeId\":\"theme_1\",\"businessModule\":\"CPU\",\"constraints\":[{\"text\":\"<script>环形图</script>\",\"origin\":\"USER\",\"evidence\":\"CPU使用环形图\"}]},{\"themeId\":\"theme_2\",\"businessModule\":\"存储\"}]";
+    var answer = composeUnderstanding(source, "[\"themes[0].constraints[0].text\"]");
+    String primary = answer.markdown().split("<details>")[0];
+    assertTrue(primary.contains("这部分内容已被截断"));
+    assertTrue(primary.contains("**用户要求（系统标记）**"));
+    assertTrue(primary.contains("&lt;script&gt;环形图&lt;/script&gt;"));
+    assertFalse(primary.contains("theme_1"));
+    assertFalse(primary.contains("businessModule"));
+    assertFalse(answer.markdown().contains("<script>"));
+    assertTrue(answer.markdown().contains("查看完整源记录"));
+    assertTrue(answer.citations().contains(new Citation("q-nodes", 0, "themes")));
+    assertTrue(answer.citations().contains(new Citation("q-nodes", 0, "truncatedFields")));
+  }
+
+  @Test
+  void malformedUnderstandingRemainsVisibleAsADiagnosticAndUnmodifiedSource() {
+    for (String[] values : new String[][]{{"[{\"businessModule\":\"CPU\",\"unknown\":\"要求\"}]", "[]"},
+        {"[{\"businessModule\":\"CPU\"}]", "[3]"}}) {
+      var answer = composeUnderstanding(values[0], values[1]);
+      String primary = answer.markdown().split("<details>")[0];
+      assertTrue(primary.contains("格式无法识别，未生成业务解释"));
+      assertFalse(primary.contains("**模块**"));
+      assertTrue(answer.citations().contains(new Citation("q-nodes", 0, "themes")));
+    }
+  }
+
+  private ComposedAnswer composeUnderstanding(String source, String truncated) {
+    var result = new java.util.LinkedHashMap<>(relatedResults().getLast());
+    result.put("tool", "read_object"); result.put("textFields", List.of("themes", "truncatedFields"));
+    result.put("rows", List.of(Map.of("createdAt", "2026-09-10T03:20:00Z", "themes", source, "truncatedFields", truncated)));
+    var spec = Map.of("kind", "example", "query", "q-nodes", "row", 0, "fields", List.of("createdAt"), "excerpts", List.of(Map.of("field", "themes")));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(spec))))));
+    return model.compose(new ComposeRequest("AI打算怎么分模块？", "所选应用", List.of(result), List.of(), 1000), ignored -> {});
+  }
+
+  @Test
   void selectedObjectNamesAreReadableWhileFullSourceAndCitationRemainAvailable() {
     String original = "$_({\"id\":\"page-1__header1_3\",\"label\":\"测试数据指标\",\"componentId\":\"chart_3\",\"componentLabel\":\"CPU平均利用率<script>\"})删除\n不要改标题";
     var result = new java.util.LinkedHashMap<>(exampleResults().getFirst());
