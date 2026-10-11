@@ -1,6 +1,8 @@
 package com.dip3.ontologyagent.easyv.internal.adapter.out.llm;
 
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel;
+import com.dip3.ontologyagent.easyv.internal.application.EasyVObjectReadService.ObjectTypeView;
+import com.dip3.ontologyagent.semantic.api.OntologyProperty;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -9,6 +11,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.function.Consumer;
 import java.time.Duration;
 import java.util.concurrent.TimeoutException;
@@ -20,7 +25,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * EasyV 分析模型的 Spring AI 适配：规划输出本体查询意图 JSON，综合输出带数据引用的回答 JSON。
- * 本适配器只负责调用与 JSON 结构解析；意图编译、引用校验与纠正轮由应用层负责。
+ * 本适配器负责调用、JSON 协议及逐字引文检查；意图编译、引用位置校验与纠正轮由应用层负责。
  */
 @Component
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
@@ -110,10 +115,18 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
   private static final String COMPOSER_PROMPT =
       """
       你是 EasyV 数据分析回答器。只基于给定的查询结果，用中文直接回答用户问题。
-      只能输出一个 JSON 对象，answer 必须是第一个字段：
-      {"answer":"markdown 回答","citations":[{"query":"查询 id","row":行下标,"field":"列 key"}],
+      只能输出一个 JSON 对象，answer 必须是第一个字段。普通统计与回看回答使用 markdown 文本：
+      {"answer":"markdown 回答","citations":[{"query":"查询 id","row":行下标,"field":"列 key","quote":"文本字段的连续原文"}],
        "highlights":[{"query":"查询 id","viz":"bar|line|pie|table|none"}],
        "suggestions":["追问建议"],"suggestedActions":[{"label":"动作名","rationale":"基于数据的理由"}]}
+      用户要求对照原话与系统理解、比较两份文本记录时，answer 必须改用下面的原文对照对象，不输出自由摘要：
+      {"answer":{"kind":"source-comparison","pairs":[
+        {"left":{"query":"查询 id","row":行下标,"field":"原话属性 key","quote":"该项名称及要求的连续原文"},
+         "right":{"query":"查询 id","row":行下标,"field":"理解属性 key","quote":"对应的可读业务内容连续原文"}}]},
+       "citations":[],"highlights":[],"suggestions":["追问建议"],"suggestedActions":[]}
+      原文对照只选择已读对象详情中的非标识 STRING 属性；不选分类码、JSON 字段名或工具句柄作为业务内容。
+      每个 pair 分别给两份记录中的连续摘录，不拼接、不改写、不概括，按项提供名称及其要求；没有对应摘录时不要编造。
+      两边的业务名称、正文和来源引用由系统生成；pairs 不接受自拟标题、分析结论或缺失判定，不能额外添加摘要字段。
       规则：
       - 面向业务人员，先直接回答发现与可采取的行动，再给具体用户诉求、时间和处理结果。不要把查询过程当成正文。
         属性与分类的业务名称以结果 columns.valueLabels 或 objectType.properties.valueLabels 为准；不自行猜测业务码含义。
@@ -153,6 +166,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       - field 必须实际存在于所引用的 rows[row]，且其值为数字、布尔值或非空文本；null、数组、对象不能作为引用值。
         columns 声明属性不代表该行有值。描述缺少某项内容时引用该行已有的 evidenceStatus/coreIntent 等实际非空依据，
         不能把缺失的属性本身放进 citations；也不能引用 structureStatus/hasMore/returnedRows 等结果元数据。
+      - 引用对象详情中未配置 valueLabels、非 identifier 的 STRING 属性时 quote 必填，必须逐字来自该字段中的连续原文，
+        并在 answer 中原样呈现；不要改写、拼接或用省略号代替原文。标识、时间、分类与数值引用不要求逐字呈现原值。
+        按项对照时分别引用各项包含名称与要求的完整段落；不能用某项的摘录证明其他项的要求。数字和布尔字段不填 quote。
       - highlights 选 0-3 个真正支撑回答的查询作为主要呈现，不要求必须画图；viz 是已有视图的建议，不生成数据或新控件。
         根据 question 的意图、columns 中的 kind/identifier、实际数值差异及规模选择：数量汇总由系统呈现；
         查看明细、标识符/签名分组或已返回数值无差异时优先 table；类别比较用 bar，时间趋势用 line。
@@ -233,13 +249,15 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     }
     Map<String, Object> parsed = parseJson(stream(COMPOSER_PROMPT, content.toString(), partialAnswer,
         request.remainingMillis()), "EASYV_ANSWER_INVALID");
-    String answer = text(parsed.get("answer"));
+    List<Citation> citations = new ArrayList<>();
+    String answer = parsed.get("answer") instanceof Map<?, ?> comparison
+        ? renderComparison(comparison, request.results(), citations) : text(parsed.get("answer"));
     if (answer == null) {
       throw new BackendException("EASYV_ANSWER_INVALID", "EasyV 回答缺少 answer 文本。");
     }
-    List<Citation> citations = new ArrayList<>();
     for (Map<?, ?> item : maps(parsed.get("citations"))) {
       if (item.get("row") instanceof Number row) {
+        validateQuotedCitation(item, row.intValue(), answer, request.results());
         citations.add(new Citation(text(item.get("query")), row.intValue(), text(item.get("field"))));
       }
     }
@@ -256,6 +274,79 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     }
     return new ComposedAnswer(answer, citations, highlights,
         strings(parsed.get("suggestions")).stream().limit(3).toList(), actions.stream().limit(3).toList());
+  }
+
+  private static String renderComparison(Map<?, ?> comparison, List<Map<String, Object>> results,
+                                         List<Citation> citations) {
+    if (!comparison.keySet().equals(Set.of("kind", "pairs"))
+        || !"source-comparison".equals(comparison.get("kind"))
+        || !(comparison.get("pairs") instanceof List<?> pairs) || pairs.isEmpty()) {
+      throw new BackendException("EASYV_ANSWER_INVALID", "原文对照只接受 kind 与非空 pairs，不接受自由摘要或结论。");
+    }
+    StringBuilder answer = new StringBuilder("以下并列展示已读记录中的原文摘录，供逐项核对。\n\n");
+    for (var item : pairs) {
+      if (!(item instanceof Map<?, ?> pair) || !pair.keySet().equals(Set.of("left", "right"))
+          || !(pair.get("left") instanceof Map<?, ?> left) || !(pair.get("right") instanceof Map<?, ?> right)) {
+        throw new BackendException("EASYV_ANSWER_INVALID", "每组原文对照必须包含 left 与 right 两份来源摘录。");
+      }
+      answer.append(renderExcerpt(left, results, citations));
+      answer.append(renderExcerpt(right, results, citations)).append("---\n\n");
+    }
+    return answer.append("以上仅展示记录中的文字，不能据此直接认定理解错误、系统自行扩展或漏解。完整模型输入与实际生成结果仍需一并核对。").toString();
+  }
+
+  private static String renderExcerpt(Map<?, ?> source, List<Map<String, Object>> results, List<Citation> citations) {
+    if (!source.keySet().equals(Set.of("query", "row", "field", "quote"))
+        || !(source.get("row") instanceof Number row) || !(source.get("quote") instanceof String quote) || quote.isBlank()) {
+      throw new BackendException("EASYV_ANSWER_INVALID", "原文摘录必须包含 query、row、field 与非空 quote。");
+    }
+    for (var result : results) {
+      if (!Objects.equals(result.get("id"), source.get("query")) || !"read_object".equals(result.get("tool"))
+          || !(result.get("objectType") instanceof ObjectTypeView type)) continue;
+      var property = type.properties().stream().filter(p -> p.key().equals(source.get("field")))
+          .findFirst().orElse(null);
+      var rows = maps(result.get("rows"));
+      if (property == null || property.identifier() || property.type() != OntologyProperty.Type.STRING
+          || !property.valueLabels().isEmpty() || row.intValue() < 0 || row.intValue() >= rows.size()
+          || !(rows.get(row.intValue()).get(property.key()) instanceof String original) || original.isEmpty()) break;
+      validateQuotedCitation(source, row.intValue(), quote, results);
+      citations.add(new Citation(text(source.get("query")), row.intValue(), property.key()));
+      // 按业务原文排版；Markdown/HTML 留作字面文本，不成为回答控件。
+      String literal = quote.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+      literal = Pattern.compile("[\\\\`*_\\[\\]#.!|+~\\-]").matcher(literal).replaceAll("\\\\$0");
+      return "**" + property.label() + "**\n\n> "
+          + literal.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "  \n> ") + "\n\n";
+    }
+    throw new BackendException("EASYV_ANSWER_INVALID", "原文摘录必须引用已读对象详情中有值的非标识、非分类文本属性。");
+  }
+
+  /** 文本引用协议：校验逐字引文；位置、权限与非文本值仍由应用层统一校验。 */
+  private static void validateQuotedCitation(Map<?, ?> citation, int row, String answer,
+                                             List<Map<String, Object>> results) {
+    for (var result : results) {
+      if (!Objects.equals(result.get("id"), citation.get("query"))) continue;
+      var rows = maps(result.get("rows"));
+      if (row < 0 || row >= rows.size()) return;
+      Object value = rows.get(row).get(citation.get("field"));
+      if (!(value instanceof String original) || original.isEmpty()) return;
+      String source = citation.get("query") + " 第 " + row + " 行字段 " + citation.get("field");
+      boolean required = "read_object".equals(result.get("tool"))
+          && result.get("objectType") instanceof ObjectTypeView type
+          && type.properties().stream().anyMatch(property -> property.key().equals(citation.get("field"))
+              && property.type() == OntologyProperty.Type.STRING
+              && !property.identifier() && property.valueLabels().isEmpty());
+      if (!required && !citation.containsKey("quote")) return;
+      if (!(citation.get("quote") instanceof String quote) || quote.isBlank()) {
+        throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 缺少连续原文 quote。");
+      }
+      if (!original.contains(quote)) {
+        throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 的 quote 不是来源中的连续原文，禁止改写或拼接。");
+      }
+      if (!answer.contains(quote)) {
+        throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 的 quote 未在 answer 中原样呈现。");
+      }
+      return;
+    }
   }
 
   /** 流式调用：按 chunk 累计缓冲，增量提取 answer 字段已完成前缀回调（累计值）。 */
