@@ -142,51 +142,126 @@ class EasyVSpringAiAnalysisModelTest {
   }
 
   @Test
-  void textualDetailCitationRequiresAnExactQuotePresentInTheAnswer() {
-    String original = "CPU：环形占比图，模拟数据\n内存：环形占比图，模拟数据\n存储：数值总览";
-    String quote = "内存：环形占比图，模拟数据\n存储：数值总览";
+  void readTextCannotReintroduceFalseSummaryEvenWithAnExactDisplayedQuote() {
+    String original = "CPU：环形图\n存储：数值总览";
     when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of(
-        "answer", "已读原话：\n" + quote,
-        "citations", List.of(Map.of("query", "q1", "row", 0, "field", "requestText", "quote", quote))))));
-    var result = model.compose(textRequest(original), ignored -> {});
-    assertEquals(List.of(new Citation("q1", 0, "requestText")), result.citations());
-    assertEquals("已读原话：\n" + quote, result.markdown());
+        "answer", "每项都要求环形图。\n" + original,
+        "citations", List.of(Map.of("query", "q1", "row", 0, "field", "requestText", "quote", original))))));
+    var partials = new ArrayList<String>();
+    var error = assertThrows(BackendException.class, () -> model.compose(textRequest(original), partials::add));
+    assertEquals("EASYV_ANSWER_INVALID", error.code());
+    assertTrue(error.getMessage().contains("禁止自由摘要"));
+    assertTrue(partials.isEmpty());
     verify(stream).content();
   }
 
   @Test
-  void missingTextQuoteCannotPassOnTheFieldAddressAlone() {
-    when(stream.content()).thenReturn(Flux.just("""
-        {"answer":"每项都要求环形图","citations":[{"query":"q1","row":0,"field":"requestText"}]}
-        """));
-    var error = assertThrows(BackendException.class,
-        () -> model.compose(textRequest("CPU：环形图\n存储：数值总览"), ignored -> {}));
-    assertEquals("EASYV_ANSWER_INVALID", error.code());
-    assertTrue(error.getMessage().contains("缺少连续原文"));
+  void reviewRendersExactDemandCountsAndSaveRecordsWithoutFreeParaphrase() {
+    var results = reviewResults();
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", reviewSpec()))));
+    var result = model.compose(new ComposeRequest("最初要做什么，后来改了什么，有没有另存？", "本地快照", results, List.of(), 1000), ignored -> {});
+    assertTrue(result.markdown().contains("> CPU：环形图  \n> 存储：数值总览"));
+    assertTrue(result.markdown().contains("| 修改 | 新增模块 | 2 |"));
+    assertTrue(result.markdown().contains("| 修改 | 删除模块 | 1 |"));
+    assertTrue(result.markdown().contains("2026-09-21 15:11:39（北京时间） | 是"));
+    assertTrue(result.markdown().contains("2026-09-21 15:26:14（北京时间） | 否"));
+    assertTrue(result.markdown().contains("本次读到的 3 条记录"));
+    assertTrue(result.markdown().contains("不能据此确认最终版本是否另存"));
+    assertTrue(result.markdown().contains("数据范围：本地快照"));
+    assertTrue(result.citations().contains(new Citation("q1", 0, "requestText")));
+    assertTrue(result.citations().contains(new Citation("q3", 0, "saved")));
+    assertTrue(!result.markdown().contains("ADD") && !result.markdown().contains("internal-id"));
+    verify(stream).content();
   }
 
   @Test
-  void inventedOrSplicedTextQuotesAreRejectedWithoutAnExtraModelCall() {
-    for (String quote : List.of("存储：环形图", "CPU：环形图；存储：数值总览")) {
-      when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of(
-          "answer", quote, "citations", List.of(Map.of("query", "q1", "row", 0, "field", "requestText", "quote", quote))))));
-      var error = assertThrows(BackendException.class,
-          () -> model.compose(textRequest("CPU：环形图\n内存：环形图\n存储：数值总览"), ignored -> {}));
-      assertEquals("EASYV_ANSWER_INVALID", error.code());
-      assertTrue(error.getMessage().contains("不是来源中的连续原文"));
+  void ordinaryObjectPropertiesKeepTheirExistingAnswerWithoutBeingMistakenForSourceText() {
+    var type = new ObjectTypeView("component", "组件", List.of(
+        new PropertyView("name", "名称", Type.STRING, false, true, true, Map.of()),
+        new PropertyView("width", "宽度", Type.NUMBER, false, false, true, Map.of())), List.of());
+    var results = List.<Map<String, Object>>of(Map.of("id", "q1", "tool", "read_object", "objectType", type,
+        "textFields", List.of(), "rows", List.of(Map.of("name", "容量概览", "width", 24))));
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"宽度为 24\",\"citations\":[{\"query\":\"q1\",\"row\":0,\"field\":\"width\"}]}"));
+    var partials = new ArrayList<String>();
+    assertEquals("宽度为 24", model.compose(new ComposeRequest("组件多宽？", "当前组件", results, List.of(), 1000), partials::add).markdown());
+    assertEquals("宽度为 24", partials.getLast());
+  }
+
+  @Test
+  void unknownClassificationCannotMasqueradeAsAnOriginalTextExcerpt() {
+    var results = new ArrayList<>(reviewResults());
+    results.add(Map.of("id", "q4", "tool", "read_object", "textFields", List.of(), "objectType",
+        new ObjectTypeView("record", "记录", List.of(new PropertyView("audience", "受众", Type.STRING, false, false, false, Map.of())), List.of()),
+        "rows", List.of(Map.of("audience", "operational"))));
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", Map.of("kind", "record-review", "sections", List.of(excerpt(),
+        Map.of("kind", "excerpt", "source", Map.of("query", "q4", "row", 0, "field", "audience", "quote", "operational"))))))));
+    assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+        () -> model.compose(new ComposeRequest("回看", "当前对象", results, List.of(), 1000), ignored -> {})).code());
+  }
+
+  @Test
+  void reviewDoesNotPublishUnverifiedActionClaimsOutsideTheValidatedRecordBody() {
+    when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", reviewSpec(),
+        "suggestedActions", List.of(Map.of("label", "全部改成环形图", "rationale", "三个指标均要求环形图"))))));
+    assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+        () -> model.compose(new ComposeRequest("回看", "当前对象", reviewResults(), List.of(), 1000), ignored -> {})).code());
+    var system = ArgumentCaptor.forClass(String.class);
+    verify(prompt).system(system.capture());
+    assertTrue(system.getValue().contains("原文对照与记录回看必须使用 citations=[]、highlights=[]、suggestedActions=[]"));
+    assertTrue(system.getValue().contains("普通统计回答的 suggestedActions"));
+  }
+
+  @Test
+  void reviewRejectsSummaryHiddenTextIdentifiersFabricatedRowsAndMissingExcerpts() {
+    var specs = List.of(
+        Map.of("kind", "record-review", "sections", List.of(excerpt()), "summary", "每项都是环形图"),
+        Map.of("kind", "record-review", "sections", List.of(excerpt(), Map.of("kind", "records", "query", "q1", "fields", List.of("requestText"), "rows", List.of(0)))),
+        Map.of("kind", "record-review", "sections", List.of(excerpt(), Map.of("kind", "records", "query", "q3", "fields", List.of("id"), "rows", List.of(0)))),
+        Map.of("kind", "record-review", "sections", List.of(excerpt(), Map.of("kind", "records", "query", "q3", "fields", List.of("saved"), "rows", List.of(9)))),
+        Map.of("kind", "record-review", "sections", List.of(excerpt(), Map.of("kind", "records", "query", "q3", "fields", List.of("saved"), "rows", List.of(0.5)))),
+        Map.of("kind", "record-review", "sections", List.of(excerpt(), Map.of("kind", "records", "query", "q3", "fields", List.of("saved"), "rows", List.of(0,0)))),
+        Map.of("kind", "record-review", "sections", List.of(Map.of("kind", "counts", "query", "q2", "fields", List.of("intent")))));
+    for (var spec : specs) {
+      when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer", spec))));
+      assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+          () -> model.compose(new ComposeRequest("回看", "当前对象", reviewResults(), List.of(), 1000), ignored -> {})).code());
     }
-    verify(stream, org.mockito.Mockito.times(2)).content();
   }
 
   @Test
-  void unusedExactQuoteCannotSupportTheDisplayedAnswer() {
-    when(stream.content()).thenReturn(Flux.just("""
-        {"answer":"每项都要求环形图","citations":[{"query":"q1","row":0,"field":"requestText","quote":"存储：数值总览"}]}
-        """));
-    var error = assertThrows(BackendException.class,
-        () -> model.compose(textRequest("CPU：环形图\n存储：数值总览"), ignored -> {}));
-    assertEquals("EASYV_ANSWER_INVALID", error.code());
-    assertTrue(error.getMessage().contains("未在 answer 中原样呈现"));
+  void reviewRejectsInventedSplicedOrMissingQuotes() {
+    for (String quote : List.of("存储：环形图", "CPU：环形图；存储：数值总览", "")) {
+      var source = Map.of("query", "q1", "row", 0, "field", "requestText", "quote", quote);
+      when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of("answer",
+          Map.of("kind", "record-review", "sections", List.of(Map.of("kind", "excerpt", "source", source)))))));
+      assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class,
+          () -> model.compose(textRequest("CPU：环形图\n存储：数值总览"), ignored -> {})).code());
+    }
+  }
+
+  private static Map<String, Object> excerpt() {
+    return Map.of("kind", "excerpt", "source", Map.of("query", "q1", "row", 0, "field", "requestText", "quote", "CPU：环形图\n存储：数值总览"));
+  }
+
+  private static Map<String, Object> reviewSpec() {
+    return Map.of("kind", "record-review", "sections", List.of(excerpt(),
+        Map.of("kind", "counts", "query", "q2", "fields", List.of("phase", "intent")),
+        Map.of("kind", "records", "query", "q3", "fields", List.of("recordedAt", "saved"), "rows", List.of(0,1))));
+  }
+
+  private static List<Map<String, Object>> reviewResults() {
+    var results = new ArrayList<>(textRequest("CPU：环形图\n存储：数值总览").results());
+    results.add(Map.of("id", "q2", "tool", "query_objects", "objectType", new ObjectTypeView("records", "处理记录", List.of(
+        new PropertyView("phase", "阶段", Type.STRING, false, false, false, Map.of("EDIT", "修改")),
+        new PropertyView("intent", "系统识别的诉求", Type.STRING, false, false, false, Map.of("ADD", "新增模块", "REMOVE", "删除模块"))), List.of()),
+        "hasMore", true, "rows", List.of(Map.of("phase", "EDIT", "intent", "ADD"), Map.of("phase", "EDIT", "intent", "ADD"), Map.of("phase", "EDIT", "intent", "REMOVE"))));
+    results.add(Map.of("id", "q3", "tool", "query_objects", "objectType", new ObjectTypeView("records", "操作反馈", List.of(
+        new PropertyView("id", "标识", Type.STRING, true, false, false, Map.of()),
+        new PropertyView("recordedAt", "操作记录时间", Type.TIME, false, false, false, Map.of()),
+        new PropertyView("saved", "是否另存编辑", Type.BOOLEAN, false, false, false, Map.of())), List.of()),
+        "rows", List.of(Map.of("id", "internal-id", "recordedAt", "2026-09-21T07:11:39Z", "saved", true),
+            Map.of("id", "internal-id", "recordedAt", "2026-09-21T07:26:14Z", "saved", false))));
+    return results;
   }
 
   @Test
@@ -208,7 +283,7 @@ class EasyVSpringAiAnalysisModelTest {
     var type = new ObjectTypeView("business-object", "业务对象", List.of(
         new PropertyView("requestText", "原话", Type.STRING, false, false, false, Map.of())), List.of());
     return new ComposeRequest("需求有什么差异？", "当前对象", List.of(Map.of("id", "q1", "tool", "read_object",
-        "objectType", type, "rows", List.of(Map.of("requestText", original)))), List.of(), 1000);
+        "objectType", type, "textFields", List.of("requestText"), "rows", List.of(Map.of("requestText", original)))), List.of(), 1000);
   }
 
   @Test
@@ -218,7 +293,7 @@ class EasyVSpringAiAnalysisModelTest {
     results.add(Map.of("id", "q2", "tool", "read_object", "objectType",
         new ObjectTypeView("business-object", "业务对象", List.of(
             new PropertyView("recordText", "理解记录", Type.STRING, false, false, false, Map.of())), List.of()),
-        "rows", List.of(Map.of("recordText", "资源容量监控：CPU、内存、存储"))));
+        "textFields", List.of("recordText"), "rows", List.of(Map.of("recordText", "资源容量监控：CPU、内存、存储"))));
     when(stream.content()).thenReturn(Flux.just(new JsonCodec().write(Map.of(
         "answer", Map.of("kind", "source-comparison", "pairs", List.of(Map.of(
             "left", Map.of("query", "q1", "row", 0, "field", "requestText", "quote", original),

@@ -233,6 +233,9 @@ public final class EasyVAgentTools {
       observation.put("rows", rows); observation.put("hasMore", result.page().hasMore());
       observation.put("offset", result.page().offset()); observation.put("returnedRows", rows.size());
       observation.put("objectType", result.objectType());
+      observation.put("textFields", semantic.require(result.page().objectKey()).properties().stream()
+          .filter(com.dip3.ontologyagent.semantic.api.OntologyProperty::detailOnly)
+          .map(com.dip3.ontologyagent.semantic.api.OntologyProperty::key).toList());
       if (result.structure() != null) observation.put("structureStatus", result.structure().status());
       List<QueryIntent.Filter> filters = call.request().filters();
       if (call.tool().equals("traverse_objects")) {

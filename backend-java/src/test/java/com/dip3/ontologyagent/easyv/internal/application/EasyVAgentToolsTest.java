@@ -65,6 +65,22 @@ class EasyVAgentToolsTest {
     verify(objects, atLeastOnce()).readDuringExecution(eq(context), eq(ALL), argThat(req -> req.executionId().equals(context.executionId()) && req.datasetVersionSetId().equals(context.datasetVersionSetId())));
   }
 
+  @Test void textFieldsUseExistingOntologyDetailBoundaryAndExcludeClassificationCodes() {
+    var withNodes = new LinkedHashMap<>(versions);
+    withNodes.put("easyv-pipeline-node", "nodes-old");
+    var run = tools.open(context, ALL, withNodes, null, List.of());
+    var node = new ObjectQueryPort.Row(new ObjectQueryPort.Reference("easyv-quality-node", "9", "nodes-old"),
+        Map.of("nodeId", "9", "appId", "1", "audienceType", "operational", "coreIntent", "面向运维监控人员"));
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(result("easyv-quality-node", node, false));
+    var output = run.execute("q1", run.prepare("query_objects", Map.of("objectKey", "easyv-quality-node")));
+    var fields = (List<?>) output.observation().get("textFields");
+    assertTrue(fields.contains("coreIntent"));
+    assertTrue(fields.contains("themes"));
+    assertFalse(fields.contains("audienceType"));
+    assertFalse(fields.contains("industryCategory"));
+    assertFalse(fields.contains("nodeId"));
+  }
+
   @Test void strictInputsRejectForgedIdsVersionsHandlesAndRelationsBeforeFacts() {
     var run = tools.open(context, ALL, versions, null, List.of());
     for (var input : List.<Map<String, Object>>of(Map.of("objectKey", LAYOUT, "objectId", "invented"), Map.of("objectKey", LAYOUT, "productVersionId", "new"),
