@@ -42,6 +42,25 @@ class GraphSyncBootstrapIntegrationTest {
     static void startContext() {
         MigrationTestSupport.migrate(POSTGRES);
         context = new AnnotationConfigApplicationContext(TestConfig.class);
+        // The graph fixture must persist the published manifest that its run binds.
+        JdbcTemplate database = context.getBean(JdbcTemplate.class);
+        database.update("""
+                insert into ingestion.product_materialization_runs
+                  (id,product_key,mode,status,trigger_type,started_at,finished_at)
+                values ('project-run-1','property-project','full','completed','bootstrap',now(),now())
+                """);
+        database.update("""
+                insert into ingestion.data_product_versions
+                  (id,product_key,materialization_run_id,version_number,status,published_at,storage_ref,content_hash)
+                values ('project-version-1','property-project','project-run-1',1,'published',now(),
+                        'facts://property_project/project-version-1',repeat('a',64))
+                """);
+        database.update("insert into ingestion.dataset_version_sets(set_id) values ('property-set-1')");
+        database.update("""
+                insert into ingestion.dataset_version_set_items(set_id,product_key,product_version_id)
+                values ('property-set-1','property-project','project-version-1')
+                """);
+        database.update("update ingestion.dataset_version_sets set status='frozen',frozen_at=now() where set_id='property-set-1'");
     }
 
     @AfterAll

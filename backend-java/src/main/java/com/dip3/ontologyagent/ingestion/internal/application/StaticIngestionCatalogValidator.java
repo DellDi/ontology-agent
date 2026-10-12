@@ -153,7 +153,9 @@ public final class StaticIngestionCatalogValidator {
             } else if (run.mode() == IngestionRun.Mode.INCREMENTAL) {
                 DatasetVersion parent = datasetVersions.get(version.parentVersionId());
                 if (parent == null || !version.datasetKey().equals(parent.datasetKey())
-                        || parent.status() != DatasetVersion.Status.PUBLISHED
+                        || (parent.status() != DatasetVersion.Status.PUBLISHED
+                            && !(version.status() == DatasetVersion.Status.REVOKED
+                                && parent.status() == DatasetVersion.Status.REVOKED))
                         || parent.versionNumber() >= version.versionNumber()) {
                     fail("incremental dataset version " + version.id()
                             + " requires an earlier published parent from the same dataset");
@@ -233,7 +235,10 @@ public final class StaticIngestionCatalogValidator {
                 if (!input.datasetKey().equals(version.datasetKey())) {
                     fail("materialization run " + run.id() + " input and source version do not match");
                 }
-                if (version.status() != DatasetVersion.Status.PUBLISHED) {
+                if (version.status() != DatasetVersion.Status.PUBLISHED
+                        && !(version.status() == DatasetVersion.Status.REVOKED
+                            && run.status() != ProductMaterializationRun.Status.PENDING
+                            && run.status() != ProductMaterializationRun.Status.RUNNING)) {
                     fail("materialization run " + run.id()
                             + " can only consume published source dataset versions");
                 }
@@ -341,7 +346,9 @@ public final class StaticIngestionCatalogValidator {
                 fail("lineage " + lineage.id()
                         + " source dataset version does not match source dataset");
             }
-            if (sourceVersion.status() != DatasetVersion.Status.PUBLISHED) {
+            if (sourceVersion.status() != DatasetVersion.Status.PUBLISHED
+                    && !(sourceVersion.status() == DatasetVersion.Status.REVOKED
+                        && productVersion.status() == DataProductVersion.Status.REVOKED)) {
                 fail("lineage " + lineage.id() + " must reference a published source version");
             }
             if (!product.transformRef().equals(lineage.transformRef())) {

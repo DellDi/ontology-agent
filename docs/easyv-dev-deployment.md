@@ -7,7 +7,7 @@ Cube 与 Neo4j 作为 Property 投影运行。
 
 ## 当前发布：原型业务语义（2026-10-11）
 
-2026-10-12 的“当前对象读最新数据、增量无变化复用”与周期入队已在本地实现，尚未发布公司环境。后续发布需先备份并迁移 V29/V30，再同步升级 Java API/Worker 与 Web；周期配置继续默认关闭。当前本地验收与边界见 [运行记录 §14.22](./architecture/ontology-agent-runtime.md#1422-当前对象与增量无变化复用2026-10-12本地实现)。下面公司版本与回执保留原日期。
+2026-10-12 的“当前对象读最新数据、增量无变化复用”与周期入队、版本清理见下方版本保留说明。发布需先备份并迁移 V29/V30/V31，再同步升级 Java API/Worker 与 Web；按用户选择继续手动采集，单独启用每日清理。当前本地对象验收见 [运行记录 §14.22](./architecture/ontology-agent-runtime.md#1422-当前对象与增量无变化复用2026-10-12本地实现)。下面公司版本与回执保留原日期，本批发布回执另行追加。
 
 当前 backend 已追加发布为 `quality-b-explain-ab58198`（提交 `ab58198f3c6a8f6bd3992ca6028220486f02cf1b`），修正候选不足凑数、未读内容作为建议依据、系列/槽位及共同单位比较的解释边界。源归档与已测 JAR 哈希核对、OCI revision、公司 backend/Web/Cube health 均通过；回执 `/opt/ontology-agent-releases/quality-b-explain-ab58198/deployment-report.json` 确认只更换 backend，其他六服务 ID/镜像/启动时间保持。Web 与 release-worker 仍为下述 `quality-b-semantics-d699c66`，Cube 配置也保持下述目录，未重复迁移或采集。业务解释在本地三场景完成复验，101 对象行、326 业务字段与同冻结 SQL 一致；详情默认显示业务名与说明，保留可展开的内部记录信息。该核对不代表完整 B 或实际编辑效果已通过。
 
@@ -345,6 +345,32 @@ profile 轮询队列，持有 EasyV 只读源凭据，同时可以执行平台 s
 发布、重跑及授权变更始终要求 PLATFORM_ADMIN，授权修改记入平台审计。
 
 ## 备份与恢复
+
+### 数据版本保留与清理（V31）
+
+正式入口是 Java 的 `ingestion-retention`，只连接平台库，不连接 EasyV 源库。预览默认不写入：
+
+```bash
+scripts/easyv-dev retention preview
+scripts/easyv-dev backup /opt/ontology-agent-backups/<本批目录>
+scripts/easyv-dev retention apply
+```
+
+默认保留最近 30 天，以及同来源、覆盖相同产品范围的最近 5 个完整发布；新产品加入后的完整集合可覆盖旧的产品子集，不让停止使用的旧组合无限保留。来源不同的混合集合不代替原来源集合。最新单个产品也保留。分析快照、任务、追问、图同步引用的集合不清理；当前采集游标、未完成产品运行的源输入、保留事实的实际源引用以及增量祖先链都保留。
+
+其余已发布旧集合与产品/源版本设为 revoked，并删除对应 facts 和原始 row-pack 批次；版本 ID、hash、行数、运行记录与血缘保持不变。已撤销的版本不能再用于新执行或完整重算，实际保留/清理清单写入 `ingestion.retention.completed` 审计。历史执行和追问仍被引用，所以其数据继续保留；这项策略不构成全库容量的硬上限。失败批次及薄元数据不在本批清理范围内。
+
+预览包含待撤销集合/产品/源版本、各事实表行数、批次数与 payload 字节数；apply 在一个事务内重新核对依赖、撤销、删除和写审计，失败全部回滚。维护事务与发布/执行绑定写入互斥，5 秒内拿不到锁就明确失败；没有停用触发器、关闭外键、删除会话或使用 session_replication_role。数据库只允许已退休版本删除 payload，活跃数据仍不可改；新执行绑定必须是 frozen 集合，防止绑定与清理并发时指向已清理数据。
+
+每日自动清理仅在发布 Worker 中启用，03:00（Asia/Shanghai）运行。私有部署配置可设置：
+
+```text
+INGEST_RETENTION_ENABLED=true
+INGEST_RETENTION_DAYS=30
+INGEST_RETENTION_RELEASES=5
+```
+
+默认关闭；API/Web 不启动清理调度器。先迁移 V31、检查预览和备份，再重建发布 Worker 启用。采集周期开关与清理独立，用户本批选择继续手动采集。清理失败写 ERROR，沿日志/审计诊断，不自动缩短保留期限；自动备份/告警通知不由这项清理能力提供。DELETE 释放的空间由 PostgreSQL VACUUM 回收复用，不保证数据库文件马上缩小；不在此入口执行阻塞式 VACUUM FULL。
 
 平台库是唯一的权威状态（会话、冻结版本、事实、身份、审计）；EasyV 源库为只读外部依赖，不纳入备份。
 

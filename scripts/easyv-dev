@@ -303,6 +303,16 @@ case "$command" in
   backup)
     run_backup "${2:-}"
     ;;
+  retention)
+    require_env_file
+    case "${2:-preview}" in
+      preview) retention_apply=false ;;
+      apply) retention_apply=true ;;
+      *) echo "usage: scripts/easyv-dev retention [preview|apply]" >&2; exit 2 ;;
+    esac
+    compose --profile ops run --rm retention --spring.profiles.active=ingestion-retention \
+      "--dip3.ingestion.retention.apply=$retention_apply"
+    ;;
   restore)
     run_restore "${2:-}"
     ;;
@@ -340,7 +350,7 @@ case "$command" in
     wait_for_health
     ;;
   *)
-    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy [service...]|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|facts-reader-seed|facts-reader-sql|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
+    echo "Usage: scripts/easyv-dev {build|config|migrate|deploy [service...]|health|ingest [FULL|INCREMENTAL|RECONCILE]|admin-seed|release-worker|property-ingest [FULL|INCREMENTAL|RECONCILE]|retention [preview|apply]|backup [dir]|restore <dump>|graph-bootstrap [datasetVersionSetId]|facts-reader-seed|facts-reader-sql|infrastructure-smoke|smoke|cross-domain-smoke|status|logs [lines]|release}" >&2
     exit 2
     ;;
 esac
