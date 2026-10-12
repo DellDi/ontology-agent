@@ -67,6 +67,8 @@ public interface IngestionPersistencePort {
 
     DatasetVersionSet freezeVersionSet(VersionSetPublication publication);
 
+    java.util.Optional<DatasetVersionSet> findFrozenVersionSet(Map<String, String> productVersionIds);
+
     record SourceRunRequest(String id, String sourceKey, IngestionRun.Mode mode,
                             IngestionRun.TriggerType triggerType, String triggeredBy,
                             String correlationId, Map<String, Object> snapshotContext) {

@@ -240,3 +240,15 @@ test('对象详情 | 业务呈现绑定同一授权文本属性，原始源值�
   result.propertyPresentations.themes.notice = '格式无法识别，请展开源记录核对。';
   assert.equal(javaObjectReadResultSchema.safeParse(result).success, true, 'invalid source is diagnosed without a fabricated interpretation');
 });
+
+test('对象客户端允许当前数据版本不同于历史来源，但拒绝其他执行的响应', async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => Response.json({ ...detail, datasetVersionSetId: 'set-latest' });
+    const current = await objectClient.readAnalysisObjects('session-old', request, new AbortController().signal);
+    assert.equal(current.datasetVersionSetId, 'set-latest');
+    assert.equal(current.executionId, request.executionId);
+    globalThis.fetch = async () => Response.json({ ...detail, datasetVersionSetId: 'set-latest', executionId: 'other-execution' });
+    await assert.rejects(() => objectClient.readAnalysisObjects('session-old', request, new AbortController().signal), /来源执行不一致/);
+  } finally { globalThis.fetch = original; }
+});

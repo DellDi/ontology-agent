@@ -30,7 +30,9 @@ public class IngestionReleaseWorker {
             try {
                 publisher.publish(new DatasetReleasePublisher.Command(task.id(), task.sourceKey(),
                         Set.copyOf(task.productKeys()), IngestionRun.Mode.valueOf(task.mode().toUpperCase(Locale.ROOT)),
-                        task.retryOf() == null ? IngestionRun.TriggerType.MANUAL : IngestionRun.TriggerType.RETRY,
+                        task.retryOf() != null ? IngestionRun.TriggerType.RETRY
+                                : "scheduled".equals(task.triggerType()) ? IngestionRun.TriggerType.SCHEDULED
+                                : IngestionRun.TriggerType.MANUAL,
                         task.requestedBy(), task.id(), 2000));
                 tasks.finish(task.id(), null);
                 log.info("ingestion_release_completed taskId={} traceId={}", task.id(), task.correlationId());

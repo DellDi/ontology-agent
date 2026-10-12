@@ -11,8 +11,8 @@ export async function readAnalysisObjects(sessionId: string, request: JavaObject
     throw new Error(`${error.error ?? '对象读取失败。'}${error.traceId ? `（追踪 ID：${error.traceId}）` : ''}`);
   }
   const parsed = javaObjectReadResultSchema.parse(result);
-  if (parsed.executionId !== body.executionId || parsed.datasetVersionSetId !== body.datasetVersionSetId) {
-    throw new Error('对象响应与来源执行版本不一致。');
+  if (parsed.executionId !== body.executionId) {
+    throw new Error('对象响应与来源执行不一致。');
   }
   if (body.includeComponentSummary && (!parsed.componentSummary || !parsed.dataContext
       || parsed.page.objectKey !== body.objectKey || parsed.page.rows[0]?.reference.objectId !== body.objectId)) {

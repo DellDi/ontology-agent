@@ -178,7 +178,7 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
                           <span className="mt-2 block break-all font-mono">{displayValue}</span>
                         </details>
                       ) : drilldown?.has(rowIndex, cellIndex) ? <button type="button"
-                        aria-label={`查看第 ${rowIndex + 1} 行${columns[cellIndex]}的支撑对象`}
+                        aria-label={`查看第 ${rowIndex + 1} 行${columns[cellIndex]}的当前匹配对象`}
                         onClick={() => drilldown.open(rowIndex, cellIndex)}
                         className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {displayValue}<span className="ml-1 text-xs">↗</span>

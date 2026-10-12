@@ -515,6 +515,13 @@ public class IngestionPostgresPersistenceAdapter implements IngestionPersistence
         lock("product", initial.productKey(), "INGESTION_PRODUCT_CONFLICT");
         ProductMaterializationRun run = requireProductRun(publication.runId(), true);
         if (run.status() == ProductMaterializationRun.Status.COMPLETED) {
+            DataProductVersion result = productVersionByRun(run.id());
+            if (result != null && !result.materializationRunId().equals(run.id())) {
+                if (result.schemaVersion() == publication.schemaVersion()
+                        && result.rowCount() == publication.rowCount()
+                        && result.contentHash().equals(publication.contentHash())) return result;
+                throw conflict("INGESTION_PRODUCT_VERSION_ID_CONFLICT", "复用产品的重放内容不一致");
+            }
             return requireSameProductPublication(publication, run.productKey());
         }
         if (run.status() != ProductMaterializationRun.Status.RUNNING) {
@@ -530,6 +537,24 @@ public class IngestionPostgresPersistenceAdapter implements IngestionPersistence
         }
         Map<String, String> inputVersions = run.sourceDatasetVersionIds();
         List<ProductInputRow> inputs = validateProductInputs(run.productKey(), inputVersions, true);
+        if (run.mode() == ProductMaterializationRun.Mode.INCREMENTAL) {
+            List<DataProductVersion> reusable = jdbc.query("""
+                    select v.* from ingestion.data_product_versions v
+                    where v.product_key=? and v.status='published' and v.schema_version=?
+                      and v.row_count=? and v.content_hash=?
+                      and exists (select 1 from ingestion.data_product_version_lineage l
+                                  where l.product_version_id=v.id and l.transform_ref=?)
+                      and not exists (select 1 from ingestion.data_product_version_lineage l
+                                      where l.product_version_id=v.id and l.transform_ref<>?)
+                    order by v.version_number desc limit 1
+                    """, this::productVersion, run.productKey(), publication.schemaVersion(),
+                    publication.rowCount(), publication.contentHash(), definition.transformRef(), definition.transformRef());
+            if (!reusable.isEmpty()) {
+                DataProductVersion existing = reusable.getFirst();
+                completeProductRun(run, existing, Instant.now());
+                return existing;
+            }
+        }
         long versionNumber = nextProductVersion(run.productKey());
         Instant now = Instant.now();
         requireChanged(jdbc.update("""
@@ -561,15 +586,37 @@ public class IngestionPostgresPersistenceAdapter implements IngestionPersistence
                     definition.transformRef(), at(now)),
                     "INGESTION_LINEAGE_WRITE_FAILED", "data product lineage 写入失败");
         }
-        requireChanged(jdbc.update("""
-                update ingestion.product_materialization_runs
-                set status='completed',row_counts=cast(? as jsonb),finished_at=?,updated_at=?
-                where id=? and status='running'
-                """, json.write(Map.of(run.productKey(), publication.rowCount())), at(now), at(now), run.id()),
-                "INGESTION_STATE_CONFLICT", "product run 完成状态已被并发修改");
-        return new DataProductVersion(publication.versionId(), run.productKey(), versionNumber,
+        DataProductVersion result = new DataProductVersion(publication.versionId(), run.productKey(), versionNumber,
                 DataProductVersion.Status.PUBLISHED, run.id(), publication.schemaVersion(),
                 publication.storageRef(), publication.rowCount(), publication.contentHash(), now, now);
+        completeProductRun(run, result, now);
+        return result;
+    }
+
+    private void completeProductRun(ProductMaterializationRun run, DataProductVersion result, Instant now) {
+        requireChanged(jdbc.update("""
+                update ingestion.product_materialization_runs
+                set status='completed',row_counts=cast(? as jsonb),result_product_version_id=?,finished_at=?,updated_at=?
+                where id=? and status='running'
+                """, json.write(Map.of(run.productKey(), result.rowCount())), result.id(), at(now), at(now), run.id()),
+                "INGESTION_STATE_CONFLICT", "product run 完成状态已被并发修改");
+    }
+
+    @Override
+    public java.util.Optional<DatasetVersionSet> findFrozenVersionSet(Map<String, String> productVersionIds) {
+        List<String> ids = jdbc.queryForList("""
+                with requested as (select cast(? as jsonb) products), latest as (
+                  select s.set_id,jsonb_object_agg(i.product_key,i.product_version_id) products
+                  from ingestion.dataset_version_sets s
+                  join ingestion.dataset_version_set_items i on i.set_id=s.set_id
+                  where s.status='frozen'
+                  group by s.set_id,s.captured_at
+                  having jsonb_object_agg(i.product_key,true)=
+                    (select jsonb_object_agg(key,true) from requested,jsonb_each(requested.products))
+                  order by s.captured_at desc,s.set_id desc limit 1
+                ) select latest.set_id from latest,requested where latest.products=requested.products
+                """, String.class, json.write(productVersionIds));
+        return ids.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(requireVersionSet(ids.getFirst()));
     }
 
     @Override
@@ -994,9 +1041,9 @@ public class IngestionPostgresPersistenceAdapter implements IngestionPersistence
 
     private DataProductVersion productVersionByRun(String runId) {
         List<DataProductVersion> rows = jdbc.query("""
-                select id,product_key,materialization_run_id,version_number,status,storage_ref,
-                       row_count,content_hash,schema_version,published_at,created_at
-                from ingestion.data_product_versions where materialization_run_id=?
+                select v.* from ingestion.data_product_versions v
+                join ingestion.product_materialization_runs r on r.result_product_version_id=v.id
+                where r.id=?
                 """, this::productVersion, runId);
         return rows.isEmpty() ? null : rows.getFirst();
     }

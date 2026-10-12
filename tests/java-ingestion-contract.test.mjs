@@ -46,7 +46,15 @@ test('release task fixtures keep durable status and actor credentials out of the
     task.sessionId = 'private-session';
     assert.equal(validate(invalid), false);
     assert.equal(zod.safeParse(invalid).success, false);
+    for (const mutate of [task => { task.triggerType = 'cron'; }, task => { delete task.triggerType; }]) {
+      const broken = structuredClone(fixture);
+      mutate(broken.items ? broken.items[0] : broken);
+      assert.equal(validate(broken), false);
+      assert.equal(zod.safeParse(broken).success, false);
+    }
   }
+  const list = await read('../contracts/backend/fixtures/ingestion-release-task-list.json');
+  assert.deepEqual(list.items.map(task => task.triggerType), ['manual', 'scheduled']);
 });
 
 test('release BFF preserves JSON, authenticated cookie, request key and accepted status', async context => {

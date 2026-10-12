@@ -49,7 +49,7 @@ public class EasyVSchemeAssessmentService {
     var row=selected.page().rows().getFirst();
     if(!row.reference().equals(selection.reference())) throw new BackendException("OBJECT_VERSION_MISMATCH","选中区域与冻结对象版本不一致。");
     String appId=property(row.properties(),"appId"),blockId=property(row.properties(),"blockId");
-    var manifest=datasets.requireFrozen(selection.datasetVersionSetId(),Set.of("easyv-prototype-layout","easyv-prototype-block","easyv-prototype-component"));
+    var manifest=datasets.requireFrozen(selected.datasetVersionSetId(),Set.of("easyv-prototype-layout","easyv-prototype-block","easyv-prototype-component"));
     var versions=manifest.productVersionIds();
     if(!Objects.equals(row.reference().productVersionId(),versions.get("easyv-prototype-block")))
       throw new BackendException("OBJECT_VERSION_MISMATCH","区域产品版本与冻结集合不一致。");

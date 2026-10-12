@@ -146,9 +146,6 @@ public class AnalysisFollowUpService {
     if (selection != null) {
       source = followUps.completedJavaSnapshot(selection.executionId(), sessionId, owner.userId())
           .orElseThrow(() -> new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND", "所选对象的来源执行未完成、已失效或无权访问。"));
-      if (!selection.datasetVersionSetId().equals(source.datasetVersionSetId)) {
-        throw new BackendException("OBJECT_VERSION_MISMATCH", "所选对象的冻结集合与来源执行不一致。");
-      }
       parent = source.followUpId == null ? null : owned(source.followUpId, sessionId, owner);
       if (parent != null && !source.executionId.equals(parent.resultExecutionId())) {
         throw new BackendException("FOLLOW_UP_SOURCE_NOT_FOUND", "所选执行与来源追问的完成结果不一致。");
@@ -166,11 +163,11 @@ public class AnalysisFollowUpService {
       throw new BackendException(
           "FOLLOW_UP_CAPABILITY_BINDING_INVALID", "来源执行的能力绑定与本体版本不一致，无法发起追问。");
     }
-    analyses.validateDatasetVersionSet(owner, sourceBinding, source.datasetVersionSetId);
-    // 新消息按提交时刻绑定最新完整冻结集：与根执行同一条规则，
-    // 继承来源执行的旧集合会让会话在新鲜度窗口外永久无法续聊。
-    String datasetVersionSetId = selection == null
-        ? analyses.resolveExecutionDatasetVersionSet(owner, sourceBinding) : source.datasetVersionSetId;
+    // 每条新消息按提交时刻绑定最新完整发布集合；来源执行提供语境，不决定当前对象数据。
+    String datasetVersionSetId = analyses.resolveExecutionDatasetVersionSet(owner, sourceBinding);
+    if (selection != null && !selection.datasetVersionSetId().equals(datasetVersionSetId)) {
+      throw new BackendException("OBJECT_VERSION_MISMATCH", "所选对象的数据已更新，请重新打开对象后追问。");
+    }
     return new Prepared(session, question, parent, source, sourceBinding, ontologyVersionId,
         datasetVersionSetId);
   }

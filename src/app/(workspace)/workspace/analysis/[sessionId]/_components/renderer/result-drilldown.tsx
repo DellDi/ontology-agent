@@ -18,7 +18,7 @@ export function resultDrilldownActions(input: AnalysisInteractionUiRenderInput) 
   const open = (row: number, column: number) => {
     const binding = bindings.find(b => b.row === row && b.column === column);
     if (!binding || !onOpenSidePanel || !context) return;
-    onOpenSidePanel({ title: '统计项 · 支撑对象', testId: 'analysis-drilldown-drawer',
+    onOpenSidePanel({ title: '统计项 · 当前匹配对象', testId: 'analysis-drilldown-drawer',
       content: renderObjectBrowserBlock({ ...input, renderedBlock: {
         ...block, kind: 'object-browser', payload: {
           datasetVersionSetId: block.payload.datasetVersionSetId, objectKey: binding.objectKey,

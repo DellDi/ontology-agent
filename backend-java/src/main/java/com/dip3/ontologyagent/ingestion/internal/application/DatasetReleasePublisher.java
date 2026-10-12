@@ -19,6 +19,7 @@ import java.util.UUID;
 
 /** Publishes one complete source-to-canonical release and freezes its product manifest. */
 public final class DatasetReleasePublisher {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DatasetReleasePublisher.class);
     private final SourceIngestionOrchestrator sourceIngestion;
     private final SourceCatalogPort sourceCatalog;
     private final ProductCatalogPort productCatalog;
@@ -78,13 +79,20 @@ public final class DatasetReleasePublisher {
                             productInputs.get(productKey)));
             products.put(productKey, product);
         }
+        Map<String, String> manifest = new LinkedHashMap<>();
+        products.forEach((key, version) -> manifest.put(key, version.id()));
+        if (command.mode() == IngestionRun.Mode.INCREMENTAL) {
+            var unchanged = persistence.findFrozenVersionSet(manifest);
+            if (unchanged.isPresent()) {
+                log.info("ingestion_release_unchanged sourceRunId={} publicationId={} datasetVersionSetId={}",
+                        source.runId(), command.publicationId(), unchanged.get().publicationId());
+                return new Result(source.runId(), sourceVersions, products, unchanged.get());
+            }
+        }
         Instant capturedAt = Instant.now();
         DatasetVersionSet versionSet = persistence.freezeVersionSet(
                 new IngestionPersistencePort.VersionSetPublication(
-                        command.publicationId(), products.entrySet().stream().collect(
-                        LinkedHashMap::new,
-                        (values, entry) -> values.put(entry.getKey(), entry.getValue().id()),
-                        LinkedHashMap::putAll),
+                        command.publicationId(), manifest,
                         capturedAt,
                         command.triggeredBy() == null ? "system" : command.triggeredBy()));
         return new Result(source.runId(), sourceVersions, Map.copyOf(products), versionSet);

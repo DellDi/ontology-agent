@@ -7,6 +7,7 @@
         "property-payment"
       ],
       "mode": "full",
+      "triggerType": "manual",
       "status": "failed",
       "retryOf": null,
       "requestedBy": "admin",
@@ -15,6 +16,24 @@
       "createdAt": "2026-09-12T01:00:00Z",
       "startedAt": "2026-09-12T01:00:01Z",
       "finishedAt": "2026-09-12T01:00:05Z"
+    },
+    {
+      "id": "5b0d7a52-3f0c-3a46-9b43-0a1f3c1d2e77",
+      "sourceKey": "easyv",
+      "productKeys": [
+        "easyv-ai-application",
+        "easyv-prototype-task"
+      ],
+      "mode": "reconcile",
+      "triggerType": "scheduled",
+      "status": "completed",
+      "retryOf": null,
+      "requestedBy": "system",
+      "correlationId": "schedule:easyv-daily-reconcile@2026-10-12T18:00:00Z",
+      "errorCode": null,
+      "createdAt": "2026-10-12T18:00:00Z",
+      "startedAt": "2026-10-12T18:00:01Z",
+      "finishedAt": "2026-10-12T18:02:30Z"
     }
   ]
 }

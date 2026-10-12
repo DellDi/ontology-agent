@@ -115,8 +115,14 @@ class AnalysisFollowUpControllerTest {
         when(service.createSelected(anyString(), any(), anyString(), any()))
             .thenThrow(new BackendException("OBJECT_VERSION_MISMATCH", "对象版本不一致。"));
         mvc.perform(post("/api/analysis/sessions/session-1/follow-ups").contentType("application/x-www-form-urlencoded")
-                .param("question", "看这个").param("objectSelection", raw)).andExpect(status().isConflict())
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("OBJECT_VERSION_MISMATCH"));
+                .param("question", "看这个").param("objectSelection", raw)).andExpect(status().isSeeOther())
+            .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("followUpError=")));
+        when(service.createStructured(anyString(), any(), anyString(), anyString(), any(), any()))
+            .thenThrow(new BackendException("OBJECT_VERSION_MISMATCH", "对象版本不一致。"));
+        mvc.perform(post("/api/analysis/sessions/session-1/follow-ups/structured")
+                .contentType("application/x-www-form-urlencoded").param("question", "看这个")
+                .param("queries", "[]").param("objectSelection", raw)).andExpect(status().isSeeOther())
+            .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("followUpError=")));
     }
 
     @Test

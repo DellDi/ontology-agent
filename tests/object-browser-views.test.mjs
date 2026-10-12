@@ -165,7 +165,7 @@ test('对象浏览 | 排序与筛选控件由声明的属性生成，默认折�
   assert.match(rendered.idle, /<option value="CONTAINS"[^>]*>包含<\/option>/, '独立控件仍按实际属性类型提供算子');
   assert.match(rendered.layout, /排序与筛选/, '原型集合沿用同一控件');
   assert.doesNotMatch(rendered.pending, /排序与筛选/, '尚未读到字段声明时不展示控件');
-  assert.match(rendered.pending, /正在读取本轮对象/);
+  assert.match(rendered.pending, /正在读取当前对象/);
 });
 
 test('对象浏览 | 已启用的排序与筛选以可移除的条件展示，并提示数量上限', () => {

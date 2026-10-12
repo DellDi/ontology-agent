@@ -79,7 +79,7 @@ export function LineChartBlock({
               const interactive = drilldown?.has(sourceRow, index);
               return <circle cx={cx} cy={cy} r={4} fill={CHART_PALETTE[index % CHART_PALETTE.length]}
                 role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined}
-                aria-label={interactive ? `查看${data[row!]?.label}的${name}支撑对象` : undefined}
+                aria-label={interactive ? `查看${data[row!]?.label}的${name}当前匹配对象` : undefined}
                 className={interactive ? 'cursor-pointer focus-visible:outline-none focus-visible:stroke-primary focus-visible:stroke-2' : undefined}
                 onClick={interactive ? () => drilldown?.open(sourceRow, index) : undefined}
                 onKeyDown={interactive ? event => { if (event.key === 'Enter' || event.key === ' ') {

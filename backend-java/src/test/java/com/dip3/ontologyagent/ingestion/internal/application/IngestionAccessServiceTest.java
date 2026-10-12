@@ -51,7 +51,7 @@ class IngestionAccessServiceTest {
     }
     @Test void taskDetailAndListVisibleToAllAuthenticatedUsers() {
         catalog(); var tasks=mock(IngestionReleasePort.class);
-        var foreign=new IngestionReleasePort.Task("task","easyv",List.of("app"),"full","failed",null,"admin","trace","failure",Instant.now(),null,Instant.now());
+        var foreign=new IngestionReleasePort.Task("task","easyv",List.of("app"),"full","manual","failed",null,"admin","trace","failure",Instant.now(),null,Instant.now());
         when(tasks.find("task")).thenReturn(Optional.of(foreign));when(tasks.recent()).thenReturn(List.of(foreign));
         var service=new IngestionReleaseService(tasks,mock(SourceCatalogPort.class),mock(ProductCatalogPort.class),mock(CanonicalProductTransformRegistry.class),access);
         assertEquals(1, service.recent(member).items().size());

@@ -293,6 +293,7 @@ export function IngestionReleasePanel({
                   ]
                 }{' '}
                 · {task.productKeys.length} 个产品
+                {task.triggerType === 'scheduled' ? ' · 定时' : ''}
               </span>
             </span>
             <span className="flex items-center gap-3">
@@ -319,7 +320,10 @@ export function IngestionReleasePanel({
             </p>
             <p className="break-all">数据产品：{task.productKeys.join('、')}</p>
             <p className="break-all text-muted-foreground">
-              提交人：{task.requestedBy} · 追踪号：{task.correlationId}
+              {task.triggerType === 'scheduled'
+                ? '触发：系统定时'
+                : `提交人：${task.requestedBy}`}{' '}
+              · 追踪号：{task.correlationId}
             </p>
             <p className="text-muted-foreground">
               开始：{formatTimestamp(task.startedAt)} · 结束：

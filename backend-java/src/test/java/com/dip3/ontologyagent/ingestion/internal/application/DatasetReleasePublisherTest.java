@@ -136,6 +136,24 @@ class DatasetReleasePublisherTest {
         assertEquals(Map.of("input-b", "source-b-existing"), inputs.get("product-b"));
     }
 
+    @Test
+    void unchangedIncrementalPublicationReturnsExistingManifestWithoutFreezingAnother() {
+        when(sourceIngestion.ingest(any())).thenReturn(new SourceIngestionOrchestrator.Result("source-check", List.of(sourceVersion("dataset-a", "source-a-existing"))));
+        when(sourceCatalog.loadActiveSource("source-a")).thenReturn(sourceCatalog(List.of(cursor("dataset-a", "source-a-existing"))));
+        when(productCatalog.loadActiveProduct("product-a")).thenReturn(product("product-a", "input-a", "dataset-a", true));
+        var existing = productVersion("product-a", "product-existing");
+        when(materializer.materialize(any())).thenReturn(existing);
+        Map<String, String> versions = Map.of("product-a", existing.id());
+        var set = new DatasetVersionSet("set-existing", versions, AT, DatasetVersionSet.Status.FROZEN, AT, AT, "operator");
+        when(persistence.findFrozenVersionSet(versions)).thenReturn(java.util.Optional.of(set));
+        var result = publisher.publish(new DatasetReleasePublisher.Command("check", "source-a", Set.of("product-a"),
+                IngestionRun.Mode.INCREMENTAL, IngestionRun.TriggerType.SCHEDULED, "system", "check", 100));
+        assertEquals("source-check", result.sourceRunId());
+        assertEquals(set, result.versionSet());
+        assertEquals(existing, result.productVersions().get("product-a"));
+        verify(persistence, never()).freezeVersionSet(any());
+    }
+
     private static DatasetReleasePublisher.Command command() {
         return new DatasetReleasePublisher.Command(
                 "release-1", "source-a", Set.of("product-b", "product-a"),

@@ -91,7 +91,7 @@ function ObjectList({ title, rows, type, selected, onSelect, hasMore, loading, o
   return <section className="space-y-2">
     <h4 className="text-xs font-semibold text-muted-foreground">{title} · {rows.length}{hasMore ? '+' : ''}</h4>
     <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
-      {!rows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">本轮冻结数据中没有关联对象。</p> : rows.map((row) => <button
+      {!rows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">当前数据中没有关联对象。</p> : rows.map((row) => <button
         key={row.reference.objectId} type="button" aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
         onClick={() => onSelect(row)} className={cn('flex w-full flex-col items-start gap-1 border-b border-border/50 px-3 py-2.5 text-left text-xs last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey && 'bg-primary/10 text-primary')}>
@@ -212,7 +212,7 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
         <p>有效权限范围：{detail.data.dataContext.scopeDescription}</p>
         <p>{hints?.provenance ?? '集合捕获时间表示本轮数据版本的捕获时间；源属性中的创建时间均不代表对象最后编辑时间。'}</p>
       </div> : null}
-      <p className="mt-2 break-all leading-5">对象：{selected.reference.objectId}<br />产品版本：{selected.reference.productVersionId}<br />冻结集合：{context.datasetVersionSetId}<br />来源执行：{context.executionId}</p>
+      <p className="mt-2 break-all leading-5">对象：{selected.reference.objectId}<br />产品版本：{selected.reference.productVersionId}<br />数据版本：{detail.data?.datasetVersionSetId ?? context.datasetVersionSetId}<br />来源执行：{context.executionId}</p>
     </details>
   </section>;
 }
@@ -310,7 +310,7 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
       <section className="min-w-0 space-y-2" aria-label="原型区域列表">
         <h4 className="text-xs font-semibold text-muted-foreground">区域 · {blockRows.length}{blocks.hasNextPage ? '+' : ''}</h4>
         <div className="max-h-96 overflow-y-auto rounded-lg border border-border">
-          {!blockRows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">本轮冻结数据中没有关联区域。</p> : null}
+          {!blockRows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">当前数据中没有关联区域。</p> : null}
           {blockRows.map((row) => <button key={row.reference.objectId} type="button" aria-label={`选择区域 ${label(row, blocks.data?.pages[0]?.objectType)}`} aria-pressed={row.reference.objectId === selectedBlock}
             title={label(row, blocks.data?.pages[0]?.objectType)} onClick={() => setFocus(row)} className={cn('flex w-full flex-col items-start gap-2 border-b border-border/50 px-2 py-3 text-left last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-primary/10 text-primary')}>
             <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === row.reference.objectId)} geometry={componentGeometry} metricStyle={metricStyle} thumbnail />
@@ -359,7 +359,7 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
           context={context} object={selected} summary={detail.data.componentSummary} onSelect={setFocus} /> : null}
       </>}
       afterProperties={selected.reference.objectKey === 'easyv-prototype-block' && detail.data?.page.rows[0] ? <SchemeAssessmentPanel key={`${selected.reference.objectId}:${selected.reference.productVersionId}`} sessionId={context.sessionId}
-        selection={{ executionId: context.executionId, datasetVersionSetId: context.datasetVersionSetId, reference: selected.reference }} /> : null} />
+        selection={{ executionId: context.executionId, datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }} /> : null} />
   </div>;
 }
 
@@ -371,7 +371,7 @@ const objectViews: Partial<Record<Row['reference']['objectKey'], ObjectView>> = 
 };
 function viewOf(objectKey: Row['reference']['objectKey']) { return objectViews[objectKey] ?? metadataView; }
 
-function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescription, onObjectSelect }: {
+function ObjectBrowser({ context, objectKey, filters, drilldownId, onObjectSelect }: {
   context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; drilldownId?: string | null; scopeDescription: string; onObjectSelect?: SelectObject;
 }) {
   const [offset, setOffset] = useState(0);
@@ -391,10 +391,11 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
   const root = selected ?? list.data?.page.rows[0];
   const Detail = root ? viewOf(root.reference.objectKey).Detail : null;
   return <div className="space-y-5" data-testid="analysis-object-browser">
-    <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p>
+    <p className="text-xs leading-5 text-muted-foreground">当前对象按最新已发布数据读取；历史回答保留当时结论，数量与属性可能已变化。</p>
+    <p className="text-xs leading-5 text-muted-foreground">分页结果不代表全部匹配对象。</p>
     {knownType ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties.filter((property) => !property.identifier)}
       controls={controls} maxFilters={maxFilters} onChange={change} /> : null}
-    {list.isPending ? <Pending>正在读取本轮对象…</Pending> : null}
+    {list.isPending ? <Pending>正在读取当前对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}
     {list.data ? <>
       {!list.data.page.rows.length ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}

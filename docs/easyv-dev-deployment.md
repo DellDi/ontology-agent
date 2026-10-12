@@ -7,6 +7,8 @@ Cube 与 Neo4j 作为 Property 投影运行。
 
 ## 当前发布：原型业务语义（2026-10-11）
 
+2026-10-12 的“当前对象读最新数据、增量无变化复用”与周期入队已在本地实现，尚未发布公司环境。后续发布需先备份并迁移 V29/V30，再同步升级 Java API/Worker 与 Web；周期配置继续默认关闭。当前本地验收与边界见 [运行记录 §14.22](./architecture/ontology-agent-runtime.md#1422-当前对象与增量无变化复用2026-10-12本地实现)。下面公司版本与回执保留原日期。
+
 当前 backend 已追加发布为 `quality-b-explain-ab58198`（提交 `ab58198f3c6a8f6bd3992ca6028220486f02cf1b`），修正候选不足凑数、未读内容作为建议依据、系列/槽位及共同单位比较的解释边界。源归档与已测 JAR 哈希核对、OCI revision、公司 backend/Web/Cube health 均通过；回执 `/opt/ontology-agent-releases/quality-b-explain-ab58198/deployment-report.json` 确认只更换 backend，其他六服务 ID/镜像/启动时间保持。Web 与 release-worker 仍为下述 `quality-b-semantics-d699c66`，Cube 配置也保持下述目录，未重复迁移或采集。业务解释在本地三场景完成复验，101 对象行、326 业务字段与同冻结 SQL 一致；详情默认显示业务名与说明，保留可展开的内部记录信息。该核对不代表完整 B 或实际编辑效果已通过。
 
 用户明确批准后，基于提交 `d699c66224d3f6178d4e50853922946592c002fa` 发布 `quality-b-semantics-d699c66`。Java/Web 同提交源归档构建，已测 JAR 与归档 SHA-256 在服务器一致；两镜像 OCI revision 均为该完整提交。Web 服务器生产构建通过。发布目录 `/opt/ontology-agent-releases/quality-b-semantics-d699c66`，回执 `deployment-report.json`。
@@ -311,6 +313,32 @@ profile 轮询队列，持有 EasyV 只读源凭据，同时可以执行平台 s
 全量、增量与全量对账均为显式发布操作。RECONCILE 忽略历史游标并建立新版本根，
 删除的数据不再出现在新版本；旧冻结版本保持原样。
 
+### 定时发布（V29，本地验证，公司未启用）
+
+`release-worker` 进程可按配置把增量/对账发布以 `system` 身份入队，仍由同一队列串行执行；不新增执行通道，不读取源库。**默认关闭**：只有同时设置 `dip3.ingestion.release-worker.enabled=true`（`ingest-queue` profile 已设置）与 `dip3.ingestion.release-worker.schedule.enabled=true` 才会注册；API/Web 进程不得开启。启用前必须先在公司执行 V29（`release_tasks` 新增 `trigger_type`，`session_id` 允许为空），再更新 backend 与 release-worker；未迁移直接启用会在入队时失败。V29 迁移幂等，回退镜像不需要恢复数据库（旧代码忽略新列，但旧 Worker 会把定时任务按手动触发记录）。
+
+示例（仅供启用时参考，**当前未写入 compose，也没有在公司启用**；命令行参数形式，每行是 `compose.easyv-dev.yaml` 中 `release-worker.command` 的一个独立元素，含空格的 cron 不要拆开）：
+
+```text
+--dip3.ingestion.release-worker.schedule.enabled=true
+--dip3.ingestion.release-worker.schedule.items[0].name=easyv-daily-reconcile
+--dip3.ingestion.release-worker.schedule.items[0].source-key=easyv
+--dip3.ingestion.release-worker.schedule.items[0].product-keys=easyv-ai-application,easyv-prototype-task,easyv-prototype-layout,easyv-prototype-block,easyv-prototype-component,easyv-scheme-library,easyv-pipeline-node,easyv-forge-task,easyv-generation-feedback
+--dip3.ingestion.release-worker.schedule.items[0].mode=reconcile
+--dip3.ingestion.release-worker.schedule.items[0].cron=0 0 2 * * *
+--dip3.ingestion.release-worker.schedule.items[0].zone=Asia/Shanghai
+```
+
+行为边界：
+
+- 仅允许 `incremental` / `reconcile`；`cron`、`zone` 必须显式给出，配置非法（cron、时区、模式、键格式、重名、启用但无条目）使进程启动失败，不会静默不运行。cron 以接下来两次触发的间隔校验，不得小于 1 分钟。
+- 每个触发时刻对应固定任务 id（计划名 + 触发时刻），多副本与重启不会重复入队。进程重启或短暂停机后，只补入 `catch-up`（默认 6 小时）窗口内**最近一次**触发；超出窗口的触发不会补跑，也没有"漏跑告警"，需要靠管理页任务列表发现。
+- 同一数据源、产品集合与模式已有 pending/running 任务时，本次触发跳过，不堆积；跳过写 WARN 日志 `ingestion_release_schedule_skipped` 和审计事件 `ingestion.release.scheduled_skipped`（`system`/`platform`，载荷含 `blockedBy`）。
+- 目录漂移等确定性错误（`BackendException`）每个触发时刻只记录一次 ERROR（`ingestion_release_schedule_rejected`）；数据库等瞬时错误在窗口内于下个 tick（30 秒）重试。不自动重试失败的发布；失败任务沿用管理页"已修复，重新执行"（产生带 `retryOf` 的手动任务）。
+- 管理页任务行标注"定时"，提交人显示为"触发：系统定时"。API 契约新增 `triggerType`（`manual` | `scheduled`）。
+
+**容量与持续运行仍是启用前提。** V30 已在本地实现产品内容 hash、行数、schema 和转换规则一致时复用原产品；INCREMENTAL 的最新完整清单也一致时不新建冻结集合。仍执行源采集、重建与转换校验，记录本次检查及复用结果；变化产品仍整份写入，FULL/RECONCILE 仍完整发布，原始采集批次和旧版本没有清理机制。此前约 6MB/整份版本及每小时约 50GB/年的估算不能作为改动后实际增长率，需按真实变化率、源批次与索引测量。本地没有源原始批次，尚未在真实源/运行中周期 Worker 验证；公司 V29/V30 未迁移。每日对账与每小时增量都保持关闭，先完成运行验证、容量核对及告警，不因去重测试通过就宣布无人值守可用。
+
 平台管理员在“数据接入 → 组织授权”维护共享源查看授权。组织只能读取被授权源的目录、
 任务与完整冻结版本；混合包含未授权源的版本整体不可见。记录窗口是平台最近 50 条任务、
 20 个版本中的可见记录。授权不改变业务分析范围，也不代表源数据按组织物理隔离。
@@ -389,6 +417,8 @@ release-worker 不提供 HTTP 健康检查。已知两类停摆：宿主 Docker 
 
 ### B1.1 对象读取（本地验证，尚未发布 easyv-dev）
 
+以下保留当时的部署边界；2026-10-12 本地已将用户对象浏览改为最新完整发布集合，执行中工具仍固定单轮集合，详见 §14.22。公司尚未发布此变化。
+
 对象 API 随新版 Java 与 Web 发布，Cube 使用同时重新生成的本体模型（新增对象关系及节点/网格属性）。无需额外迁移；V22 仍先于新版应用。对象读取必须使用来源执行的冻结集合，且该集合须包含 application/layout/block/component 四个产品。旧集合缺产品时明确报错，旧 V21 版式没有结构树时返回 not_retained，不将历史执行迁移到最新集合。上线验收须补充真实账号从统计到对象/画布的下钻、范围收窄及历史版本一致性；读取 API 与呈现的本地门禁已通过，原型查看器进度见 B1.2；Agent 工具与真实数据验收仍待实施。
 
 
@@ -400,6 +430,8 @@ Java 全量 552 / Web 110 通过、5 个可选容器测试跳过，类型/相关
 
 
 ### B1.3 对象追问发布边界（2026-10-04）
+
+以下为历史方案；2026-10-12 本地对象追问已改为当前选择与最新完整发布集合一致后再校验权限，过期选择提示重新打开。历史来源执行仍提供会话语境，公司尚未发布此变化。
 
 本地实现已接入显式对象选择、同来源冻结集追问、服务端权限收窄与历史恢复；尚未在 easyv-dev 验收。复用 V22 和现有对象产品，没有新增迁移。必须同步升级 Java API/Worker 与 Web：新 Web 会在普通和结构化追问表单中发送 objectSelection，Java 校验来源与产品版本并写入受控快照；旧 Java 会忽略新字段，不能混搭版本后将其描述为已支持对象追问。
 
