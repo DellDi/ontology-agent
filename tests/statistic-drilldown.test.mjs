@@ -89,7 +89,7 @@ test('统计表 | 标识值默认折叠，业务文字和数量保留，数量�
   assert.match(html, /<details[^>]*><summary[^>]*>数据出处<\/summary><span[^>]*>opaque-hash<\/span><\/details>/);
   assert.doesNotMatch(html, /<details[^>]*open/);
   assert.match(html, /经营概览/);
-  assert.match(html, /查看第 1 行数量的支撑对象/);
+  assert.match(html, /查看第 1 行数量的当前匹配对象/);
   assert.match(html, /7<span/);
 });
 
@@ -161,8 +161,8 @@ test('精确下钻 | 点击只传绑定 ID，三个结果形态使用同一坐�
   assert.equal(parsed.payload.objectKey, binding.objectKey);
   assert.equal(parsed.payload.context.datasetVersionSetId, 'set-old');
   assert.equal(parsed.payload.filters, undefined, '客户端不能用展示端过滤替换绑定');
-  assert.match(parsed.html, /查看组件数的支撑对象/);
-  assert.match(parsed.tableHtml, /查看第 1 行组件数的支撑对象/);
+  assert.match(parsed.html, /查看组件数的当前匹配对象/);
+  assert.match(parsed.tableHtml, /查看第 1 行组件数的当前匹配对象/);
 });
 
 test('图形回归 | 折线缺失期间不补零、不连线，柱/折线下钻均使用原系列点位，缺失点没有交互', () => {

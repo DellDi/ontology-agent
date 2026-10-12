@@ -48,6 +48,8 @@ class EasyVObjectReadServiceTest {
         "easyv-prototype-block", "blocks-old", "easyv-prototype-component", "components-old");
     when(datasets.requireFrozen(eq("set-old"), anySet())).thenReturn(new DatasetVersionSet(
         "set-old", versions, NOW, DatasetVersionSet.Status.FROZEN, NOW, NOW, "test"));
+    when(datasets.latestFrozen(anySet())).thenReturn(Optional.of(new DatasetVersionSet(
+        "set-old", versions, NOW, DatasetVersionSet.Status.FROZEN, NOW, NOW, "test")));
     when(objects.query(any(), any())).thenAnswer(call -> {
       ObjectQueryPort.Query query = call.getArgument(0);
       return new ObjectQueryPort.Page(query.objectKey(), List.of(), query.limit(), query.offset(), false);
@@ -176,17 +178,22 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
-  void listUsesExactExecutionManifestWithoutSelectingLatest() {
+  void objectBrowseUsesLatestPublishedManifest() {
+    var current = new DatasetVersionSet("set-new", Map.of("easyv-ai-application", "apps-new", LAYOUT, "layouts-new",
+        "easyv-prototype-block", "blocks-new", "easyv-prototype-component", "components-new"), NOW,
+        DatasetVersionSet.Status.FROZEN, NOW, NOW, "test");
+    when(datasets.latestFrozen(anySet())).thenReturn(Optional.of(current));
+    when(datasets.requireFrozen(eq("set-new"), anySet())).thenReturn(current);
     var result = service.read("session", admin, request(null, null, "set-old"));
-    assertEquals("set-old", result.datasetVersionSetId());
+    assertEquals("set-new", result.datasetVersionSetId());
     assertEquals("ontology-old", result.ontologyVersionId());
     assertTrue(result.page().rows().isEmpty());
     assertNull(result.structure());
     verify(objects).query(any(), argThat(access -> access.scope().all()
-        && "layouts-old".equals(access.productVersions().get(LAYOUT))));
-    verify(datasets, never()).latestFrozen(anySet());
+        && "layouts-new".equals(access.productVersions().get(LAYOUT))));
+    verify(datasets, atLeastOnce()).latestFrozen(anySet());
     verify(ontologies).published("ontology-old");
-    verify(datasets).requireFrozen("set-old", EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS);
+    verify(datasets).latestFrozen(EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS);
   }
 
   @Test
@@ -199,7 +206,7 @@ class EasyVObjectReadServiceTest {
     var result = service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", component, null, null, null, null, 20, 40));
     assertEquals(geometry, result.componentGeometry());
     verify(structures).componentGeometry("components-old", List.of("41:c1"));
-    verify(datasets, never()).latestFrozen(anySet());
+    verify(datasets, atLeastOnce()).latestFrozen(anySet());
   }
 
   @Test
@@ -213,7 +220,7 @@ class EasyVObjectReadServiceTest {
     verify(objects, times(2)).query(argThat(query -> query.filters().equals(List.of(
         new QueryIntent.Filter("layoutSignature", QueryIntent.Operator.EQUALS, List.of("L1-a"))))),
         argThat(access -> "layouts-old".equals(access.productVersions().get(LAYOUT))));
-    verify(datasets, never()).latestFrozen(anySet());
+    verify(datasets, atLeastOnce()).latestFrozen(anySet());
   }
 
   @Test
@@ -229,7 +236,7 @@ class EasyVObjectReadServiceTest {
     verify(objects).query(argThat(query -> query.filters().equals(List.of(saved, wider, refine))
         && query.order().equals(order) && query.offset() == 20),
         argThat(access -> "layouts-old".equals(access.productVersions().get(LAYOUT))));
-    verify(datasets, never()).latestFrozen(anySet());
+    verify(datasets, atLeastOnce()).latestFrozen(anySet());
     clearInvocations(objects);
     service.read("session", admin, new EasyVObjectReadService.Request("execution", "set-old", LAYOUT, null, null, null, order, 20, 0, "q1:0:count"));
     verify(objects).query(argThat(query -> query.filters().equals(List.of(saved)) && query.order().equals(order)), any());
@@ -287,7 +294,7 @@ class EasyVObjectReadServiceTest {
   void refusesForgedOrUnavailableFrozenSet() {
     assertEquals("OBJECT_VERSION_MISMATCH", assertThrows(BackendException.class,
         () -> service.read("session", admin, request(null, null, "set-new"))).code());
-    verifyNoInteractions(objects, structures, datasets);
+    verifyNoInteractions(objects, structures);
     when(datasets.requireFrozen(eq("set-old"), anySet()))
         .thenThrow(new BackendException("DATASET_VERSION_SET_NOT_FROZEN", "已撤销"));
     assertEquals("DATASET_VERSION_SET_NOT_FROZEN", assertThrows(BackendException.class,
@@ -370,7 +377,7 @@ class EasyVObjectReadServiceTest {
     assertNull(detail.componentSummary());
     assertTrue(detail.componentGeometry().isEmpty());
     verifyNoInteractions(structures, queries);
-    verify(datasets, never()).latestFrozen(anySet());
+    verify(datasets, atLeastOnce()).latestFrozen(anySet());
   }
 
   @Test
@@ -408,6 +415,7 @@ class EasyVObjectReadServiceTest {
     when(accounts.subjectValue(1L, "easyv", "userId")).thenReturn(Optional.of("16"));
     var context = runtime(worker);
     service.readDuringExecution(context, binding.resolvedScope(), request(null, null, "set-old"));
+    verify(datasets, never()).latestFrozen(anySet());
     verify(executions).renewLease("execution", "worker", ExecutionRepository.EXECUTION_LEASE);
     verify(executions, never()).findJavaSnapshot(anyString(), anyString(), anyString());
     verify(sessions).requireOwned("session", new AuthSession("worker", "1", "用户", analyst.scope(), Instant.MAX));
@@ -466,7 +474,7 @@ class EasyVObjectReadServiceTest {
         && q.intent().limit() == null && q.range().allData() && q.intent().dimensions().equals(List.of("chartFamily"))),
         argThat(a -> a.productVersions().get("easyv-prototype-component").equals("components-old")
             && a.scope().values().equals(Map.of("userId", List.of("16")))));
-    verify(datasets, never()).latestFrozen(anySet());
+    verify(datasets, atLeastOnce()).latestFrozen(anySet());
   }
 
   @Test

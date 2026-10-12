@@ -5,6 +5,7 @@ import com.dip3.ontologyagent.ingestion.api.DatasetDefinition;
 import com.dip3.ontologyagent.support.BackendException;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -70,25 +71,34 @@ public class IngestionReleaseService {
         }
         List<String> keys = command.productKeys().stream().distinct().sorted().toList();
         // A repeated request keeps its original outcome even if the catalog was later disabled.
-        if (tasks.find(id).isEmpty()) {
-            var source = sources.loadActiveSource(command.sourceKey());
-            if ("incremental".equals(command.mode()) && source.datasets().stream().noneMatch(dataset ->
-                    dataset.cursorSpec().strategy() == DatasetDefinition.CursorSpec.Strategy.WATERMARK)) {
-                throw new BackendException("INGESTION_REQUEST_INVALID", "此数据源没有可增量采集的数据集。");
+        if (tasks.find(id).isEmpty()) requireRunnable(command.sourceKey(), keys, command.mode());
+        return tasks.submit(id, command.sourceKey(), keys, command.mode(), retryOf, actor, traceId);
+    }
+
+    /** Enqueues one schedule fire; catalog drift fails loudly with the same errors as a manual request. */
+    public IngestionReleasePort.ScheduledSubmission submitScheduled(IngestionSchedule schedule, Instant fireTime) {
+        String id = schedule.taskId(fireTime);
+        if (tasks.find(id).isEmpty()) requireRunnable(schedule.sourceKey(), schedule.productKeys(), schedule.mode());
+        return tasks.submitScheduled(id, schedule.name(), fireTime, schedule.sourceKey(), schedule.productKeys(),
+                schedule.mode());
+    }
+
+    private void requireRunnable(String sourceKey, List<String> keys, String mode) {
+        var source = sources.loadActiveSource(sourceKey);
+        if ("incremental".equals(mode) && source.datasets().stream().noneMatch(dataset ->
+                dataset.cursorSpec().strategy() == DatasetDefinition.CursorSpec.Strategy.WATERMARK)) {
+            throw new BackendException("INGESTION_REQUEST_INVALID", "此数据源没有可增量采集的数据集。");
+        }
+        for (String key : keys) {
+            var product = products.loadActiveProduct(key);
+            try {
+                transforms.require(product.product().transformRef());
+            } catch (IllegalArgumentException error) {
+                throw new BackendException("INGESTION_PRODUCT_UNAVAILABLE", "数据产品未启用：" + key, error);
             }
-            for (String key : keys) {
-                var product = products.loadActiveProduct(key);
-                try {
-                    transforms.require(product.product().transformRef());
-                } catch (IllegalArgumentException error) {
-                    throw new BackendException("INGESTION_PRODUCT_UNAVAILABLE", "数据产品未启用：" + key, error);
-                }
-                if (product.inputDatasets().values().stream().anyMatch(dataset ->
-                        !dataset.sourceKey().equals(command.sourceKey()))) {
-                    throw new BackendException("INGESTION_REQUEST_INVALID", "所选产品包含其他数据源的输入，请分开发布。");
-                }
+            if (product.inputDatasets().values().stream().anyMatch(dataset -> !dataset.sourceKey().equals(sourceKey))) {
+                throw new BackendException("INGESTION_REQUEST_INVALID", "所选产品包含其他数据源的输入，请分开发布。");
             }
         }
-        return tasks.submit(id, command.sourceKey(), keys, command.mode(), retryOf, actor, traceId);
     }
 }

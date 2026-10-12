@@ -33,11 +33,12 @@ class IngestionReleaseControllerTest {
         verifyNoInteractions(service);
         when(auth.authenticate(any())).thenReturn(Optional.of(actor));
         when(service.submit(eq("request-id"), any(), eq(actor), any())).thenReturn(new IngestionReleasePort.Task(
-                "request-id", "property", List.of("payment"), "full", "pending", null, "admin", "trace", null,
+                "request-id", "property", List.of("payment"), "full", "manual", "pending", null, "admin", "trace", null,
                 Instant.parse("2026-09-12T00:00:00Z"), null, null));
         mvc.perform(post("/api/admin/ingestion/release-tasks").contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", "request-id").content(body)).andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("pending")).andExpect(jsonPath("$.sessionId").doesNotExist())
+                .andExpect(jsonPath("$.status").value("pending")).andExpect(jsonPath("$.triggerType").value("manual"))
+                .andExpect(jsonPath("$.sessionId").doesNotExist())
                 .andExpect(jsonPath("$.createdAt").isString());
         when(service.retry(any(), any(), any(), any())).thenThrow(new BackendException("INGESTION_RELEASE_CONFLICT", "only failed"));
         mvc.perform(post("/api/admin/ingestion/release-tasks/request-id/retry").contentType(MediaType.APPLICATION_JSON)

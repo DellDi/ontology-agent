@@ -5,6 +5,7 @@
     "property-payment"
   ],
   "mode": "full",
+  "triggerType": "manual",
   "status": "failed",
   "retryOf": null,
   "requestedBy": "admin",

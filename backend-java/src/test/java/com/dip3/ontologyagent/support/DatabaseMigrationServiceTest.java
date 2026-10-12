@@ -191,7 +191,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(28, applied, "新库应执行到 V28 原型业务语义");
+        assertEquals(30, applied, "新库应执行到 V30 产品复用记录");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -248,7 +248,7 @@ class DatabaseMigrationServiceTest {
                 select count(*) from ingestion.data_product_definitions
                 where domain_key='property' and status='disabled'
                 """, Integer.class), "V15 应将 Property data products 封存为 disabled");
-        assertEquals(21, jdbc.queryForObject(
+        assertEquals(22, jdbc.queryForObject(
                 "select count(*) from pg_constraint c join pg_class t on c.conrelid=t.oid "
                         + "join pg_namespace n on t.relnamespace=n.oid "
                         + "where c.contype='f' and n.nspname='ingestion'", Integer.class),
@@ -611,7 +611,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(28, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(30, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -628,7 +628,7 @@ class DatabaseMigrationServiceTest {
         assertTrue(platformTables >= 20, "重复执行后表结构应保持不变");
         Integer foreignKeys = jdbc.queryForObject(
                 "select count(*) from pg_constraint where contype = 'f'", Integer.class);
-        assertEquals(61, foreignKeys, "重复执行不应产生重复外键约束");
+        assertEquals(62, foreignKeys, "重复执行不应产生重复外键约束");
     }
 
     @Test
@@ -643,7 +643,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(28, applied, "旧库补全应记录 V1-V28（baseline 0 标记不计入）");
+        assertEquals(30, applied, "旧库补全应记录 V1-V30（baseline 0 标记不计入）");
     }
 
     @Test

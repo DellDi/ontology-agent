@@ -20,7 +20,7 @@ export function PieChartBlock({ block, flat = false, drilldown }: {
             {data.map((point, index) => (
               <Cell key={`${point.label}-${index}`} fill={CHART_PALETTE[index % CHART_PALETTE.length]}
                 {...(drilldown?.has(index, 0) ? {
-                  role: 'button', tabIndex: 0, 'aria-label': `查看${point.label}的支撑对象`,
+                  role: 'button', tabIndex: 0, 'aria-label': `查看${point.label}的当前匹配对象`,
                   className: 'cursor-pointer focus-visible:outline-none focus-visible:stroke-primary focus-visible:stroke-2',
                   onClick: () => drilldown.open(index, 0),
                   onKeyDown: (event: React.KeyboardEvent<SVGElement>) => {

@@ -78,7 +78,7 @@ test('缺失尺寸、非法跨度、未知方向和重复区域明确诊断，�
     const result = projectPrototypeLayout(tree, blocks)[0]; assert.equal(result.items.length, 0); assert.match(result.diagnostics.join(' '), message);
   }
   const unbound = projectPrototypeLayout(page(layout), blocks.slice(0, 1))[0];
-  assert.equal(unbound.items[1].objectId, null); assert.match(unbound.diagnostics[0], /没有对应的冻结对象/);
+  assert.equal(unbound.items[1].objectId, null); assert.match(unbound.diagnostics[0], /没有对应的区域对象/);
 });
 
 test('多页和主视觉保留；主视觉不会生成虚构的对象 ID', () => {

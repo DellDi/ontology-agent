@@ -21,8 +21,11 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import static com.dip3.ontologyagent.auth.IdentityAccountService.PLATFORM_ORGANIZATION;
+
 @Repository
 public class IngestionReleasePostgresAdapter implements IngestionReleasePort {
+    private static final String SYSTEM_ACTOR = "system";
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transaction;
     private final IngestionPersistencePort persistence;
@@ -64,6 +67,51 @@ public class IngestionReleasePostgresAdapter implements IngestionReleasePort {
             }
             if (inserted == 1) audit(id, "submitted", "success");
             return existing;
+        });
+    }
+
+    @Override
+    public ScheduledSubmission submitScheduled(String id, String scheduleName, Instant fireTime, String sourceKey,
+                                               List<String> products, String mode) {
+        return transaction.execute(status -> {
+            // Scheduler replicas share one critical section so the equivalence check and the insert cannot interleave.
+            jdbc.execute("select pg_advisory_xact_lock(hashtextextended('ingestion:scheduled-enqueue',0))");
+            var existing = find(id);
+            if (existing.isPresent()) {
+                Task task = existing.get();
+                if (!"scheduled".equals(task.triggerType()) || !task.sourceKey().equals(sourceKey)
+                        || !task.productKeys().equals(products) || !task.mode().equals(mode)) {
+                    throw new BackendException("INGESTION_RELEASE_CONFLICT", "此定时发布编号已用于其他发布。");
+                }
+                return new ScheduledSubmission(task, null);
+            }
+            String[] productKeys = products.toArray(String[]::new);
+            var blockers = jdbc.queryForList("""
+                    select id from ingestion.release_tasks
+                    where source_key=? and mode=? and product_keys=?::text[] and status in ('pending','running')
+                    order by created_at,id limit 1
+                    """, String.class, sourceKey, mode, productKeys);
+            String correlationId = "schedule:" + scheduleName + "@" + fireTime;
+            if (!blockers.isEmpty()) {
+                changed(jdbc.update("""
+                        insert into platform.audit_events
+                          (id,user_id,organization_id,session_id,event_type,event_result,event_source,
+                           correlation_id,payload,created_at,retention_until)
+                        values (?,?,?,null,'ingestion.release.scheduled_skipped','skipped','ingestion-scheduler',?,
+                                jsonb_build_object('schedule',?::text,'fireTime',?::text,'sourceKey',?::text,
+                                  'productKeys',?::text[],'mode',?::text,'blockedBy',?::text),
+                                now(),now()+interval '180 days')
+                        """, UUID.randomUUID().toString(), SYSTEM_ACTOR, PLATFORM_ORGANIZATION, correlationId,
+                        scheduleName, fireTime.toString(), sourceKey, productKeys, mode, blockers.getFirst()));
+                return new ScheduledSubmission(null, blockers.getFirst());
+            }
+            changed(jdbc.update("""
+                    insert into ingestion.release_tasks
+                    (id,source_key,product_keys,mode,trigger_type,requested_by,organization_id,session_id,correlation_id)
+                    values (?,?,?,?,'scheduled',?,?,null,?)
+                    """, id, sourceKey, productKeys, mode, SYSTEM_ACTOR, PLATFORM_ORGANIZATION, correlationId));
+            audit(id, "submitted", "success");
+            return new ScheduledSubmission(find(id).orElseThrow(), null);
         });
     }
 
@@ -167,7 +215,7 @@ public class IngestionReleasePostgresAdapter implements IngestionReleasePort {
 
     private Task task(ResultSet rs, int index) throws SQLException {
         return new Task(rs.getString("id"), rs.getString("source_key"), JsonCodec.strings(rs.getArray("product_keys")),
-                rs.getString("mode"), rs.getString("status"), rs.getString("retry_of"), rs.getString("requested_by"),
+                rs.getString("mode"), rs.getString("trigger_type"), rs.getString("status"), rs.getString("retry_of"), rs.getString("requested_by"),
                 rs.getString("correlation_id"), rs.getString("error_code"), instant(rs, "created_at"),
                 instant(rs, "started_at"), instant(rs, "finished_at"));
     }

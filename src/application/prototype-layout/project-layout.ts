@@ -94,7 +94,7 @@ export function projectPrototypeLayout(tree: PrototypeLayoutNode, blocks: readon
             seen.add(id);
             const matches = blocks.filter((block) => block.properties.blockId === id);
             if (matches.length > 1) throw new Error(`区域 ${id} 关联了多个对象。`);
-            if (!matches.length) output.diagnostics.push(`区域 ${id} 没有对应的冻结对象。`);
+            if (!matches.length) output.diagnostics.push(`区域 ${id} 没有对应的区域对象。`);
             output.items.push({ ...rects[index], key: childPath, label: id, objectId: matches[0]?.reference.objectId ?? null, kind: 'block' });
           } else walk(child, rects[index], gap, childPath);
         });

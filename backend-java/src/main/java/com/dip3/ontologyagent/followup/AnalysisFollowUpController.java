@@ -64,7 +64,7 @@ public class AnalysisFollowUpController {
                     "FOLLOW_UP_PARENT_NOT_COMPLETED", "FOLLOW_UP_CONTEXT_MISSING", "FOLLOW_UP_CONTEXT_INVALID",
                     "FOLLOW_UP_CONCLUSION_MISSING", "FOLLOW_UP_ONTOLOGY_MISSING", "FOLLOW_UP_NOT_FOUND",
                     "FOLLOW_UP_CAPABILITY_UNSUPPORTED", "FOLLOW_UP_SCOPE_INVALID", "OBJECT_SELECTION_INVALID", "OBJECT_SELECTION_UNSUPPORTED",
-                    "FOLLOW_UP_SCOPE_RESOLVER_UNAVAILABLE", "FOLLOW_UP_TIME_RANGE_INVALID",
+                    "FOLLOW_UP_SCOPE_RESOLVER_UNAVAILABLE", "FOLLOW_UP_TIME_RANGE_INVALID", "OBJECT_VERSION_MISMATCH",
                     "ONTOLOGY_PIN_RETIRED", "ONTOLOGY_PIN_NOT_PUBLISHED", "ONTOLOGY_PIN_NOT_FOUND")
                     .contains(error.code())) throw error;
             return sessionRedirect(sessionId, Map.of("followUpError", error.getMessage()));
@@ -94,7 +94,8 @@ public class AnalysisFollowUpController {
                     "FOLLOW_UP_SCOPE_RESOLVER_UNAVAILABLE", "FOLLOW_UP_TIME_RANGE_INVALID",
                     "ONTOLOGY_PIN_RETIRED", "ONTOLOGY_PIN_NOT_PUBLISHED", "ONTOLOGY_PIN_NOT_FOUND",
                     "FOLLOW_UP_STRUCTURED_INVALID", "FOLLOW_UP_STRUCTURED_UNSUPPORTED",
-                    "FOLLOW_UP_LEGACY_EXECUTION", "OBJECT_SELECTION_INVALID", "OBJECT_SELECTION_UNSUPPORTED").contains(error.code())) throw error;
+                    "FOLLOW_UP_LEGACY_EXECUTION", "OBJECT_SELECTION_INVALID", "OBJECT_SELECTION_UNSUPPORTED",
+                    "OBJECT_VERSION_MISMATCH").contains(error.code())) throw error;
             return sessionRedirect(sessionId, Map.of("followUpError", error.getMessage()));
         }
     }

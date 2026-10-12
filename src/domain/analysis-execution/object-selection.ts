@@ -5,7 +5,7 @@ export const readableObjectKeys = [
 ] as const;
 export type ReadableObjectKey = (typeof readableObjectKeys)[number];
 
-/** 用户显式选中的已冻结对象；属性与权限由 Java 重新读取。 */
+/** 用户显式选中的当前已发布对象；属性与权限由 Java 重新读取。 */
 export type AnalysisObjectSelection = {
   executionId: string;
   datasetVersionSetId: string;

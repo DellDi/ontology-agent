@@ -721,6 +721,88 @@ class IngestionPersistenceTest {
         assertEquals(1L, count("ingestion.data_product_versions"));
     }
 
+    @Test
+    void scheduledReleasesAreSystemOwnedIdempotentAndNeverStackEquivalentActiveWork() {
+        var tasks = releaseTasks();
+        Instant fire = Instant.parse("2026-10-12T18:00:00Z");
+        String first = java.util.UUID.randomUUID().toString();
+        var queued = tasks.submitScheduled(first, "daily", fire, "source-a", List.of("product-a"), "reconcile");
+        assertEquals(null, queued.blockedBy());
+        assertEquals("scheduled", queued.task().triggerType());
+        assertEquals("system", queued.task().requestedBy());
+        assertEquals("pending", queued.task().status());
+        assertEquals("platform", value("select organization_id from ingestion.release_tasks where id='" + first + "'"));
+        assertEquals(null, value("select session_id from ingestion.release_tasks where id='" + first + "'"));
+        assertEquals(queued.task(), tasks.submitScheduled(first, "daily", fire, "source-a", List.of("product-a"), "reconcile").task());
+        assertEquals(1L, jdbc.queryForObject("select count(*) from platform.audit_events where payload->>'releaseTaskId'=?",
+                Long.class, first));
+
+        String second = java.util.UUID.randomUUID().toString();
+        var skipped = tasks.submitScheduled(second, "daily", fire.plusSeconds(86_400), "source-a", List.of("product-a"), "reconcile");
+        assertEquals(null, skipped.task());
+        assertEquals(first, skipped.blockedBy());
+        assertEquals(true, tasks.find(second).isEmpty());
+        assertEquals(1L, jdbc.queryForObject("""
+                select count(*) from platform.audit_events
+                where event_type='ingestion.release.scheduled_skipped' and event_result='skipped'
+                  and user_id='system' and organization_id='platform'
+                  and payload->>'blockedBy'=? and payload->>'schedule'='daily'
+                """, Long.class, first));
+
+        String third = java.util.UUID.randomUUID().toString();
+        assertEquals(third, tasks.submitScheduled(third, "hourly", fire, "source-a", List.of("product-a"), "incremental").task().id());
+        assertThrows(BackendException.class, () -> tasks.submitScheduled(
+                first, "daily", fire, "source-a", List.of("product-a"), "incremental"));
+
+        tasks.withNext(task -> {
+            assertEquals(first, task.id());
+            assertEquals("scheduled", task.triggerType());
+            tasks.start(task.id());
+            tasks.finish(task.id(), null);
+        });
+        assertEquals(second, tasks.submitScheduled(second, "daily", fire.plusSeconds(86_400), "source-a",
+                List.of("product-a"), "reconcile").task().id());
+        assertEquals(3L, jdbc.queryForObject("""
+                select count(*) from platform.audit_events
+                where payload->>'releaseTaskId'=? and user_id='system' and organization_id='platform'
+                """, Long.class, first));
+    }
+
+    @Test
+    void workerExecutesAScheduledTaskAsTheSystemActorWithTheScheduledTrigger() {
+        var tasks = releaseTasks();
+        var publisher = org.mockito.Mockito.mock(com.dip3.ontologyagent.ingestion.internal.application.DatasetReleasePublisher.class);
+        String id = java.util.UUID.randomUUID().toString();
+        tasks.submitScheduled(id, "daily", Instant.parse("2026-10-12T18:00:00Z"), "source-a", List.of("product-a"), "reconcile");
+        new com.dip3.ontologyagent.ingestion.internal.application.IngestionReleaseWorker(tasks, publisher).runOne();
+        var command = org.mockito.ArgumentCaptor.forClass(
+                com.dip3.ontologyagent.ingestion.internal.application.DatasetReleasePublisher.Command.class);
+        org.mockito.Mockito.verify(publisher).publish(command.capture());
+        assertEquals(IngestionRun.TriggerType.SCHEDULED, command.getValue().triggerType());
+        assertEquals(IngestionRun.Mode.RECONCILE, command.getValue().mode());
+        assertEquals("system", command.getValue().triggeredBy());
+        assertEquals(id, command.getValue().publicationId());
+        assertEquals("completed", tasks.find(id).orElseThrow().status());
+        assertEquals(List.of("ingestion.release.submitted", "ingestion.release.started", "ingestion.release.completed"),
+                jdbc.queryForList("select event_type from platform.audit_events where payload->>'releaseTaskId'=? order by created_at",
+                        String.class, id));
+    }
+
+    @Test
+    void releaseTaskConstraintsKeepManualTasksOnSessionsAndScheduledTasksSessionlessAndNeverRetries() {
+        String insert = """
+                insert into ingestion.release_tasks
+                  (id,source_key,product_keys,mode,trigger_type,retry_of,requested_by,organization_id,session_id,correlation_id)
+                values (?,'source-a',array['product-a'],'full',?,?,'u','o',?,'c')
+                """;
+        assertThrows(DataAccessException.class, () -> jdbc.update(insert, "manual-without-session", "manual", null, null));
+        assertThrows(DataAccessException.class, () -> jdbc.update(insert, "scheduled-with-session", "scheduled", null, "s"));
+        assertThrows(DataAccessException.class, () -> jdbc.update(insert, "unknown-trigger", "cron", null, "s"));
+        jdbc.update(insert, "manual-ok", "manual", null, "s");
+        assertThrows(DataAccessException.class, () -> jdbc.update(insert, "scheduled-retry", "scheduled", "manual-ok", null));
+        assertEquals(1L, jdbc.update(insert, "scheduled-ok", "scheduled", null, null));
+    }
+
     private IngestionReleasePostgresAdapter releaseTasks() {
         return new IngestionReleasePostgresAdapter(jdbc,
                 new JdbcTransactionManager(java.util.Objects.requireNonNull(jdbc.getDataSource())), persistence);
@@ -729,6 +811,67 @@ class IngestionPersistenceTest {
     private com.dip3.ontologyagent.auth.AuthSession releaseActor() {
         return new com.dip3.ontologyagent.auth.AuthSession("session", "admin", "Admin",
                 new com.dip3.ontologyagent.auth.AccessScope("org", List.of(), List.of(), List.of("PLATFORM_ADMIN")), Instant.MAX);
+    }
+
+    @Test
+    void unchangedIncrementalChecksReuseFactsAndKeepAuditedResultAcrossReplay() {
+        reserveAndAppendSource("source-run-a", "1");
+        persistence.publishSourceSnapshot(sourcePublication("source-run-a", "1", "1"));
+        Map<String, String> inputs = Map.of("input-a", "version-a-1", "input-b", "version-b-1");
+        DataProductVersion original = publishProduct("full-a", "product-a", "version-full-a", inputs);
+        persistence.createProductRun(new IngestionPersistencePort.ProductRunRequest("check-a", "product-a",
+                ProductMaterializationRun.Mode.INCREMENTAL, ProductMaterializationRun.TriggerType.SCHEDULED,
+                "system", "check-a", inputs));
+        persistence.startProductRun("check-a");
+        var candidate = new IngestionPersistencePort.ProductPublication("check-a", "unused-new-version",
+                "facts.product_a@1", original.rowCount(), original.contentHash(), original.schemaVersion());
+        var writes = new java.util.concurrent.atomic.AtomicInteger();
+        assertEquals(original, persistence.publishProduct(candidate, writes::incrementAndGet));
+        assertEquals(original, persistence.publishProduct(candidate, writes::incrementAndGet));
+        assertEquals(0, writes.get());
+        assertEquals(1L, count("ingestion.data_product_versions"));
+        assertEquals(original.id(), value("select result_product_version_id from ingestion.product_materialization_runs where id='check-a'"));
+        assertEquals("completed", value("select status from ingestion.product_materialization_runs where id='check-a'"));
+        assertThrows(BackendException.class, () -> persistence.publishProduct(
+                new IngestionPersistencePort.ProductPublication("check-a", "different", "facts.product_a@1", 3, "changed", 1), () -> {}));
+    }
+
+    @Test
+    void contentAndTransformChangesCannotBeSkippedEvenWithTheSameRowCount() {
+        reserveAndAppendSource("source-run-a", "1");
+        persistence.publishSourceSnapshot(sourcePublication("source-run-a", "1", "1"));
+        Map<String, String> inputs = Map.of("input-a", "version-a-1", "input-b", "version-b-1");
+        DataProductVersion original = publishProduct("full-a", "product-a", "version-full-a", inputs);
+        var writes = new java.util.concurrent.atomic.AtomicInteger();
+        for (int i = 0; i < 3; i++) {
+            if (i == 1) jdbc.update("update ingestion.data_product_definitions set transform_ref='transform-a-v2' where product_key='product-a'");
+            if (i == 2) jdbc.update("update ingestion.data_product_definitions set schema_version=2 where product_key='product-a'");
+            String run = "check-" + i;
+            persistence.createProductRun(new IngestionPersistencePort.ProductRunRequest(run, "product-a",
+                    ProductMaterializationRun.Mode.INCREMENTAL, ProductMaterializationRun.TriggerType.MANUAL,
+                    "operator", run, inputs));
+            persistence.startProductRun(run);
+            var result = persistence.publishProduct(new IngestionPersistencePort.ProductPublication(run,
+                    "new-version-" + i, "facts.product_a@1", original.rowCount(), "changed-content", i == 2 ? 2 : 1), writes::incrementAndGet);
+            assertEquals("new-version-" + i, result.id());
+        }
+        assertEquals(3, writes.get());
+        assertEquals(4L, count("ingestion.data_product_versions"));
+    }
+
+    @Test
+    void unchangedManifestCanReuseOnlyTheLatestMatchingProductSet() {
+        reserveAndAppendSource("source-run-a", "1");
+        persistence.publishSourceSnapshot(sourcePublication("source-run-a", "1", "1"));
+        Map<String, String> inputs = Map.of("input-a", "version-a-1", "input-b", "version-b-1");
+        var a = publishProduct("full-a", "product-a", "version-a", inputs);
+        Map<String, String> first = Map.of("product-a", a.id());
+        persistence.freezeVersionSet(new IngestionPersistencePort.VersionSetPublication("set-first", first, Instant.now(), "operator"));
+        assertEquals("set-first", persistence.findFrozenVersionSet(first).orElseThrow().publicationId());
+        var b = publishProduct("full-b", "product-a", "version-b", inputs);
+        persistence.freezeVersionSet(new IngestionPersistencePort.VersionSetPublication("set-new", Map.of("product-a", b.id()), Instant.now(), "operator"));
+        assertEquals(java.util.Optional.empty(), persistence.findFrozenVersionSet(first), "a historical match must not supersede the latest state");
+        assertEquals(java.util.Optional.empty(), persistence.findFrozenVersionSet(Map.of("product-a", b.id(), "product-b", "missing")));
     }
 
     private DataProductVersion publishProduct(String runId, String productKey, String versionId,

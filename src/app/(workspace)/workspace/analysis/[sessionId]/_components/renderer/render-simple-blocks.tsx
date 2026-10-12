@@ -65,7 +65,7 @@ export function renderKvListBlock(input: AnalysisInteractionUiRenderInput) {
             </dt>
             <dd className={`mt-1 break-words text-foreground ${renderedBlock.payload.drilldowns ? 'text-2xl font-semibold tabular-nums' : 'text-sm'}`}>
               {drilldown.has(0, index) ? <button type="button" onClick={() => drilldown.open(0, index)}
-                aria-label={`查看${getString(item.label)}的支撑对象`}
+                aria-label={`查看${getString(item.label)}的当前匹配对象`}
                 className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 {getString(item.value)}<span className="ml-2 text-xs font-normal">查看对象 ↗</span>
               </button> : getString(item.value)}

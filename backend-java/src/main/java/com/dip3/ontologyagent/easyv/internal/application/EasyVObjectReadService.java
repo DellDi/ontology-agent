@@ -107,9 +107,6 @@ public class EasyVObjectReadService {
     sessions.requireOwned(sessionId, viewer);
     var snapshot = executions.findJavaSnapshot(sessionId, request.executionId(), viewer.userId())
         .orElseThrow(() -> new BackendException("EXECUTION_NOT_FOUND", "执行快照不存在或无权访问。"));
-    if (!request.datasetVersionSetId().equals(snapshot.datasetVersionSetId())) {
-      throw new BackendException("OBJECT_VERSION_MISMATCH", "请求冻结集合与来源执行不一致。");
-    }
     CapabilityBinding binding;
     try { binding = CapabilityBinding.fromSnapshot(snapshot.capabilityBinding()); }
     catch (IllegalArgumentException error) {
@@ -120,12 +117,23 @@ public class EasyVObjectReadService {
     }
     EasyVGenerationOntology.validate(EasyVGenerationOntology.ENTITY_KEY, EasyVGenerationOntology.METRIC_KEY,
         EasyVGenerationOntology.TIME_KEY, ontologies.published(binding.ontologyVersionId()));
-    datasets.requireFrozen(snapshot.datasetVersionSetId(), EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS);
+    var latest = datasets.latestFrozen(EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS)
+        .orElseThrow(() -> new BackendException("DATASET_VERSION_SET_NOT_PUBLISHED", "当前尚无完整发布的 EasyV 数据。"));
+    if (!request.datasetVersionSetId().equals(snapshot.datasetVersionSetId())
+        && !request.datasetVersionSetId().equals(latest.publicationId())) {
+      throw new BackendException("OBJECT_VERSION_MISMATCH", "对象请求既不属于来源分析，也不属于当前数据版本。请重新打开对象。");
+    }
     // resolveScope 检查当前角色和账号绑定；冻结快照仍决定这次历史读取的上限。
     var current = scopes.resolveScope(viewer);
     scopes.validateScope(binding.resolvedScope(), viewer);
-    return readAuthorized(resolveDrilldown(request, snapshot.resultBlocks()), binding.ontologyVersionId(),
+    var resolved = resolveDrilldown(inVersion(request, snapshot.datasetVersionSetId()), snapshot.resultBlocks());
+    return readAuthorized(inVersion(resolved, latest.publicationId()), binding.ontologyVersionId(),
         EasyVScopeResolver.narrowScope(binding.resolvedScope(), current), viewer);
+  }
+
+  private static Request inVersion(Request request, String version) {
+    return new Request(request.executionId(), version, request.objectKey(), request.objectId(), request.relation(),
+        request.filters(), request.order(), request.limit(), request.offset(), request.drilldownId(), request.includeComponentSummary());
   }
 
   private Request resolveDrilldown(Request request, List<Map<String, Object>> blocks) {

@@ -78,6 +78,7 @@ export const ingestionReleaseTaskSchema = z.strictObject({
   sourceKey: key,
   productKeys: z.array(key).min(1),
   mode: z.enum(['full', 'incremental', 'reconcile']),
+  triggerType: z.enum(['manual', 'scheduled']),
   status: z.enum(['pending', 'running', 'completed', 'failed']),
   retryOf: key.nullable(),
   requestedBy: key,

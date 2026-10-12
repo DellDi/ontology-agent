@@ -107,7 +107,7 @@ test('结果视图 | 表格视图展示精确读数与说明，下钻入口只�
   assert.match(html, /<th[^>]*>组件数<\/th>/);
   assert.match(html, /<td[^>]*>donut<\/td>/);
   assert.match(html, /与图表读取同一份保存的结果/);
-  assert.match(html, /aria-label="查看第 1 行组件数的支撑对象"/);
-  assert.doesNotMatch(html, /查看第 1 行分组的支撑对象/);
+  assert.match(html, /aria-label="查看第 1 行组件数的当前匹配对象"/);
+  assert.doesNotMatch(html, /查看第 1 行分组的当前匹配对象/);
   assert.doesNotMatch(html, /不应重复显示/);
 });

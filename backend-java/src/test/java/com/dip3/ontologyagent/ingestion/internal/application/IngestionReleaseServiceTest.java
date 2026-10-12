@@ -63,7 +63,7 @@ class IngestionReleaseServiceTest {
 
     @Test
     void requestReplayDoesNotRevalidateChangedCatalogAndRetryCopiesOriginalCommand() {
-        var failed = new IngestionReleasePort.Task("old", "property", List.of("payment"), "full", "failed",
+        var failed = new IngestionReleasePort.Task("old", "property", List.of("payment"), "full", "manual", "failed",
                 null, "admin", "trace", "SOURCE_FAILED", Instant.now(), Instant.now(), Instant.now());
         when(tasks.find("old")).thenReturn(Optional.of(failed));
         when(tasks.find(id)).thenReturn(Optional.of(failed));

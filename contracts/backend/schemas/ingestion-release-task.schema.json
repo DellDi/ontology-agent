@@ -26,6 +26,13 @@
         "reconcile"
       ]
     },
+    "triggerType": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "scheduled"
+      ]
+    },
     "status": {
       "type": "string",
       "enum": [
@@ -100,6 +107,7 @@
     "sourceKey",
     "productKeys",
     "mode",
+    "triggerType",
     "status",
     "retryOf",
     "requestedBy",

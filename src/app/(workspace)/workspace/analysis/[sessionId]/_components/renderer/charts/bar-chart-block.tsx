@@ -81,7 +81,7 @@ export function BarChartBlock({
                 key={index}
                 fill={CHART_PALETTE[(seriesNames.length === 1 ? index : seriesIndex) % CHART_PALETTE.length]}
                 {...(sourceRow !== null && drilldown?.has(sourceRow, seriesIndex) ? {
-                  role: 'button', tabIndex: 0, 'aria-label': `查看${point.label}的支撑对象`,
+                  role: 'button', tabIndex: 0, 'aria-label': `查看${point.label}的当前匹配对象`,
                   className: 'cursor-pointer focus-visible:outline-none focus-visible:stroke-primary focus-visible:stroke-2',
                   onClick: () => drilldown.open(sourceRow!, seriesIndex),
                   onKeyDown: (event: React.KeyboardEvent<SVGElement>) => {
