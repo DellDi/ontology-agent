@@ -191,7 +191,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(30, applied, "新库应执行到 V30 产品复用记录");
+        assertEquals(31, applied, "新库应执行到 V31 版本保留清理");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -611,7 +611,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(30, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(31, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -643,7 +643,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(30, applied, "旧库补全应记录 V1-V30（baseline 0 标记不计入）");
+        assertEquals(31, applied, "旧库补全应记录 V1-V31（baseline 0 标记不计入）");
     }
 
     @Test

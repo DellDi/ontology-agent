@@ -230,8 +230,24 @@ services:
       EASYV_POSTGRES_PASSWORD:
       EASYV_POSTGRES_SCHEMA:
       EASYV_POSTGRES_REQUIRE_READ_ONLY_ROLE:
+      DIP3_INGESTION_RETENTION_ENABLED: ${INGEST_RETENTION_ENABLED:-false}
+      DIP3_INGESTION_RETENTION_DAYS: ${INGEST_RETENTION_DAYS:-30}
+      DIP3_INGESTION_RETENTION_RELEASES: ${INGEST_RETENTION_RELEASES:-5}
     command: ["--spring.profiles.active=ingest-queue"]
     restart: unless-stopped
+
+  retention:
+    <<: *java-image
+    profiles: ["ops"]
+    environment:
+      <<: *platform-database
+      EASYV_DOMAIN_ENABLED: "false"
+      EASYV_POSTGRES_ENABLED: "false"
+      PROPERTY_DOMAIN_ENABLED: "false"
+      DIP3_INGESTION_RETENTION_DAYS: ${INGEST_RETENTION_DAYS:-30}
+      DIP3_INGESTION_RETENTION_RELEASES: ${INGEST_RETENTION_RELEASES:-5}
+    command: ["--spring.profiles.active=ingestion-retention"]
+    restart: "no"
 
   admin-seed:
     <<: *java-image

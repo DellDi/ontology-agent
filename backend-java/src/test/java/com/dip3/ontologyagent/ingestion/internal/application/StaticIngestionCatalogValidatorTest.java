@@ -32,6 +32,30 @@ class StaticIngestionCatalogValidatorTest {
     }
 
     @Test
+    void acceptsRetiredAuditMetadataButCannotRunNewWorkAgainstItsSources() {
+        IngestionCatalog base = validCatalog();
+        DatasetVersion source = new DatasetVersion("source-version-a", "dataset-a", 1,
+                DatasetVersion.Status.REVOKED, "source-run-a", null, Map.of("snapshot", "a"),
+                Map.of(), "storage-source-a", 1, "hash-a", 1, AT.plusSeconds(2), AT);
+        DataProductVersion product = new DataProductVersion("product-version-a", "product-a", 1,
+                DataProductVersion.Status.REVOKED, "materialization-a", 1, "storage-a", 1,
+                "hash-a", AT.plusSeconds(4), AT.plusSeconds(3));
+        DatasetVersionSet set = new DatasetVersionSet("set-a", Map.of("product-a", "product-version-a"),
+                AT.plusSeconds(4), DatasetVersionSet.Status.REVOKED, AT.plusSeconds(5), AT, "operator-a");
+        assertDoesNotThrow(() -> StaticIngestionCatalogValidator.validate(replace(base,
+                base.ingestionRuns(), List.of(source), List.of(), base.materializationRuns(),
+                List.of(product), base.lineages(), List.of(set))));
+        ProductMaterializationRun running = new ProductMaterializationRun("materialization-a", "product-a",
+                ProductMaterializationRun.Mode.INCREMENTAL, ProductMaterializationRun.Status.RUNNING,
+                ProductMaterializationRun.TriggerType.MANUAL, "operator-a", "trace",
+                Map.of("input-a", source.id()), Map.of(), null, Map.of(), AT.plusSeconds(2), null,
+                AT.plusSeconds(2), AT.plusSeconds(3));
+        assertThrows(IllegalArgumentException.class, () -> StaticIngestionCatalogValidator.validate(replace(base,
+                base.ingestionRuns(), List.of(source), List.of(), List.of(running),
+                List.of(product), base.lineages(), List.of(set))));
+    }
+
+    @Test
     void reusesTheSameContractAcrossIndependentDomains() {
         SourceDefinition sourceA = source("source-a");
         SourceDefinition sourceB = source("source-b");
