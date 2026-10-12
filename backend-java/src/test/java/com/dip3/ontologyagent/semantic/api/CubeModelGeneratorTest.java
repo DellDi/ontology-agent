@@ -226,6 +226,21 @@ class CubeModelGeneratorTest {
   }
 
   @Test
+  void timelineRequiresADeclaredTimePropertyAndCollectionRelation() {
+    for (String time : List.of("id", "missing", "recordedAt")) {
+      var link = new OntologyLink("events", "x", "id", "id", Cardinality.ONE_TO_MANY, false,
+          new OntologyLink.Timeline("记录时间线", time, "这是记录时间"));
+      var object = new OntologyObjectType("x", "x", null, "X", "p", "facts.x", null,
+          List.of(OntologyProperty.key("id", "id", "id"), OntologyProperty.column("recordedAt", "记录时间", null, Type.TIME, "recorded_at")),
+          List.of(link), List.of());
+      if (time.equals("recordedAt")) assertEquals(link, model(object).require("x").requireLink("events"));
+      else assertThrows(BackendException.class, () -> model(object));
+    }
+    assertThrows(BackendException.class, () -> new OntologyLink("event", "x", "id", "id", Cardinality.MANY_TO_ONE, false,
+        new OntologyLink.Timeline("记录时间线", "recordedAt", "这是记录时间")));
+  }
+
+  @Test
   void rejectsInvalidIdentifiersAndMissingPrimaryKey() {
     assertThrows(BackendException.class, () -> OntologyProperty.column("bad-name", "x", "x", Type.STRING, "c"));
     assertThrows(BackendException.class, () -> new OntologyObjectType("x", "x", "x", "X", "p", "t", null,

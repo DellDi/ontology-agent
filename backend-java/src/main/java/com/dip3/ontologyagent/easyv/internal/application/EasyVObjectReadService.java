@@ -80,7 +80,12 @@ public class EasyVObjectReadService {
   public record Structure(String status, Map<String, Object> layout) {}
   public record PropertyView(String key, String label, OntologyProperty.Type type, boolean identifier,
                              boolean title, boolean prominent, Map<String, String> valueLabels) {}
-  public record LinkView(String key, String targetObjectKey, String targetLabel, boolean prominent) {}
+  public record LinkView(String key, String targetObjectKey, String targetLabel, boolean prominent,
+                         OntologyLink.Timeline timeline) {
+    public LinkView(String key, String targetObjectKey, String targetLabel, boolean prominent) {
+      this(key, targetObjectKey, targetLabel, prominent, null);
+    }
+  }
   public record ObjectTypeView(String key, String label, List<PropertyView> properties, List<LinkView> links) {}
   public record FamilyCount(String chartFamily, long count, QueryIntent.Filter filter) {}
   public record ComponentSummary(long total, List<FamilyCount> groups) {}
@@ -98,7 +103,7 @@ public class EasyVObjectReadService {
         .map(property -> new PropertyView(property.key(), property.label(), property.type(), property.identifier(),
             property.title(), property.prominent(), property.valueLabels())).toList(),
         object.links().stream().filter(link -> OBJECTS.contains(link.targetObjectKey()))
-            .map(link -> new LinkView(link.key(), link.targetObjectKey(), model.require(link.targetObjectKey()).label(), link.prominent())).toList());
+            .map(link -> new LinkView(link.key(), link.targetObjectKey(), model.require(link.targetObjectKey()).label(), link.prominent(), link.timeline())).toList());
   }
 
   @Transactional(readOnly = true)

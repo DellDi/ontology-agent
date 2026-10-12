@@ -252,3 +252,20 @@ test('对象客户端允许当前数据版本不同于历史来源，但拒绝�
     await assert.rejects(() => objectClient.readAnalysisObjects('session-old', request, new AbortController().signal), /来源执行不一致/);
   } finally { globalThis.fetch = original; }
 });
+
+
+test('对象读取 | 时间线声明同时符合两份契约，缺少来源说明和未知字段被拒绝', () => {
+  const body = structuredClone(detail);
+  body.objectType.links[0].timeline = { title: '操作记录时间线', timeProperty: 'operatedAt', notice: '记录时间不代表实际修改时间。' };
+  for (const timeline of [body.objectType.links[0].timeline, null]) {
+    const result = structuredClone(body); result.objectType.links[0].timeline = timeline;
+    assert.equal(ajv.getSchema('object-read-result.schema.json')(result), true, ajv.errorsText());
+    assert.equal(javaObjectReadResultSchema.safeParse(result).success, true);
+  }
+  for (const mutate of [(timeline) => { delete timeline.notice; }, (timeline) => { timeline.timeProperty = ''; },
+    (timeline) => { timeline.fallback = true; }]) {
+    const result = structuredClone(body); mutate(result.objectType.links[0].timeline);
+    assert.equal(ajv.getSchema('object-read-result.schema.json')(result), false);
+    assert.equal(javaObjectReadResultSchema.safeParse(result).success, false);
+  }
+});

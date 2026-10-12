@@ -92,6 +92,80 @@ class EasyVRenderBlocksObjectTest {
     assertNotNull(block.get("drilldownUnavailableReason"));
   }
 
+  @Test
+  void timeBucketsClipToTheQueryPeriodAndComparisonCellsUseTheirOwnPeriod() {
+    var current = new TimeExpression("9月中旬", TimeExpression.Kind.ABSOLUTE, null, null, null,
+        LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 20), null);
+    var compare = new TimeExpression("8月中旬", TimeExpression.Kind.ABSOLUTE, null, null, null,
+        LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 20), null);
+    var intent = new QueryIntent("easyv-ai-application", List.of("count"), List.of(), List.of(),
+        new QueryIntent.TimeSpec(null, current, QueryIntent.Granularity.MONTH), compare, List.of(), 5);
+    var compiled = compiler.compile(intent, Instant.parse("2026-10-03T00:00:00Z"));
+    assertTrue(compiled.accepted(), compiled.violations().toString());
+    var query = new EasyVSemanticAgent.ExecutedQuery("q1", "两个时段各有多少应用？", compiled.query(),
+        new SemanticQueryPort.SemanticQueryResult(List.of(Map.of("time", "2026-09-01T00:00:00.000", "count", 3)),
+            List.of(Map.of("time", "2026-07-31T16:00:00Z", "count", 2)), "sql"), null);
+    var block = EasyVRenderBlocks.build(List.of(query), List.of(), model, "set").getFirst();
+    assertEquals("table", block.get("type"));
+    var bindings = bindings(block);
+    assertEquals(2, bindings.size());
+    assertEquals(1, bindings.get(1).get("row"));
+    assertEquals(2, bindings.get(1).get("column"));
+    assertEquals(List.of(new QueryIntent.Filter("createdAt", QueryIntent.Operator.GTE, List.of("2026-09-10T00:00+08:00")),
+        new QueryIntent.Filter("createdAt", QueryIntent.Operator.LT, List.of("2026-09-21T00:00+08:00"))), bindings.getFirst().get("filters"));
+    assertEquals(List.of(new QueryIntent.Filter("createdAt", QueryIntent.Operator.GTE, List.of("2026-08-10T00:00+08:00")),
+        new QueryIntent.Filter("createdAt", QueryIntent.Operator.LT, List.of("2026-08-21T00:00+08:00"))), bindings.get(1).get("filters"));
+    assertNotEquals(bindings.getFirst().get("id"), bindings.get(1).get("id"));
+  }
+
+  @Test
+  void allDataBucketsUseCalendarBoundariesAndInvalidTimesNeverOpenAllObjects() {
+    var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
+    var cases = Map.of(QueryIntent.Granularity.DAY, List.of("2024-02-29", "2024-03-01"),
+        QueryIntent.Granularity.WEEK, List.of("2024-12-30", "2025-01-06"),
+        QueryIntent.Granularity.MONTH, List.of("2024-02-01", "2024-03-01"),
+        QueryIntent.Granularity.QUARTER, List.of("2024-10-01", "2025-01-01"),
+        QueryIntent.Granularity.YEAR, List.of("2024-01-01", "2025-01-01"));
+    for (var entry : cases.entrySet()) {
+      var intent = new QueryIntent("easyv-ai-application", List.of("count"), List.of(), List.of(),
+          new QueryIntent.TimeSpec(null, all, entry.getKey()), null, List.of(), 5);
+      var compiled = compiler.compile(intent, Instant.parse("2026-10-03T00:00:00Z"));
+      assertTrue(compiled.accepted());
+      var query = new EasyVSemanticAgent.ExecutedQuery("q1", "按时间查看应用", compiled.query(),
+          new SemanticQueryPort.SemanticQueryResult(List.of(Map.of("time", entry.getValue().getFirst(), "count", 3)), List.of(), "sql"), null);
+      var filters = bindings(EasyVRenderBlocks.build(List.of(query), List.of(), model, "set").getFirst()).getFirst().get("filters");
+      assertEquals(List.of(new QueryIntent.Filter("createdAt", QueryIntent.Operator.GTE, List.of(entry.getValue().getFirst() + "T00:00+08:00")),
+          new QueryIntent.Filter("createdAt", QueryIntent.Operator.LT, List.of(entry.getValue().get(1) + "T00:00+08:00"))), filters);
+      var bad = new EasyVSemanticAgent.ExecutedQuery("q1", "invalid", compiled.query(),
+          new SemanticQueryPort.SemanticQueryResult(List.of(Map.of("time", "not-a-date", "count", 3)), List.of(), "sql"), null);
+      assertFalse(EasyVRenderBlocks.build(List.of(bad), List.of(), model, "set").getFirst().containsKey("drilldowns"));
+    }
+  }
+
+  @Test
+  void comparisonKpiUsesTheComparisonValueCellAndTableOffsetsRespectPreviewCap() {
+    var september = new TimeExpression("9月", TimeExpression.Kind.ABSOLUTE, null, null, null,
+        LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), null);
+    var august = new TimeExpression("8月", TimeExpression.Kind.ABSOLUTE, null, null, null,
+        LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), null);
+    for (var dimensions : List.of(List.<String>of(), List.of("scopeType"))) {
+      var intent = new QueryIntent("easyv-ai-application", List.of("count"), dimensions, List.of(),
+          new QueryIntent.TimeSpec(null, september, null), august, List.of(), 5);
+      var compiled = compiler.compile(intent, Instant.parse("2026-10-03T00:00:00Z"));
+      assertTrue(compiled.accepted());
+      Map<String, Object> row = Map.of("scopeType", "USER", "count", 3);
+      var rows = dimensions.isEmpty() ? List.of(row) : Collections.nCopies(EasyVSemanticAgent.EVIDENCE_ROW_CAP + 5, row);
+      var query = new EasyVSemanticAgent.ExecutedQuery("q1", "对比应用数", compiled.query(),
+          new SemanticQueryPort.SemanticQueryResult(rows, List.of(row), "sql"), null);
+      var block = EasyVRenderBlocks.build(List.of(query), List.of(), model, "set").getFirst();
+      var last = bindings(block).getLast();
+      assertEquals(dimensions.isEmpty() ? "kv-list" : "table", block.get("type"));
+      assertEquals(dimensions.isEmpty() ? 0 : EasyVSemanticAgent.EVIDENCE_ROW_CAP, last.get("row"));
+      assertEquals(dimensions.isEmpty() ? 1 : 2, last.get("column"));
+      assertTrue(last.get("filters").toString().contains("2026-08-01"));
+    }
+  }
+
   @SuppressWarnings("unchecked")
   private static List<Map<String, Object>> bindings(Map<String, Object> block) {
     assertInstanceOf(List.class, block.get("drilldowns"), "统计项缺少精确对象绑定");

@@ -165,8 +165,6 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
   const selected = detail.data?.page.rows[0] ?? focus;
   const type: Type | undefined = detail.data?.objectType;
   const title = viewOf(selected.reference.objectKey).rows.title(selected, type);
-  const related = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
-    relation: relation?.key, limit: 20 }, relation !== null);
   const businessProperties = type?.properties.filter((property) => !property.identifier);
   const primaryProperties = businessProperties?.filter((property) => property.prominent || property.title || property.type === 'TIME');
   const otherProperties = businessProperties?.filter((property) => !primaryProperties?.includes(property));
@@ -196,12 +194,10 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
       <div className="mt-3">{propertyList(otherProperties)}</div></details> : null}
     {afterProperties}
     {type?.links.length ? <div className="flex flex-wrap gap-2">{type.links.map((link) => <Button key={link.key} type="button" variant="outline" size="sm"
-      aria-pressed={relation?.key === link.key} onClick={() => setRelation(link)}>查看{link.targetLabel}</Button>)}</div> : null}
-    {relation ? <div className="space-y-2">{related.isPending ? <Pending>正在读取关联对象…</Pending> : null}
-      {related.error ? <Notice error={related.error} /> : null}
-      {related.data ? <><ObjectList title={relation.targetLabel} rows={related.data.page.rows} type={related.data.objectType} selected={selected} onSelect={onFocus} />
-        {related.data.page.hasMore ? <p className="text-xs text-muted-foreground">{hints?.relation ?? '仅显示前 20 个关联对象。'}</p> : null}</> : null}
-    </div> : null}
+      aria-pressed={relation?.key === link.key} onClick={() => setRelation(link)}>查看{link.timeline?.title ?? link.targetLabel}</Button>)}</div> : null}
+    {relation ? <RelatedObjectCollection key={`${relation.key}:${detail.data?.datasetVersionSetId ?? context.datasetVersionSetId}`}
+      context={{ ...context, datasetVersionSetId: detail.data?.datasetVersionSetId ?? context.datasetVersionSetId }}
+      source={selected} link={relation} selected={selected} onSelect={onFocus} /> : null}
     <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">数据出处与版本</summary>
       <dl className="mt-3 grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-2">
         {traceProperties?.map((property) => <div key={property.key} className="contents"><dt>{property.label}</dt>
@@ -214,6 +210,46 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
       </div> : null}
       <p className="mt-2 break-all leading-5">对象：{selected.reference.objectId}<br />产品版本：{selected.reference.productVersionId}<br />数据版本：{detail.data?.datasetVersionSetId ?? context.datasetVersionSetId}<br />来源执行：{context.executionId}</p>
     </details>
+  </section>;
+}
+
+/** 复用对象关系读取；时间属性、名称与来源说明均来自本体声明。 */
+export function RelatedObjectCollection({ context, source, link, selected, onSelect }: {
+  context: Context; source: Row; link: Type['links'][number]; selected: Row | null; onSelect: (row: Row) => void;
+}) {
+  const [page, setPage] = useState<{ offset: number; version: string | null }>({ offset: 0, version: null });
+  const related = useObjectRead({ ...context, datasetVersionSetId: page.version ?? context.datasetVersionSetId }, {
+    objectKey: source.reference.objectKey, objectId: source.reference.objectId, relation: link.key, limit: 20,
+    offset: page.offset, ...(link.timeline ? { order: [{ member: link.timeline.timeProperty, direction: 'DESC' as const }] } : {}),
+  });
+  const data = related.data;
+  const changed = data && page.version !== null && data.datasetVersionSetId !== page.version;
+  const move = (offset: number) => { if (data) setPage({ offset, version: data.datasetVersionSetId }); };
+  return <section className="space-y-3" aria-label={link.timeline?.title ?? link.targetLabel}>
+    {link.timeline ? <><h5 className="text-xs font-semibold">{link.timeline.title}</h5>
+      <p className="text-xs leading-5 text-muted-foreground">{link.timeline.notice}</p></> : null}
+    {related.isPending ? <Pending>正在读取关联记录…</Pending> : null}
+    {related.error ? <Notice error={related.error} /> : null}
+    {changed ? <p role="alert" className="text-xs text-destructive">数据已更新，请重新打开关联记录，避免混用不同版本。</p> : null}
+    {data && !changed ? <>
+      {link.timeline ? <ol className="max-h-80 space-y-2 overflow-y-auto border-l border-border pl-3">
+        {!data.page.rows.length ? <li className="py-3 text-xs text-muted-foreground">当前数据中没有关联操作记录。</li> : data.page.rows.map((row) => <li key={row.reference.objectId}>
+          <button type="button" onClick={() => onSelect(row)} aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
+            className="w-full space-y-1 rounded-lg border border-border px-3 py-2.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <p className="text-muted-foreground">{formatShanghaiDateTime(String(row.properties[link.timeline!.timeProperty] ?? ''))}（北京时间）</p>
+            <p className="font-medium">{objectRecordTitle(row.properties, data.objectType)}</p>
+            <p className="break-words text-muted-foreground">{data.objectType.properties.filter((property) => property.prominent && !property.identifier && !property.title && property.type !== 'TIME')
+              .map((property) => objectPropertyText(property, row.properties[property.key])).join(' · ')}</p>
+          </button>
+        </li>)}
+      </ol> : <ObjectList title={link.targetLabel} rows={data.page.rows} type={data.objectType} selected={selected} onSelect={onSelect} />}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">第 {Math.floor(page.offset / 20) + 1} 页 · 本页 {data.page.rows.length} 条{data.page.hasMore ? '，还有更多' : ''}</span>
+        <div className="flex gap-1"><Button type="button" variant="ghost" size="sm" aria-label="上一页关联记录" disabled={page.offset === 0} onClick={() => move(page.offset - 20)}><ChevronLeft className="size-4" /></Button>
+          <Button type="button" variant="ghost" size="sm" aria-label="下一页关联记录" disabled={!data.page.hasMore || page.offset + 20 > 10000} onClick={() => move(page.offset + 20)}><ChevronRight className="size-4" /></Button></div>
+      </div>
+      {data.page.hasMore && page.offset + 20 > 10000 ? <p className="text-xs text-muted-foreground">已达到分页上限，请缩小查询范围后继续查看。</p> : null}
+    </> : null}
   </section>;
 }
 

@@ -85,7 +85,9 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
           new OntologyProperty("teamId", "团队 ID", "应用所属团队", Type.STRING, "{CUBE}.team_id::text", false, true),
           OntologyProperty.column("scopeType", "归属类型", "应用归属范围（USER 等）", Type.STRING, "scope_type").display(false, false, Map.of("USER", "个人", "TEAM", "团队", "SPACE", "空间")),
           OntologyProperty.column("createdAt", "应用创建时间", "应用创建时间", Type.TIME, "created_at")),
-      List.of(new OntologyLink("operations", "easyv-generation-feedback", "appId", "appId", Cardinality.ONE_TO_MANY),
+      List.of(new OntologyLink("operations", "easyv-generation-feedback", "appId", "appId", Cardinality.ONE_TO_MANY,
+          false, new OntologyLink.Timeline("操作记录时间线", "operatedAt",
+              "按日志记录时间倒序展示。提出修改不代表修改已生效，日志成功不代表用户满意；这里不是大屏版本变更历史。")),
           new OntologyLink("layout", "easyv-prototype-layout", "appId", "appId", Cardinality.ONE_TO_ONE),
           new OntologyLink("qualityNodes", "easyv-quality-node", "appId", "appId", Cardinality.ONE_TO_MANY)),
       List.of(
@@ -192,7 +194,7 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
       "createdAt", List.of("application"), Map.of(SCOPE_USER, "application.userId"));
 
   public static final OntologyObjectType PROTOTYPE_COMPONENT = new OntologyObjectType(
-      "easyv-prototype-component", "原型图表组件", "原型区域内的图表组件实例（结构信息，不含标题与指标名称）",
+      "easyv-prototype-component", "原型图表组件", "原型区域内的图表组件实例，保留源指标名称、含义及明确绑定的单位与口径",
       "EasyvPrototypeComponent", "easyv-prototype-component", "facts.easyv_prototype_component", null,
       List.of(
           new OntologyProperty("componentKey", "组件记录 ID", null, Type.STRING,
@@ -329,7 +331,7 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
           OntologyProperty.identifier("taskId", "操作任务 ID", "关联节点的任务；一个任务可有多个执行节点，不把节点数当轮次", "task_id"),
           new OntologyProperty("executeResult", "执行结果", "源端操作结果，混合业务执行与积分结算；成功不证明诉求满足", Type.STRING,
               "case {CUBE}.execute_result when 1 then '记录成功' when 0 then '记录失败' end", false)
-              .display(false, false, Map.of("记录成功", "日志记为成功", "记录失败", "日志记为失败")),
+              .display(false, true, Map.of("记录成功", "日志记为成功", "记录失败", "日志记为失败")),
           OntologyProperty.column("rating", "评分", "整屏评分 1-5；单轮赞/踩为 4/2，两类不可混作满意度，未评分为空", Type.NUMBER, "rating"),
           OntologyProperty.column("saveAsEdit", "是否另存编辑", "该条生成反馈的另存标记；只更新当时最近 appGeneration 行。有过另存不代表最终版本已另存，也不等于满意", Type.BOOLEAN, "is_save_as_edit"),
           OntologyProperty.column("userInputTruncated", "用户原话已截断", "null 为旧冻结版本未采；true 表示只保留前 4000 字符", Type.BOOLEAN, "user_input_truncated"),

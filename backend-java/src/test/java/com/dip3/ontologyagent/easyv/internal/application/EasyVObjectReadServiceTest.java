@@ -68,6 +68,11 @@ class EasyVObjectReadServiceTest {
         .filter(p -> p.key().equals("scopeType")).findFirst().orElseThrow().valueLabels());
     assertEquals("USER", result.page().rows().getFirst().properties().get("scopeType"));
     assertEquals("app-1", result.page().rows().getFirst().reference().objectId());
+    var timeline = result.objectType().links().stream().filter(link -> link.key().equals("operations"))
+        .findFirst().orElseThrow().timeline();
+    assertEquals("operatedAt", timeline.timeProperty());
+    assertEquals("操作记录时间线", timeline.title());
+    assertTrue(timeline.notice().contains("不代表修改已生效"));
   }
 
   @Test
