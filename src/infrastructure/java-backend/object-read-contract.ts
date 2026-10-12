@@ -82,7 +82,9 @@ export const javaObjectReadResultSchema = z.object({
       type: z.enum(['STRING', 'NUMBER', 'BOOLEAN', 'TIME']), identifier: z.boolean().optional(),
       title: z.boolean().optional(), prominent: z.boolean().optional(), valueLabels: z.record(z.string(), z.string()).optional() }).strict()),
     links: z.array(z.object({ key: z.string().min(1), targetObjectKey: objectKey,
-      targetLabel: z.string().min(1), prominent: z.boolean().optional() }).strict()),
+      targetLabel: z.string().min(1), prominent: z.boolean().optional(),
+      timeline: z.object({ title: z.string().min(1), timeProperty: z.string().min(1), notice: z.string().min(1) }).strict().nullable().optional(),
+    }).strict()),
   }).strict(),
   page: z.object({
     objectKey,

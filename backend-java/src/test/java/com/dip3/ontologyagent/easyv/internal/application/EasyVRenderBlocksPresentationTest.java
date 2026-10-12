@@ -80,7 +80,7 @@ class EasyVRenderBlocksPresentationTest {
   }
 
   @Test
-  void tableComparisonIncludesBothPeriodsAndOnlyBindsCurrentPeriodAtTheCorrectColumn() {
+  void tableComparisonBindsBothPeriodsAtTheirOwnRowsAndCorrectColumn() {
     var current = new TimeExpression("9月", TimeExpression.Kind.ABSOLUTE, null, null, null,
         java.time.LocalDate.of(2026, 9, 1), java.time.LocalDate.of(2026, 9, 30), null);
     var previous = new TimeExpression("8月", TimeExpression.Kind.ABSOLUTE, null, null, null,
@@ -99,12 +99,19 @@ class EasyVRenderBlocksPresentationTest {
     assertTrue(((List<?>) rows.get(1)).getFirst().toString().startsWith("对比期"));
     assertEquals("5", ((List<?>) rows.get(1)).get(2));
     var bindings = (List<?>) block.get("drilldowns");
-    assertEquals(1, bindings.size());
+    assertEquals(2, bindings.size());
     assertEquals(2, ((EasyVResultDrilldown.Binding) bindings.getFirst()).column());
+    var comparison = (EasyVResultDrilldown.Binding) bindings.get(1);
+    assertEquals(1, comparison.row());
+    assertEquals(2, comparison.column());
+    assertTrue(comparison.filters().toString().contains("2026-08-01"));
+    assertTrue(comparison.filters().toString().contains("donut"));
     var onlyCompare = new EasyVSemanticAgent.ExecutedQuery("q1", "组件对比", compiled,
         new SemanticQueryPort.SemanticQueryResult(List.of(), query.result().compareRows(), "actual-query"), null);
     assertEquals(1, ((List<?>) render(onlyCompare, "table").get("rows")).size());
-    assertFalse(render(onlyCompare, "table").containsKey("drilldowns"));
+    var comparisonOnly = (List<?>) render(onlyCompare, "table").get("drilldowns");
+    assertEquals(1, comparisonOnly.size());
+    assertEquals(0, ((EasyVResultDrilldown.Binding) comparisonOnly.getFirst()).row());
   }
 
   @Test

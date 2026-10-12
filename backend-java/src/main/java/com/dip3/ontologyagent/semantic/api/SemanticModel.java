@@ -49,6 +49,8 @@ public final class SemanticModel {
         }
         object.requireProperty(link.sourceProperty());
         target.requireProperty(link.targetProperty());
+        if (link.timeline() != null && target.requireProperty(link.timeline().timeProperty()).type() != OntologyProperty.Type.TIME)
+          throw SemanticNames.invalid("关系 " + link.key() + " 的时间线属性必须是 TIME");
       }
       object.scopeBindings().values().forEach(path -> resolve(object.key(), path));
     }

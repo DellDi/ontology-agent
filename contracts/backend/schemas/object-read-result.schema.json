@@ -251,6 +251,32 @@
               },
               "prominent": {
                 "type": "boolean"
+              },
+              "timeline": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "required": [
+                  "title",
+                  "timeProperty",
+                  "notice"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "timeProperty": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "notice": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
               }
             }
           }

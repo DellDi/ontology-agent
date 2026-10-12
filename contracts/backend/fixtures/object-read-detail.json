@@ -86,7 +86,8 @@
         "key": "blocks",
         "targetObjectKey": "easyv-prototype-block",
         "targetLabel": "原型区域",
-        "prominent": false
+        "prominent": false,
+        "timeline": null
       }
     ]
   },

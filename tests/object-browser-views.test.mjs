@@ -65,6 +65,16 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
   seed({ objectKey: 'easyv-generation-feedback', objectId: '232' },
     operationType, operation);
   out.quality = render('easyv-quality-node');
+  const timeline = { key: 'operations', targetObjectKey: 'easyv-generation-feedback', targetLabel: '用户操作',
+    timeline: { title: '操作记录时间线', timeProperty: 'operatedAt', notice: '日志成功不代表修改已生效。' } };
+  operationType.properties.push({ key: 'operatedAt', label: '操作记录时间', type: 'TIME' },
+    { key: 'executeResult', label: '日志结果', type: 'STRING', prominent: true, valueLabels: { ok: '日志记为成功' } });
+  operation.properties.executeResult = 'ok';
+  seed({ objectKey: 'easyv-ai-application', objectId: 'app-1', relation: 'operations', limit: 20, offset: 0,
+    order: [{ member: 'operatedAt', direction: 'DESC' }] }, operationType, operation);
+  out.timeline = renderToStaticMarkup(React.createElement(QueryClientProvider, { client },
+    React.createElement(browser.RelatedObjectCollection, { context: { ...base, sessionId: 'session-old' },
+      source: appRow, link: timeline, selected: null, onSelect: () => {} })));
   const selectedInput = '$_({"id":"private-region","label":"算力监控","componentId":"private-component","componentLabel":"CPU平均利用率"})删除';
   operation.properties.userInput = selectedInput;
   seed({ objectKey: 'easyv-generation-feedback', objectId: '232' }, operationType, operation, {
@@ -202,4 +212,19 @@ test('原型列表 | 三类对象共用本体标题，不按前端字段名猜�
     const main = rendered[key].split('数据出处与版本')[0];
     assert.doesNotMatch(main.replace(/<[^>]*>/g, ''), /private-object|private-version/);
   }
+});
+
+
+test('关联时间线 | 按声明的时间排序，展示中文操作与日志结果，保持出处边界和分页入口', () => {
+  const html = rendered.timeline;
+  assert.match(html, /操作记录时间线/);
+  assert.match(html, /日志成功不代表修改已生效/);
+  assert.match(html, /<ol /);
+  assert.match(html, /2026\/09\/08 16:50:45/);
+  assert.match(html, /对话修改/);
+  assert.match(html, /日志记为成功/);
+  assert.match(html, /第 1 页 · 本页 1 条/);
+  assert.match(html, /上一页关联记录/);
+  assert.match(html, /下一页关联记录/);
+  assert.doesNotMatch(html, /task-secret|app-secret|chatRefactor|operatedAt|2026-09-08T/);
 });
