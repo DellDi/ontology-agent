@@ -16,20 +16,30 @@ final class EasyVResultDrilldown {
   private EasyVResultDrilldown() {}
 
   record Binding(String id, int row, int column, String objectKey, String scopeDescription,
-                 List<QueryIntent.Filter> filters) {}
+                 List<QueryIntent.Filter> filters) {
+    String metricKey() { return id.substring(id.lastIndexOf(':') + 1); }
+  }
 
   static Binding saved(Object value) { return JSON.convertValue(value, Binding.class); }
 
-  static List<QueryIntent.Filter> objectFilters(CompiledSemanticQuery query, OntologyObjectType object) {
-    return objectFilters(query, object, query.range());
+  static List<QueryIntent.Filter> objectFilters(CompiledSemanticQuery query, OntologyObjectType object, SemanticModel model) {
+    return objectFilters(query, object, model, query.range());
+  }
+
+  private static boolean supportedProperty(OntologyObjectType object, SemanticModel model, String member) {
+    String[] path = member.split("\\.", -1);
+    if (path.length == 1) return object.findProperty(path[0]).filter(property -> !property.detailOnly()).isPresent();
+    if (path.length != 2) return false;
+    return object.links().stream().filter(link -> link.key().equals(path[0]) && OBJECTS.contains(link.targetObjectKey()))
+        .anyMatch(link -> model.require(link.targetObjectKey()).findProperty(path[1]).filter(property -> !property.detailOnly()).isPresent());
   }
 
   private static List<QueryIntent.Filter> objectFilters(CompiledSemanticQuery query, OntologyObjectType object,
-                                                        ResolvedTimeRange range) {
-    if (query.intent().filters().stream().anyMatch(filter -> object.findProperty(filter.member()).isEmpty())) return null;
+                                                        SemanticModel model, ResolvedTimeRange range) {
+    if (query.intent().filters().stream().anyMatch(filter -> !supportedProperty(object, model, filter.member()))) return null;
     String time = query.intent().time().dimension();
     if (time == null || time.isBlank()) time = object.defaultTimeProperty();
-    if (time != null && object.findProperty(time).isEmpty()) return null;
+    if (time != null && !supportedProperty(object, model, time)) return null;
     List<QueryIntent.Filter> filters = new ArrayList<>(query.intent().filters());
     if (time != null && !range.allData()) {
       filters.add(new QueryIntent.Filter(time, QueryIntent.Operator.GTE,
@@ -74,13 +84,11 @@ final class EasyVResultDrilldown {
     if (!OBJECTS.contains(query.objectKey())) return;
     var object = model.require(query.objectKey());
     var columns = query.columns();
-    var count = columns.stream().filter(c -> c.kind() == CompiledSemanticQuery.ColumnKind.MEASURE && c.key().equals("count")).findFirst();
+    var measures = columns.stream().filter(c -> c.kind() == CompiledSemanticQuery.ColumnKind.MEASURE).toList();
     var dimensions = columns.stream().filter(c -> c.kind() == CompiledSemanticQuery.ColumnKind.DIMENSION).toList();
-    // 只开放根对象实例 count，SUM、比率和去重签名数不等同于根对象数量。
-    String unsupported = count.isEmpty() ? "此指标暂不支持精确对象下钻。"
-        : objectFilters(query, object) == null || dimensions.stream().anyMatch(c -> object.findProperty(c.key()).isEmpty())
-          ? "此查询的关联条件或过滤数量暂不支持精确对象下钻。" : null;
-    if (unsupported != null) { block.put("drilldownUnavailableReason", unsupported); return; }
+    if (objectFilters(query, object, model) == null || dimensions.stream().anyMatch(c -> !supportedProperty(object, model, c.key()))) {
+      block.put("drilldownUnavailableReason", "这项统计的筛选条件过多，或含有无法定位到记录的条件，暂不能精确打开对应记录。"); return;
+    }
     List<Binding> bindings = new ArrayList<>();
     int currentRows = Math.min(executed.result().rows().size(), EasyVSemanticAgent.EVIDENCE_ROW_CAP);
     for (int period = 0; period < (query.compareRange() == null ? 1 : 2); period++) {
@@ -89,11 +97,9 @@ final class EasyVResultDrilldown {
       int rowLimit = "table".equals(block.get("type")) ? Math.min(rows.size(), EasyVSemanticAgent.EVIDENCE_ROW_CAP) : rows.size();
       for (int rowIndex = 0; rowIndex < rowLimit; rowIndex++) {
         var row = rows.get(rowIndex);
-        if (!(row.get("count") instanceof Number number) || !Double.isFinite(number.doubleValue())
-            || number.doubleValue() < 0 || number.doubleValue() != Math.rint(number.doubleValue())) continue;
         var selectedRange = query.granularity() == null ? range : bucket(query, range, row.get("time"));
         if (selectedRange == null) continue;
-        var base = objectFilters(query, object, selectedRange);
+        var base = objectFilters(query, object, model, selectedRange);
         if (base == null) continue;
         List<QueryIntent.Filter> filters = new ArrayList<>(base);
         List<String> groups = new ArrayList<>();
@@ -105,29 +111,30 @@ final class EasyVResultDrilldown {
           if (text != null && (text.isBlank() || text.length() > 500)) { valid = false; break; }
           filters.add(new QueryIntent.Filter(dimension.key(), value == null ? QueryIntent.Operator.NOT_SET : QueryIntent.Operator.EQUALS,
               value == null ? List.of() : List.of(text)));
-          var property = object.findProperty(dimension.key()).orElseThrow();
+          var property = model.resolve(object.key(), dimension.key()).property();
           groups.add(property.identifier() ? "按" + dimension.label() + "分组"
               : dimension.label() + "：" + (value == null ? "未提供" : property.valueLabels().getOrDefault(text, text)));
         }
         if (!valid || filters.size() > 10) continue;
-        int column, displayRow = rowIndex;
-        switch ((String) block.get("type")) {
-          case "table" -> {
-            column = columns.indexOf(count.get()) + (query.compareRange() != null ? 1 : 0);
-            displayRow += period == 0 ? 0 : currentRows;
+        for (var measure : measures) {
+          if (!(row.get(measure.key()) instanceof Number number) || !Double.isFinite(number.doubleValue())) continue;
+          var metric = object.findMetric(measure.key()).orElseThrow();
+          if ((metric.aggregation() == OntologyMetric.Aggregation.COUNT || metric.aggregation() == OntologyMetric.Aggregation.COUNT_DISTINCT)
+              && (number.doubleValue() < 0 || number.doubleValue() != Math.rint(number.doubleValue()))) continue;
+          int column, displayRow = rowIndex;
+          switch ((String) block.get("type")) {
+            case "table" -> { column = columns.indexOf(measure) + (query.compareRange() != null ? 1 : 0); displayRow += period == 0 ? 0 : currentRows; }
+            case "chart" -> column = measures.indexOf(measure);
+            case "kv-list" -> { column = measures.indexOf(measure) * (executed.result().compareRows().isEmpty() ? 1 : 2) + period; displayRow = 0; }
+            default -> { continue; }
           }
-          case "chart" -> column = columns.stream().filter(c -> c.kind() == CompiledSemanticQuery.ColumnKind.MEASURE).toList().indexOf(count.get());
-          case "kv-list" -> {
-            column = columns.stream().filter(c -> c.kind() == CompiledSemanticQuery.ColumnKind.MEASURE).toList().indexOf(count.get())
-                * (executed.result().compareRows().isEmpty() ? 1 : 2) + period;
-            displayRow = 0;
-          }
-          default -> { continue; }
+          String description = "参与“" + measure.label() + "”计算的" + object.label()
+              + (groups.isEmpty() ? "" : " · " + String.join("，", groups))
+              + "；统计值 " + number + "；" + (period == 1 ? "对比期 · " : "") + selectedRange.description();
+          if (!measure.key().equals("count")) description += "。这些是计算依据，记录条数不等于该指标值。";
+          bindings.add(new Binding(executed.id() + (period == 1 ? ":compare" : "") + ":" + rowIndex + ":" + measure.key(),
+              displayRow, column, object.key(), description, List.copyOf(filters)));
         }
-        String description = (groups.isEmpty() ? object.label() + " · 当前查询范围" : String.join("，", groups))
-            + " · " + count.get().label() + " " + number + "；" + (period == 1 ? "对比期 · " : "") + selectedRange.description();
-        bindings.add(new Binding(executed.id() + (period == 1 ? ":compare" : "") + ":" + rowIndex + ":count",
-            displayRow, column, object.key(), description, List.copyOf(filters)));
       }
     }
     if (bindings.isEmpty()) { block.put("drilldownUnavailableReason", "此结果无法生成精确对象下钻条件。"); return; }

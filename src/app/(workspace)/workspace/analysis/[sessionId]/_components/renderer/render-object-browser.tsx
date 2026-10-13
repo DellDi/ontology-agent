@@ -162,6 +162,9 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
   hints?: { relation?: string; provenance?: string }; beforeProperties?: ReactNode; afterProperties?: ReactNode;
 }) {
   const [relation, setRelation] = useState<Type['links'][number] | null>(null);
+  const [metricsOpen, setMetricsOpen] = useState(false);
+  const metrics = useObjectRead({ ...context, datasetVersionSetId: detail.data?.datasetVersionSetId ?? context.datasetVersionSetId },
+    { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId, includeRelatedMetrics: true }, metricsOpen && !!detail.data);
   const selected = detail.data?.page.rows[0] ?? focus;
   const type: Type | undefined = detail.data?.objectType;
   const title = viewOf(selected.reference.objectKey).rows.title(selected, type);
@@ -193,6 +196,21 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
     {otherProperties?.length ? <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">更多记录信息</summary>
       <div className="mt-3">{propertyList(otherProperties)}</div></details> : null}
     {afterProperties}
+    {type?.links.some((link) => link.cardinality === 'ONE_TO_MANY') ? <div className="space-y-2">
+      <Button type="button" variant="outline" size="sm" aria-expanded={metricsOpen} onClick={() => setMetricsOpen(!metricsOpen)}>关联统计</Button>
+      {metricsOpen ? <section aria-label="所选对象的关联统计" className="space-y-2 rounded-lg border border-border p-3">
+        <p className="text-xs text-muted-foreground">按所选对象的全部关联记录统计，点击数量查看对应记录。</p>
+        {metrics.isPending ? <Pending>正在统计关联记录…</Pending> : null}{metrics.error ? <Notice error={metrics.error} /> : null}
+        {metrics.data && metrics.data.datasetVersionSetId !== detail.data?.datasetVersionSetId
+          ? <p role="alert" className="text-xs text-destructive">数据已更新，请重新打开对象后查看统计。</p>
+          : metrics.data?.relatedMetrics?.map((metric) => <div key={metric.relation} className="space-y-1">
+            <Button type="button" size="sm" variant="ghost" onClick={() => {
+              const link = type.links.find((candidate) => candidate.key === metric.relation); if (link) setRelation(link);
+            }}>{metric.label}：{metric.count} ↗</Button>
+            {metric.description ? <p className="text-xs leading-5 text-muted-foreground">{metric.description}</p> : null}
+          </div>)}
+      </section> : null}
+    </div> : null}
     {type?.links.length ? <div className="flex flex-wrap gap-2">{type.links.map((link) => <Button key={link.key} type="button" variant="outline" size="sm"
       aria-pressed={relation?.key === link.key} onClick={() => setRelation(link)}>查看{link.timeline?.title ?? link.targetLabel}</Button>)}</div> : null}
     {relation ? <RelatedObjectCollection key={`${relation.key}:${detail.data?.datasetVersionSetId ?? context.datasetVersionSetId}`}
@@ -407,7 +425,7 @@ const objectViews: Partial<Record<Row['reference']['objectKey'], ObjectView>> = 
 };
 function viewOf(objectKey: Row['reference']['objectKey']) { return objectViews[objectKey] ?? metadataView; }
 
-function ObjectBrowser({ context, objectKey, filters, drilldownId, onObjectSelect }: {
+function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescription, onObjectSelect }: {
   context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; drilldownId?: string | null; scopeDescription: string; onObjectSelect?: SelectObject;
 }) {
   const [offset, setOffset] = useState(0);
@@ -427,6 +445,7 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, onObjectSelec
   const root = selected ?? list.data?.page.rows[0];
   const Detail = root ? viewOf(root.reference.objectKey).Detail : null;
   return <div className="space-y-5" data-testid="analysis-object-browser">
+    {drilldownId ? <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p> : null}
     <p className="text-xs leading-5 text-muted-foreground">当前对象按最新已发布数据读取；历史回答保留当时结论，数量与属性可能已变化。</p>
     <p className="text-xs leading-5 text-muted-foreground">分页结果不代表全部匹配对象。</p>
     {knownType ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties.filter((property) => !property.identifier)}

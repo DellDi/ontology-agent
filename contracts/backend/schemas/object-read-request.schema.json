@@ -160,6 +160,12 @@
         "boolean",
         "null"
       ]
+    },
+    "includeRelatedMetrics": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
   "required": [
@@ -203,6 +209,35 @@
         "required": [
           "objectId"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "includeRelatedMetrics": {
+            "const": true
+          }
+        },
+        "required": [
+          "includeRelatedMetrics"
+        ]
+      },
+      "then": {
+        "required": [
+          "objectId"
+        ],
+        "properties": {
+          "objectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "type": "null"
+          },
+          "drilldownId": {
+            "type": "null"
+          }
+        }
       }
     }
   ]

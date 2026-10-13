@@ -12,9 +12,12 @@ public interface ObjectQueryPort {
   Page related(String objectKey, String objectId, String linkKey, Query query,
                SemanticQueryPort.AccessContext access);
 
-  /** filters/order 使用根对象属性；关系穿透使用 related，不用自由 SQL 或表名。 */
+  /** filters 支持声明的一跳关系属性，order 使用根对象属性；关系穿透使用 related，不用自由 SQL 或表名。 */
   record Query(String objectKey, List<QueryIntent.Filter> filters, List<QueryIntent.Order> order,
-               int limit, int offset) {
+               int limit, int offset, String contributionMetric) {
+    public Query(String objectKey, List<QueryIntent.Filter> filters, List<QueryIntent.Order> order, int limit, int offset) {
+      this(objectKey, filters, order, limit, offset, null);
+    }
     public Query {
       filters = filters == null ? List.of() : List.copyOf(filters);
       order = order == null ? List.of() : List.copyOf(order);

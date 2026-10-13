@@ -269,3 +269,24 @@ test('对象读取 | 时间线声明同时符合两份契约，缺少来源说�
     assert.equal(javaObjectReadResultSchema.safeParse(result).success, false);
   }
 });
+
+
+test('对象读取 | 关联数量保留正式口径，非对象详情请求和非法数量被拒绝', () => {
+  const result = structuredClone(detail);
+  result.relatedMetrics = [{ relation: 'blocks', label: '区域数', description: '区域实例数', count: 42 }];
+  assert.equal(ajv.getSchema('object-read-result.schema.json')(result), true, ajv.errorsText());
+  assert.equal(javaObjectReadResultSchema.safeParse(result).success, true);
+  for (const count of [-1, 1.5, '42']) {
+    const invalid = structuredClone(result); invalid.relatedMetrics[0].count = count;
+    assert.equal(ajv.getSchema('object-read-result.schema.json')(invalid), false);
+    assert.equal(javaObjectReadResultSchema.safeParse(invalid).success, false);
+  }
+  const forged = structuredClone(result); forged.relatedMetrics[0].relation = 'unknown';
+  assert.equal(javaObjectReadResultSchema.safeParse(forged).success, false);
+  assert.equal(javaObjectReadRequestSchema.safeParse({ ...request, includeRelatedMetrics: true }).success, true);
+  for (const invalid of [{ ...request, objectId: null, includeRelatedMetrics: true },
+    { ...request, relation: 'blocks', includeRelatedMetrics: true }, { ...request, drilldownId: 'q1:0:count', includeRelatedMetrics: true }]) {
+    assert.equal(ajv.getSchema('object-read-request.schema.json')(invalid), false);
+    assert.equal(javaObjectReadRequestSchema.safeParse(invalid).success, false);
+  }
+});

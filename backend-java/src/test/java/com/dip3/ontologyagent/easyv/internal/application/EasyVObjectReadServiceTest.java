@@ -76,6 +76,31 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void relatedCountsUseDeclaredRelationshipsFullDatasetAndAuthorizedScopeRatherThanPreviewSize() {
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(APPLICATION, "app-1", "apps-old"), Map.of("appId", "app-1"));
+    when(objects.require(eq(APPLICATION), eq("app-1"), any())).thenReturn(row);
+    when(queries.execute(any(), any())).thenAnswer(call -> {
+      CompiledSemanticQuery query = call.getArgument(0);
+      assertTrue(query.range().allData());
+      assertEquals(List.of(new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS, List.of("app-1"))), query.intent().filters());
+      assertEquals(List.of("count"), query.intent().measures());
+      return new SemanticQueryPort.SemanticQueryResult(List.of(Map.of("count", query.objectKey().equals("easyv-generation-feedback") ? 25 : 79)), List.of(), "sql");
+    });
+    var request = new EasyVObjectReadService.Request("execution", "set-old", APPLICATION, "app-1", null,
+        null, null, null, null, null, null, true);
+    var result = service.read("session", admin, request);
+    assertEquals(List.of("operations", "qualityNodes"), result.relatedMetrics().stream().map(EasyVObjectReadService.RelatedMetric::relation).toList());
+    assertEquals(List.of(25L, 79L), result.relatedMetrics().stream().map(EasyVObjectReadService.RelatedMetric::count).toList());
+    verify(datasets).requireFrozen(eq("set-old"), argThat(products -> products.containsAll(Set.of("easyv-generation-feedback", "easyv-pipeline-node"))));
+    verify(objects, never()).related(anyString(), anyString(), anyString(), any(), any());
+    doReturn(new SemanticQueryPort.SemanticQueryResult(List.of(Map.of("count", 1.5)), List.of(), "sql")).when(queries).execute(any(), any());
+    assertEquals("SEMANTIC_RESULT_INVALID", assertThrows(BackendException.class, () -> service.read("session", admin, request)).code());
+    var invalid = new EasyVObjectReadService.Request("execution", "set-old", APPLICATION, "app-1", "operations",
+        null, null, null, null, null, null, true);
+    assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class, () -> service.read("session", admin, invalid)).code());
+  }
+
+  @Test
   void prototypePagePresentationUsesAuthorizedSourceWithoutChangingTheFrozenRow() {
     String source = "[{\"pageId\":\"internal-page\",\"title\":\"订单经营大屏\",\"contents\":[{\"id\":\"internal-main\",\"title\":\"区域销售\",\"description\":\"比较区域规模\",\"metrics\":[]}]}]";
     var original = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(LAYOUT, "app-1", "layouts-old"),

@@ -39,6 +39,7 @@ const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-ty
   };
   seedApplication([]); out.application = render('easyv-ai-application');
   seedApplication([{ key: 'prototype', targetObjectKey: 'easyv-prototype-layout', targetLabel: '原型版式' }]); out.linked = render('easyv-ai-application');
+  seedApplication([{ key: 'operations', targetObjectKey: 'easyv-generation-feedback', targetLabel: '用户操作', cardinality: 'ONE_TO_MANY' }]); out.relatedCount = render('easyv-ai-application');
   client.clear(); seed({ objectKey: 'easyv-prototype-layout', filters: [], limit: 20, offset: 0 }, layoutType, layoutRow);
   out.layout = render('easyv-prototype-layout');
   client.clear();
@@ -227,4 +228,11 @@ test('关联时间线 | 按声明的时间排序，展示中文操作与日志�
   assert.match(html, /上一页关联记录/);
   assert.match(html, /下一页关联记录/);
   assert.doesNotMatch(html, /task-secret|app-secret|chatRefactor|operatedAt|2026-09-08T/);
+});
+
+
+test('对象详情 | 关联统计入口由集合关系声明产生，不为单值关系造入口', () => {
+  assert.match(rendered.relatedCount, /关联统计/);
+  assert.doesNotMatch(rendered.application, /关联统计/);
+  assert.doesNotMatch(rendered.linked, /关联统计/);
 });

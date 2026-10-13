@@ -49,6 +49,19 @@ class EasyVRenderBlocksObjectTest {
   }
 
   @Test
+  void relatedDimensionBindsTheDeclaredParentPropertyWithoutLosingScope() {
+    var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
+    var query = grouped("easyv-prototype-layout", List.of("application.scopeType"), List.of(), all,
+        List.of(Map.of("application.scopeType", "USER", "count", 3)));
+    var block = EasyVRenderBlocks.build(List.of(query), List.of(), model, "set").getFirst();
+    assertEquals(List.of(new QueryIntent.Filter("application.scopeType", QueryIntent.Operator.EQUALS, List.of("USER"))),
+        bindings(block).getFirst().get("filters"));
+    var saved = ((List<?>) block.get("drilldowns")).getFirst();
+    assertTrue(((EasyVResultDrilldown.Binding) saved).scopeDescription().contains("个人"));
+    assertFalse(((EasyVResultDrilldown.Binding) saved).scopeDescription().contains("USER"));
+  }
+
+  @Test
   void tableRetainsEveryDimensionAndNullGroupNeverBecomesAnUnfilteredList() {
     var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
     Map<String, Object> row = new LinkedHashMap<>();
@@ -62,7 +75,7 @@ class EasyVRenderBlocksObjectTest {
   }
 
   @Test
-  void onlyCountIsLinkedWhenTheSameResultAlsoHasASumOrDistinctSignatureCount() {
+  void everyMetricHasItsOwnContributorBindingWithoutPretendingASumIsAnObjectCount() {
     var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
     var intent = new QueryIntent("easyv-prototype-layout", List.of("blockTotal", "count", "layoutSignatureCount"),
         List.of(), List.of(), new QueryIntent.TimeSpec(null, all, null), null, List.of(), 5);
@@ -71,16 +84,19 @@ class EasyVRenderBlocksObjectTest {
     var query = new EasyVSemanticAgent.ExecutedQuery("q1", "多个统计", compiled.query(),
         new SemanticQueryPort.SemanticQueryResult(List.of(Map.of("count", 5, "blockTotal", 30, "layoutSignatureCount", 5)), List.of(), "sql"), null);
     var block = EasyVRenderBlocks.build(List.of(query), List.of(), model, "set-old").getFirst();
-    assertEquals(1, bindings(block).size());
-    assertEquals(1, bindings(block).getFirst().get("column"));
+    assertEquals(3, bindings(block).size());
+    assertEquals(List.of(0, 1, 2), bindings(block).stream().map(binding -> binding.get("column")).toList());
+    var actual = (List<?>) block.get("drilldowns");
+    assertTrue(((EasyVResultDrilldown.Binding) actual.getFirst()).scopeDescription().contains("记录条数不等于该指标值"));
+    assertTrue(((EasyVResultDrilldown.Binding) actual.getFirst()).metricKey().equals("blockTotal"));
     assertEquals("set-old", block.get("datasetVersionSetId"));
   }
 
   @Test
-  void unsupportedGroupAndFilterOverflowCannotBecomeAnUnfilteredDrilldown() {
+  void aggregateFilterAndFilterOverflowCannotBecomeAnUnfilteredDrilldown() {
     var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
-    var relation = grouped("easyv-prototype-layout", List.of("application.userId"), List.of(), all,
-        List.of(Map.of("application.userId", "16", "count", 1)));
+    var relation = grouped("easyv-prototype-layout", List.of(), List.of(new QueryIntent.Filter("count", QueryIntent.Operator.GT, List.of("2"))), all,
+        List.of(Map.of("count", 3)));
     var unsupported = EasyVRenderBlocks.build(List.of(relation), List.of(), model, "set-old").getFirst();
     assertFalse(unsupported.containsKey("drilldowns"));
     assertNotNull(unsupported.get("drilldownUnavailableReason"));
@@ -204,10 +220,12 @@ class EasyVRenderBlocksObjectTest {
     var all = new TimeExpression("全部", TimeExpression.Kind.ALL, null, null, null, null, null, null);
     var query = query("easyv-prototype-block", List.of(), all);
     assertEquals(List.of(), EasyVRenderBlocks.objectBrowsers(List.of(query), model, "set", PRODUCTS).getFirst().get("filters"));
-    for (String member : List.of("application.userId", "count")) {
+    for (String member : List.of("count")) {
       var filtered = query("easyv-prototype-block", List.of(new QueryIntent.Filter(member, QueryIntent.Operator.EQUALS, List.of("1"))), all);
       assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(filtered), model, "set", PRODUCTS).isEmpty());
     }
+    var related = query("easyv-prototype-block", List.of(new QueryIntent.Filter("application.userId", QueryIntent.Operator.EQUALS, List.of("1"))), all);
+    assertEquals(related.compiled().intent().filters(), EasyVRenderBlocks.objectBrowsers(List.of(related), model, "set", PRODUCTS).getFirst().get("filters"));
     assertTrue(EasyVRenderBlocks.objectBrowsers(List.of(query), model, "set", Set.of("easyv-prototype-block")).isEmpty());
   }
 

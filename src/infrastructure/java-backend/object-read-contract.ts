@@ -16,6 +16,7 @@ export const javaObjectReadRequestSchema = z.object({
   datasetVersionSetId: z.string().min(1),
   objectKey,
   includeComponentSummary: z.boolean().nullable().optional(),
+  includeRelatedMetrics: z.boolean().nullable().optional(),
   drilldownId: z.string().min(1).max(500).nullable().optional(),
   objectId: z.string().min(1).max(500).nullable().optional(),
   relation: z.string().min(1).nullable().optional(),
@@ -30,6 +31,9 @@ export const javaObjectReadRequestSchema = z.object({
   limit: z.number().int().min(1).max(200).nullable().optional(),
   offset: z.number().int().min(0).max(10000).nullable().optional(),
 }).strict().superRefine((request, context) => {
+  if (request.includeRelatedMetrics && (!request.objectId || request.relation || request.drilldownId)) {
+    context.addIssue({ code: 'custom', message: '关联统计只能读取单个对象详情。' });
+  }
   if (request.includeComponentSummary && (!request.objectId || request.relation || request.drilldownId
       || !summaryObjectKeys.includes(request.objectKey))) {
     context.addIssue({ code: 'custom', message: '组件构成统计仅支持原型版式或区域详情。' });
@@ -75,6 +79,9 @@ export const javaObjectReadResultSchema = z.object({
         values: z.array(z.string().min(1).max(500)).max(1) }).strict(),
     }).strict()).max(5000),
   }).strict().nullable().optional(),
+  relatedMetrics: z.array(z.object({ relation: z.string().min(1), label: z.string().min(1),
+    description: z.string().nullable(), count: z.number().int().min(0),
+  }).strict()).nullable().optional(),
   dataContext: z.object({ capturedAt: z.iso.datetime({ offset: true }), scopeDescription: z.string().min(1) }).strict().nullable().optional(),
   objectType: z.object({
     key: objectKey, label: z.string().min(1),
@@ -83,6 +90,7 @@ export const javaObjectReadResultSchema = z.object({
       title: z.boolean().optional(), prominent: z.boolean().optional(), valueLabels: z.record(z.string(), z.string()).optional() }).strict()),
     links: z.array(z.object({ key: z.string().min(1), targetObjectKey: objectKey,
       targetLabel: z.string().min(1), prominent: z.boolean().optional(),
+      cardinality: z.enum(['MANY_TO_ONE', 'ONE_TO_MANY', 'ONE_TO_ONE']).optional(),
       timeline: z.object({ title: z.string().min(1), timeProperty: z.string().min(1), notice: z.string().min(1) }).strict().nullable().optional(),
     }).strict()),
   }).strict(),
@@ -109,6 +117,10 @@ export const javaObjectReadResultSchema = z.object({
         || typeof row?.properties[field] !== 'string' || !String(row.properties[field]).trim())) {
       context.addIssue({ code: 'custom', message: '业务呈现必须对应单个授权对象中的非标识文本属性及完整源值。' });
     }
+  }
+  if (result.relatedMetrics && (result.page.rows.length !== 1 || result.relatedMetrics.some((metric) =>
+    !result.objectType.links.some((link) => link.key === metric.relation && link.cardinality === 'ONE_TO_MANY')))) {
+    context.addIssue({ code: 'custom', message: '关联统计必须属于所选对象声明的集合关系。' });
   }
   if (result.componentSummary) {
     const summary = result.componentSummary;
