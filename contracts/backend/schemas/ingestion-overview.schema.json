@@ -294,12 +294,28 @@
                       "runId": {
                         "type": "string",
                         "minLength": 1
+                      },
+                      "startedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "finishedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
                       }
                     },
                     "required": [
                       "datasetKey",
                       "versionId",
-                      "runId"
+                      "runId",
+                      "startedAt",
+                      "finishedAt"
                     ],
                     "additionalProperties": false
                   }
@@ -315,13 +331,21 @@
               ],
               "additionalProperties": false
             }
+          },
+          "frozenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         },
         "required": [
           "id",
           "status",
           "capturedAt",
-          "products"
+          "products",
+          "frozenAt"
         ],
         "additionalProperties": false
       }

@@ -634,6 +634,13 @@ class IngestionPersistenceTest {
         assertEquals(List.of("version-a-1", "version-b-1"),
                 product.sources().stream().map(item -> item.versionId()).toList());
         assertEquals("source-run-a", product.sources().getFirst().runId());
+        assertEquals(jdbc.queryForObject("select started_at from ingestion.source_ingestion_runs where id='source-run-a'", Timestamp.class).toInstant(),
+                product.sources().getFirst().startedAt());
+        assertEquals(jdbc.queryForObject("select finished_at from ingestion.source_ingestion_runs where id='source-run-a'", Timestamp.class).toInstant(),
+                product.sources().getFirst().finishedAt(),
+                "血缘采集时间来自输入版本的原任务，不能使用最近 50 条任务或后来的失败检查");
+        assertEquals(versionSets.requireFrozen("set-a", java.util.Set.of("product-a")).frozenAt(),
+                overview.releases().getFirst().frozenAt());
         String serialized = new JsonCodec().write(overview);
         org.junit.jupiter.api.Assertions.assertFalse(serialized.contains("secret-sentinel"));
         org.junit.jupiter.api.Assertions.assertFalse(serialized.contains("private-sql"));
@@ -650,6 +657,7 @@ class IngestionPersistenceTest {
         assertEquals("disabled", overview.sources().getFirst().status());
         assertEquals(20, overview.releases().size());
         assertEquals(List.of(), overview.releases().getFirst().products());
+        assertEquals(null, overview.releases().getFirst().frozenAt());
         assertEquals(List.of(), overview.runs());
     }
 

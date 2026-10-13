@@ -59,9 +59,9 @@ public class IngestionManagementPostgresAdapter implements IngestionManagementPo
                 rs.getString("correlation_id"), instant(rs, "created_at"), instant(rs, "started_at"),
                 instant(rs, "finished_at")), RUN_LIMIT);
         var releases = jdbc.query("""
-                select set_id, status, captured_at from ingestion.dataset_version_sets
+                select set_id, status, captured_at, frozen_at from ingestion.dataset_version_sets
                 order by captured_at desc, set_id desc limit ?
-                """, (rs, n) -> new Release(rs.getString(1), rs.getString(2), instant(rs, "captured_at"), List.of()),
+                """, (rs, n) -> new Release(rs.getString(1), rs.getString(2), instant(rs, "captured_at"), instant(rs, "frozen_at"), List.of()),
                 RELEASE_LIMIT);
         Map<String, Map<String, ReleaseProduct>> members = new LinkedHashMap<>();
         // Restrict lineage to the same bounded release window without N+1 queries.
@@ -71,11 +71,12 @@ public class IngestionManagementPostgresAdapter implements IngestionManagementPo
                   order by captured_at desc, set_id desc limit ?
                 )
                 select i.set_id, i.product_key, v.id, v.status, v.row_count, v.materialization_run_id,
-                       l.source_dataset_key, l.source_dataset_version_id, s.source_ingestion_run_id
+                       l.source_dataset_key, l.source_dataset_version_id, s.source_ingestion_run_id, run.started_at, run.finished_at
                 from recent r join ingestion.dataset_version_set_items i on i.set_id=r.set_id
                 join ingestion.data_product_versions v on v.id=i.product_version_id
                 left join ingestion.data_product_version_lineage l on l.product_version_id=v.id
                 left join ingestion.source_dataset_versions s on s.id=l.source_dataset_version_id
+                left join ingestion.source_ingestion_runs run on run.id=s.source_ingestion_run_id
                 order by i.set_id, i.product_key, l.input_key
                 """, (org.springframework.jdbc.core.RowCallbackHandler) rs -> {
             Map<String, ReleaseProduct> productsByKey = members.computeIfAbsent(rs.getString("set_id"),
@@ -89,11 +90,11 @@ public class IngestionManagementPostgresAdapter implements IngestionManagementPo
             }
             if (rs.getString("source_dataset_key") != null) {
                 product.sources().add(new SourceVersion(rs.getString("source_dataset_key"),
-                        rs.getString("source_dataset_version_id"), rs.getString("source_ingestion_run_id")));
+                        rs.getString("source_dataset_version_id"), rs.getString("source_ingestion_run_id"), instant(rs, "started_at"), instant(rs, "finished_at")));
             }
         }, RELEASE_LIMIT);
         return new Overview("platform", RUN_LIMIT, RELEASE_LIMIT, sources, datasets, products, runs,
-                releases.stream().map(release -> new Release(release.id(), release.status(), release.capturedAt(),
+                releases.stream().map(release -> new Release(release.id(), release.status(), release.capturedAt(), release.frozenAt(),
                         List.copyOf(members.getOrDefault(release.id(), Map.of()).values()))).toList());
     }
 
