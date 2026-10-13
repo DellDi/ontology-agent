@@ -1,8 +1,8 @@
 # Ontology Agent Runtime：本体契约 + 受治理工具 + 多步智能体
 
 > 状态：Baseline（2026-09-24）；2026-09-29 补充经用户确认的原型设计分析与可复用呈现路线（§11）。
-> 实施状态（2026-10-13）：B 对象与智能体工程收尾并发布，原型画布/选择追问、评估候选、有限多步编排与第二组合场景已有验收；本批补齐关联统计、派生指标计算依据与一跳关联维度下钻，见 §14.25。easyv-dev Web/API/分析 Worker 为 `b-object-complete-0865f53`，Cube 描述同步，healthy；release-worker 保持 `current-data-retention-524f4c3`，V31、手动采集与每日清理保持。业务评分校准及原始生成输入认证仍未通过，单独保留真实状态；配置化与 C 动作未实施。
-> 当前交付：按原 B 范围完成工程收尾；业务评审按用户确认先交付 30 份样本，标签和实际渲染尚缺，不冒充校准。详见 [收尾验收](../acceptance/b-closeout.md)。非 EasyV 新源与正式编辑修订不追加成通用 B 关闭条件；A/B/C/D 路线保持。历史章节按当日证据保留，当前状态以 §6.1、§14.25 为准。环境见 [环境说明](../environments.md)。
+> 实施状态（2026-10-13）：B 对象与智能体工程收尾并发布，原型画布/选择追问、评估候选、有限多步编排与第二组合场景已有验收；本批补齐关联统计、派生指标计算依据与一跳关联维度下钻，见 §14.25。easyv-dev Web/API/分析 Worker 为 `d-lineage-times-37c3821`，版本血缘时点已补（§14.27），healthy；release-worker 保持 `current-data-retention-524f4c3`，V31、手动采集与每日清理保持。业务评分校准及原始生成输入认证仍未通过，单独保留真实状态；配置化与 C 动作未实施。
+> 当前交付：按原 B 范围完成工程收尾；业务评审按用户确认先交付 30 份样本，标签和实际渲染尚缺，不冒充校准。详见 [收尾验收](../acceptance/b-closeout.md)。非 EasyV 新源与正式编辑修订不追加成通用 B 关闭条件；A/B/C/D 路线保持。历史章节按当日证据保留，当前状态以 §6.1 及 §14 的最新交付为准。环境见 [环境说明](../environments.md)。
 > 适用范围：分析运行时的语义层、时间语义、Agent 工具与执行模型；产品对标 Palantir Ontology / AIP / Actions
 > 与现有基线关系：沿用 [Multi-domain Runtime Architecture](./multi-domain-runtime-architecture.md) 的 Capability、binding、Job pin、证据与审计主链，
 > 并按本文 §7 调整其中“Main Agent 只调用一次 workflow tool”等约束；Java 分层继续遵循 [Java Architecture Baseline](./java-architecture-baseline.md)。
@@ -180,7 +180,7 @@ order[], limit  limit ≤ 5000；达到上限视为截断失败
 
 **D 运营化**
 
-1. 定时发布：每小时增量、每日 RECONCILE，经现有发布队列与幂等键；界面显示各数据产品新鲜度。入队机制、无变化复用与版本清理已部署公司（§14.21–14.23）；每日 03:00 清理启用，按用户选择采集仍手动。真实源周期运行、容量与告警未验收，新鲜度展示尚未实现。
+1. 定时发布：每小时增量、每日 RECONCILE，经现有发布队列与幂等键；界面显示各数据产品新鲜度。入队机制、无变化复用与版本清理已部署公司（§14.21–14.23）；每日 03:00 清理启用，按用户选择采集仍手动。真实源周期运行、容量与告警未验收；已补版本发布与输入采集时点（§14.27），产品新鲜度摘要/最近成功检查与告警仍待后续。
 2. release-worker 看守与告警（部署文档方案落地）。
 3. 血缘与数据健康面板：结论 → 证据 → 数据产品版本 → 源批次 → 源行。
 4. 看板：固定回答到看板，按新冻结版本刷新并保留历史快照。
@@ -1343,3 +1343,13 @@ Java API/Worker、Web 已更换，Web/backend/Cube healthy、EasyV health UP；�
 本地使用已测生产构建、同一真实快照/保存执行完成交互：平均评分 1.75 下钻为 4 条有效反馈；成功率 95.16 的依据四页分别 20/20/20/2、末页下一页禁用，说明依据条数不等于指标值；反馈穿透到应用，关联统计为 2 操作/1 处理，点击 2 打开两条时间倒序日志；关联操作类型统计的 6 个应用可查看。截图 b-browser-average-rating / success-rate-page4 / related-counts / associated-apps 和验证 JSON 留在本机 `.codex-runtime`，不提交真实载荷。没有重新调用分析模型、重复公司业务题、改产品源码或部署。
 
 先前 §14.25 的“没有本批浏览器实测”是当时状态，现已补齐生产构建的实测。另一个本地开发模式问题仍保留：内置浏览器 HMR WebSocket 握手 ERR_INVALID_HTTP_RESPONSE，页面不响应客户端菜单/下钻；独立本地 WebSocket 连接同地址成功。旧生成缓存移到 ignored 的 `.codex-runtime/b-browser-dev-cache-before` 后重新生成仍未解决，不认定为缓存根因。验证后恢复宿主机 pnpm dev，没有把生产模式对照说成修复开发工具链。业务校准和源端输入认证状态保持。
+
+### 14.27 D 输入采集与发布时点展示（2026-10-13）
+
+本批推进 D 的数据时点透明度，复用数据接入 → 冻结版本及现有血缘读取，不新建监控系统、采集配置、时间阈值或业务词典。输入版本指向原采集任务，页面显示该任务 started_at/finished_at；版本发布显示 frozen_at，集合 captured_at 单独标作“集合记录时点”。现有源版本没有统一逐行采样时刻，不能用发布时间或任务结束时间冒充业务记录更新时间。无变化复用时旧输入/集合时间仍保留，并明确这些时间不代表最近一次采集检查；草稿显示尚未发布，缺时间显示未记录。
+
+Java 既有 overview 读取增加原采集任务起止与冻结完成三个字段，以一次血缘 SQL join 原任务，不从最近 50 条任务倒推，不增加 N+1 查询、迁移或源读取。JSON Schema/Zod/fixtures 与页面同步，现有查看/管理权限保持。当前通用目录对已认证用户可见，写操作仍由 Java 平台管理员门禁决定，本批不改授权。
+
+local-dev：Java 全量 812 项通过、0 失败/错误/跳过及 package；Web 182 通过、5 可选容器跳过，tsc/改动文件 ESLint/生产构建通过。持久化验证原采集任务不在最近 50 条中时仍返回其真实时间，草稿冻结时间为空且敏感字段不泄露；契约覆盖非法/缺失时间与允许空值，渲染区分早两天的输入与新发布。本地真实五集合的 52 条来源关联、发布时间与原任务时间逐一只读 SQL 对账通过；内置浏览器实际展开冻结版本，采集与发布标签可读，截图/回执 `.codex-runtime/d-times-*` 不入 Git。没有重新采集数据、调用模型或重复公司业务题。
+
+发布提交 `37c38213542470d3b42f7160144208a73e1094dc` 为 `d-lineage-times-37c3821`，Web/API/分析 Worker 更新，源归档/已测 JAR SHA-256、Java/Web OCI revision 一致；Web/backend/Cube healthy、EasyV health UP、登录页 200，其余五服务 ID/启动时间保持，含 current-data-retention-524f4c3 发布 Worker。平台 V31 未迁移，源采集/清理未执行，采集仍手动、03:00 每日清理保持。回执 `/opt/ontology-agent-releases/d-lineage-times-37c3821/deployment-report.json`。本批仅补时点溯源，未宣称完整 D、新鲜度阈值、Worker 告警或源行血缘已完成。

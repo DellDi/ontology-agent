@@ -5,7 +5,13 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布：B 工程收尾（2026-10-13）
+## 当前发布：D 血缘采集与发布时点（2026-10-13）
+
+Web/API/分析 Worker 更新到 `d-lineage-times-37c3821`，提交 `37c38213542470d3b42f7160144208a73e1094dc`。数据接入页的冻结版本可查看真实发布完成时间，以及每份输入所对应的原采集任务起止时间；不把无变化复用的旧版本时间视为最近一次检查。沿用平台 V31，不新增迁移，也没有采集、清理或重复公司业务题。
+
+Web/backend/Cube healthy、EasyV health UP、登录页 200，源归档/已测 JAR SHA-256 与 Java/Web OCI revision 一致；其余五容器 ID/启动时间保持。Cube 配置挂载仍为 b-object-complete-0865f53，发布 Worker 仍为 current-data-retention-524f4c3；采集手动、每日 03:00 清理保持。回执 `/opt/ontology-agent-releases/d-lineage-times-37c3821/deployment-report.json`，私有配置不变。应用回退使用 b-object-complete-0865f53 的 Web/backend 镜像与发布目录，数据库及 Cube 不变。本地验证和完整 D 边界见运行记录 §14.27。
+
+## 上批发布：B 工程收尾（2026-10-13）
 
 Web/API/分析 Worker 已发布 `b-object-complete-0865f53`，提交 `0865f53721ea1bfb633203a87fe3006d41c42a61`；关联统计、指标计算依据和一跳关联下钻已上线。Cube 仅同步本体描述，挂载 `/opt/ontology-agent-releases/b-object-complete-0865f53/cube/conf`。Web/backend/Cube healthy、EasyV health UP、登录页 200；源归档/已测 JAR SHA-256 与 OCI revision 一致，其余四容器（release-worker、两个 Cube Store、Valkey）ID/启动时间保持。V31 未迁移，未采集、清理或重复公司业务问题，手动采集和 03:00 Asia/Shanghai 每日清理保持。
 
