@@ -19,6 +19,11 @@ test('ingestion contract accepts lineage and rejects leaked fields or malformed 
   };
   check(fixture, true);
   check({ ...fixture, runs: [], releases: [] }, true);
+  const draft = structuredClone(fixture);
+  draft.releases[0].status = 'draft'; draft.releases[0].frozenAt = null;
+  draft.releases[0].products[0].sources[0].startedAt = null;
+  draft.releases[0].products[0].sources[0].finishedAt = null;
+  check(draft, true);
   for (const mutate of [
     value => { value.sources[0].connectionRef = 'private'; },
     value => { value.runs[0].errorDetail = { password: 'private' }; },
@@ -26,6 +31,9 @@ test('ingestion contract accepts lineage and rejects leaked fields or malformed 
     value => { value.runs[0].createdAt = 'invalid-date'; },
     value => { delete value.releases[0].products[0].sources[0].runId; },
     value => { value.scope = 'unknown'; },
+    value => { value.releases[0].frozenAt = 'invalid-date'; },
+    value => { value.releases[0].products[0].sources[0].finishedAt = 'invalid-date'; },
+    value => { delete value.releases[0].products[0].sources[0].startedAt; },
   ]) {
     const invalid = structuredClone(fixture);
     mutate(invalid);
@@ -85,4 +93,27 @@ test('release BFF preserves JSON, authenticated cookie, request key and accepted
   assert.equal(seen[0].headers.cookie, 'dip3_session=signed');
   assert.equal(seen[0].headers['idempotency-key'], fixture.id);
   assert.equal(seen[0].body, body);
+});
+
+
+test('版本血缘展示区分输入采集时间与发布时间，旧输入不被新发布冒充', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const html = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import { readFileSync } from 'node:fs';
+    import workbench from './src/app/(admin)/admin/ingestion/ingestion-workbench.tsx';
+    const overview = JSON.parse(readFileSync('./contracts/backend/fixtures/ingestion-overview.json', 'utf8'));
+    console.log(renderToStaticMarkup(React.createElement(workbench.IngestionWorkbench, {
+      overview, releaseTasks: [], initialView: 'releases',
+      access: { canView: true, canManage: false, sourceKeys: ['property'], grants: [] },
+    })));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
+  assert.match(html, /输入采集开始/);
+  assert.match(html, /输入采集完成/);
+  assert.match(html, /发布完成时间/);
+  assert.match(html, /2026\/09\/10 09:00/);
+  assert.match(html, /2026\/09\/10 09:05/);
+  assert.match(html, /2026\/09\/12 09:10/);
+  assert.match(html, /这些时间不代表最近一次采集检查/);
 });

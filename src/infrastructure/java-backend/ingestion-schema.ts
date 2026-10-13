@@ -7,6 +7,8 @@ const sourceVersion = z.strictObject({
   datasetKey: key,
   versionId: key,
   runId: key,
+  startedAt: instant.nullable(),
+  finishedAt: instant.nullable(),
 });
 
 export const ingestionOverviewSchema = z.strictObject({
@@ -57,6 +59,7 @@ export const ingestionOverviewSchema = z.strictObject({
       id: key,
       status: z.enum(['draft', 'frozen', 'revoked']),
       capturedAt: instant,
+      frozenAt: instant.nullable(),
       products: z.array(
         z.strictObject({
           key,

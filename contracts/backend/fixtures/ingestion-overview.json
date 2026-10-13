@@ -57,11 +57,14 @@
             {
               "datasetKey": "property-payment",
               "versionId": "source-v1",
-              "runId": "source-run-1"
+              "runId": "source-run-1",
+              "startedAt": "2026-09-10T01:00:00Z",
+              "finishedAt": "2026-09-10T01:05:00Z"
             }
           ]
         }
-      ]
+      ],
+      "frozenAt": "2026-09-12T01:10:00Z"
     }
   ]
 }

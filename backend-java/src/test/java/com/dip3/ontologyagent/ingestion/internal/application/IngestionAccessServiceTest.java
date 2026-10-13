@@ -19,14 +19,14 @@ class IngestionAccessServiceTest {
     void catalog() { when(grants.sourceKeys()).thenReturn(List.of("property", "easyv")); }
     @Test void authenticatedUsersViewTheWholeCatalogWithoutGrants() {
         catalog(); var port = mock(IngestionManagementPort.class);
-        var property = new ReleaseProduct("payment", "v", "published", 1, "run", List.of(new SourceVersion("bill", "s", "run")));
-        var easyv = new ReleaseProduct("app", "v2", "published", 1, "run2", List.of(new SourceVersion("ai", "s2", "run2")));
+        var property = new ReleaseProduct("payment", "v", "published", 1, "run", List.of(new SourceVersion("bill", "s", "run", null, null)));
+        var easyv = new ReleaseProduct("app", "v2", "published", 1, "run2", List.of(new SourceVersion("ai", "s2", "run2", null, null)));
         when(port.overview()).thenReturn(new Overview("platform",50,20,
           List.of(new Source("property","postgres","active"),new Source("easyv","postgres","active")),
           List.of(new Dataset("bill","property","active",1),new Dataset("ai","easyv","active",1)),
           List.of(new Product("payment","property","active",List.of("bill")),new Product("app","easyv","active",List.of("ai")),new Product("mixed","property","active",List.of("bill","ai"))),
           List.of(new Run("r","source","easyv","full","completed",null,null,Instant.now(),null,Instant.now())),
-          List.of(new Release("allowed","frozen",Instant.now(),List.of(property)),new Release("mixed","frozen",Instant.now(),List.of(property,easyv)))));
+          List.of(new Release("allowed","frozen",Instant.now(),Instant.now(),List.of(property)),new Release("mixed","frozen",Instant.now(),Instant.now(),List.of(property,easyv)))));
         var service = new IngestionManagementService(port, access);
         var result = service.overview(member);
         assertEquals("platform",result.scope());

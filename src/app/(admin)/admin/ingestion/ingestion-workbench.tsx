@@ -321,7 +321,7 @@ export function IngestionWorkbench({
         <div>
           <p className="mb-4 text-sm text-muted-foreground">
             最近 {overview.releaseLimit}{' '}
-            个版本集。版本集固定产品版本，分析记录中的数据版本编号可在此核对。
+            个版本集。展开可核对版本发布时间、输入数据的采集起止时间和来源。数据无变化时会复用旧版本，这些时间不代表最近一次采集检查。
           </p>
           {overview.releases.length === 0 && (
             <p className="py-14 text-center text-sm text-muted-foreground">
@@ -336,7 +336,7 @@ export function IngestionWorkbench({
                 </span>
                 <span className="flex items-center gap-4">
                   <time className="text-xs text-muted-foreground">
-                    {formatTimestamp(release.capturedAt)}
+                    {release.frozenAt ? `发布：${formatTimestamp(release.frozenAt)}` : '尚未发布'}
                   </time>
                   <Status value={release.status} />
                   <span aria-hidden="true" className="text-muted-foreground">
@@ -344,6 +344,10 @@ export function IngestionWorkbench({
                   </span>
                 </span>
               </summary>
+              <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                <div><dt className="text-muted-foreground">集合记录时点</dt><dd>{formatTimestamp(release.capturedAt)}</dd></div>
+                <div><dt className="text-muted-foreground">发布完成时间</dt><dd>{release.frozenAt ? formatTimestamp(release.frozenAt) : '尚未发布'}</dd></div>
+              </dl>
               {release.products.length === 0 && (
                 <p className="mt-4 text-sm text-muted-foreground">
                   此版本集尚未绑定数据产品。
@@ -376,6 +380,10 @@ export function IngestionWorkbench({
                           <p className="break-all text-xs">
                             {source.datasetKey}
                           </p>
+                          <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+                            <div><dt className="text-muted-foreground">输入采集开始</dt><dd>{source.startedAt ? formatTimestamp(source.startedAt) : '未记录'}</dd></div>
+                            <div><dt className="text-muted-foreground">输入采集完成</dt><dd>{source.finishedAt ? formatTimestamp(source.finishedAt) : '未记录'}</dd></div>
+                          </dl>
                           <p className={`mt-1 ${codeClass}`}>
                             源版本：{source.versionId}
                           </p>
