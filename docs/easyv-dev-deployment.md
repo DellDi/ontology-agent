@@ -9,7 +9,7 @@ Cube 与 Neo4j 作为 Property 投影运行。
 
 Web/API/分析 Worker 已发布 `b-object-complete-0865f53`，提交 `0865f53721ea1bfb633203a87fe3006d41c42a61`；关联统计、指标计算依据和一跳关联下钻已上线。Cube 仅同步本体描述，挂载 `/opt/ontology-agent-releases/b-object-complete-0865f53/cube/conf`。Web/backend/Cube healthy、EasyV health UP、登录页 200；源归档/已测 JAR SHA-256 与 OCI revision 一致，其余四容器（release-worker、两个 Cube Store、Valkey）ID/启动时间保持。V31 未迁移，未采集、清理或重复公司业务问题，手动采集和 03:00 Asia/Shanghai 每日清理保持。
 
-回执 `/opt/ontology-agent-releases/b-object-complete-0865f53/deployment-report.json`，私有配置沿用原位置。回退 Web/backend 使用上一版 `b-period-timeline-3ffa9af` 镜像及其发布目录；Cube 配置回退到 `quality-b-semantics-d699c66` 目录。数据库不变。B 工程关闭范围、业务评分依赖及本次浏览器未验证情况见 [收尾验收](./acceptance/b-closeout.md)。
+回执 `/opt/ontology-agent-releases/b-object-complete-0865f53/deployment-report.json`，私有配置沿用原位置。回退 Web/backend 使用上一版 `b-period-timeline-3ffa9af` 镜像及其发布目录；Cube 配置回退到 `quality-b-semantics-d699c66` 目录。数据库不变。B 工程关闭范围、业务评分依赖及本地生产构建浏览器实测/开发模式限制见 [收尾验收](./acceptance/b-closeout.md)。
 
 ## 上批发布：时间段下钻与操作记录时间线（2026-10-12）
 

@@ -1335,3 +1335,11 @@ Java API/Worker、Web 已更换，Web/backend/Cube healthy、EasyV health UP；�
 本次新增交互的浏览器操作被工具安全检查以 URL 协议限制拒绝，因此只有接口/渲染测试，没有本批浏览器实测；§14.24 的浏览器证据保留日期，不冒充本次验证。评审包沿用 30 份样本，业务标签与实际渲染为空；历史 159 条可变输入不能认证，上游新增不可变留证未改。
 
 **发布。** 提交 `0865f53721ea1bfb633203a87fe3006d41c42a61` 发布 `b-object-complete-0865f53`，源归档/已测 JAR SHA-256、Java/Web OCI revision 一致。Web/backend/Cube healthy、EasyV health UP、登录页 200；更新 Cube 描述挂载，发布 Worker/两 Cube Store/Valkey 四容器 ID 与启动时间保持。沿用 V31，没有迁移、采集、清理或公司重复业务题，手动采集与 03:00 每日清理保持。回执 `/opt/ontology-agent-releases/b-object-complete-0865f53/deployment-report.json`。用户架构图删除和 §3 改动保留工作区，不混入提交。完整工程范围及独立业务依赖见 [B 收尾验收](../acceptance/b-closeout.md)。
+
+### 14.26 B 浏览器实测补齐（2026-10-13）
+
+用户要求重试浏览器并授权验证。按当前工具清单重新定位内置浏览器、打开完整 HTTP 地址，协议拒绝未再出现。原登录管理员不属于验收会话，沿正常退出/登录切换本地 acceptance-scoped；没有改权限、账号或公司环境。
+
+本地使用已测生产构建、同一真实快照/保存执行完成交互：平均评分 1.75 下钻为 4 条有效反馈；成功率 95.16 的依据四页分别 20/20/20/2、末页下一页禁用，说明依据条数不等于指标值；反馈穿透到应用，关联统计为 2 操作/1 处理，点击 2 打开两条时间倒序日志；关联操作类型统计的 6 个应用可查看。截图 b-browser-average-rating / success-rate-page4 / related-counts / associated-apps 和验证 JSON 留在本机 `.codex-runtime`，不提交真实载荷。没有重新调用分析模型、重复公司业务题、改产品源码或部署。
+
+先前 §14.25 的“没有本批浏览器实测”是当时状态，现已补齐生产构建的实测。另一个本地开发模式问题仍保留：内置浏览器 HMR WebSocket 握手 ERR_INVALID_HTTP_RESPONSE，页面不响应客户端菜单/下钻；独立本地 WebSocket 连接同地址成功。旧生成缓存移到 ignored 的 `.codex-runtime/b-browser-dev-cache-before` 后重新生成仍未解决，不认定为缓存根因。验证后恢复宿主机 pnpm dev，没有把生产模式对照说成修复开发工具链。业务校准和源端输入认证状态保持。
