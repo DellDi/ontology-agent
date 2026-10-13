@@ -2,7 +2,7 @@
 cubes:
   - name: "EasyvPrototypeComponent"
     title: "原型图表组件"
-    description: "原型区域内的图表组件实例（结构信息，不含标题与指标名称）"
+    description: "原型区域内的图表组件实例，保留源指标名称、含义及明确绑定的单位与口径"
     sql_table: "facts.easyv_prototype_component"
     meta:
       ontologyObject: "easyv-prototype-component"

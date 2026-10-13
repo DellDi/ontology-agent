@@ -36,8 +36,10 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     List<String> where = new ArrayList<>();
     where.add(plan.membership(root, "o", new HashSet<>()));
     where.add(plan.scope(root, "o"));
-    for (QueryIntent.Filter filter : query.filters()) where.add(plan.filter(root, filter));
-    if (relationFilter != null) where.add(plan.filter(root, relationFilter));
+    List<QueryIntent.Filter> filters = new ArrayList<>(query.filters());
+    if (relationFilter != null) filters.add(relationFilter);
+    where.addAll(plan.filters(root, filters));
+    if (query.contributionMetric() != null) where.add(plan.contributors(root, query.contributionMetric()));
     List<String> order = new ArrayList<>();
     for (QueryIntent.Order item : query.order()) {
       if (item == null || item.direction() == null) throw invalid("排序方向不能为空。");
@@ -156,10 +158,46 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
       return "(" + String.join(" AND ", clauses) + ")";
     }
     String parameters(List<String> values) { return String.join(",", values.stream().map(this::parameter).toList()); }
-    String filter(OntologyObjectType root, QueryIntent.Filter filter) {
-      if (filter == null || filter.operator() == null) throw invalid("过滤条件缺少成员或操作符。");
-      OntologyProperty property = queryProperty(root, filter.member());
-      String sql = expression(property, "o");
+    List<String> filters(OntologyObjectType root, List<QueryIntent.Filter> filters) {
+      List<String> clauses = new ArrayList<>();
+      Map<String, List<QueryIntent.Filter>> related = new LinkedHashMap<>();
+      for (var filter : filters) {
+        if (filter == null || filter.operator() == null || filter.member() == null || filter.member().isBlank())
+          throw invalid("过滤条件缺少成员或操作符。");
+        String[] path = filter.member().split("\\.", -1);
+        if (path.length == 1) clauses.add(comparison(queryProperty(root, path[0]), "o", filter));
+        else if (path.length == 2) related.computeIfAbsent(path[0], key -> new ArrayList<>()).add(filter);
+        else throw invalid("过滤只支持本对象属性或一跳关系属性。");
+      }
+      related.forEach((key, group) -> {
+        var link = root.requireLink(key);
+        var target = model.require(link.targetObjectKey());
+        String alias = "r" + ++aliasIndex;
+        String membership = expression(root.requireProperty(link.sourceProperty()), "o") + "="
+            + expression(target.requireProperty(link.targetProperty()), alias) + " AND "
+            + membership(target, alias, new HashSet<>()) + " AND " + scope(target, alias);
+        String from = "SELECT 1 FROM " + target.table() + " " + alias + " WHERE " + membership;
+        String comparisons = String.join(" AND ", group.stream().map(filter -> comparison(
+            queryProperty(target, filter.member().substring(key.length() + 1)), alias, filter)).toList());
+        // 所有条件必须命中同一条关联记录；全空分组也包含没有目标记录的对象。
+        String matches = "EXISTS (" + from + " AND " + comparisons + ")";
+        if (group.stream().allMatch(filter -> filter.operator() == QueryIntent.Operator.NOT_SET))
+          matches = "(NOT EXISTS (" + from + ") OR " + matches + ")";
+        clauses.add(matches);
+      });
+      return clauses;
+    }
+    String contributors(OntologyObjectType object, String key) {
+      var metric = object.findMetric(key).orElseThrow(() -> invalid("统计指标未声明：" + key));
+      if (metric.aggregation() == OntologyMetric.Aggregation.RATIO)
+        return "(" + String.join(" OR ", metric.ratioOperands().stream().map(operand -> contributors(object, operand)).toList()) + ")";
+      List<String> conditions = new ArrayList<>();
+      if (metric.filter() != null) conditions.add("(" + metric.filter().replace("{CUBE}", "o") + ")");
+      if (metric.expression() != null) conditions.add("(" + metric.expression().replace("{CUBE}", "o") + ") IS NOT NULL");
+      return conditions.isEmpty() ? "TRUE" : "(" + String.join(" AND ", conditions) + ")";
+    }
+    String comparison(OntologyProperty property, String alias, QueryIntent.Filter filter) {
+      String sql = expression(property, alias);
       var operator = filter.operator();
       boolean noValues = operator == QueryIntent.Operator.SET || operator == QueryIntent.Operator.NOT_SET;
       if (noValues) {

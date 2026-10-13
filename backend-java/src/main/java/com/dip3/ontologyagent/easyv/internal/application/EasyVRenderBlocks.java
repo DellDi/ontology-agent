@@ -51,7 +51,7 @@ final class EasyVRenderBlocks {
       if (!readable.contains(compiled.objectKey())) continue;
       var object = model.require(compiled.objectKey());
       if (!products.contains(object.productKey())) continue;
-      List<QueryIntent.Filter> filters = EasyVResultDrilldown.objectFilters(compiled, object);
+      List<QueryIntent.Filter> filters = EasyVResultDrilldown.objectFilters(compiled, object, model);
       if (filters == null) continue;
       blocks.add(Map.of("type", "object-browser", "title", query.label() + " · 对象范围", "role", "supporting",
           "datasetVersionSetId", datasetVersionSetId, "objectKey", object.key(), "filters", List.copyOf(filters),

@@ -87,7 +87,8 @@
         "targetObjectKey": "easyv-prototype-block",
         "targetLabel": "原型区域",
         "prominent": false,
-        "timeline": null
+        "timeline": null,
+        "cardinality": "ONE_TO_MANY"
       }
     ]
   },
@@ -97,5 +98,6 @@
     "capturedAt": "2026-10-03T12:00:00Z",
     "scopeDescription": "全部数据"
   },
-  "propertyPresentations": {}
+  "propertyPresentations": {},
+  "relatedMetrics": null
 }

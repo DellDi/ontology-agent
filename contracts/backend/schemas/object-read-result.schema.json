@@ -277,6 +277,14 @@
                     "minLength": 1
                   }
                 }
+              },
+              "cardinality": {
+                "type": "string",
+                "enum": [
+                  "MANY_TO_ONE",
+                  "ONE_TO_MANY",
+                  "ONE_TO_ONE"
+                ]
               }
             }
           }
@@ -523,6 +531,42 @@
           "notice": {
             "type": "string",
             "minLength": 1
+          }
+        }
+      }
+    },
+    "relatedMetrics": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "relation",
+          "label",
+          "description",
+          "count"
+        ],
+        "properties": {
+          "relation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }

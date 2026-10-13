@@ -61,7 +61,7 @@ public class EasyVObjectReadService {
   /** objectId 为空为列表；指定 ID 为详情；再指定 relation 为声明中的关系查询。 */
   public record Request(String executionId, String datasetVersionSetId, String objectKey, String objectId,
                         String relation, List<QueryIntent.Filter> filters, List<QueryIntent.Order> order,
-                        Integer limit, Integer offset, String drilldownId, Boolean includeComponentSummary) {
+                        Integer limit, Integer offset, String drilldownId, Boolean includeComponentSummary, Boolean includeRelatedMetrics) {
     public Request(String executionId, String datasetVersionSetId, String objectKey, String objectId,
                    String relation, List<QueryIntent.Filter> filters, List<QueryIntent.Order> order,
                    Integer limit, Integer offset) {
@@ -72,6 +72,12 @@ public class EasyVObjectReadService {
                    Integer limit, Integer offset, String drilldownId) {
       this(executionId, datasetVersionSetId, objectKey, objectId, relation, filters, order, limit, offset, drilldownId, null);
     }
+    public Request(String executionId, String datasetVersionSetId, String objectKey, String objectId,
+                   String relation, List<QueryIntent.Filter> filters, List<QueryIntent.Order> order,
+                   Integer limit, Integer offset, String drilldownId, Boolean includeComponentSummary) {
+      this(executionId, datasetVersionSetId, objectKey, objectId, relation, filters, order, limit, offset,
+          drilldownId, includeComponentSummary, null);
+    }
     @JsonAnySetter
     public void rejectUnknown(String key, Object value) {
       throw new BackendException("OBJECT_QUERY_INVALID", "对象读取不接受字段：" + key);
@@ -81,11 +87,7 @@ public class EasyVObjectReadService {
   public record PropertyView(String key, String label, OntologyProperty.Type type, boolean identifier,
                              boolean title, boolean prominent, Map<String, String> valueLabels) {}
   public record LinkView(String key, String targetObjectKey, String targetLabel, boolean prominent,
-                         OntologyLink.Timeline timeline) {
-    public LinkView(String key, String targetObjectKey, String targetLabel, boolean prominent) {
-      this(key, targetObjectKey, targetLabel, prominent, null);
-    }
-  }
+                         OntologyLink.Timeline timeline, OntologyLink.Cardinality cardinality) {}
   public record ObjectTypeView(String key, String label, List<PropertyView> properties, List<LinkView> links) {}
   public record FamilyCount(String chartFamily, long count, QueryIntent.Filter filter) {}
   public record ComponentSummary(long total, List<FamilyCount> groups) {}
@@ -95,7 +97,15 @@ public class EasyVObjectReadService {
                        ObjectQueryPort.Page page, Structure structure, ObjectTypeView objectType,
                        Map<String, Map<String, Object>> componentGeometry,
                        ComponentSummary componentSummary, DataContext dataContext,
-                       Map<String, PropertyPresentation> propertyPresentations) {}
+                       Map<String, PropertyPresentation> propertyPresentations, List<RelatedMetric> relatedMetrics) {
+    public Result(String executionId, String datasetVersionSetId, String ontologyVersionId, ObjectQueryPort.Page page,
+                  Structure structure, ObjectTypeView objectType, Map<String, Map<String, Object>> componentGeometry,
+                  ComponentSummary componentSummary, DataContext dataContext, Map<String, PropertyPresentation> propertyPresentations) {
+      this(executionId, datasetVersionSetId, ontologyVersionId, page, structure, objectType, componentGeometry,
+          componentSummary, dataContext, propertyPresentations, null);
+    }
+  }
+  public record RelatedMetric(String relation, String label, String description, long count) {}
 
   private ObjectTypeView describe(String key, boolean detail) {
     var object = model.require(key);
@@ -103,7 +113,7 @@ public class EasyVObjectReadService {
         .map(property -> new PropertyView(property.key(), property.label(), property.type(), property.identifier(),
             property.title(), property.prominent(), property.valueLabels())).toList(),
         object.links().stream().filter(link -> OBJECTS.contains(link.targetObjectKey()))
-            .map(link -> new LinkView(link.key(), link.targetObjectKey(), model.require(link.targetObjectKey()).label(), link.prominent(), link.timeline())).toList());
+            .map(link -> new LinkView(link.key(), link.targetObjectKey(), model.require(link.targetObjectKey()).label(), link.prominent(), link.timeline(), link.cardinality())).toList());
   }
 
   @Transactional(readOnly = true)
@@ -132,17 +142,18 @@ public class EasyVObjectReadService {
     var current = scopes.resolveScope(viewer);
     scopes.validateScope(binding.resolvedScope(), viewer);
     var resolved = resolveDrilldown(inVersion(request, snapshot.datasetVersionSetId()), snapshot.resultBlocks());
-    return readAuthorized(inVersion(resolved, latest.publicationId()), binding.ontologyVersionId(),
-        EasyVScopeResolver.narrowScope(binding.resolvedScope(), current), viewer);
+    return readAuthorized(inVersion(resolved.request(), latest.publicationId()), binding.ontologyVersionId(),
+        EasyVScopeResolver.narrowScope(binding.resolvedScope(), current), viewer, resolved.contributionMetric());
   }
 
   private static Request inVersion(Request request, String version) {
     return new Request(request.executionId(), version, request.objectKey(), request.objectId(), request.relation(),
-        request.filters(), request.order(), request.limit(), request.offset(), request.drilldownId(), request.includeComponentSummary());
+        request.filters(), request.order(), request.limit(), request.offset(), request.drilldownId(), request.includeComponentSummary(), request.includeRelatedMetrics());
   }
 
-  private Request resolveDrilldown(Request request, List<Map<String, Object>> blocks) {
-    if (request.drilldownId() == null) return request;
+  private record ResolvedRead(Request request, String contributionMetric) {}
+  private ResolvedRead resolveDrilldown(Request request, List<Map<String, Object>> blocks) {
+    if (request.drilldownId() == null) return new ResolvedRead(request, null);
     for (var block : blocks) {
       if (!(block.get("drilldowns") instanceof List<?> bindings)) continue;
       for (Object raw : bindings) {
@@ -164,8 +175,8 @@ public class EasyVObjectReadService {
         if (filters.size() > 10) {
           throw new BackendException("OBJECT_QUERY_INVALID", "统计项过滤与追加筛选合计不能超过 10 项。");
         }
-        return new Request(request.executionId(), request.datasetVersionSetId(), saved.objectKey(), null, null,
-            List.copyOf(filters), request.order(), request.limit(), request.offset());
+        return new ResolvedRead(new Request(request.executionId(), request.datasetVersionSetId(), saved.objectKey(), null, null,
+            List.copyOf(filters), request.order(), request.limit(), request.offset()), saved.metricKey());
       }
     }
     throw new BackendException("OBJECT_DRILLDOWN_NOT_FOUND", "此执行未保存该统计项的下钻绑定：" + request.drilldownId());
@@ -207,6 +218,9 @@ public class EasyVObjectReadService {
     if (request.relation() != null && (request.relation().isBlank() || request.objectId() == null)) {
       throw new BackendException("OBJECT_QUERY_INVALID", "关系查询需要源对象 ID 与关系 key。");
     }
+    if (Boolean.TRUE.equals(request.includeRelatedMetrics())
+        && (request.objectId() == null || request.relation() != null || request.drilldownId() != null))
+      throw new BackendException("OBJECT_QUERY_INVALID", "关联统计只能读取单个对象详情。");
     if (request.drilldownId() != null && (request.drilldownId().isBlank() || request.drilldownId().length() > 500
         || request.objectId() != null || request.relation() != null)) {
       throw new BackendException("OBJECT_QUERY_INVALID", "统计项下钻只接受已保存的绑定 ID、分页与进一步缩小范围的筛选和排序，不接受替换对象或关系。");
@@ -214,6 +228,10 @@ public class EasyVObjectReadService {
   }
 
   private Result readAuthorized(Request request, String ontologyVersionId, ResolvedScopeSnapshot scope, AuthSession viewer) {
+    return readAuthorized(request, ontologyVersionId, scope, viewer, null);
+  }
+  private Result readAuthorized(Request request, String ontologyVersionId, ResolvedScopeSnapshot scope, AuthSession viewer,
+                                String contributionMetric) {
     var products = new HashSet<>(Set.of("easyv-ai-application", "easyv-prototype-layout",
         "easyv-prototype-block", "easyv-prototype-component"));
     var requestedType = model.require(request.objectKey());
@@ -222,6 +240,19 @@ public class EasyVObjectReadService {
       String target = requestedType.requireLink(request.relation()).targetObjectKey();
       requireObject(target);
       products.add(model.require(target).productKey());
+    }
+    var queryType = request.relation() == null ? requestedType
+        : model.require(requestedType.requireLink(request.relation()).targetObjectKey());
+    if (request.filters() != null) request.filters().forEach(filter -> {
+      if (filter.member() != null && filter.member().contains(".")) {
+        String relation = filter.member().substring(0, filter.member().indexOf('.'));
+        products.add(model.require(queryType.requireLink(relation).targetObjectKey()).productKey());
+      }
+    });
+    if (Boolean.TRUE.equals(request.includeRelatedMetrics())) {
+      requestedType.links().stream().filter(link -> OBJECTS.contains(link.targetObjectKey())
+          && link.cardinality() == OntologyLink.Cardinality.ONE_TO_MANY)
+          .forEach(link -> products.add(model.require(link.targetObjectKey()).productKey()));
     }
     var manifest = datasets.requireFrozen(request.datasetVersionSetId(), products);
     var access = new SemanticQueryPort.AccessContext(manifest.productVersionIds(), EasyVScopeResolver.dataScope(scope));
@@ -249,7 +280,7 @@ public class EasyVObjectReadService {
         }
       }
     } else {
-      page = objects.query(new ObjectQueryPort.Query(request.objectKey(), request.filters(), request.order(), limit, offset), access);
+      page = objects.query(new ObjectQueryPort.Query(request.objectKey(), request.filters(), request.order(), limit, offset, contributionMetric), access);
     }
     log.info("easyv_object_read executionId={} datasetVersionSetId={} userId={} objectKey={} objectId={} relation={} rows={} hasMore={}",
         request.executionId(), request.datasetVersionSetId(), viewer.userId(), request.objectKey(),
@@ -262,7 +293,8 @@ public class EasyVObjectReadService {
     return new Result(request.executionId(), request.datasetVersionSetId(), ontologyVersionId, page, structure,
         describe(page.objectKey(), request.objectId() != null && request.relation() == null), geometry, summary,
         new DataContext(manifest.capturedAt(), EasyVScopeResolver.dataScopeLabel(scope)),
-        request.objectId() != null && request.relation() == null ? presentProperties(page.rows().getFirst()) : Map.of());
+        request.objectId() != null && request.relation() == null ? presentProperties(page.rows().getFirst()) : Map.of(),
+        Boolean.TRUE.equals(request.includeRelatedMetrics()) ? relatedMetrics(page.rows().getFirst(), access, manifest.capturedAt()) : null);
   }
 
   /** 只整理已经通过权限与冻结版本校验的详情；原始属性仍是查询、引用和核对的来源。 */
@@ -315,6 +347,33 @@ public class EasyVObjectReadService {
       }
     }
     return Collections.unmodifiableMap(presentations);
+  }
+
+  /** 所选对象的关联数量来自目标对象声明的 count，不能用预览页长度代替。 */
+  private List<RelatedMetric> relatedMetrics(ObjectQueryPort.Row selected, SemanticQueryPort.AccessContext access, Instant capturedAt) {
+    List<RelatedMetric> result = new ArrayList<>();
+    for (var link : model.require(selected.reference().objectKey()).links()) {
+      if (!OBJECTS.contains(link.targetObjectKey()) || link.cardinality() != OntologyLink.Cardinality.ONE_TO_MANY) continue;
+      var target = model.require(link.targetObjectKey());
+      var metric = target.findMetric("count").orElseThrow(() -> new BackendException("OBJECT_MODEL_INVALID", "关联对象未声明数量指标：" + target.key()));
+      Object value = selected.properties().get(link.sourceProperty());
+      long count = 0;
+      if (value != null) {
+        var intent = new QueryIntent(target.key(), List.of(metric.key()), List.of(),
+            List.of(new QueryIntent.Filter(link.targetProperty(), QueryIntent.Operator.EQUALS, List.of(value.toString()))),
+            new QueryIntent.TimeSpec(null, new TimeExpression("所选对象的全部关联记录", TimeExpression.Kind.ALL,
+                null, null, null, null, null, null), null), null, List.of(), 1);
+        var rows = queries.execute(compiler.compile(intent, capturedAt).require(), access).rows();
+        if (rows.size() != 1) throw new BackendException("SEMANTIC_RESULT_INVALID", "关联统计没有返回唯一数量：" + link.key());
+        try { count = new BigDecimal(String.valueOf(rows.getFirst().get(metric.key()))).longValueExact(); }
+        catch (NumberFormatException | ArithmeticException error) {
+          throw new BackendException("SEMANTIC_RESULT_INVALID", "关联统计的数量不是整数：" + link.key(), error);
+        }
+        if (count < 0) throw new BackendException("SEMANTIC_RESULT_INVALID", "关联统计的数量不能为负：" + link.key());
+      }
+      result.add(new RelatedMetric(link.key(), metric.label(), metric.description(), count));
+    }
+    return List.copyOf(result);
   }
 
   /** 全量按家族计数，关系约束与对象读取共用本体声明；不能按已加载的预览页数统计。 */
