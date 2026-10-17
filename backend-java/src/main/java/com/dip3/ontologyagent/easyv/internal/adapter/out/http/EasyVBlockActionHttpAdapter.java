@@ -37,7 +37,7 @@ public final class EasyVBlockActionHttpAdapter implements EasyVBlockActionPort {
       URI uri=URI.create(baseUrl.replaceAll("/+$","")+"/ai-agent/tools/screen/blocks/improvement/"+operation);
       if(!java.util.Set.of("http","https").contains(uri.getScheme())||uri.getHost()==null||uri.getUserInfo()!=null)
         throw new IllegalArgumentException("Invalid EasyV action endpoint");
-      var request=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(25)).header("Content-Type","application/json")
+      var request=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(operation.equals("prepare")?60:25)).header("Content-Type","application/json")
           .header("Easyv-Secret-Token",token).header("op-user-id",user).header("space-id",space).header("team-id",team)
           .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();
       var response=client.send(request,HttpResponse.BodyHandlers.ofString());
