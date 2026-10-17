@@ -134,7 +134,7 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
           {block.payload.presentationReason}
         </p>
       ) : null}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" role="region" aria-label={`${title ?? '分析结果'}表格，可横向滚动`} tabIndex={0}>
         <table className="min-w-full text-left text-sm text-foreground">
           <thead className="sticky top-0 bg-secondary/40 backdrop-blur-sm">
             <tr>
@@ -142,7 +142,7 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
                 <th
                   key={`${column}-${index}`}
                   className={cn(
-                    'px-4 py-2.5 text-xs font-semibold tracking-[0.05em] uppercase text-muted-foreground',
+                    'min-w-32 whitespace-nowrap px-4 py-2.5 text-xs font-semibold tracking-[0.05em] uppercase text-muted-foreground',
                     numericColumns[index] ? 'text-right' : 'text-left',
                   )}
                 >
@@ -164,7 +164,7 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
                     <td
                       key={`${rowIndex}-${cellIndex}`}
                       className={cn(
-                        'px-4 py-2.5 align-top',
+                        'min-w-32 px-4 py-2.5 align-top',
                         isLikelyNumber(cell)
                           ? 'text-right font-mono text-sm tabular-nums'
                           : 'text-left',
@@ -182,7 +182,15 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
                         onClick={() => drilldown.open(rowIndex, cellIndex)}
                         className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {displayValue}<span className="ml-1 text-xs">↗</span>
-                      </button> : displayValue}
+                      </button> : displayValue.length > 80 ? (
+                        <details>
+                          <summary className="list-none cursor-pointer">
+                            <span className="line-clamp-2">{displayValue}</span>
+                            <span className="mt-1 block text-xs text-primary">查看全文</span>
+                          </summary>
+                          <p className="mt-2 whitespace-pre-wrap">{displayValue}</p>
+                        </details>
+                      ) : displayValue}
                     </td>
                   );
                 })}

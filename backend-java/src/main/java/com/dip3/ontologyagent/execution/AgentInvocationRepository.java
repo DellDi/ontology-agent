@@ -100,6 +100,12 @@ public class AgentInvocationRepository {
         return rows.getFirst().input;
     }
 
+    public List<AgentInvocationEntity> completedBlockProposals(String sessionId, String executionId, String owner) {
+        return mapper.selectList(new QueryWrapper<AgentInvocationEntity>().eq("session_id", sessionId)
+                .eq("execution_id", executionId).eq("owner_user_id", owner).eq("kind", "subtool")
+                .eq("tool_name", "preview_block_improvement").eq("status", "completed").orderByAsc("started_at"));
+    }
+
     private static void requireSingleUpdate(int changed) {
         if (changed != 1) throw new BackendException("INVOCATION_STATE_CONFLICT", "Agent invocation 状态更新冲突。");
     }

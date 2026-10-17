@@ -36,6 +36,61 @@ class EasyVAgentToolsTest {
     when(scopes.resolveScope(principal)).thenReturn(ALL);
   }
 
+  @Test void improvementRequiresInspectedEvidenceThenReturnsNamedProposalAndFullAudit() throws Exception {
+    var fixture = assessmentFixture();
+    var block = row(BLOCK, "1:b", Map.of("appId", "1", "blockKey", "1:b"));
+    var run = tools.open(context, ALL, versions, block, List.of());
+    var input = improvementInput();
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", input));
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(result(BLOCK, block, false));
+    var binding = fixture.comparison().input().metrics().getFirst();
+    var component = row(COMPONENT, "1:c", Map.of("appId", "1", "blockKey", "1:b"));
+    var data = new com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement.Context("门诊效率", "观察每日接诊变化",
+        List.of(new com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement.Metric(binding.componentId(), binding.metricId(),
+            "门诊量", "每日接诊人次", null, "人次", "按日求和", binding.chartFamily())), fixture.comparison().input(), fixture.candidateInputs());
+    var inspected = new EasyVSchemeAssessmentService.ImprovementContext(fixture.selection(), "ontology-old", versions,
+        fixture.assessmentId(), data, model.require(COMPONENT).requireProperty("chartFamily").valueLabels(), List.of(block.reference(), component.reference()));
+    when(assessments.inspectImprovementDuringExecution(eq(context), eq(ALL), any())).thenReturn(inspected);
+    var read = run.execute("q1", run.prepare("inspect_block_improvement", Map.of("handle", "selected")));
+    assertEquals("table", read.renderBlock().get("type"));
+    assertEquals("门诊量", read.rows().getFirst().get("name"));
+    var proposed = run.execute("q2", run.prepare("preview_block_improvement", input));
+    assertEquals(false, proposed.observation().get("applied"));
+    assertTrue(proposed.renderBlock().get("title").toString().contains("尚未应用"));
+    assertEquals(List.of("门诊量", "柱状图", "折线图", "中部通栏 · 主图", "观察日期变化"), ((List<?>) proposed.renderBlock().get("rows")).getFirst());
+    assertEquals(inspected.references(), proposed.references());
+    assertEquals("proposal", ((Map<?,?>) proposed.audit().get("preview")).get("status"));
+    assertEquals(versions, ((Map<?,?>) proposed.audit().get("input")).get("productVersionIds"));
+    var injected = new LinkedHashMap<>(input); injected.put("apply", true);
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", injected));
+    var unknown = new LinkedHashMap<>(input);
+    unknown.put("choices", List.of(Map.of("componentId", "c", "chartFamily", "line", "slotIndex", 0, "reason", "调整", "metricId", "invented")));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", unknown));
+    var restored = tools.open(context, ALL, versions, block, List.of());
+    code("EASYV_PLAN_INVALID", () -> restored.prepare("preview_block_improvement", input));
+  }
+
+  @Test void improvementCannotRestoreAnOutdatedInspectionOrBypassCurrentAuthorization() throws Exception {
+    var fixture = assessmentFixture();
+    var block = row(BLOCK, "1:b", Map.of("appId", "1", "blockKey", "1:b"));
+    var run = tools.open(context, ALL, versions, block, List.of());
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(result(BLOCK, block, false));
+    var wrong = new EasyVSchemeAssessmentService.ImprovementContext(fixture.selection(), "ontology-new", versions,
+        "assessment", null, Map.of(), List.of());
+    when(assessments.inspectImprovementDuringExecution(eq(context), eq(ALL), any())).thenReturn(wrong);
+    code("OBJECT_VERSION_MISMATCH", () -> run.execute("q1", run.prepare("inspect_block_improvement", Map.of("handle", "selected"))));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", improvementInput()));
+    reset(assessments);
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenThrow(new BackendException("OBJECT_SCOPE_FORBIDDEN", "范围失效"));
+    code("OBJECT_SCOPE_FORBIDDEN", () -> run.execute("q2", run.prepare("inspect_block_improvement", Map.of("handle", "selected"))));
+    verifyNoInteractions(assessments);
+  }
+
+  private Map<String,Object> improvementInput() {
+    return Map.of("handle", "selected", "schemeId", "current", "choices", List.of(Map.of("componentId", "c", "chartFamily", "line", "slotIndex", 0, "reason", "观察日期变化")),
+        "diagnosis", Map.of("themeFit", "服务门诊效率", "metricChartFit", "趋势应表达日期变化", "composition", "突出主要趋势"), "limitations", List.of());
+  }
+
   @Test void listDetailRelationAndAssessmentUseOnlyReturnedHandlesAndFrozenContext() throws Exception {
     var run = tools.open(context, ALL, versions, null, List.of());
     var layout = row(LAYOUT, "1", Map.of("appId", "1"));

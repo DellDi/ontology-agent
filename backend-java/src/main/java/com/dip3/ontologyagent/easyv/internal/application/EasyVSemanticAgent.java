@@ -438,7 +438,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
 
   private static String toolLabel(String tool) {
     return switch (tool) { case "query_objects" -> "读取对象列表"; case "read_object" -> "读取对象详情";
-      case "traverse_objects" -> "穿透对象关系"; case "assess_scheme" -> "评估区域方案"; default -> "执行指标查询"; };
+      case "traverse_objects" -> "穿透对象关系"; case "assess_scheme" -> "评估区域方案";
+      case "inspect_block_improvement" -> "读取块内改造依据"; case "preview_block_improvement" -> "检查块内重组提案"; default -> "执行指标查询"; };
   }
 
   private static List<Map<String, Object>> previousCalls(AgentTurn turn) {
@@ -627,6 +628,12 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       remainingMillis(deadline); var result = run.execute(id, call); remainingMillis(deadline);
       recorder.succeedWhileLeased(invocation, result.audit(), executionId, leaseOwner);
       progress.emit("tool-completed", null, Map.of("name", id, "label", result.label(), "durationMs", elapsed(started), "output", Map.of("rows", result.rows().size())));
+      if (call.tool().equals("preview_block_improvement")) {
+        var block = new LinkedHashMap<String,Object>(result.renderBlock());
+        block.put("blockImprovement", Map.of("executionId", executionId, "invocationId", invocation));
+        return new EasyVAgentTools.Output(result.label(), result.rows(), result.products(), result.observation(), result.audit(),
+            java.util.Collections.unmodifiableMap(block), result.references());
+      }
       return result;
     } catch (RuntimeException error) {
       progress.emit("tool-failed", null, Map.of("name", id, "label", label, "durationMs", elapsed(started), "error", nonBlank(error.getMessage(), error.getClass().getSimpleName())));

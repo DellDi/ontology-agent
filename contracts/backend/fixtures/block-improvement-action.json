@@ -1,0 +1,48 @@
+{
+  "invocationId": "proposal",
+  "title": "渠道贡献",
+  "applicationName": "经营看板",
+  "chartLabels": {
+    "bar": "柱状图",
+    "horizontal-bar": "条形图"
+  },
+  "proposal": {
+    "diagnosis": {
+      "themeFit": "围绕渠道收入比较",
+      "metricChartFit": "长名称适合横向排列",
+      "composition": "排行为主"
+    },
+    "changes": [
+      {
+        "componentId": "component",
+        "metricId": "metric",
+        "name": "渠道收入",
+        "beforeChart": "bar",
+        "afterChart": "horizontal-bar",
+        "beforeSlot": 0,
+        "afterSlot": 0,
+        "reason": "长渠道名称更易读"
+      }
+    ],
+    "pendingChecks": [
+      "原型示意不证明生产数据绑定已验证"
+    ]
+  },
+  "actionId": "action",
+  "status": "prepared",
+  "preparedBlock": {
+    "components": [
+      {
+        "metricName": "渠道收入",
+        "chartFamily": "horizontal-bar",
+        "config": {
+          "relativeX": "0%",
+          "relativeY": "0%",
+          "width": "100%",
+          "height": "100%"
+        }
+      }
+    ]
+  },
+  "error": null
+}

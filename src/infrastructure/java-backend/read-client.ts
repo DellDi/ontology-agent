@@ -20,6 +20,10 @@ const executionRenderBlockSchema = jsonObjectSchema.superRefine((block, context)
       context.addIssue({ code: 'custom', message: '统计项下钻缺少有效的绑定或冻结集合。' });
     }
   }
+  if (block.blockImprovement !== undefined && (block.type !== 'table'
+      || !z.strictObject({ executionId: z.string().min(1), invocationId: z.string().min(1) }).safeParse(block.blockImprovement).success)) {
+    context.addIssue({ code: 'custom', message: '块内改造入口缺少有效的提案审计引用。' });
+  }
   if (block.type !== 'scheme-comparison') return;
   const parsed = z.strictObject({ type: z.literal('scheme-comparison'), title: z.string().min(1),
     role: z.enum(['primary', 'supporting']).optional(), result: javaSchemeAssessmentResultSchema }).safeParse(block);
@@ -375,7 +379,7 @@ const easyVSemanticQuerySchema = z.strictObject({
 
 const easyVToolCallSchema = z.strictObject({
   id: z.string().regex(/^q[1-8]$/),
-  tool: z.enum(['query_metrics', 'query_objects', 'read_object', 'traverse_objects', 'assess_scheme']),
+  tool: z.enum(['query_metrics', 'query_objects', 'read_object', 'traverse_objects', 'assess_scheme', 'inspect_block_improvement', 'preview_block_improvement']),
   label: z.string().min(1), input: jsonObjectSchema,
   references: z.array(javaObjectSelectionSchema.shape.reference).max(50),
 });

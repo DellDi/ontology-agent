@@ -85,6 +85,53 @@ class EasyVSchemeAssessmentServiceTest {
     doThrow(new BackendException("AUDIT_WRITE_FAILED","数据库不可用")).when(facts).audit(anyString(),anyString(),any(),any());
     assertEquals("AUDIT_WRITE_FAILED",assertThrows(BackendException.class,() -> service.assess("session",viewer,selection)).code());
   }
+  @Test void improvementReadsAllComponentDetailsUnderTheSameExecutionAndPreservesSemanticGaps() {
+    var runtime = runtimeContext();
+    var scope = runtimeScope();
+    improvementReader(runtime, scope, "1:b", "components-old");
+    var result = service.inspectImprovementDuringExecution(runtime, scope, selection);
+    assertEquals("门诊效率", result.block().title());
+    assertEquals("观察门诊服务效率", result.block().purpose());
+    assertEquals("每日接诊人次", result.block().metrics().getFirst().description());
+    assertNull(result.block().metrics().getFirst().aggregationRule());
+    assertEquals("m", result.block().metrics().getFirst().metricId());
+    assertEquals(List.of("1:b", "1:c"), result.references().stream().map(ObjectQueryPort.Reference::objectId).toList());
+    assertEquals(versions, result.productVersionIds());
+    assertEquals("折线图", result.chartTypes().get("line"));
+    verify(objects).readDuringExecution(eq(runtime), eq(scope), argThat(r -> r.objectKey().equals("easyv-prototype-component") && r.objectId().equals("1:c") && r.relation() == null));
+  }
+  @Test void improvementRejectsCrossBlockDetailsAndMixedComponentVersions() {
+    var runtime = runtimeContext();
+    var scope = runtimeScope();
+    improvementReader(runtime, scope, "1:other", "components-old");
+    assertEquals("OBJECT_VERSION_MISMATCH", assertThrows(BackendException.class,
+        () -> service.inspectImprovementDuringExecution(runtime, scope, selection)).code());
+    improvementReader(runtime, scope, "1:b", "components-new");
+    assertEquals("OBJECT_VERSION_MISMATCH", assertThrows(BackendException.class,
+        () -> service.inspectImprovementDuringExecution(runtime, scope, selection)).code());
+  }
+  private com.dip3.ontologyagent.capability.api.CapabilityExecutionContext runtimeContext() {
+    return new com.dip3.ontologyagent.capability.api.CapabilityExecutionContext(viewer,
+        new com.dip3.ontologyagent.agent.AgentTurn("java-initial-v1", "session", "这块表达清楚吗？帮我改好", null, null, Map.of(), Map.of(), Instant.now()),
+        "execution-old", new com.dip3.ontologyagent.ontology.OntologyCatalog("ontology-old", "1", List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()), "set-old", "trace", "worker");
+  }
+  private com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot runtimeScope() {
+    return new com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot("easyv", 2, Map.of("userId", "1", "accessMode", "all"));
+  }
+  private void improvementReader(com.dip3.ontologyagent.capability.api.CapabilityExecutionContext runtime,
+      com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot scope, String blockKey, String version) {
+    when(objects.readDuringExecution(eq(runtime), eq(scope), any())).thenAnswer(call -> {
+      EasyVObjectReadService.Request request = call.getArgument(2);
+      if (request.relation() != null || request.objectKey().equals("easyv-prototype-component")) {
+        var props = Map.<String,Object>of("blockKey", blockKey, "componentId", "c", "chartFamily", "bar",
+            "metricName", "门诊量", "metricDescription", "每日接诊人次", "metricUnit", "人次");
+        return detail(new ObjectQueryPort.Reference("easyv-prototype-component", "1:c", version), props, null);
+      }
+      if (request.objectKey().equals("easyv-prototype-block")) return detail(selection.reference(),
+          Map.of("appId", "app", "blockId", "b", "businessModule", "门诊效率", "moduleDescription", "观察门诊服务效率"), null);
+      return objects.read("session", viewer, request);
+    });
+  }
   private EasyVObjectReadService.Result detail(ObjectQueryPort.Reference reference,Map<String,Object> props,EasyVObjectReadService.Structure structure) {
     return new EasyVObjectReadService.Result("execution-old","set-old","ontology-old",new ObjectQueryPort.Page(reference.objectKey(),List.of(new ObjectQueryPort.Row(reference,props)),1,0,false),structure,null,Map.of(),null,null, Map.of());
   }

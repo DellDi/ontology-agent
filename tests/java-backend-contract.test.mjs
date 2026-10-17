@@ -135,6 +135,16 @@ test('对象与评估工具轨迹支持完成态、对象轮次追问和严格�
   const view = { ...snapshot, ontologyVersionBindingSource: snapshot.ontologyVersionBinding.source };
   delete view.ownerUserId; delete view.ontologyVersionBinding; delete view.datasetVersionSetId;
   assertZod(javaExecutionSnapshotSchema, view, 'object-only snapshot view');
+  for (const tool of ['inspect_block_improvement', 'preview_block_improvement']) {
+    const proposal = structuredClone(snapshot);
+    proposal.planSnapshot._resolvedContext.toolCalls[0].tool = tool;
+    proposal.conclusionState.renderBlocks = [{ type: 'table', title: '门诊效率 · 重组提案（尚未应用）',
+      columns: ['指标', '当前图形', '建议图形', '建议位置', '建议依据'],
+      rows: [['门诊量', '柱状图', '折线图', '中部通栏 · 主图', '观察日期变化']] }];
+    assertJsonSchema(ajv, 'execution-snapshot.schema.json', proposal, `${tool} snapshot`);
+    assertZod(javaExecutionSnapshotSchema, { ...view, planSnapshot: proposal.planSnapshot,
+      conclusionState: proposal.conclusionState }, `${tool} snapshot view`);
+  }
   for (const mutate of [
     (v) => { v.planSnapshot._resolvedContext.toolCalls = []; },
     (v) => { v.planSnapshot._resolvedContext.toolCalls[0].references[0].scope = { all: true }; },
