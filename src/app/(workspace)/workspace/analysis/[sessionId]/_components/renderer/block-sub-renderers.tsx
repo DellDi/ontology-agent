@@ -20,6 +20,7 @@ import { LineChartBlock } from './charts/line-chart-block';
 import { PieChartBlock } from './charts/pie-chart-block';
 import { resultDrilldownActions } from './result-drilldown';
 import { ResultViewSwitch } from './result-view-switch';
+import { BlockImprovementPanel } from './block-improvement-panel';
 
 export function renderTableBlock(input: AnalysisInteractionUiRenderInput) {
   const {
@@ -28,12 +29,13 @@ export function renderTableBlock(input: AnalysisInteractionUiRenderInput) {
   embedded = false,
   } = input;
   return (
-    <DataTableBlock
-      block={renderedBlock}
-      className={className}
-      flat={embedded}
-      drilldown={resultDrilldownActions(input)}
-    />
+    <div className={className}>
+      <DataTableBlock block={renderedBlock} flat={embedded} drilldown={resultDrilldownActions(input)} />
+      {renderedBlock.payload.blockImprovement && typeof renderedBlock.payload.blockImprovement === 'object'
+        && 'executionId' in renderedBlock.payload.blockImprovement && 'invocationId' in renderedBlock.payload.blockImprovement
+        && typeof renderedBlock.payload.blockImprovement.executionId === 'string' && typeof renderedBlock.payload.blockImprovement.invocationId === 'string'
+        ? <BlockImprovementPanel executionId={renderedBlock.payload.blockImprovement.executionId} invocationId={renderedBlock.payload.blockImprovement.invocationId} /> : null}
+    </div>
   );
 }
 

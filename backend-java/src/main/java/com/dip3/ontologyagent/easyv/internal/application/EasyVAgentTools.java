@@ -3,6 +3,7 @@ package com.dip3.ontologyagent.easyv.internal.application;
 import com.dip3.ontologyagent.capability.api.CapabilityExecutionContext;
 import com.dip3.ontologyagent.capability.api.ResolvedScopeSnapshot;
 import com.dip3.ontologyagent.semantic.api.*;
+import com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement;
 import com.dip3.ontologyagent.support.BackendException;
 import com.dip3.ontologyagent.support.JsonCodec;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +49,8 @@ public final class EasyVAgentTools {
       tools.add(Map.of("name", "read_object", "input", "{handle}"));
       tools.add(Map.of("name", "traverse_objects", "input", "{handle, relation, filters?, order?, limit?, offset?}"));
       tools.add(Map.of("name", "assess_scheme", "input", "{handle: 区域对象句柄}"));
+      tools.add(Map.of("name", "inspect_block_improvement", "input", "{handle: 区域对象句柄}；读取块目的、全部指标语义、图形与同数量方案，供改造诊断"));
+      tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: 已声明图形, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[]}; 必须先 inspect；保留全部指标；只生成尚未应用的提案"));
     }
     return List.copyOf(tools);
   }
@@ -60,6 +63,7 @@ public final class EasyVAgentTools {
     private final Map<String, ObjectQueryPort.Row> handles = new LinkedHashMap<>();
     private final Map<ObjectQueryPort.Reference, String> byReference = new LinkedHashMap<>();
     private final List<TerminalPage> terminalPages = new ArrayList<>();
+    private final Map<ObjectQueryPort.Reference, EasyVSchemeAssessmentService.ImprovementContext> improvementContexts = new HashMap<>();
     private record TerminalPage(EasyVObjectReadService.Request request, int endOffset) {}
     private int nextHandle = 1;
     private boolean scopeResolved;
@@ -107,7 +111,8 @@ public final class EasyVAgentTools {
     public Prepared prepare(String tool, Map<String, Object> input) {
       Set<String> keys = switch (tool) {
         case "query_objects" -> Set.of("objectKey", "filters", "order", "limit", "offset");
-        case "read_object", "assess_scheme" -> Set.of("handle");
+        case "read_object", "assess_scheme", "inspect_block_improvement" -> Set.of("handle");
+        case "preview_block_improvement" -> Set.of("handle", "schemeId", "choices", "diagnosis", "limitations");
         case "traverse_objects" -> Set.of("handle", "relation", "filters", "order", "limit", "offset");
         default -> throw invalid("未知工具 " + tool);
       };
@@ -118,8 +123,12 @@ public final class EasyVAgentTools {
       }
       var row = requireHandle(input.get("handle"));
       requireObject(row.reference().objectKey());
-      if (tool.equals("assess_scheme")) {
-        if (!"easyv-prototype-block".equals(row.reference().objectKey())) throw invalid("assess_scheme 只能评估区域对象");
+      if (Set.of("assess_scheme", "inspect_block_improvement", "preview_block_improvement").contains(tool)) {
+        if (!"easyv-prototype-block".equals(row.reference().objectKey())) throw invalid("评估与改造工具只能处理区域对象");
+        if (tool.equals("preview_block_improvement")) {
+          if (!improvementContexts.containsKey(row.reference())) throw invalid("须先 inspect_block_improvement 读取该块的真实输入");
+          improvementProposal(input);
+        }
         return new Prepared(tool, Map.copyOf(input), null,
             new ObjectSelection(context.executionId(), context.datasetVersionSetId(), row.reference()));
       }
@@ -204,6 +213,44 @@ public final class EasyVAgentTools {
         return new Output("区域方案适配评估", List.copyOf(rows), products, observation, audit,
             Map.of("type", "scheme-comparison", "title", "区域方案比较", "role", "primary", "result", audit), List.of(call.selection().reference()));
       }
+      if (call.tool().equals("inspect_block_improvement")) {
+        var result = assessments.inspectImprovementDuringExecution(context, scope, call.selection());
+        if (!call.selection().equals(result.selection()) || !versions.equals(result.productVersionIds())
+            || !context.ontology().versionId().equals(result.ontologyVersionId()))
+          throw new BackendException("OBJECT_VERSION_MISMATCH", "改造输入与执行冻结版本不一致。");
+        improvementContexts.put(call.selection().reference(), result);
+        var rows = result.block().metrics().stream().map(metric -> {
+          Map<String,Object> values = new LinkedHashMap<>();
+          values.put("componentId", metric.componentId()); values.put("metricId", metric.metricId());
+          values.put("name", metric.name()); values.put("description", metric.description());
+          values.put("insight", metric.insight()); values.put("unit", metric.unit());
+          values.put("aggregationRule", metric.aggregationRule()); values.put("chartFamily", metric.chartFamily());
+          return Collections.unmodifiableMap(values);
+        }).toList();
+        var observation = new LinkedHashMap<String,Object>();
+        observation.put("id", id); observation.put("tool", call.tool()); observation.put("label", "读取块内改造依据");
+        observation.put("rows", rows); observation.put("block", result.block()); observation.put("chartTypes", result.chartTypes());
+        observation.put("notice", "源文案是设计意图；还未核验真实字段、维度、数值分布与最终渲染。只可提出建议，不执行写入。");
+        var tableRows = result.block().metrics().stream().map(metric -> List.of(display(metric.name()), display(metric.description()),
+            display(metric.unit()), chartLabel(result, metric.chartFamily()))).toList();
+        return new Output("读取块内改造依据", rows, improvementProducts(), observation, json.map(json.write(result)),
+            Map.of("type", "table", "title", "块内改造 · 当前内容", "role", "supporting", "columns", List.of("指标", "业务含义", "单位", "当前图形"), "rows", tableRows), result.references());
+      }
+      if (call.tool().equals("preview_block_improvement")) {
+        var inspected = improvementContexts.get(call.selection().reference());
+        var proposal = improvementProposal(call.input());
+        var preview = BlockImprovement.preview(inspected.block(), proposal, inspected.chartTypes().keySet());
+        var rows = preview.changes().stream().map(change -> Map.<String,Object>of("name", change.name(), "beforeChart", chartLabel(inspected, change.beforeChart()),
+            "afterChart", chartLabel(inspected, change.afterChart()), "beforeSlot", change.beforeSlot(), "afterSlot", change.afterSlot(), "reason", change.reason())).toList();
+        var audit = Map.<String,Object>of("input", json.map(json.write(inspected)), "proposal", json.map(json.write(proposal)), "preview", json.map(json.write(preview)));
+        var observation = Map.<String,Object>of("id", id, "tool", call.tool(), "label", "块内重组提案（尚未应用）", "rows", rows,
+            "preview", preview, "judgmentSource", "model_recommendation", "applied", false);
+        var tableRows = preview.changes().stream().map(change -> List.of(change.name(), chartLabel(inspected, change.beforeChart()),
+            chartLabel(inspected, change.afterChart()), placementLabel(inspected, preview, change), change.reason())).toList();
+        return new Output("块内重组提案（尚未应用）", rows, improvementProducts(), observation, audit,
+            Map.of("type", "table", "title", preview.title() + " · 重组提案（尚未应用）", "role", "primary",
+                "columns", List.of("指标", "当前图形", "建议图形", "建议位置", "建议依据"), "rows", tableRows), inspected.references());
+      }
       return readOutput(id, call, objects.readDuringExecution(context, scope, call.request()));
     }
 
@@ -270,7 +317,7 @@ public final class EasyVAgentTools {
     if (raw == null) return List.of(); // 已发布的历史指标计划没有工具轨迹。
     if (!(raw instanceof List<?> list) || list.isEmpty() || list.size() > EasyVSemanticAgent.MAX_TOOL_CALLS) throw traceInvalid();
     List<Map<String, Object>> out = new ArrayList<>();
-    Set<String> names = Set.of("query_metrics", "query_objects", "read_object", "traverse_objects", "assess_scheme");
+    Set<String> names = Set.of("query_metrics", "query_objects", "read_object", "traverse_objects", "assess_scheme", "inspect_block_improvement", "preview_block_improvement");
     for (int i = 0; i < list.size(); i++) {
       if (!(list.get(i) instanceof Map<?, ?> item) || !item.keySet().equals(Set.of("id", "tool", "label", "input", "references"))
           || !("q" + (i + 1)).equals(item.get("id")) || !names.contains(item.get("tool"))
@@ -295,6 +342,43 @@ public final class EasyVAgentTools {
     row.put("score", assessment.score()); row.put("findings", assessment.findings().stream().map(item -> item.code() + ": " + item.message()).toList().toString());
     row.put("ruleVersion", result.comparison().rules().version()); row.put("assessmentId", result.assessmentId());
     return Collections.unmodifiableMap(row);
+  }
+  private static BlockImprovement.Proposal improvementProposal(Map<String,Object> input) {
+    text(input.get("schemeId"));
+    if (!(input.get("choices") instanceof List<?> choices) || choices.isEmpty() || choices.size() > 7
+        || choices.stream().anyMatch(item -> !(item instanceof Map<?,?> map) || !map.keySet().equals(Set.of("componentId", "chartFamily", "slotIndex", "reason")))
+        || !(input.get("diagnosis") instanceof Map<?,?> diagnosis) || !diagnosis.keySet().equals(Set.of("themeFit", "metricChartFit", "composition"))
+        || !(input.get("limitations") instanceof List<?> limitations) || limitations.size() > 10
+        || limitations.stream().anyMatch(item -> !(item instanceof String))) throw invalid("改造提案必须包含完整且受控的变化、诊断和信息缺口");
+    for (var item : choices) {
+      var choice = (Map<?,?>) item;
+      text(choice.get("componentId")); text(choice.get("chartFamily")); text(choice.get("reason"));
+      number(choice.get("slotIndex"), -1, 0, 6);
+      if (choice.get("slotIndex") == null) throw invalid("改造提案缺少明确的目标槽位");
+    }
+    diagnosis.values().forEach(EasyVAgentTools::text);
+    var values = new LinkedHashMap<>(input); values.remove("handle");
+    try { return JSON.convertValue(values, BlockImprovement.Proposal.class); }
+    catch (IllegalArgumentException failure) { throw invalid("改造提案结构无效"); }
+  }
+  private static Set<String> improvementProducts() {
+    return Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component", "easyv-scheme-library");
+  }
+  private static String display(String text) { return text == null || text.isBlank() ? "未保存" : text; }
+  private static String chartLabel(EasyVSchemeAssessmentService.ImprovementContext input, String family) {
+    return input.chartTypes().getOrDefault(family, "未识别的图形");
+  }
+  private static String placementLabel(EasyVSchemeAssessmentService.ImprovementContext source, BlockImprovement.Preview preview, BlockImprovement.Change change) {
+    var assignment = preview.placement().assignments().stream().filter(item -> item.componentId().equals(change.componentId())).findFirst().orElseThrow();
+    var bounds = source.block().input().bounds();
+    var rect = assignment.bounds();
+    double y = (rect.y() + rect.height() / 2 - bounds.y()) / bounds.height();
+    double x = (rect.x() + rect.width() / 2 - bounds.x()) / bounds.width();
+    String vertical = y < .4 ? "上部" : y > .6 ? "下部" : "中部";
+    String horizontal = rect.width() / bounds.width() > .75 ? "通栏" : x < .4 ? "左侧" : x > .6 ? "右侧" : "居中";
+    var scheme = source.block().schemes().stream().filter(item -> item.schemeId().equals(preview.placement().schemeId())).findFirst().orElseThrow();
+    String role = switch (scheme.slots().get(assignment.slotIndex()).role()) { case "main" -> "主图"; case "summary" -> "概览"; default -> "明细"; };
+    return vertical + horizontal + " · " + role;
   }
   private static <T> List<T> decode(Object raw, Class<T> type, int max) {
     if (raw == null) return List.of();

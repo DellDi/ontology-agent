@@ -191,7 +191,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(31, applied, "新库应执行到 V31 版本保留清理");
+        assertEquals(32, applied, "新库应执行到 V32 块内改造动作");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -605,13 +605,37 @@ class DatabaseMigrationServiceTest {
     }
 
     @Test
+    void blockActionsKeepPreparedPayloadAndClaimOnlyOneConfirmation() {
+        service().run();
+        jdbc.update("""
+          insert into platform.analysis_sessions(id,owner_user_id,organization_id,question_text,saved_context,status,created_at,updated_at)
+          values ('action-session','7','org','改造内容块','{}','completed',now(),now())
+          """);
+        jdbc.update("""
+          insert into platform.agent_invocations(id,session_id,execution_id,owner_user_id,agent_name,tool_name,kind,input,status,trace_id,started_at,created_at,updated_at)
+          values ('proposal','action-session','execution','7','easyv','preview_block_improvement','subtool','{}','completed','trace',now(),now(),now())
+          """);
+        var store=new com.dip3.ontologyagent.easyv.internal.adapter.out.postgres.EasyVBlockActionPostgresStore(jdbc,new JsonCodec());
+        var prepared=java.util.Map.<String,Object>of("source",java.util.Map.of("immutable",true));
+        var action=store.create("action-session","proposal","7",prepared);
+        assertTrue(store.claim(action.id()));assertFalse(store.claim(action.id()));
+        store.finish(action.id(),"unknown",java.util.Map.of(),"timeout");
+        assertTrue(store.claim(action.id()));store.finish(action.id(),"verified",java.util.Map.of("readback",true),null);
+        assertFalse(store.claim(action.id()));
+        assertEquals(4,jdbc.queryForObject("select jsonb_array_length(history) from platform.easyv_block_actions where id=?",Integer.class,action.id()));
+        assertEquals(prepared,store.require(action.id(),"action-session","7").prepared());
+        assertEquals("verified",store.latest("action-session","proposal","7").orElseThrow().status());
+        org.junit.jupiter.api.Assertions.assertThrows(BackendException.class,()->store.require(action.id(),"action-session","8"));
+    }
+
+    @Test
     void existingFlywayHistoryIsIdempotent() {
         service().run();
         DatabaseMigrationService.Decision decision = service().run();
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(31, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(32, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -628,7 +652,7 @@ class DatabaseMigrationServiceTest {
         assertTrue(platformTables >= 20, "重复执行后表结构应保持不变");
         Integer foreignKeys = jdbc.queryForObject(
                 "select count(*) from pg_constraint where contype = 'f'", Integer.class);
-        assertEquals(62, foreignKeys, "重复执行不应产生重复外键约束");
+        assertEquals(64, foreignKeys, "重复执行不应产生重复外键约束");
     }
 
     @Test
@@ -643,7 +667,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(31, applied, "旧库补全应记录 V1-V31（baseline 0 标记不计入）");
+        assertEquals(32, applied, "旧库补全应记录 V1-V32（baseline 0 标记不计入）");
     }
 
     @Test

@@ -86,6 +86,7 @@ export type ExecutionMarkdownBlock = {
 
 export type ExecutionTableBlock = ExecutionStatisticContext & {
   type: 'table';
+  blockImprovement?: { executionId: string; invocationId: string };
   title: string;
   columns: string[];
   rows: string[][];
@@ -712,7 +713,12 @@ function validateRenderBlock(
           'renderBlocks.content',
         ),
       };
-    case 'table':
+    case 'table': {
+      const improvement = candidate.blockImprovement;
+      if (improvement !== undefined && (improvement === null || typeof improvement !== 'object' || Array.isArray(improvement)
+          || Object.keys(improvement).length !== 2 || !('executionId' in improvement) || !('invocationId' in improvement))) {
+        throw new InvalidAnalysisExecutionStreamEventError('table.blockImprovement 必须引用完整的提案审计。');
+      }
       if (candidate.identifierColumns !== undefined && (!Array.isArray(candidate.identifierColumns)
           || candidate.identifierColumns.length === 0
           || new Set(candidate.identifierColumns).size !== candidate.identifierColumns.length
@@ -740,7 +746,12 @@ function validateRenderBlock(
         rows: candidate.rows,
         presentationReason: assertOptionalString(candidate.presentationReason, 'table.presentationReason'),
         identifierColumns: candidate.identifierColumns as number[] | undefined,
+        blockImprovement: improvement ? {
+          executionId: assertNonEmptyString(improvement.executionId, 'table.blockImprovement.executionId'),
+          invocationId: assertNonEmptyString(improvement.invocationId, 'table.blockImprovement.invocationId'),
+        } : undefined,
       };
+    }
     case 'chart':
       return validateChartBlock(candidate);
     case 'graph':

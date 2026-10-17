@@ -450,7 +450,9 @@
               "query_objects",
               "read_object",
               "traverse_objects",
-              "assess_scheme"
+              "assess_scheme",
+              "inspect_block_improvement",
+              "preview_block_improvement"
             ]
           },
           "label": {
