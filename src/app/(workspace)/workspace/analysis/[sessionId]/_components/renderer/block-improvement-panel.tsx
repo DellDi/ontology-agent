@@ -45,7 +45,7 @@ export function BlockImprovementPanel({executionId,invocationId}:{executionId:st
 
 function PreparedBlock({block,chartLabels}:{block:Record<string,unknown>;chartLabels:Record<string,string>}) {
   const components=Array.isArray(block.components)?block.components:[];
-  return <div><p className="mb-2 text-xs font-medium">EasyV 待保存内容与位置</p><div className="relative h-72 overflow-hidden rounded-lg border bg-background" aria-label="待保存原型块示意">
+  return <div><p className="mb-2 text-xs font-medium">本次改造内容与位置</p><div className="relative h-72 overflow-hidden rounded-lg border bg-background" aria-label="改造原型块示意">
     {components.map((raw,index)=>{
       if(!raw||typeof raw!=='object')return null;
       const component=raw as Record<string,unknown>;
