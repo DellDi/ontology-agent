@@ -240,7 +240,8 @@ public final class PrototypeStructureParser {
         parent == null ? null : parent.getTagName(),
         parent == null ? null : blankToNull(parent.getAttribute("id")),
         parent == null ? null : blankToNull(parent.getAttribute("grid-direction")),
-        blankToNull(element.getAttribute("block_type_id")), blankToNull(element.getAttribute("blockSize")),
+        content.get("blockTypeId") == null ? blankToNull(element.getAttribute("block_type_id")) : text(content.get("blockTypeId")),
+        blankToNull(element.getAttribute("blockSize")),
         blankToNull(element.getAttribute("span")), weight(id, element.getAttribute("weight")),
         content.get("schemeId") == null ? null : String.valueOf(content.get("schemeId")),
         List.copyOf(components), bindingStatus, bindings, content.get("title") == null ? false

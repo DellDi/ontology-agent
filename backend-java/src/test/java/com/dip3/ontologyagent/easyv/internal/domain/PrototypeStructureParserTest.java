@@ -81,6 +81,20 @@ class PrototypeStructureParserTest {
   }
 
   @Test
+  void assembledPrototypeTypeOverridesTheEarlierPlanningType() {
+    var value = validJson();
+    var page = (Map<String, Object>) value.get("page-1");
+    var block = (Map<String, Object>) ((Map<?, ?>) page.get("blocks")).get("page-1__left_1");
+    block.put("blockTypeId", "3");
+    block.put("schemeId", "43");
+    var parsed = PrototypeStructureParser.parse(XML, value);
+    assertEquals(Status.OK, parsed.status());
+    assertEquals("3", parsed.blocks().getFirst().blockTypeId());
+    assertEquals("43", parsed.blocks().getFirst().schemeId());
+    assertEquals("1", PrototypeStructureParser.parse(XML, validJson()).blocks().getFirst().blockTypeId());
+  }
+
+  @Test
   void retainsReviewedBusinessSemanticsWithoutChangingStructuralSignatures() {
     Parsed before = PrototypeStructureParser.parse(XML, validJson());
     Map<String, Object> value = validJson();

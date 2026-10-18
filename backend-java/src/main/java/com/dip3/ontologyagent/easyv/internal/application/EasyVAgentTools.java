@@ -50,7 +50,7 @@ public final class EasyVAgentTools {
       tools.add(Map.of("name", "traverse_objects", "input", "{handle, relation, filters?, order?, limit?, offset?}"));
       tools.add(Map.of("name", "assess_scheme", "input", "{handle: 区域对象句柄}"));
       tools.add(Map.of("name", "inspect_block_improvement", "input", "{handle: 区域对象句柄}；读取块目的、全部指标语义、图形与同数量方案，供改造诊断"));
-      tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: 已声明图形, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[], title?: 新标题, purpose?: 新用途}; 仅改文案时省略 schemeId 并用 choices:[]，保留原图形、指标与位置；必须先 inspect；只生成尚未应用的提案"));
+      tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: inspect.chartTypes 的 key（保持图形则复制组件当前 chartFamily，不能填中文显示名）, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[], title?: 新标题, purpose?: 新用途}; 仅改文案时省略 schemeId 并用 choices:[]，保留原图形、指标与位置；必须先 inspect；只生成尚未应用的提案"));
     }
     return List.copyOf(tools);
   }
@@ -127,7 +127,14 @@ public final class EasyVAgentTools {
         if (!"easyv-prototype-block".equals(row.reference().objectKey())) throw invalid("评估与改造工具只能处理区域对象");
         if (tool.equals("preview_block_improvement")) {
           if (!improvementContexts.containsKey(row.reference())) throw invalid("须先 inspect_block_improvement 读取该块的真实输入");
-          improvementProposal(input);
+          var inspected = improvementContexts.get(row.reference());
+          var proposal = improvementProposal(input);
+          try {
+            BlockImprovement.preview(inspected.block(), proposal, inspected.chartTypes().keySet());
+          } catch (BackendException error) {
+            if (!Set.of("BLOCK_IMPROVEMENT_INVALID", "BLOCK_IMPROVEMENT_INFEASIBLE", "BLOCK_IMPROVEMENT_NO_CHANGE").contains(error.code())) throw error;
+            throw new BackendException("EASYV_PLAN_INVALID", error.getMessage(), error);
+          }
         }
         return new Prepared(tool, Map.copyOf(input), null,
             new ObjectSelection(context.executionId(), context.datasetVersionSetId(), row.reference()));

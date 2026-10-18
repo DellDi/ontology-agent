@@ -28,6 +28,8 @@ class BlockImprovementTest {
     for (var proposal : List.of(proposal("invented", List.of(new Choice("component-0", "line", 0, "趋势"))),
         proposal("current", List.of(new Choice("other-block-component", "line", 0, "趋势"))),
         proposal("current", List.of(new Choice("component-0", "invented", 0, "趋势"))),
+        proposal("current", List.of(new Choice("component-0", "单值指标", 0, "保留图形"))),
+        proposal("current", List.of(new Choice("component-0", "表格", 0, "保留图形"))),
         proposal("current", List.of()),
         proposal("current", List.of(new Choice("component-0", "line", 0, "趋势"), new Choice("component-0", "line", 0, "趋势"))))) {
       code("BLOCK_IMPROVEMENT_INVALID", () -> BlockImprovement.preview(context(), proposal, types));
