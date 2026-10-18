@@ -253,8 +253,8 @@ class ReadApiPersistenceTest {
         String execution="history-failed-"+suffix;
         insertJob(execution,session.id(),viewer.userId(),viewer.scope().organizationId(),"failed",Instant.now(),"trace-history");
         insertSnapshot(execution,session.id(),viewer.userId(),"failed",Instant.now(),"trace-history");
-        jdbc.update("update platform.analysis_execution_snapshots set error_code='EASYV_QUESTION_UNSUPPORTED',failure_point=cast(? as jsonb) where execution_id=?",
-            "{\"message\":\"当前入口不支持跨块搬移\"}",execution);
+        jdbc.update("update platform.analysis_execution_snapshots set error_code='EASYV_QUESTION_UNSUPPORTED',mobile_projection=cast(? as jsonb) where execution_id=?",
+            "{\"status\":\"failed\",\"summary\":\"当前入口不支持跨块搬移\"}",execution);
         var round=sessionReads.load(session.id(),null,viewer).history().getFirst();
         assertEquals("EASYV_QUESTION_UNSUPPORTED",round.errorCode());
         assertEquals("当前入口不支持跨块搬移",round.errorMessage());
