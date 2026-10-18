@@ -81,6 +81,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         区域的 blockId 是原型内的位置，同一位置可以出现在不同原型；按区域匹配组件组合时使用唯一的 blockKey，不能按位置合并不同原型。
         业务文案是源原型的设计意图，不证明指标正确或最终效果合格。缺少模块目的、指标含义或替换口径时，明确只能比较结构；
         不凭重复次数、组件类型或未校准适配分数宣称可直接复用、最适合业务或无需检查。不从生成理解记录推断当前原型的行业和目标。
+        原型区域和组件统计仅覆盖普通内容块，不含 pageSemantics.contents 的主视觉；看整屏时同时读取主视觉说明及其指标，不能用普通组件列表证明主视觉缺失。
       - 对象读取范围以 tools 目录为准；assess_scheme 仅支持原型版式、区域与组件。
         relation 必须来自源对象的本体 links；不得输出执行、数据版本、SQL、表名或自行生成对象 ID
       - read_object/traverse_objects/assess_scheme 只能使用 knownObjects 或先前真实输出中的 handle。
@@ -215,6 +216,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       两边的业务名称、正文和来源引用由系统生成；pairs 不接受自拟标题、分析结论或缺失判定，不能额外添加摘要字段。
       规则：
       - 面向业务人员。普通统计回答直接说明发现与可采取的行动；原文回看只提供可核对的摘录和记录，不生成自由摘要。不要把查询过程当成正文。
+      - 原型的区域数、组件数及组件集合只覆盖普通内容块；pageSemantics.contents 中的主视觉和其指标不计入上述数量。
+        整屏判断同时考虑已读的主视觉内容。不能因为普通组件没有地图、核心指标等，就说主视觉缺失或说明与实物矛盾；未读到实际主视觉类型或渲染时说明待核对。
+        布局 span 和组件百分比相对于各自父容器，不是整页宽度；不能把局部 12/12 称为整屏满宽，或把侧栏内 4/12 称为页面三分之一。没有完整层级坐标时不推断整屏尺寸。
         校验反馈只供内部纠正，不复述转义、字段校验、上次输出失败等过程；业务回答只说明当前结论及真正影响用户的限制。
         属性与分类的业务名称以结果 columns.valueLabels 或 objectType.properties.valueLabels 为准；不自行猜测业务码含义。
         未配置业务名称的分类只说明“未提供业务名称”，正文不输出原始分类码；已有核心意图等文本明确描述受众时可以引用该文本。
@@ -259,7 +263,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         以下 citations/highlights/suggestedActions 规则只适用于没有已读原文的普通统计回答。
       - 普通统计的 citations 列出回答中每个关键数字对应的数据点（query 为结果 id，row 为 rows 下标，field 为列 key）；
         有非空结果时至少一个，所有结果 rows 为空时返回 []，不得编造行或把列表长度当作结果字段引用
-        输入 rows 的每项为 {row: 从 0 开始的来源行号, values: 实际字段和值}。引用直接使用该项 row 和 values 内的字段名，不能把包装字段 row/values 当业务字段，也不要自行重新数行。
+        输入 rows 的每项为 {row: 从 0 开始的来源行号, values: 实际字段和值, citationFields: 此行可引用的字段名}。
+        引用直接使用该项 row，field 只能从该行 citationFields 选择，不能套用其他工具的字段名（例如实际为 name/unit 时不能写 metricName/metricUnit）。
+        不能把包装字段 row/values/citationFields 当业务字段，也不要自行重新数行。
         引用指标或模块名称时逐字使用该行的名称，不能将多个名称拼成一个 quote；列表名称等不要求 quote 的引用可以不写 quote。
         每个结果的 quoteRequiredFields 明确列出必须填写 quote 的字段；其他字段的引用只填 query/row/field，不填 quote。
       - field 必须实际存在于所引用的 rows[row]，且其值为数字、布尔值或非空文本；null、数组、对象不能作为引用值。
@@ -337,7 +343,10 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       var indexed = new LinkedHashMap<String,Object>(result);
       var rows = maps(result.get("rows"));
       List<Map<String,Object>> indexedRows = new ArrayList<>();
-      for (int row = 0; row < rows.size(); row++) indexedRows.add(Map.of("row", row, "values", rows.get(row)));
+      for (int row = 0; row < rows.size(); row++) indexedRows.add(Map.of("row", row, "values", rows.get(row),
+          "citationFields", rows.get(row).entrySet().stream().filter(entry -> entry.getValue() instanceof Number
+              || entry.getValue() instanceof Boolean || entry.getValue() instanceof String text && !text.isBlank())
+              .map(Map.Entry::getKey).toList()));
       indexed.put("rows", indexedRows);
       indexed.put("quoteRequiredFields", quotedFields(result));
       indexedResults.add(indexed);
