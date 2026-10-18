@@ -69,6 +69,18 @@ class BlockImprovementTest {
     return new Context("门诊效率", "看清候诊效率与业务量", List.of(metric("component-0")),
         SchemeAdaptationTest.input(List.of("bar"), List.of(new Box(0,0,100,100))), List.of(SchemeAdaptationTest.one("current")));
   }
+  @Test void textOnlyProposalPreservesTheExistingLayoutAndRejectsBlankOrUnchangedText() {
+    var context = context();
+    var preview = BlockImprovement.preview(context, new Proposal(null, List.of(), diagnosis, List.of(), "门诊量趋势", "比较每日门诊量"), types);
+    assertEquals("门诊量趋势", preview.textChange().afterTitle());
+    assertEquals(context.title(), preview.textChange().beforeTitle());
+    assertTrue(preview.changes().isEmpty());
+    assertNull(preview.placement());
+    code("BLOCK_IMPROVEMENT_NO_CHANGE", () -> BlockImprovement.preview(context,
+        new Proposal(null, List.of(), diagnosis, List.of(), context.title(), context.purpose()), types));
+    code("BLOCK_IMPROVEMENT_INVALID", () -> BlockImprovement.preview(context,
+        new Proposal(null, List.of(), diagnosis, List.of(), " ", null), types));
+  }
   private Metric metric(String component) { return new Metric(component,"same-metric","门诊量","每日接诊人次",null,"人次","按日求和","bar"); }
   private Proposal proposal(String scheme, List<Choice> choices) { return new Proposal(scheme, choices, diagnosis, List.of()); }
   private static void code(String code, Runnable action) { assertEquals(code, assertThrows(BackendException.class, action::run).code()); }

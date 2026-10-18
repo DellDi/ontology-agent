@@ -178,6 +178,7 @@ export type ConversationAssistantMessage = {
   headline: string;
   /** 失败时直接展示给业务用户的原因摘要 */
   errorSummary?: string;
+  errorCode?: string;
   /** 进度标签，例如 "3/5 步已完成" */
   progressLabel?: string;
   /** running 态起始事件时间（ISO），用于前端耗时计数 */
@@ -1419,7 +1420,7 @@ export function buildConversationViewModel(
   const timelineBlocks = renderStepTimelinePart(stepTimeline);
 
   // -- 当前步骤标题（用于 headline 推导） --
-  const currentStepTitle = stepTimeline?.steps?.find(
+  const currentStepTitle = stepTimeline?.steps?.findLast(
     (step) => step.status === 'running',
   )?.title;
 
@@ -1492,6 +1493,7 @@ export function buildConversationViewModel(
       status,
       headline,
       errorSummary,
+      errorCode: [...events].reverse().find((event) => event.errorCode)?.errorCode,
       progressLabel,
       runningSinceIso,
       toolActivities,

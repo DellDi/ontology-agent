@@ -122,7 +122,7 @@ public interface AnalysisSessionReadMapper {
 
     @Select("""
             select s.execution_id,s.status,s.ontology_version_id,s.ontology_version_binding_source,
-                   s.plan_snapshot,s.conclusion_state,s.created_at
+                   s.plan_snapshot,s.conclusion_state,s.created_at,s.error_code,s.failure_point->>'message' as error_message
             from platform.analysis_execution_snapshots s
             where s.session_id=#{sessionId} and s.owner_user_id=#{ownerUserId}
               and s.follow_up_id is null
@@ -136,6 +136,8 @@ public interface AnalysisSessionReadMapper {
             @Result(property = "ontologyVersionBindingSource", column = "ontology_version_binding_source"),
             @Result(property = "planSnapshot", column = "plan_snapshot", typeHandler = JsonbTypeHandler.class),
             @Result(property = "conclusionState", column = "conclusion_state", typeHandler = JsonbTypeHandler.class),
+            @Result(property = "errorCode", column = "error_code"),
+            @Result(property = "errorMessage", column = "error_message"),
             @Result(property = "createdAt", column = "created_at")
     })
     HistoryRow findRootHistory(@Param("sessionId") String sessionId, @Param("ownerUserId") String ownerUserId);
@@ -146,7 +148,7 @@ public interface AnalysisSessionReadMapper {
                    coalesce(s.ontology_version_id,f.ontology_version_id) as ontology_version_id,
                    coalesce(s.ontology_version_binding_source,f.ontology_version_binding_source)
                      as ontology_version_binding_source,
-                   s.plan_snapshot,s.conclusion_state,f.created_at
+                   s.plan_snapshot,s.conclusion_state,f.created_at,s.error_code,s.failure_point->>'message' as error_message
             from platform.analysis_session_follow_ups f
             left join platform.analysis_execution_snapshots s
               on s.execution_id=f.result_execution_id and s.session_id=f.session_id
@@ -168,6 +170,8 @@ public interface AnalysisSessionReadMapper {
             @Result(property = "ontologyVersionBindingSource", column = "ontology_version_binding_source"),
             @Result(property = "planSnapshot", column = "plan_snapshot", typeHandler = JsonbTypeHandler.class),
             @Result(property = "conclusionState", column = "conclusion_state", typeHandler = JsonbTypeHandler.class),
+            @Result(property = "errorCode", column = "error_code"),
+            @Result(property = "errorMessage", column = "error_message"),
             @Result(property = "createdAt", column = "created_at")
     })
     List<HistoryRow> listFollowUpHistory(@Param("sessionId") String sessionId,
@@ -261,6 +265,8 @@ public interface AnalysisSessionReadMapper {
         public String followUpId;
         public String executionId;
         public String status;
+        public String errorCode;
+        public String errorMessage;
         public String ontologyVersionId;
         public String ontologyVersionBindingSource;
         public Map<String, Object> planSnapshot;

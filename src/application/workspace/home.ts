@@ -18,6 +18,7 @@ export type WorkspaceHomeSnapshotSummary = {
   executionId: string;
   conclusionState: { causes: { title: string }[] } | null;
   failurePoint: { title: string } | null;
+  errorCode?: string | null;
   capabilityBinding?: { domainKey: string; capabilityKey: string } | { source: 'legacy/unknown' };
 };
 
@@ -33,6 +34,7 @@ type LatestExecutionLike = {
   status: JobStatus;
   conclusionState: { causes: { title: string }[] } | null;
   failurePoint: Record<string, unknown> | null;
+  errorCode?: string | null;
   capabilityBinding?:
     | { domainKey: string; capabilityKey: string }
     | { source: 'legacy/unknown' }
@@ -47,6 +49,7 @@ export function latestExecutionSnapshot(
   return {
     executionId: execution.executionId,
     status: execution.status,
+    errorCode: execution.errorCode,
     capabilityBinding: execution.capabilityBinding ?? undefined,
     conclusionState: execution.conclusionState,
     failurePoint:
@@ -224,8 +227,8 @@ export function deriveSessionStatus(
     case 'dead_letter':
       return {
         derivedStatus: 'failed',
-        statusLabel: '失败',
-        statusTone: 'error',
+        statusLabel: snapshot.errorCode === 'EASYV_QUESTION_UNSUPPORTED' ? '请求暂未支持' : '失败',
+        statusTone: snapshot.errorCode === 'EASYV_QUESTION_UNSUPPORTED' ? 'neutral' : 'error',
         failureMessage,
         latestExecutionId: snapshot.executionId,
       };

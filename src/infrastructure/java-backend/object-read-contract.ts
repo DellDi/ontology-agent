@@ -70,6 +70,7 @@ export const javaObjectReadResultSchema = z.object({
     items: z.array(z.object({ label: z.string().min(1), value: z.string().min(1) }).strict()),
     notice: z.string().min(1),
   }).strict()).nullable().optional(),
+  sourceUrl: z.url().refine((url) => /^https?:\/\//.test(url)).nullable().optional(),
   componentGeometry: z.record(z.string(), javaComponentGeometrySchema).optional(),
   componentSummary: z.object({
     total: z.number().int().min(0),

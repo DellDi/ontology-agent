@@ -42,6 +42,8 @@ public class EasyVObjectReadService {
   private final PrototypeStructureReadPort structures;
   private final SemanticQueryPort queries;
   private final SemanticQueryCompiler compiler;
+  @org.springframework.beans.factory.annotation.Value("${EASYV_WORKSPACE_URL:}")
+  private String workspaceUrl = "";
 
   public EasyVObjectReadService(AnalysisSessionRepository sessions, OntologyRepository ontologies, ExecutionRepository executions,
       DatasetVersionSetRegistry datasets, EasyVScopeResolver scopes, ObjectQueryPort objects,
@@ -97,7 +99,14 @@ public class EasyVObjectReadService {
                        ObjectQueryPort.Page page, Structure structure, ObjectTypeView objectType,
                        Map<String, Map<String, Object>> componentGeometry,
                        ComponentSummary componentSummary, DataContext dataContext,
-                       Map<String, PropertyPresentation> propertyPresentations, List<RelatedMetric> relatedMetrics) {
+                       Map<String, PropertyPresentation> propertyPresentations, List<RelatedMetric> relatedMetrics, String sourceUrl) {
+    public Result(String executionId, String datasetVersionSetId, String ontologyVersionId, ObjectQueryPort.Page page,
+                  Structure structure, ObjectTypeView objectType, Map<String, Map<String, Object>> componentGeometry,
+                  ComponentSummary componentSummary, DataContext dataContext, Map<String, PropertyPresentation> propertyPresentations,
+                  List<RelatedMetric> relatedMetrics) {
+      this(executionId, datasetVersionSetId, ontologyVersionId, page, structure, objectType, componentGeometry,
+          componentSummary, dataContext, propertyPresentations, relatedMetrics, null);
+    }
     public Result(String executionId, String datasetVersionSetId, String ontologyVersionId, ObjectQueryPort.Page page,
                   Structure structure, ObjectTypeView objectType, Map<String, Map<String, Object>> componentGeometry,
                   ComponentSummary componentSummary, DataContext dataContext, Map<String, PropertyPresentation> propertyPresentations) {
@@ -294,7 +303,22 @@ public class EasyVObjectReadService {
         describe(page.objectKey(), request.objectId() != null && request.relation() == null), geometry, summary,
         new DataContext(manifest.capturedAt(), EasyVScopeResolver.dataScopeLabel(scope)),
         request.objectId() != null && request.relation() == null ? presentProperties(page.rows().getFirst()) : Map.of(),
-        Boolean.TRUE.equals(request.includeRelatedMetrics()) ? relatedMetrics(page.rows().getFirst(), access, manifest.capturedAt()) : null);
+        Boolean.TRUE.equals(request.includeRelatedMetrics()) ? relatedMetrics(page.rows().getFirst(), access, manifest.capturedAt()) : null,
+        request.objectId() != null && request.relation() == null ? sourceUrl(page, access) : null);
+  }
+
+  private String sourceUrl(ObjectQueryPort.Page page, SemanticQueryPort.AccessContext access) {
+    if (workspaceUrl.isBlank() || page.rows().size() != 1 || !Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component").contains(page.objectKey())) return null;
+    var base = java.net.URI.create(workspaceUrl);
+    if (!Set.of("http", "https").contains(base.getScheme()) || base.getHost() == null || base.getUserInfo() != null
+        || base.getQuery() != null || base.getFragment() != null) throw new BackendException("EASYV_WORKSPACE_URL_INVALID", "EasyV 查看入口配置无效。");
+    var appId = String.valueOf(page.rows().getFirst().properties().get("appId"));
+    var apps = objects.query(new ObjectQueryPort.Query("easyv-ai-application",
+        List.of(new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS, List.of(appId))), List.of(), 1, 0), access);
+    if (apps.rows().size() != 1 || apps.rows().getFirst().properties().get("spaceId") == null) return null;
+    return org.springframework.web.util.UriComponentsBuilder.fromUri(base).path("/aiGenerateScreen")
+        .queryParam("appId", appId).queryParam("sid", apps.rows().getFirst().properties().get("spaceId"))
+        .queryParam("step", "prototype").build().encode().toUriString();
   }
 
   /** 只整理已经通过权限与冻结版本校验的详情；原始属性仍是查询、引用和核对的来源。 */

@@ -313,6 +313,18 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "errorMessage": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "allOf": [

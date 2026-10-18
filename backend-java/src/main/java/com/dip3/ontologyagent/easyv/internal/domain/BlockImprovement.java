@@ -14,11 +14,17 @@ public final class BlockImprovement {
       SchemeAdaptation.Input input, List<SchemeAdaptation.Candidate> schemes) {}
   public record Choice(String componentId, String chartFamily, int slotIndex, String reason) {}
   public record Diagnosis(String themeFit, String metricChartFit, String composition) {}
-  public record Proposal(String schemeId, List<Choice> choices, Diagnosis diagnosis, List<String> limitations) {}
+  public record Proposal(String schemeId, List<Choice> choices, Diagnosis diagnosis, List<String> limitations,
+                         String title, String purpose) {
+    public Proposal(String schemeId, List<Choice> choices, Diagnosis diagnosis, List<String> limitations) {
+      this(schemeId, choices, diagnosis, limitations, null, null);
+    }
+  }
+  public record TextChange(String beforeTitle, String afterTitle, String beforePurpose, String afterPurpose) {}
   public record Change(String componentId, String metricId, String name, String beforeChart,
       String afterChart, int beforeSlot, int afterSlot, String reason) {}
   public record Preview(String status, String title, String purpose, Diagnosis diagnosis, List<Change> changes,
-      SchemeAdaptation.Assessment placement, List<String> pendingChecks) {}
+      SchemeAdaptation.Assessment placement, List<String> pendingChecks, TextChange textChange) {}
 
   public static Preview preview(Context context, Proposal proposal, Set<String> chartFamilies) {
     if (context == null || context.input() == null || context.metrics() == null || context.metrics().isEmpty()
@@ -31,6 +37,17 @@ public final class BlockImprovement {
     requireText(proposal.diagnosis().composition(), "组合依据", 2000);
     if (proposal.limitations() == null || proposal.limitations().size() > 10) throw invalid("信息缺口必须为最多十项的列表");
     proposal.limitations().forEach(item -> requireText(item, "信息缺口", 1000));
+    if (proposal.title() != null) requireText(proposal.title(), "建议模块标题", 500);
+    if (proposal.purpose() != null) requireText(proposal.purpose(), "建议模块用途", 4000);
+    var textChange = new TextChange(context.title(), proposal.title() == null ? context.title() : proposal.title(),
+        context.purpose(), proposal.purpose() == null ? context.purpose() : proposal.purpose());
+    boolean textChanged = !textChange.beforeTitle().equals(textChange.afterTitle())
+        || !textChange.beforePurpose().equals(textChange.afterPurpose());
+    if (proposal.schemeId() == null && proposal.choices() != null && proposal.choices().isEmpty()) {
+      if (!textChanged) throw new BackendException("BLOCK_IMPROVEMENT_NO_CHANGE", "标题、用途与当前内容一致，无需修改。");
+      return new Preview("proposal", context.title(), context.purpose(), proposal.diagnosis(), List.of(), null,
+          List.copyOf(proposal.limitations()), textChange);
+    }
     if (proposal.choices() == null || proposal.choices().size() != context.metrics().size())
       throw invalid("本阶段必须保留当前块的全部指标，每个组件恰好出现一次");
     var candidate = context.schemes().stream().filter(item -> Objects.equals(item.schemeId(), proposal.schemeId()))
@@ -86,7 +103,7 @@ public final class BlockImprovement {
       changes.add(new Change(metric.componentId(), metric.metricId(), metric.name(), metric.chartFamily(),
           assignment.chartFamily(), previous, assignment.slotIndex(), choices.get(metric.componentId()).reason()));
     }
-    boolean changed = !Objects.equals(source.schemeId(), proposal.schemeId()) || changes.stream()
+    boolean changed = textChanged || !Objects.equals(source.schemeId(), proposal.schemeId()) || changes.stream()
         .anyMatch(item -> !item.beforeChart().equals(item.afterChart()) || item.beforeSlot() != item.afterSlot());
     if (!changed) {
       var before = SchemeAdaptation.compare(source, List.of(candidate)).current();
@@ -99,7 +116,7 @@ public final class BlockImprovement {
     pending.add("尚未应用到 EasyV；应用前须核对当前原型、业务权限及具体组件支持。");
     pending.add("冻结语义不能证明实际数据字段、维度和数值分布；图形变更须在 EasyV 执行前核验。");
     pending.add("空间检查使用待业务校准的适配规则；结构可行不代表实际渲染或业务质量通过。");
-    return new Preview("proposal", context.title(), context.purpose(), proposal.diagnosis(), List.copyOf(changes), placement, List.copyOf(pending));
+    return new Preview("proposal", context.title(), context.purpose(), proposal.diagnosis(), List.copyOf(changes), placement, List.copyOf(pending), textChanged ? textChange : null);
   }
 
   private static void requireText(String value, String field, int max) {

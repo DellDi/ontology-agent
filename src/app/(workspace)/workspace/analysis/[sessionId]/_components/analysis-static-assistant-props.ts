@@ -55,12 +55,18 @@ export function buildStaticAssistantProps(turn: ChatTurn, sessionId: string) {
   }
   const resultBlocks = dedupeRenderedBlocks(blocks);
   const { metricCards, visualizations } = extractBusinessViews(resultBlocks);
+  const historicalNotice = turn.errorCode === 'EASYV_QUESTION_UNSUPPORTED'
+    ? '当时的入口尚不支持这项请求，原型未被修改。可以重新提交需求，核对当前能力。'
+    : turn.errorCode === 'EASYV_ANSWER_UNGROUNDED'
+      ? '当时的分析与来源未能核对一致，未生成可靠结论，原型未被修改。' : undefined;
   return {
     status,
     headline: status === 'completed' ? '分析完成' : '分析过程中遇到问题',
+    errorCode: turn.errorCode ?? undefined,
+    historicalError: historicalNotice ? turn.errorMessage ?? undefined : undefined,
     errorSummary:
       status === 'failed'
-        ? '本轮分析未能完成，可以换个问法再试一次。'
+        ? historicalNotice ?? turn.errorMessage ?? '本轮分析未能完成，可以换个问法再试一次。'
         : undefined,
     toolActivities: [],
     result: resultBlocks.length

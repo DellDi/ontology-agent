@@ -120,6 +120,25 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void sourceEntryUsesTheAuthorizedApplicationAndDeclaredWorkspaceWithoutCredentials() {
+    org.springframework.test.util.ReflectionTestUtils.setField(service,"workspaceUrl","https://easyv.example.test");
+    var original = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(LAYOUT,"app-1","layouts-old"),
+        Map.of("appId","app-1","pageTitle","订单经营大屏","parseStatus","ok"));
+    when(objects.require(eq(LAYOUT),eq("app-1"),any())).thenReturn(original);
+    doAnswer(call -> {
+      ObjectQueryPort.Query query=call.getArgument(0);
+      assertEquals(List.of(new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS,List.of("app-1"))),query.filters());
+      return new ObjectQueryPort.Page(APPLICATION,List.of(new ObjectQueryPort.Row(
+          new ObjectQueryPort.Reference(APPLICATION,"app-1","apps-old"),Map.of("appId","app-1","spaceId","4"))),1,0,false);
+    }).when(objects).query(argThat(q -> q != null && APPLICATION.equals(q.objectKey())),any());
+    var result=service.read("session",admin,request("app-1",null,"set-old"));
+    assertEquals("https://easyv.example.test/aiGenerateScreen?appId=app-1&sid=4&step=prototype",result.sourceUrl());
+    assertEquals(original,result.page().rows().getFirst());
+    org.springframework.test.util.ReflectionTestUtils.setField(service,"workspaceUrl","https://user:secret@evil.test");
+    assertEquals("EASYV_WORKSPACE_URL_INVALID",assertThrows(BackendException.class,()->service.read("session",admin,request("app-1",null,"set-old"))).code());
+  }
+
+  @Test
   void prototypeDisplayNamesTravelWithMetadataAndKeepSourceValuesForFiltering() {
     var valuesByType = Map.of(
         "easyv-prototype-block", Map.of("containerTag", "Sider", "gridDirection", "vertical"),

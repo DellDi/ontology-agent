@@ -47,6 +47,7 @@ public class EasyVBlockActionService {
     var plan=new LinkedHashMap<String,Object>();
     plan.put("appId",access.get("appId"));plan.put("blockId",access.get("blockId"));
     plan.put("title",context.block().title());plan.put("purpose",context.block().purpose());
+    plan.put("targetTitle",proposal.title());plan.put("targetPurpose",proposal.purpose());
     plan.put("blockTypeId",context.block().input().blockTypeId());plan.put("schemeId",proposal.schemeId());
     plan.put("choices",proposal.choices().stream().map(choice->{
       var metric=context.block().metrics().stream().filter(m->m.componentId().equals(choice.componentId())).findFirst().orElseThrow();

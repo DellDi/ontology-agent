@@ -60,6 +60,19 @@ class EasyVBlockActionServiceTest {
     assertEquals("渠道贡献",result.title());verify(source,never()).apply(anyMap(),anyString(),anyString(),anyString());
     verify(store).create(eq("session"),eq("invocation"),eq("7"),argThat(data->data.get("source").equals(prepared)));
   }
+  @Test void textOnlyProposalCarriesExactNewTextAndNeverInventsComponentChanges() {
+    var context=json.convertValue(evidence.output.get("input"),EasyVSchemeAssessmentService.ImprovementContext.class);
+    var proposal=new BlockImprovement.Proposal(null,List.of(),new BlockImprovement.Diagnosis("标题与渠道对比一致","图形保持","位置保持"),List.of(),"渠道收入对比","比较各渠道收入贡献");
+    evidence.output=map(Map.of("input",context,"proposal",proposal,"preview",BlockImprovement.preview(context.block(),proposal,context.chartTypes().keySet())));
+    var result=service.prepare("session","execution","invocation",viewer);
+    assertEquals("渠道收入对比",result.proposal().textChange().afterTitle());
+    var plan=(Map<?,?>)prepared.get("plan");
+    assertEquals("渠道收入对比",plan.get("targetTitle"));
+    assertEquals("比较各渠道收入贡献",plan.get("targetPurpose"));
+    assertEquals(List.of(),plan.get("choices"));
+    assertNull(plan.get("schemeId"));
+    verify(source,never()).apply(anyMap(),anyString(),anyString(),anyString());
+  }
   @Test void unknownOrOtherUsersProposalNeverReachesSource() {
     assertEquals("BLOCK_PROPOSAL_NOT_FOUND",assertThrows(BackendException.class,()->service.prepare("session","execution","other",viewer)).code());
     verifyNoInteractions(source,store);

@@ -131,7 +131,7 @@ test('对象浏览 | AI 应用复用通用集合与详情，属性来自声明�
   assert.match(html, /针对这个对象追问/);
   assert.match(html, /数据出处与版本/);
   assert.doesNotMatch(html, /版式属性|结构示意|原型区域列表|查看原型版式/);
-  assert.doesNotMatch(html, /查看/, '没有声明关系时不补造关系入口');
+  assert.doesNotMatch(html, /<button[^>]*>查看[^<]*<\/button>/, '没有声明关系时不补造关系入口');
 });
 
 test('对象详情 | 业务结构来自后端，完整源记录默认折叠，内容按文本安全呈现', () => {
@@ -145,7 +145,7 @@ test('对象详情 | 业务结构来自后端，完整源记录默认折叠，�
   assert.doesNotMatch(html, /<img src=x/);
   assert.match(html, /private-theme/);
   assert.match(html, /<details class="text-xs"><summary[^>]*>查看完整源记录/);
-  assert.doesNotMatch(html, /<details[^>]*open/);
+  assert.doesNotMatch(html, /<details[^>]*\bopen[^>]*><summary[^>]*>查看完整源记录/);
   assert.match(rendered.invalidUnderstanding, /格式无法识别，未生成业务解释/);
   assert.match(rendered.invalidUnderstanding, /private-theme/, 'unrecognized source remains available to inspect');
 });
