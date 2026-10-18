@@ -145,3 +145,21 @@ test('Chat turns | processing/queued 归一为 running', async () => {
 
   assert.deepEqual(result, ['running', 'running']);
 });
+
+
+test('Chat turns | 首轮任务尚未产出快照时使用已授权任务显示实时进度，不串到追问', async () => {
+  const result = await runTsSnippet(`
+    ${IMPORTS}
+    const aggregate = { history: [{id:'root',kind:'initial',questionText:'看看大屏',executionId:null,status:null}],
+      job:{executionId:'queued-root',status:'processing'},followUps:[] };
+    const root=buildChatTurns(aggregate,'queued-root')[0];
+    aggregate.followUps=[{id:'fu',questionText:'追问',resultExecutionId:'queued-root'}];
+    const separate=buildChatTurns(aggregate,'queued-root')[0];
+    console.log(JSON.stringify({root,separate}));
+  `);
+  assert.equal(result.root.live,true);
+  assert.equal(result.root.executionId,'queued-root');
+  assert.equal(result.root.status,'running');
+  assert.equal(result.separate.live,false);
+  assert.equal(result.separate.executionId,null);
+});

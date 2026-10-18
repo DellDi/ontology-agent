@@ -23,7 +23,6 @@ import { AnalysisToolActivityStrip } from './analysis-tool-activity-strip';
 import { AnalysisResultBlockRenderer } from './analysis-result-block-renderer';
 import { CollapsibleSection } from './collapsible-section';
 import { getStatusIcon } from './analysis-status-icon';
-import { MarkdownContent } from '@/app/_components/markdown-content';
 import { MetricCardsGrid, VisualizationBlock, PrimaryAnswerBlock } from './analysis-business-views';
 import { Loader } from '@/components/ai-elements/loader';
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
@@ -65,12 +64,12 @@ function isBlockAlreadyVisualized(
 
 function ElapsedTicker({ sinceIso }: { sinceIso: string }) {
   const startedAt = Date.parse(sinceIso);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  if (!Number.isFinite(startedAt)) return null;
+  if (!Number.isFinite(startedAt) || now === null) return null;
   const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
   const text =
     seconds >= 60
@@ -104,6 +103,8 @@ export function AnalysisAssistantMessage({
   status,
   headline,
   errorSummary,
+  errorCode,
+  historicalError,
   progressLabel,
   runningSinceIso,
   toolActivities,
@@ -128,6 +129,8 @@ export function AnalysisAssistantMessage({
   status: ConversationAssistantStatus;
   headline: string;
   errorSummary?: string;
+  errorCode?: string;
+  historicalError?: string;
   progressLabel?: string;
   runningSinceIso?: string;
   toolActivities: ToolActivitySummary[];
@@ -162,6 +165,7 @@ export function AnalysisAssistantMessage({
     diagnostics.processBoardBlocks.length > 0 ||
     diagnostics.renderErrors.length > 0 ||
     diagnostics.otherBlocks.length > 0;
+  const unsupported = errorCode === 'EASYV_QUESTION_UNSUPPORTED';
 
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
 
@@ -239,11 +243,11 @@ export function AnalysisAssistantMessage({
       <div className="min-w-0 w-full max-w-[86%]">
         <div className="flex items-center gap-2.5">
           <p className="text-xs font-semibold text-foreground">智能员工</p>
-          {!waitingForProgress ? getStatusIcon(status) : null}
+          {!waitingForProgress && !unsupported ? getStatusIcon(status) : null}
           <p className="text-xs text-muted-foreground">
-            {headline}
+            {unsupported ? '当前能力范围' : headline}
           </p>
-          {progressLabel ? (
+          {progressLabel && progressLabel !== headline ? (
             <span className="text-xs text-muted-foreground">
               {progressLabel}
             </span>
@@ -271,16 +275,9 @@ export function AnalysisAssistantMessage({
               </span>
             </>
           ) : null}
-          {/* 流式回答：生成中随 LLM 输出逐段渲染，完成后由正式结论替换 */}
+          {/* 引用核对完成前只显示进度，避免把未验证的生成内容当作结论。 */}
           {status === 'running' && streamingAnswer ? (
-            <div className="streaming-answer">
-              <MarkdownContent
-                className="text-sm leading-7 text-foreground"
-                streaming
-              >
-                {streamingAnswer}
-              </MarkdownContent>
-            </div>
+            <p className="text-sm leading-6 text-muted-foreground" role="status">正在整理回答并核对来源，核对完成后显示结论…</p>
           ) : null}
 
           {/* 一句话业务答案 */}
@@ -313,7 +310,7 @@ export function AnalysisAssistantMessage({
 
           {/* 可折叠步骤时间线（替代线性工具活动条） */}
           {status === 'running' || toolTimeline.length > 0 ? (
-            <AnalysisStepTimeline entries={toolTimeline} />
+            <CollapsibleSection title="查看分析过程"><AnalysisStepTimeline entries={toolTimeline} /></CollapsibleSection>
           ) : null}
 
           {/* 工具活动状态条（保留为降级展示） */}
@@ -363,13 +360,14 @@ export function AnalysisAssistantMessage({
                 </p>
               </div>
             ) : (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
-                <p className="text-sm font-medium text-rose-900">
-                  分析过程中遇到问题
+              <div className={unsupported ? 'rounded-lg border border-border bg-muted/30 px-4 py-3' : 'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3'} role={unsupported ? 'status' : 'alert'}>
+                <p className={unsupported ? 'text-sm font-medium' : 'text-sm font-medium text-rose-900'}>
+                  {unsupported ? '当前入口暂不支持这个操作' : '分析过程中遇到问题'}
                 </p>
-                <p className="mt-1 text-sm leading-6 text-rose-800">
+                <p className={unsupported ? 'mt-1 text-sm leading-6 text-muted-foreground' : 'mt-1 text-sm leading-6 text-rose-800'}>
                   {errorSummary ?? '系统暂时没有返回可展示的失败原因。'}
                 </p>
+                {historicalError ? <details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer">查看当时的原始记录</summary><p className="mt-2 whitespace-pre-wrap break-words">{historicalError}</p></details> : null}
               </div>
             )
           ) : null}

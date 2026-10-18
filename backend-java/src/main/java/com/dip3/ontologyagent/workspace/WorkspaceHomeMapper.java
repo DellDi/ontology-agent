@@ -61,7 +61,7 @@ public interface WorkspaceHomeMapper {
               from platform.jobs j
               where j.type='analysis-execution' and j.owner_user_id=#{ownerUserId}
                 and j.organization_id=#{organizationId}
-                and j.payload->>'executionContract'='java-initial-v1'
+                and j.payload->>'executionContract' in ('java-initial-v1','java-follow-up-v1')
                 and j.session_id in
                 <foreach collection="sessionIds" item="sessionId" open="(" separator="," close=")">
                   #{sessionId}
@@ -73,13 +73,12 @@ public interface WorkspaceHomeMapper {
                 <foreach collection="sessionIds" item="sessionId" open="(" separator="," close=")">
                   #{sessionId}
                 </foreach>
-                and s.follow_up_id is null
-                and s.plan_snapshot->>'_executionContract'='java-initial-v1'
+                and s.plan_snapshot->>'_executionContract' in ('java-initial-v1','java-follow-up-v1')
                 and not exists (
                   select 1 from platform.jobs j
                   where j.id=s.execution_id and j.session_id=s.session_id and j.owner_user_id=s.owner_user_id
                     and j.organization_id=#{organizationId}
-                    and j.payload->>'executionContract'='java-initial-v1'
+                    and j.payload->>'executionContract' in ('java-initial-v1','java-follow-up-v1')
                 )
             ), latest as (
               select distinct on (session_id) session_id,execution_id
@@ -97,12 +96,11 @@ public interface WorkspaceHomeMapper {
             from latest
             left join platform.jobs j on j.id=latest.execution_id and j.session_id=latest.session_id
                                       and j.owner_user_id=#{ownerUserId} and j.organization_id=#{organizationId}
-                                      and j.payload->>'executionContract'='java-initial-v1'
+                                      and j.payload->>'executionContract' in ('java-initial-v1','java-follow-up-v1')
             left join platform.analysis_execution_snapshots s
                    on s.execution_id=latest.execution_id and s.session_id=latest.session_id
                   and s.owner_user_id=#{ownerUserId}
-                  and s.follow_up_id is null
-                  and s.plan_snapshot->>'_executionContract'='java-initial-v1'
+                    and s.plan_snapshot->>'_executionContract' in ('java-initial-v1','java-follow-up-v1')
             </script>
             """)
     @Results({

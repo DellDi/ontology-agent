@@ -30,6 +30,10 @@ export function BlockImprovementPanel({executionId,invocationId}:{executionId:st
     {open&&view?<div className="space-y-4">
       <p className="text-sm" role="status">{view.applicationName} / {view.title} · {labels[view.status]}</p>
       <div className="space-y-2 text-sm leading-6"><p>{view.proposal.diagnosis.themeFit}</p><p>{view.proposal.diagnosis.metricChartFit}</p><p>{view.proposal.diagnosis.composition}</p></div>
+      {view.proposal.textChange ? <dl className="space-y-2 rounded-lg border p-3 text-sm" aria-label="文案修改前后">
+        {view.proposal.textChange.beforeTitle !== view.proposal.textChange.afterTitle ? <div><dt className="font-medium">模块标题</dt><dd>{view.proposal.textChange.beforeTitle} → {view.proposal.textChange.afterTitle}</dd></div> : null}
+        {view.proposal.textChange.beforePurpose !== view.proposal.textChange.afterPurpose ? <div><dt className="font-medium">模块用途</dt><dd>{view.proposal.textChange.beforePurpose} → {view.proposal.textChange.afterPurpose}</dd></div> : null}
+      </dl> : null}
       <ul className="space-y-2 text-sm">{view.proposal.changes.map(change=><li key={change.componentId}><span className="font-medium">{change.name}</span>：{view.chartLabels[change.beforeChart]??'当前图形'} → {view.chartLabels[change.afterChart]??'建议图形'}<p className="text-xs leading-5 text-muted-foreground">{change.reason}</p></li>)}</ul>
       {view.preparedBlock?<PreparedBlock block={view.preparedBlock} chartLabels={view.chartLabels}/>:null}
       <p className="text-xs leading-5 text-muted-foreground">改造保留本块指标及业务目标。准备结果来自 EasyV 当前原型；确认后保存该结果。图形示意用于核对内容与位置,真实效果需在 EasyV 中查看。</p>

@@ -69,6 +69,8 @@ export type ChatTurn = {
   /** 待执行的新消息轮：无执行事实时由 gate 自动接力 */
   followUpId?: string | null;
   conclusionState?: RoundConclusionState | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
   /** EasyV 语义计划快照：我的理解 / 编辑目录 / 结构化澄清 / 已执行意图 */
   understanding?: SemanticQueryUnderstanding[] | null;
   editorCatalog?: SemanticEditorCatalog | null;
@@ -373,6 +375,7 @@ export function AnalysisConversationShell({
                       clarification={turn.clarification}
                       diagnostics={viewModel.assistantMessage.diagnostics}
                       errorSummary={viewModel.assistantMessage.errorSummary}
+                      errorCode={viewModel.assistantMessage.errorCode}
                       headline={viewModel.assistantMessage.headline}
                       metricCards={viewModel.assistantMessage.metricCards}
                       onClarificationOption={answerClarification(turn)}

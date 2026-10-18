@@ -46,7 +46,14 @@ public record AnalysisSessionAggregate(SessionView session, List<AnalysisFollowU
     public record HistoryRoundView(String id, String kind, String questionText, String followUpId,
                                    String executionId, String status, String ontologyVersionId,
                                    String ontologyVersionBindingSource, Map<String, Object> planSnapshot,
-                                   Map<String, Object> conclusionState, Instant createdAt) {}
+                                   Map<String, Object> conclusionState, Instant createdAt, String errorCode, String errorMessage) {
+        public HistoryRoundView(String id, String kind, String questionText, String followUpId,
+                String executionId, String status, String ontologyVersionId, String ontologyVersionBindingSource,
+                Map<String, Object> planSnapshot, Map<String, Object> conclusionState, Instant createdAt) {
+            this(id, kind, questionText, followUpId, executionId, status, ontologyVersionId,
+                ontologyVersionBindingSource, planSnapshot, conclusionState, createdAt, null, null);
+        }
+    }
 
     public record RuntimeFacts(String requestedExecutionId, String resolvedExecutionId, String status,
                                boolean autoExecute, boolean streamEnabled, boolean terminal,

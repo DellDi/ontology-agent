@@ -16,6 +16,7 @@ export function CollapsibleSection({
       <button
         className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
         type="button"
       >
         <span

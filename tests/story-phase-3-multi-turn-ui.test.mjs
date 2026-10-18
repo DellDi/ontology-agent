@@ -37,6 +37,7 @@ test('Chat UI | 等待首个进度显示反馈，真实步骤、回答和错误�
       tool: render({ status: 'running', toolActivities: [{ toolName: 'semantic-query', objective: '查询', status: 'running' }] }),
       completed: render({ status: 'completed', primaryAnswer: '共有 119 个原型' }),
       failed: render({ status: 'failed', errorSummary: '数据查询失败：权限不足' }),
+      unsupported: render({ status: 'failed', errorCode: 'EASYV_QUESTION_UNSUPPORTED', errorSummary: '当前入口不支持跨块搬移' }),
       disconnected: render({ status: 'disconnected', headline: '实时连接中断' }),
     }));
   `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } }));
@@ -52,11 +53,16 @@ test('Chat UI | 等待首个进度显示反馈，真实步骤、回答和错误�
   for (const status of ['streaming', 'timeline', 'tool', 'completed', 'failed', 'disconnected']) {
     assert.doesNotMatch(html[status], /等待分析进度|结果会逐步显示/);
   }
-  assert.match(html.streaming, /正在生成真实回答/);
-  assert.match(html.timeline, /查询授权数据/);
+  assert.doesNotMatch(html.streaming, /正在生成真实回答/);
+  assert.match(html.streaming, /核对来源/);
+  assert.match(html.timeline, /查看分析过程/);
+  assert.match(html.timeline, /aria-expanded="false"/);
+  assert.doesNotMatch(html.timeline, /查询授权数据/);
   assert.match(html.tool, /执行中/);
   assert.match(html.completed, /共有 119 个原型/);
   assert.match(html.failed, /数据查询失败：权限不足/);
+  assert.match(html.unsupported, /当前入口暂不支持这个操作/);
+  assert.doesNotMatch(html.unsupported, /分析过程中遇到问题|bg-rose-50|role="alert"/);
   assert.match(html.disconnected, /实时连接中断/);
 });
 

@@ -364,3 +364,11 @@ test('AC9 | 旧后端会话明确标记待迁移且不计入进行中', async ()
   assert.match(result.item.failureMessage, /不会自动重跑/);
   assert.equal(result.running, '0');
 });
+
+test('首页 | 能力不支持保留待处理状态，使用中性文案', async () => {
+  const result = await runTsSnippet(`${IMPORTS}
+    console.log(JSON.stringify(deriveSessionStatus({executionId:'latest',status:'failed',errorCode:'EASYV_QUESTION_UNSUPPORTED',conclusionState:null,failurePoint:null})));`);
+  assert.equal(result.derivedStatus, 'failed');
+  assert.equal(result.statusTone, 'neutral');
+  assert.equal(result.statusLabel, '请求暂未支持');
+});

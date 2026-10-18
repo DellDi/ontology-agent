@@ -23,7 +23,7 @@ function normalizeTurnStatus(
   return 'pending';
 }
 
-function roundMetadata(round: JavaHistoryRound, followUp?: JavaAnalysisSession["followUps"][number]): {
+function roundMetadata(round: JavaHistoryRound, followUp?: JavaAnalysisSession["followUps"][number], rounds: JavaHistoryRound[] = []): {
   understanding: SemanticQueryUnderstanding[] | null;
   editorCatalog: SemanticEditorCatalog | null;
   clarification: SemanticClarification | null;
@@ -33,10 +33,15 @@ function roundMetadata(round: JavaHistoryRound, followUp?: JavaAnalysisSession["
 } {
   const plan = round.planSnapshot;
   const selection = plan?._objectSelection ?? followUp?.mergedContext?.objectSelection;
+  const previousLabel = selection ? rounds.find((candidate) => {
+    const ref = candidate.planSnapshot?._objectSelection?.reference;
+    return ref?.objectKey === selection.reference.objectKey && ref.objectId === selection.reference.objectId
+      && ref.productVersionId === selection.reference.productVersionId && candidate.planSnapshot?._objectSelectionLabel;
+  })?.planSnapshot?._objectSelectionLabel : undefined;
   return {
     ...(selection ? { objectSelection: { ...selection,
       executionId: round.status === 'completed' && round.executionId ? round.executionId : selection.executionId },
-      objectSelectionLabel: objectSelectionDisplayLabel(plan?._objectSelectionLabel, selection.reference.objectId) } : {}),
+      objectSelectionLabel: objectSelectionDisplayLabel(plan?._objectSelectionLabel ?? previousLabel, selection.reference.objectId) } : {}),
     understanding: plan?._understanding ?? null,
     editorCatalog: plan?._editorCatalog ?? null,
     clarification: plan?._clarification ?? null,
@@ -52,18 +57,26 @@ export function buildChatTurns(
   aggregate: JavaAnalysisSession,
   resolvedExecutionId: string | null,
 ): ChatTurn[] {
-  const turns: ChatTurn[] = aggregate.history.map((round) => ({
+  const activeRootJob = aggregate.job?.executionId === resolvedExecutionId
+    && !aggregate.followUps.some((followUp) => followUp.resultExecutionId === resolvedExecutionId)
+    ? aggregate.job : null;
+  const turns: ChatTurn[] = aggregate.history.map((round) => {
+    const job = round.kind === 'initial' && !round.executionId ? activeRootJob : null;
+    const executionId = round.executionId ?? job?.executionId ?? null;
+    return ({
     key: round.id,
-    executionId: round.executionId,
+    executionId,
     kind: round.kind,
     questionText: round.questionText,
-    status: normalizeTurnStatus(round.status),
+    status: normalizeTurnStatus(round.status ?? job?.status ?? null),
     live:
-      round.executionId !== null && round.executionId === resolvedExecutionId,
+      executionId !== null && executionId === resolvedExecutionId,
     followUpId: round.followUpId,
     conclusionState: round.conclusionState ?? null,
-    ...roundMetadata(round, aggregate.followUps.find((item) => item.id === round.followUpId)),
-  }));
+    errorCode: round.errorCode, errorMessage: round.errorMessage,
+    ...roundMetadata(round, aggregate.followUps.find((item) => item.id === round.followUpId), aggregate.history),
+  });
+  });
 
   const knownFollowUpRoundIds = new Set(
     aggregate.history.map((round) => round.followUpId).filter(Boolean),

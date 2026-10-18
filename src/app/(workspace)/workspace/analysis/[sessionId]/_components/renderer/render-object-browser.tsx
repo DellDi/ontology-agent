@@ -332,6 +332,11 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
 
   if (!layoutId) return <p role="alert" className="text-sm text-destructive">对象缺少所属应用 ID，无法定位原型。</p>;
   return <div className="space-y-4">
+    <div className="space-y-1 rounded-lg border px-3 py-3 text-sm">
+      {layout.data?.sourceUrl ? <a href={layout.data.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-4">在 EasyV 查看当前原型</a>
+        : <p className="text-muted-foreground">尚未配置 EasyV 原型查看入口。</p>}
+      <p className="text-xs leading-5 text-muted-foreground">下方用于观察结构。实际图形、配色及数据请在 EasyV 核对；原型中的示例数据不代表已接通业务数据。</p>
+    </div>
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
       <span className="text-sm font-medium">原型结构</span>
       <Button type="button" variant="ghost" size="sm" onClick={() => { const row = layout.data?.page.rows[0]; if (row) setFocus(row); }} disabled={!layout.data}>版式属性</Button>
@@ -445,23 +450,31 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
   const list = useObjectRead(context, { objectKey, drilldownId, limit: 20, offset, ...requestScope({ filters, drilldownId }, controls) });
   // 读取失败时仍保留上次的字段声明，用户才能移除导致失败的条件。
   if (list.data && list.data.objectType !== knownType) setKnownType(list.data.objectType);
-  const root = selected ?? list.data?.page.rows[0];
+  const root = selected ?? (list.data?.page.rows.length === 1 && !list.data.page.hasMore ? list.data.page.rows[0] : undefined);
   const Detail = root ? viewOf(root.reference.objectKey).Detail : null;
+  const singleTarget = !offset && list.data?.page.rows.length === 1 && !list.data.page.hasMore
+    && !controls.order && !controls.filters.length && filters?.some((filter) => filter.operator === 'EQUALS'
+      && filter.values.length === 1 && knownType?.properties.some((property) => property.key === filter.member && property.identifier));
   return <div className="space-y-5" data-testid="analysis-object-browser">
     {drilldownId ? <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p> : null}
     <p className="text-xs leading-5 text-muted-foreground">当前对象按最新已发布数据读取；历史回答保留当时结论，数量与属性可能已变化。</p>
-    <p className="text-xs leading-5 text-muted-foreground">分页结果不代表全部匹配对象。</p>
-    {knownType ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties.filter((property) => !property.identifier)}
+    {!singleTarget && list.data?.page.hasMore ? <p className="text-xs leading-5 text-muted-foreground">这里只显示当前页，可翻页继续查看。</p> : null}
+    {!singleTarget ? <details open={!selected || !!list.error} className="rounded-lg border px-3 py-2">
+      <summary className="cursor-pointer text-sm font-medium">{selected ? `切换${list.data?.objectType.label ?? '查看对象'}` : '选择要查看的内容'}</summary>
+      <div className="mt-3 space-y-4">
+    {knownType && !singleTarget ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties.filter((property) => !property.identifier)}
       controls={controls} maxFilters={maxFilters} onChange={change} /> : null}
     {list.isPending ? <Pending>正在读取当前对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}
-    {list.data ? <>
+    {list.data && !singleTarget ? <>
       {!list.data.page.rows.length ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}
       <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span><div className="flex gap-1">
         <Button type="button" size="sm" variant="ghost" aria-label="上一页对象" disabled={!offset || list.isFetching} onClick={() => { setOffset(offset - 20); setSelected(null); }}><ChevronLeft className="size-4" /></Button>
         <Button type="button" size="sm" variant="ghost" aria-label="下一页对象" disabled={!list.data.page.hasMore || offset >= 10000 || list.isFetching} onClick={() => { setOffset(offset + 20); setSelected(null); }}><ChevronRight className="size-4" /></Button>
       </div></div>
     </> : null}
+      </div>
+    </details> : null}
     {root && Detail ? <Detail key={`${root.reference.objectKey}:${root.reference.objectId}`} context={context} root={root} onObjectSelect={onObjectSelect} /> : null}
   </div>;
 }

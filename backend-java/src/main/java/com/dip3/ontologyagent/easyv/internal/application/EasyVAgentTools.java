@@ -50,7 +50,7 @@ public final class EasyVAgentTools {
       tools.add(Map.of("name", "traverse_objects", "input", "{handle, relation, filters?, order?, limit?, offset?}"));
       tools.add(Map.of("name", "assess_scheme", "input", "{handle: 区域对象句柄}"));
       tools.add(Map.of("name", "inspect_block_improvement", "input", "{handle: 区域对象句柄}；读取块目的、全部指标语义、图形与同数量方案，供改造诊断"));
-      tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: 已声明图形, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[]}; 必须先 inspect；保留全部指标；只生成尚未应用的提案"));
+      tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: 已声明图形, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[], title?: 新标题, purpose?: 新用途}; 仅改文案时省略 schemeId 并用 choices:[]，保留原图形、指标与位置；必须先 inspect；只生成尚未应用的提案"));
     }
     return List.copyOf(tools);
   }
@@ -112,7 +112,7 @@ public final class EasyVAgentTools {
       Set<String> keys = switch (tool) {
         case "query_objects" -> Set.of("objectKey", "filters", "order", "limit", "offset");
         case "read_object", "assess_scheme", "inspect_block_improvement" -> Set.of("handle");
-        case "preview_block_improvement" -> Set.of("handle", "schemeId", "choices", "diagnosis", "limitations");
+        case "preview_block_improvement" -> Set.of("handle", "schemeId", "choices", "diagnosis", "limitations", "title", "purpose");
         case "traverse_objects" -> Set.of("handle", "relation", "filters", "order", "limit", "offset");
         default -> throw invalid("未知工具 " + tool);
       };
@@ -245,11 +245,16 @@ public final class EasyVAgentTools {
         var audit = Map.<String,Object>of("input", json.map(json.write(inspected)), "proposal", json.map(json.write(proposal)), "preview", json.map(json.write(preview)));
         var observation = Map.<String,Object>of("id", id, "tool", call.tool(), "label", "块内重组提案（尚未应用）", "rows", rows,
             "preview", preview, "judgmentSource", "model_recommendation", "applied", false);
-        var tableRows = preview.changes().stream().map(change -> List.of(change.name(), chartLabel(inspected, change.beforeChart()),
-            chartLabel(inspected, change.afterChart()), placementLabel(inspected, preview, change), change.reason())).toList();
+        List<List<String>> tableRows = new ArrayList<>(preview.changes().stream().map(change -> List.of(change.name(), chartLabel(inspected, change.beforeChart()),
+            chartLabel(inspected, change.afterChart()), placementLabel(inspected, preview, change), change.reason())).toList());
+        if (preview.textChange() != null) {
+          var text = preview.textChange();
+          if (!text.beforeTitle().equals(text.afterTitle())) tableRows.add(List.of("模块标题", text.beforeTitle(), text.afterTitle(), "保持当前图形与位置", proposal.diagnosis().themeFit()));
+          if (!text.beforePurpose().equals(text.afterPurpose())) tableRows.add(List.of("模块用途", text.beforePurpose(), text.afterPurpose(), "保持当前图形与位置", proposal.diagnosis().themeFit()));
+        }
         return new Output("块内重组提案（尚未应用）", rows, improvementProducts(), observation, audit,
             Map.of("type", "table", "title", preview.title() + " · 重组提案（尚未应用）", "role", "primary",
-                "columns", List.of("指标", "当前图形", "建议图形", "建议位置", "建议依据"), "rows", tableRows), inspected.references());
+                "columns", List.of("内容", "调整前", "调整后", "位置", "依据"), "rows", tableRows), inspected.references());
       }
       return readOutput(id, call, objects.readDuringExecution(context, scope, call.request()));
     }
@@ -352,8 +357,10 @@ public final class EasyVAgentTools {
     return Collections.unmodifiableMap(row);
   }
   private static BlockImprovement.Proposal improvementProposal(Map<String,Object> input) {
-    text(input.get("schemeId"));
-    if (!(input.get("choices") instanceof List<?> choices) || choices.isEmpty() || choices.size() > 7
+    if (input.get("schemeId") != null) text(input.get("schemeId"));
+    if (input.get("title") != null) text(input.get("title"));
+    if (input.get("purpose") != null) text(input.get("purpose"));
+    if (!(input.get("choices") instanceof List<?> choices) || choices.size() > 7
         || choices.stream().anyMatch(item -> !(item instanceof Map<?,?> map) || !map.keySet().equals(Set.of("componentId", "chartFamily", "slotIndex", "reason")))
         || !(input.get("diagnosis") instanceof Map<?,?> diagnosis) || !diagnosis.keySet().equals(Set.of("themeFit", "metricChartFit", "composition"))
         || !(input.get("limitations") instanceof List<?> limitations) || limitations.size() > 10

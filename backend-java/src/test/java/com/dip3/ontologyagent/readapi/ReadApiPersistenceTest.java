@@ -245,6 +245,28 @@ class ReadApiPersistenceTest {
                 "{}", traceId, Timestamp.from(timestamp), Timestamp.from(timestamp));
     }
 
+    @Test
+    void historicalFailureKeepsItsBusinessReasonAndCodeAfterTheActiveExecutionChanges() {
+        String suffix=UUID.randomUUID().toString();
+        var viewer=viewer("history-user-"+suffix,"history-org-"+suffix,List.of(),List.of());
+        var session=sessions.create(viewer,"修改模块标题",Map.of());
+        String execution="history-failed-"+suffix;
+        insertJob(execution,session.id(),viewer.userId(),viewer.scope().organizationId(),"failed",Instant.now(),"trace-history");
+        insertSnapshot(execution,session.id(),viewer.userId(),"failed",Instant.now(),"trace-history");
+        jdbc.update("update platform.analysis_execution_snapshots set error_code='EASYV_QUESTION_UNSUPPORTED',failure_point=cast(? as jsonb) where execution_id=?",
+            "{\"message\":\"当前入口不支持跨块搬移\"}",execution);
+        var round=sessionReads.load(session.id(),null,viewer).history().getFirst();
+        assertEquals("EASYV_QUESTION_UNSUPPORTED",round.errorCode());
+        assertEquals("当前入口不支持跨块搬移",round.errorMessage());
+        String next="history-follow-up-"+suffix;
+        insertJob(next,session.id(),viewer.userId(),viewer.scope().organizationId(),"processing",Instant.now().plusSeconds(1),"trace-follow-up");
+        jdbc.update("update platform.jobs set payload=cast(? as jsonb) where id=?",
+            "{\"executionContract\":\"java-follow-up-v1\",\"followUpId\":\"follow-up-test\"}",next);
+        var latest=homes.load(viewer).sessions().stream().filter(item -> item.id().equals(session.id())).findFirst().orElseThrow().latestExecution();
+        assertEquals(next,latest.executionId());
+        assertEquals("processing",latest.status());
+    }
+
     private void insertOntologyVersion(String id, String status, Instant publishedAt) {
         jdbc.update("""
                 insert into platform.ontology_versions

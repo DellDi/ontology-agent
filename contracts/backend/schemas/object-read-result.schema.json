@@ -570,6 +570,14 @@
           }
         }
       }
+    },
+    "sourceUrl": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uri",
+      "pattern": "^https?://"
     }
   },
   "required": [

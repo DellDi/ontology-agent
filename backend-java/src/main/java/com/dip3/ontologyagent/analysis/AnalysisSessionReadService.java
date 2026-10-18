@@ -65,7 +65,7 @@ public class AnalysisSessionReadService {
                 root == null ? null : root.ontologyVersionId,
                 root == null ? null : root.ontologyVersionBindingSource,
                 root == null ? null : root.planSnapshot, root == null ? null : root.conclusionState,
-                session.createdAt));
+                session.createdAt, root == null ? null : root.errorCode, root == null ? null : root.errorMessage));
         java.util.Map<String, AnalysisSessionReadMapper.HistoryRow> byId = rounds.stream()
                 .collect(java.util.stream.Collectors.toMap(row -> row.id, row -> row));
         for (AnalysisFollowUp followUp : followUps) {
@@ -77,7 +77,7 @@ public class AnalysisSessionReadService {
                     row == null ? String.valueOf(followUp.ontologyVersionBinding().get("source"))
                             : row.ontologyVersionBindingSource,
                     row == null ? null : row.planSnapshot, row == null ? null : row.conclusionState,
-                    followUp.createdAt()));
+                    followUp.createdAt(), row == null ? null : row.errorCode, row == null ? null : row.errorMessage));
         }
         return List.copyOf(result);
     }

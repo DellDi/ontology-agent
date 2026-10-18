@@ -977,6 +977,8 @@ const javaHistoryRoundSchema = z.strictObject({
   ]).nullable(),
   planSnapshot: javaExecutionPlanEnvelopeSchema.nullable(),
   conclusionState: conclusionStateSchema.nullable(),
+  errorCode: z.string().nullable().optional(),
+  errorMessage: z.string().nullable().optional(),
   createdAt: z.string().min(1),
 }).superRefine((value, context) => {
   if (value.kind === 'initial' && value.followUpId !== null) {

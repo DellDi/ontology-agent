@@ -12,10 +12,12 @@ const STEP_TIMEOUT_MS = 60_000;
 
 async function fetchStep(input: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(input, {
+    const response = await fetch(input, {
       ...init,
       signal: AbortSignal.timeout(STEP_TIMEOUT_MS),
     });
+    if (response.redirected && new URL(response.url).pathname === '/login') throw new Error('登录已过期，请刷新页面重新登录后再发送。');
+    return response;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
       throw new Error('请求超时，请稍后重试。');
