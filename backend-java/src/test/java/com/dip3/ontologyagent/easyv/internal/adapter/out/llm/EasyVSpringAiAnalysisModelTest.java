@@ -72,6 +72,8 @@ class EasyVSpringAiAnalysisModelTest {
     var options = ArgumentCaptor.forClass(OpenAiChatOptions.Builder.class);
     verify(prompt).options(options.capture());
     assertEquals(OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT, options.getValue().build().getResponseFormat().getType());
+    assertEquals(java.time.Duration.ofMillis(1000), options.getValue().build().getTimeout(),
+        "SDK 的调用超时应使用本轮剩余预算，不能独立采用默认 60 秒");
   }
 
   @Test
@@ -270,6 +272,20 @@ class EasyVSpringAiAnalysisModelTest {
     var error = assertThrows(BackendException.class, () -> model.compose(
         new ComposeRequest("检查用途", "当前大屏", results, List.of(), 1000), ignored -> {}));
     assertTrue(error.getMessage().contains("quote「季度增长复盘」未在 answer 中原样呈现"));
+  }
+
+  @Test
+  void prototypeAssessmentCanExplainEvidenceWithoutRepeatingItButCannotInventQuotes() {
+    var type = new ObjectTypeView("easyv-prototype-block", "原型区域", List.of(
+        new PropertyView("purpose", "用途", Type.STRING, false, false, true, Map.of())), List.of());
+    var results = List.<Map<String, Object>>of(Map.of("id", "q1", "tool", "read_object", "objectType", type,
+        "rows", List.of(Map.of("purpose", "评估各渠道成本效益，识别高性价比渠道"))));
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"这块用于渠道横向比较，标题写同比会让人误解。\",\"citations\":[{\"query\":\"q1\",\"row\":0,\"field\":\"purpose\",\"quote\":\"评估各渠道成本效益\"}]}"));
+    assertEquals("这块用于渠道横向比较，标题写同比会让人误解。", model.compose(
+        new ComposeRequest("这块表达清楚吗", "当前大屏", results, List.of(), 1000), ignored -> {}).markdown());
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"季度同比\",\"citations\":[{\"query\":\"q1\",\"row\":0,\"field\":\"purpose\",\"quote\":\"季度同比\"}]}"));
+    assertEquals("EASYV_ANSWER_INVALID", assertThrows(BackendException.class, () -> model.compose(
+        new ComposeRequest("这块表达清楚吗", "当前大屏", results, List.of(), 1000), ignored -> {})).code());
   }
 
   @Test

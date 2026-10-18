@@ -266,7 +266,8 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         columns 声明属性不代表该行有值。描述缺少某项内容时引用该行已有的 evidenceStatus/coreIntent 等实际非空依据，
         不能把缺失的属性本身放进 citations；也不能引用 structureStatus/hasMore/returnedRows 等结果元数据。
       - 引用对象详情中未配置 valueLabels、非 identifier 的 STRING 属性时 quote 必填，必须逐字来自该字段中的连续原文，
-        并在 answer 中原样呈现；不要改写、拼接或用省略号代替原文。标识、时间、分类与数值引用不要求逐字呈现原值。
+        不要改写、拼接或用省略号代替引文。原型版式、区域、组件的分析正文可以概括解释，quote 仍须准确对应来源；
+        其他对象的原文回看须在 answer 中原样呈现引文。标识、时间、分类与数值引用不要求逐字呈现原值。
         按项对照时分别引用各项包含名称与要求的完整段落；不能用某项的摘录证明其他项的要求。数字和布尔字段不填 quote。
       - highlights 选 0-3 个真正支撑回答的查询作为主要呈现，不要求必须画图；viz 是已有视图的建议，不生成数据或新控件。
         根据 question 的意图、columns 中的 kind/identifier、实际数值差异及规模选择：数量汇总由系统呈现；
@@ -505,12 +506,17 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
   private static boolean hasTextEvidence(List<Map<String, Object>> results) {
     return results.stream().anyMatch(result -> "read_object".equals(result.get("tool"))
         && result.get("objectType") instanceof ObjectTypeView type
-        && !Set.of(EasyVOntologyModel.PROTOTYPE_LAYOUT.key(), EasyVOntologyModel.PROTOTYPE_BLOCK.key(),
-            EasyVOntologyModel.PROTOTYPE_COMPONENT.key()).contains(type.key())
+        && !isPrototypeResult(result)
         && type.properties().stream().anyMatch(property -> property.type() == OntologyProperty.Type.STRING
             && strings(result.get("textFields")).contains(property.key())
             && !property.identifier() && property.valueLabels().isEmpty()
             && maps(result.get("rows")).stream().anyMatch(row -> row.get(property.key()) instanceof String text && !text.isBlank())));
+  }
+
+  private static boolean isPrototypeResult(Map<String, Object> result) {
+    return result.get("objectType") instanceof ObjectTypeView type
+        && Set.of(EasyVOntologyModel.PROTOTYPE_LAYOUT.key(), EasyVOntologyModel.PROTOTYPE_BLOCK.key(),
+            EasyVOntologyModel.PROTOTYPE_COMPONENT.key()).contains(type.key());
   }
 
   private static String renderReview(Map<?, ?> review, List<Map<String, Object>> results,
@@ -771,7 +777,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       if (!original.contains(quote)) {
         throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 的 quote 不是来源中的连续原文，禁止改写或拼接。");
       }
-      if (!answer.contains(quote)) {
+      if (!isPrototypeResult(result) && !answer.contains(quote)) {
         throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 的 quote「" + quote + "」未在 answer 中原样呈现。");
       }
       return;
@@ -789,7 +795,8 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     if (remainingMillis <= 0) throw new BackendException("AGENT_EXECUTION_TIMEOUT", "EasyV 分析已超过执行时限。");
     StringBuilder buffer = new StringBuilder();
     try {
-      chat.prompt().options(OpenAiChatOptions.builder().responseFormat(OpenAiChatModel.ResponseFormat.builder()
+      chat.prompt().options(OpenAiChatOptions.builder().timeout(Duration.ofMillis(remainingMillis))
+          .responseFormat(OpenAiChatModel.ResponseFormat.builder()
               .type(OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT).build()))
           .system(systemPrompt).user(input).stream().content()
           .doOnNext(chunk -> {
