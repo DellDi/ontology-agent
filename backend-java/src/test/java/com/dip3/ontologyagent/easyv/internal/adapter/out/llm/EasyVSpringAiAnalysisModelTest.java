@@ -249,6 +249,7 @@ class EasyVSpringAiAnalysisModelTest {
     assertEquals(List.of(),((Map<?,?>)sentResults.getFirst()).get("quoteRequiredFields"));
     assertEquals(1,((Map<?,?>)sentRows.get(1)).get("row"));
     assertEquals(rows.get(1),((Map<?,?>)sentRows.get(1)).get("values"));
+    assertTrue(((List<?>)((Map<?,?>)sentRows.get(1)).get("citationFields")).contains("metricName"));
     assertFalse(rows.get(1).containsKey("row"));
     when(stream.content()).thenReturn(Flux.just("{\"answer\":\"客户转化率值得检查。\",\"citations\":[{\"query\":\"q2\",\"row\":0,\"field\":\"metricName\",\"quote\":\"客户转化率\"}]}"));
     assertEquals("EASYV_ANSWER_INVALID",assertThrows(BackendException.class,()->model.compose(
