@@ -54,6 +54,14 @@ class EasyVAgentToolsTest {
     var read = run.execute("q1", run.prepare("inspect_block_improvement", Map.of("handle", "selected")));
     assertEquals("table", read.renderBlock().get("type"));
     assertEquals("门诊量", read.rows().getFirst().get("name"));
+    var infeasible = new LinkedHashMap<>(input);
+    infeasible.put("choices", List.of(Map.of("componentId", "c", "chartFamily", "single-value-metric", "slotIndex", 0, "reason", "突出数值")));
+    var invalidPlan = assertThrows(BackendException.class, () -> run.prepare("preview_block_improvement", infeasible));
+    assertEquals("EASYV_PLAN_INVALID", invalidPlan.code());
+    assertEquals("BLOCK_IMPROVEMENT_INFEASIBLE", ((BackendException) invalidPlan.getCause()).code());
+    var displayNames = new LinkedHashMap<>(input);
+    displayNames.put("choices", List.of(Map.of("componentId", "c", "chartFamily", "折线图", "slotIndex", 0, "reason", "观察日期变化")));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", displayNames));
     var proposed = run.execute("q2", run.prepare("preview_block_improvement", input));
     assertEquals(false, proposed.observation().get("applied"));
     assertTrue(proposed.renderBlock().get("title").toString().contains("尚未应用"));
