@@ -288,6 +288,17 @@ export function AnalysisAssistantMessage({
             <PrimaryAnswerBlock answer={primaryAnswer} />
           ) : null}
 
+          {objectBlocks.length > 0 ? <nav aria-label="查看相关内容" className="mt-3 flex flex-wrap gap-2">
+              {objectBlocks.map((block, index) => (
+                <button key={`objects-${index}`} type="button"
+                  className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => onOpenSidePanel?.({ title: block.title ?? '记录详情', testId: 'analysis-object-drawer',
+                    content: <AnalysisResultBlockRenderer block={block} onObjectSelect={onObjectSelect} /> })}>
+                  {block.title ?? '查看记录'}
+                </button>
+              ))}
+          </nav> : null}
+
           {/* 指标卡网格 */}
           <MetricCardsGrid cards={metricCards} />
 
@@ -373,16 +384,8 @@ export function AnalysisAssistantMessage({
           ) : null}
 
           {/* 底部业务入口 */}
-          {objectBlocks.length > 0 || detailItemCount > 0 || businessDetails.length > 0 || (suggestions?.length && status === 'completed') ? (
+          {detailItemCount > 0 || businessDetails.length > 0 || (suggestions?.length && status === 'completed') ? (
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
-              {objectBlocks.map((block, index) => (
-                <button key={`objects-${index}`} type="button"
-                  className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => onOpenSidePanel?.({ title: block.title ?? '对象详情', testId: 'analysis-object-drawer',
-                    content: <AnalysisResultBlockRenderer block={block} onObjectSelect={onObjectSelect} /> })}>
-                  查看对象{objectBlocks.length > 1 ? ` · ${block.title}` : ''}
-                </button>
-              ))}
               {detailItemCount > 0 ? (
                 <button
                   className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

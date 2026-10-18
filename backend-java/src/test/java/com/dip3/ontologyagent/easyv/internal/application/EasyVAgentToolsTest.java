@@ -120,6 +120,19 @@ class EasyVAgentToolsTest {
     verify(objects, atLeastOnce()).readDuringExecution(eq(context), eq(ALL), argThat(req -> req.executionId().equals(context.executionId()) && req.datasetVersionSetId().equals(context.datasetVersionSetId())));
   }
 
+  @Test void browserEntryUsesDeclaredBusinessTitleInsteadOfTechnicalReadLabels() {
+    var item=row(LAYOUT,"private-layout",Map.of("headingFromDomain","季度经营复盘","appId","private-layout"));
+    var source=result(LAYOUT,item,false);
+    var type=new EasyVObjectReadService.ObjectTypeView(LAYOUT,"原型版式",List.of(
+        new EasyVObjectReadService.PropertyView("headingFromDomain","大屏名称",OntologyProperty.Type.STRING,false,true,true,Map.of())),List.of());
+    when(objects.readDuringExecution(eq(context),eq(ALL),any())).thenReturn(new EasyVObjectReadService.Result(
+        source.executionId(),source.datasetVersionSetId(),source.ontologyVersionId(),source.page(),source.structure(),type,Map.of(),null,null,Map.of()));
+    var run=tools.open(context,ALL,versions,null,List.of());
+    var output=run.execute("q1",run.prepare("query_objects",Map.of("objectKey",LAYOUT)));
+    assertEquals("季度经营复盘 · 原型版式",output.renderBlock().get("title"));
+    assertFalse(output.renderBlock().get("title").toString().contains("private-layout"));
+  }
+
   @Test void textFieldsUseExistingOntologyDetailBoundaryAndExcludeClassificationCodes() {
     var withNodes = new LinkedHashMap<>(versions);
     withNodes.put("easyv-pipeline-node", "nodes-old");

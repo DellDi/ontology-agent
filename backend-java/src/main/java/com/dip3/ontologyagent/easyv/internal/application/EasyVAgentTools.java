@@ -234,7 +234,7 @@ public final class EasyVAgentTools {
         var tableRows = result.block().metrics().stream().map(metric -> List.of(display(metric.name()), display(metric.description()),
             display(metric.unit()), chartLabel(result, metric.chartFamily()))).toList();
         return new Output("读取块内改造依据", rows, improvementProducts(), observation, json.map(json.write(result)),
-            Map.of("type", "table", "title", "块内改造 · 当前内容", "role", "supporting", "columns", List.of("指标", "业务含义", "单位", "当前图形"), "rows", tableRows), result.references());
+            Map.of("type", "table", "title", result.block().title() + " · 当前内容", "role", "supporting", "columns", List.of("指标", "业务含义", "单位", "当前图形"), "rows", tableRows), result.references());
       }
       if (call.tool().equals("preview_block_improvement")) {
         var inspected = improvementContexts.get(call.selection().reference());
@@ -295,7 +295,15 @@ public final class EasyVAgentTools {
       } else if (call.request().objectId() != null) {
         filters = List.of(new QueryIntent.Filter(semantic.require(result.page().objectKey()).primaryKey().key(), QueryIntent.Operator.EQUALS, List.of(call.request().objectId())));
       }
-      Map<String, Object> block = Map.of("type", "object-browser", "title", label, "role", "supporting",
+      String browserTitle = "浏览" + result.objectType().label();
+      if (result.page().rows().size() == 1) {
+        var values = result.page().rows().getFirst().properties();
+        browserTitle = result.objectType().properties().stream().filter(EasyVObjectReadService.PropertyView::title)
+            .filter(property -> !property.identifier()).map(property -> values.get(property.key()))
+            .filter(value -> value instanceof String name && !name.isBlank()).map(String::valueOf)
+            .findFirst().map(name -> name + " · " + result.objectType().label()).orElse(browserTitle);
+      }
+      Map<String, Object> block = Map.of("type", "object-browser", "title", browserTitle, "role", "supporting",
           "datasetVersionSetId", context.datasetVersionSetId(), "objectKey", result.page().objectKey(), "filters", filters,
           "scopeDescription", "工具读取的冻结对象范围，分页结果不代表全集。");
       return new Output(label, rows, Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component",

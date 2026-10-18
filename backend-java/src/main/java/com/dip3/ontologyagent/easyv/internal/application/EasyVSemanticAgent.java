@@ -304,7 +304,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       }
       if (references == null) {
         throw new BackendException("EASYV_ANSWER_UNGROUNDED",
-            "EasyV 回答的证据核对未通过：" + String.join("；", violations) + "。");
+            "这次分析的内容与来源未能核对一致，暂未生成可靠结论。可以重新分析，原型未被修改。",
+            new IllegalStateException(String.join("；", violations)));
       }
     } catch (RuntimeException error) {
       progress.emit("step-completed", done(composeStep, composeStarted, "failed"), null);
@@ -376,7 +377,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       switch (decision.status()) {
         case CLARIFY -> throw clarification(decision.message(), decision.options());
         case UNSUPPORTED -> throw new BackendException("EASYV_QUESTION_UNSUPPORTED",
-            "当前数据无法回答该问题：" + nonBlank(decision.message(), "模型未说明原因") + "。");
+            "当前无法完成这个请求：" + nonBlank(decision.message(), "暂未取得具体原因，请重新描述需求。"));
         case FINISHED -> {
           if (!observations.isEmpty() && decision.calls().isEmpty()) return List.of();
           violations = List.of("没有执行结果时不能 finished，finished 不接受 calls");
