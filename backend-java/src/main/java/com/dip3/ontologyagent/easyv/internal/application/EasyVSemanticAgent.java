@@ -333,9 +333,17 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
         return new ToolCall("query_metrics", Map.of("intent", QueryIntentCodec.write(constrained.intent())), constrained, null);
       }).toList();
     }
+    boolean objectTools = versions.productVersionIds().keySet().containsAll(Set.of(
+        "easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component"));
+    // 选屏后的整屏上下文先读齐，再分配剩余调用；主视觉不在普通块/组件集合中。
+    if (objectTools && observations.isEmpty() && selectedObject != null
+        && "easyv-prototype-layout".equals(selectedObject.reference().objectKey())) {
+      var input = Map.<String, Object>of("handle", "selected");
+      return List.of(new ToolCall("read_object", input, null, objectRun.prepare("read_object", input)));
+    }
     return planCalls(turn.questionText(), turn.anchoredAt(), turn.referencedConclusion(),
         turn.followUp() ? previousQueries(turn) : List.of(), selectedObject, observations, remainingQueries, remainingCalls,
-        deadline, objectRun, versions.productVersionIds().keySet().containsAll(Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component")));
+        deadline, objectRun, objectTools);
   }
 
   /** 真实 A 规划评测保留入口，只开放指标工具，不执行模型输出。 */

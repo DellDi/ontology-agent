@@ -806,7 +806,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     if (remainingMillis <= 0) throw new BackendException("AGENT_EXECUTION_TIMEOUT", "EasyV 分析已超过执行时限。");
     StringBuilder buffer = new StringBuilder();
     try {
-      chat.prompt().options(OpenAiChatOptions.builder().timeout(Duration.ofMillis(remainingMillis))
+      chat.prompt().options(OpenAiChatOptions.builder()
           .responseFormat(OpenAiChatModel.ResponseFormat.builder()
               .type(OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT).build()))
           .system(systemPrompt).user(input).stream().content()

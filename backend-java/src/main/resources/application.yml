@@ -32,6 +32,8 @@ spring:
       api-key: ${LLM_PROVIDER_API_KEY}
       chat:
         model: ${LLM_PROVIDER_MODEL}
+        # 在客户端初始化时生效；每轮分析仍受自身剩余执行预算约束。
+        timeout: 3m
         max-retries: 0
         parallel-tool-calls: false
   threads:

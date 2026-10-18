@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -738,6 +739,40 @@ class EasyVSemanticAgentTest {
     assertCode("JOB_LEASE_REQUIRED", () -> agent.execute(principal(), initialTurn(), "execution-1", ontology(),
         "easyv-set-1", ALL, "trace-1", " ", progress));
     verify(model, never()).plan(any());
+  }
+
+  @Test
+  void selectedLayoutReadsMainVisualBeforePlanningAndKeepsItInAnswerEvidence() {
+    var objects = mock(EasyVObjectReadService.class);
+    var scopes = mock(EasyVScopeResolver.class);
+    var semantic = SemanticModel.discover();
+    when(scopes.executionPrincipal(any())).thenReturn(principal());
+    when(scopes.resolveScope(any())).thenReturn(ALL);
+    var realTools = new EasyVAgentTools(objects, mock(EasyVSchemeAssessmentService.class),
+        new EasyVObjectSelectionService(null, null, null, semantic), scopes, semantic, new com.dip3.ontologyagent.support.JsonCodec());
+    agent = new EasyVSemanticAgent(model, semantic, new SemanticQueryCompiler(semantic), queries, datasets, recorder, selections, realTools);
+    var ref = new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", "a", "v-easyv-prototype-layout");
+    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-0", "easyv-set-1", ref);
+    var selected = new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(ref, Map.of("appId", "a"));
+    when(selections.requireDuringExecution(any(), eq(ALL), eq(selection)))
+        .thenReturn(new EasyVObjectSelectionService.Selected(ALL, selected));
+    String pageSemantics = "[{\"title\":\"季度复盘\",\"contents\":[{\"title\":\"省域业绩分布\"}]}]";
+    var detail = new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(ref, Map.of("appId", "a", "pageSemantics", pageSemantics));
+    when(objects.readDuringExecution(any(), eq(ALL), any())).thenReturn(new EasyVObjectReadService.Result(
+        "execution-1", "easyv-set-1", "easyv-v2", new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Page(
+            ref.objectKey(), List.of(detail), 1, 0, false), null,
+        new EasyVObjectReadService.ObjectTypeView(ref.objectKey(), "原型版式", List.of(), List.of()), Map.of(), null, null, Map.of()));
+    when(model.plan(any())).thenReturn(finished());
+    when(model.compose(any(), any())).thenReturn(new ComposedAnswer("主视觉包含省域业绩分布。",
+        List.of(new Citation("q1", 0, "pageSemantics")), List.of(), List.of(), List.of()));
+    var result = run(followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot())), ALL);
+    var planned = ArgumentCaptor.forClass(PlanRequest.class); verify(model).plan(planned.capture());
+    assertEquals(7, planned.getValue().remainingCalls());
+    assertTrue(planned.getValue().observations().toString().contains(pageSemantics));
+    var composed = ArgumentCaptor.forClass(ComposeRequest.class); verify(model).compose(composed.capture(), any());
+    assertTrue(composed.getValue().results().toString().contains(pageSemantics));
+    assertEquals(pageSemantics, result.evidence().get(1).rows().getFirst().get("pageSemantics"));
+    verify(objects).readDuringExecution(any(), eq(ALL), argThat(request -> "a".equals(request.objectId()) && request.relation() == null));
   }
 
   @Test

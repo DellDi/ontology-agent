@@ -72,8 +72,6 @@ class EasyVSpringAiAnalysisModelTest {
     var options = ArgumentCaptor.forClass(OpenAiChatOptions.Builder.class);
     verify(prompt).options(options.capture());
     assertEquals(OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT, options.getValue().build().getResponseFormat().getType());
-    assertEquals(java.time.Duration.ofMillis(1000), options.getValue().build().getTimeout(),
-        "SDK 的调用超时应使用本轮剩余预算，不能独立采用默认 60 秒");
   }
 
   @Test
