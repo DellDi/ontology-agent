@@ -53,6 +53,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       工具规则：
       - 用户是质量负责人、质检员或产品经理，不需要知道字段名和状态码。把“用户常要求改什么”“哪些需求没处理好”转换为目录查询，
         不要求用户补写阶段、意图码、去重规则或工具步骤。“没处理好”可先查处理失败与当次被判不支持的请求，分别说明；不能据此确认屏上效果。
+        unsupported.reason 直接给用户看，用一两句说明当前做不到什么及可行下一步，不输出工具名、属性 key、JSON 或内部编号，也不把动作能力缺口说成数据缺失。
       - query_metrics.input={"intent":查询意图,"handle":"可选对象句柄"}，每轮最多 4 个指标查询；
         handle 由 Java 强制增加对象约束，与用户选择同时生效
       - query_objects/read_object/traverse_objects/assess_scheme/inspect_block_improvement/preview_block_improvement 的输入结构见 tools。
@@ -101,6 +102,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         每个当前组件恰好出现一次，slotIndex 明确指定该方案的目标槽位，不能重复占用；不增删指标，不改变业务目标；reason 说明该指标的保留或调整依据。
         diagnosis 与 reason 面向业务人员，图形使用 chartTypes 中的可读名称，位置说“上方/下方”等；不输出方案编号、英文类型码或槽位字段名。
         缺少业务目的或指标含义时说明信息缺口，不凭名称补造；没有必要变化时直接说明，不为生成动作强行修改。
+        当前动作仅支持现有块内的图形与组合调整；修改标题或用途、跨块搬移、增删指标无法由本入口执行，应明确需回原编辑器处理，不生成无变化提案冒充完成。
         limitations 必须说明未核验的数据字段、维度或真实呈现；图形切换的具体支持由后续 EasyV 执行前校验。
         主题相关不证明两个图表的分类对象或类别集合相同；未读取真实维度和值时，不声称共用类别轴或已对齐。
         preview 只检查绑定与空间约束，不执行改造，回答必须明确“方案尚未应用”，不能说已保存、已修复或已提升业务质量。
@@ -224,8 +226,10 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         单条失败原因只解释对应记录，不能把全部失败概括为已知能力限制；建议写为待验证的处置，不能保证调整后必然成功。
       - inspect_block_improvement 是源设计文案与绑定证据；preview_block_improvement 是模型建议通过绑定/空间检查后的提案。
         改造回答说明主题、指标图形、组合三项依据及 pendingChecks，明确“尚未应用到 EasyV”。不输出内部标识，
-        不把提案、空间分数或检查完成描述为真实原型已修改、实际效果已改善；用户可在“查看与应用”中准备结果并确认保存，模型不能代替用户确认。
+        不把提案、空间分数或检查完成描述为真实原型已修改、实际效果已改善；只有本轮存在 preview_block_improvement 的 ready 提案时，才提示在“查看与应用”中准备并确认保存，模型不能代替用户确认。
+        只有 inspect 结果时没有可应用方案，不提示不存在的保存入口。当前动作只支持现有块内的图形与组合调整；改模块标题、用途、跨块搬移或增删指标不在动作范围，建议时说明需回原编辑器处理，不能声称本入口可以应用。
         不把主题相关说成两个图表共用同一类别集合；未读取真实数据时，类别对齐只能是待核实建议。
+        气泡图的两个轴可以使用不同量纲，不能仅凭“元/%”等复合单位判定图形不合适；应检查各轴含义、气泡大小和数据绑定是否有证据。
         各图分别降序与两图固定同序是不同的排序目标，不能同时承诺；排序、口径、数据绑定没有进入提案时，不列为本次确定改动。
       - 可解析、执行完成、组件非空只证明结构或过程；不能据此宣称最终质量正常、无需检查。
       - 另存标记属于对应时点的生成反馈：有一条标记只能说明“曾另存”，给出实际时间；有后续生成反馈时不得称“最终版本已另存”。
@@ -255,6 +259,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         以下 citations/highlights/suggestedActions 规则只适用于没有已读原文的普通统计回答。
       - 普通统计的 citations 列出回答中每个关键数字对应的数据点（query 为结果 id，row 为 rows 下标，field 为列 key）；
         有非空结果时至少一个，所有结果 rows 为空时返回 []，不得编造行或把列表长度当作结果字段引用
+        输入 rows 的每项为 {row: 从 0 开始的来源行号, values: 实际字段和值}。引用直接使用该项 row 和 values 内的字段名，不能把包装字段 row/values 当业务字段，也不要自行重新数行。
+        引用指标或模块名称时逐字使用该行的名称，不能将多个名称拼成一个 quote；列表名称等不要求 quote 的引用可以不写 quote。
+        每个结果的 quoteRequiredFields 明确列出必须填写 quote 的字段；其他字段的引用只填 query/row/field，不填 quote。
       - field 必须实际存在于所引用的 rows[row]，且其值为数字、布尔值或非空文本；null、数组、对象不能作为引用值。
         columns 声明属性不代表该行有值。描述缺少某项内容时引用该行已有的 evidenceStatus/coreIntent 等实际非空依据，
         不能把缺失的属性本身放进 citations；也不能引用 structureStatus/hasMore/returnedRows 等结果元数据。
@@ -324,7 +331,17 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
     Map<String, Object> input = new LinkedHashMap<>();
     input.put("question", request.question());
     input.put("dataScope", request.dataScope());
-    input.put("results", request.results());
+    List<Map<String,Object>> indexedResults = new ArrayList<>();
+    for (var result : request.results()) {
+      var indexed = new LinkedHashMap<String,Object>(result);
+      var rows = maps(result.get("rows"));
+      List<Map<String,Object>> indexedRows = new ArrayList<>();
+      for (int row = 0; row < rows.size(); row++) indexedRows.add(Map.of("row", row, "values", rows.get(row)));
+      indexed.put("rows", indexedRows);
+      indexed.put("quoteRequiredFields", quotedFields(result));
+      indexedResults.add(indexed);
+    }
+    input.put("results", indexedResults);
     boolean textEvidenceRequired = hasTextEvidence(request.results());
     input.put("textEvidenceRequired", textEvidenceRequired);
     if (!request.violations().isEmpty()) input.put("violations", request.violations());
@@ -746,11 +763,7 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       Object value = rows.get(row).get(citation.get("field"));
       if (!(value instanceof String original) || original.isEmpty()) return;
       String source = citation.get("query") + " 第 " + row + " 行字段 " + citation.get("field");
-      boolean required = "read_object".equals(result.get("tool"))
-          && result.get("objectType") instanceof ObjectTypeView type
-          && type.properties().stream().anyMatch(property -> property.key().equals(citation.get("field"))
-              && property.type() == OntologyProperty.Type.STRING
-              && !property.identifier() && property.valueLabels().isEmpty());
+      boolean required = quotedFields(result).contains(citation.get("field"));
       if (!required && !citation.containsKey("quote")) return;
       if (!(citation.get("quote") instanceof String quote) || quote.isBlank()) {
         throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 缺少连续原文 quote。");
@@ -759,10 +772,16 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 的 quote 不是来源中的连续原文，禁止改写或拼接。");
       }
       if (!answer.contains(quote)) {
-        throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 的 quote 未在 answer 中原样呈现。");
+        throw new BackendException("EASYV_ANSWER_INVALID", "文本引用 " + source + " 的 quote「" + quote + "」未在 answer 中原样呈现。");
       }
       return;
     }
+  }
+
+  private static List<String> quotedFields(Map<String, Object> result) {
+    if (!"read_object".equals(result.get("tool")) || !(result.get("objectType") instanceof ObjectTypeView type)) return List.of();
+    return type.properties().stream().filter(property -> property.type() == OntologyProperty.Type.STRING
+        && !property.identifier() && property.valueLabels().isEmpty()).map(PropertyView::key).toList();
   }
 
   /** 流式调用：按 chunk 累计缓冲，增量提取 answer 字段已完成前缀回调（累计值）。 */

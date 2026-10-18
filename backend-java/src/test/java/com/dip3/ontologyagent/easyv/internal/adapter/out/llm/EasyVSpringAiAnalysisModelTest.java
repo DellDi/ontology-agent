@@ -234,6 +234,45 @@ class EasyVSpringAiAnalysisModelTest {
   }
 
   @Test
+  void composerReceivesExplicitSourceRowsWithoutChangingCitationValidation() {
+    var rows=List.of(Map.of("metricName","季度成交金额"),Map.of("metricName","客户转化率"));
+    var results=List.<Map<String,Object>>of(Map.of("id","q2","tool","traverse_objects","rows",rows));
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"客户转化率值得进一步检查。\",\"citations\":[{\"query\":\"q2\",\"row\":1,\"field\":\"metricName\",\"quote\":\"客户转化率\"}]}"));
+    var answer=model.compose(new ComposeRequest("看看整屏","当前大屏",results,List.of(),1000),ignored->{});
+    assertEquals(1,answer.citations().getFirst().row());
+    var user=ArgumentCaptor.forClass(String.class);verify(prompt).user(user.capture());
+    var sent=new JsonCodec().map(user.getValue());
+    var sentResults=(List<?>)sent.get("results");
+    var sentRows=(List<?>)((Map<?,?>)sentResults.getFirst()).get("rows");
+    assertEquals(List.of(),((Map<?,?>)sentResults.getFirst()).get("quoteRequiredFields"));
+    assertEquals(1,((Map<?,?>)sentRows.get(1)).get("row"));
+    assertEquals(rows.get(1),((Map<?,?>)sentRows.get(1)).get("values"));
+    assertFalse(rows.get(1).containsKey("row"));
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"客户转化率值得检查。\",\"citations\":[{\"query\":\"q2\",\"row\":0,\"field\":\"metricName\",\"quote\":\"客户转化率\"}]}"));
+    assertEquals("EASYV_ANSWER_INVALID",assertThrows(BackendException.class,()->model.compose(
+        new ComposeRequest("看看整屏","当前大屏",results,List.of(),1000),ignored->{})).code());
+  }
+
+  @Test
+  void composerReceivesTheSameQuoteRequirementsEnforcedByTheValidator() {
+    var type = new ObjectTypeView("block", "区域", List.of(
+        new PropertyView("purpose", "用途", Type.STRING, false, false, true, Map.of()),
+        new PropertyView("id", "标识", Type.STRING, true, false, false, Map.of()),
+        new PropertyView("kind", "分类", Type.STRING, false, false, false, Map.of("SIDE", "侧栏"))), List.of());
+    var results = List.<Map<String, Object>>of(Map.of("id", "q1", "tool", "read_object", "objectType", type,
+        "rows", List.of(Map.of("purpose", "季度增长复盘", "id", "b1", "kind", "SIDE"))));
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"季度增长复盘\",\"citations\":[{\"query\":\"q1\",\"row\":0,\"field\":\"purpose\",\"quote\":\"季度增长复盘\"}]}"));
+    model.compose(new ComposeRequest("检查用途", "当前大屏", results, List.of(), 1000), ignored -> {});
+    var user = ArgumentCaptor.forClass(String.class); verify(prompt).user(user.capture());
+    var sentResults = (List<?>)new JsonCodec().map(user.getValue()).get("results");
+    assertEquals(List.of("purpose"), ((Map<?,?>)sentResults.getFirst()).get("quoteRequiredFields"));
+    when(stream.content()).thenReturn(Flux.just("{\"answer\":\"增长值得检查\",\"citations\":[{\"query\":\"q1\",\"row\":0,\"field\":\"purpose\",\"quote\":\"季度增长复盘\"}]}"));
+    var error = assertThrows(BackendException.class, () -> model.compose(
+        new ComposeRequest("检查用途", "当前大屏", results, List.of(), 1000), ignored -> {}));
+    assertTrue(error.getMessage().contains("quote「季度增长复盘」未在 answer 中原样呈现"));
+  }
+
+  @Test
   void prototypeDesignDescriptionsSupportComparisonWithoutChangingUserRequestReviewRules() {
     var type = new ObjectTypeView("easyv-prototype-component", "图表组件", List.of(
         new PropertyView("metricDescription", "指标含义", Type.STRING, false, false, true, Map.of())), List.of());

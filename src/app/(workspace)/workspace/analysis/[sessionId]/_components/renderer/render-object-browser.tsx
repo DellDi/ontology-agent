@@ -321,7 +321,7 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
   const selected = detail.data?.page.rows[0] ?? focus;
   const focusedBlock = selected.reference.objectKey === 'easyv-prototype-block' ? selected.reference.objectId
     : selected.reference.objectKey === 'easyv-prototype-component' ? selected.properties.blockKey : null;
-  const selectedBlock = typeof focusedBlock === 'string' ? focusedBlock : blockRows[0]?.reference.objectId;
+  const selectedBlock = typeof focusedBlock === 'string' ? focusedBlock : undefined;
   const selectedRegion = blockRows.find((row) => row.reference.objectId === selectedBlock);
   const regionComponents = useRelated(context, selectedBlock ?? '', 'components', 'easyv-prototype-block');
   const regionComponentRows = regionComponents.data?.pages.flatMap((page) => page.page.rows) ?? [];
@@ -350,8 +350,11 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
           const displayLabel = row ? label(row, blocks.data?.pages[0]?.objectType) : item.label;
           return item.objectId ? <button key={item.key} type="button" title={displayLabel} aria-label={`选择区域 ${displayLabel}`} aria-pressed={item.objectId === selectedBlock}
             onClick={() => { const row = blockRows.find((candidate) => candidate.reference.objectId === item.objectId); if (row) setFocus(row); }}
-            className={cn('absolute flex items-center justify-center overflow-hidden rounded-sm border border-primary/30 bg-primary/5 p-1 text-[10px] text-primary hover:bg-primary/15 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', item.objectId === selectedBlock && 'border-primary bg-primary/20 ring-2 ring-inset ring-primary')} style={style}>
-            <span className="truncate">{displayLabel}</span>
+            className={cn('absolute flex flex-col overflow-hidden rounded-sm border border-primary/30 bg-primary/5 p-1 text-[10px] text-primary hover:bg-primary/15 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', item.objectId === selectedBlock && 'border-primary bg-primary/20 ring-2 ring-inset ring-primary')} style={style}>
+            <span className="w-full shrink-0 truncate text-center">{displayLabel}</span>
+            <span className="pointer-events-none min-h-0 w-full flex-1" aria-hidden>
+              <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === item.objectId)} geometry={componentGeometry} metricStyle={metricStyle} thumbnail fill />
+            </span>
           </button> : <div key={item.key} style={style} title={item.label} className="absolute flex items-center justify-center overflow-hidden border border-dashed border-muted-foreground/40 p-1 text-[10px] text-muted-foreground"><span className="truncate">{item.kind === 'content' ? '主视觉' : item.label}</span></div>;
         })}
       </div> : null}
@@ -376,8 +379,8 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
         {blocks.hasNextPage ? <Button type="button" variant="outline" size="sm" disabled={blocks.isFetchingNextPage} onClick={() => { void blocks.fetchNextPage(); }}>加载更多区域</Button> : null}
       </section>
       <section className="min-w-0 space-y-3" aria-label="所选区域组件">
-        <div className="space-y-1"><h4 className="break-all text-xs font-semibold">{selectedRegion ? label(selectedRegion, blocks.data?.pages[0]?.objectType) : '区域组件'}</h4>
-          <p className="text-[10px] text-muted-foreground">{regionComponents.isPending ? '组件结构' : `${regionComponentRows.length}${regionComponents.hasNextPage ? '+' : ''} 个组件 · ${regionGeometry === undefined ? '近似栅格布局' : '源比例布局'}`}</p></div>
+        <div className="space-y-1"><h4 className="break-all text-xs font-semibold">{selectedRegion ? label(selectedRegion, blocks.data?.pages[0]?.objectType) : '选择区域查看指标'}</h4>
+          <p className="text-[10px] text-muted-foreground">{!selectedBlock ? '点击上方原型或左侧区域，查看其中的指标和图形。' : regionComponents.isPending ? '组件结构' : `${regionComponentRows.length}${regionComponents.hasNextPage ? '+' : ''} 个组件 · ${regionGeometry === undefined ? '近似栅格布局' : '源比例布局'}`}</p></div>
         {selectedBlock && regionComponents.isPending ? <Pending>正在读取区域组件…</Pending> : null}
         {regionComponents.error ? <Notice error={regionComponents.error} /> : null}
         {regionComponents.data ? <>

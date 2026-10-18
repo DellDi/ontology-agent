@@ -588,7 +588,9 @@ class EasyVSemanticAgentTest {
     BackendException clarify = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
     assertEquals("EASYV_CLARIFICATION_REQUIRED", clarify.code());
     assertTrue(clarify.getMessage().contains("本周 / 上周"));
-    assertCode("EASYV_QUESTION_UNSUPPORTED", () -> run(initialTurn(), ALL));
+    BackendException unsupported = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
+    assertEquals("EASYV_QUESTION_UNSUPPORTED", unsupported.code());
+    assertEquals("当前无法完成这个请求：没有注册时间", unsupported.getMessage());
     BackendException ambiguous = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
     assertEquals("EASYV_CLARIFICATION_REQUIRED", ambiguous.code());
     assertTrue(ambiguous.getMessage().contains("最近 7 天 / 最近 30 天"));
@@ -709,7 +711,8 @@ class EasyVSemanticAgentTest {
     BackendException error = assertThrows(BackendException.class, () -> run(initialTurn(), ALL));
 
     assertEquals("EASYV_ANSWER_UNGROUNDED", error.code());
-    assertTrue(error.getMessage().contains("citations"));
+    assertFalse(error.getMessage().contains("citations"));
+    assertTrue(error.getCause().getMessage().contains("citations"));
     verify(model, times(2)).compose(any(), any());
   }
 
