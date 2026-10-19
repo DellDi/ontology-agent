@@ -124,7 +124,29 @@ public final class PrototypeBlockWriteback {
     target.set("slotBindings", slots);
     target.set("selectedScheme", JSON.createObjectNode().put("schemeId", afterBlock.path("schemeId").asText()).put("chartCount", slots.size()));
     target.set("businessModule", afterBlock.get("businessModule")); target.set("moduleDescription", afterBlock.get("moduleDescription"));
+    // 源端意图上下文与后续重选还读取主题、分配及候选，不能只同步屏上块。
+    JsonNode snapshot = result.at("/output/raw/regenContextSnapshot");
+    ObjectNode assignment = unique(snapshot.at("/step5Candidates/step4Output/blockAssignments"), "blockId", blockId);
+    String themeId = assignment.path("themeId").asText();
+    if (themeId.isBlank() || !themeId.equals(beforeBlock.path("themeId").asText())
+        || !(assignment.get("assignedTheme") instanceof ObjectNode assignedTheme)
+        || !themeId.equals(assignedTheme.path("themeId").asText()))
+      throw rejected("编辑快照中的主题分配与原型不一致");
+    ObjectNode theme = unique(snapshot.path("currentBlockThemes"), "themeId", themeId);
+    ObjectNode candidate = unique(snapshot.at("/step5Candidates/blockCandidates"), "blockId", blockId);
+    for (ObjectNode projection : List.of(theme, assignedTheme, assignment, candidate))
+      projection.set("businessModule", afterBlock.get("businessModule"));
+    for (ObjectNode projection : List.of(theme, assignedTheme))
+      projection.set("moduleDescription", afterBlock.get("moduleDescription"));
     return result;
+  }
+  private static ObjectNode unique(JsonNode values, String field, String id) {
+    List<ObjectNode> matches = new ArrayList<>();
+    if (values.isArray()) values.forEach(value -> {
+      if (value instanceof ObjectNode node && id.equals(node.path(field).asText())) matches.add(node);
+    });
+    if (matches.size() != 1) throw rejected("编辑快照的 " + field + " 对应记录缺失或不唯一");
+    return matches.getFirst();
   }
   public static ObjectNode block(JsonNode prototype, String id) {
     var matches = new ArrayList<ObjectNode>();
