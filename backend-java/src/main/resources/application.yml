@@ -59,6 +59,14 @@ dip3:
   easyv:
     # Domain runtime reads only platform-owned canonical facts.
     enabled: ${EASYV_DOMAIN_ENABLED:false}
+    action:
+      # 用户确认动作的独立写回连接；不复用平台库或只读采集连接。
+      enabled: ${EASYV_ACTION_ENABLED:false}
+      jdbc-url: ${EASYV_ACTION_JDBC_URL:}
+      username: ${EASYV_ACTION_USERNAME:}
+      password: ${EASYV_ACTION_PASSWORD:}
+      schema: ${EASYV_ACTION_SCHEMA:easyv_saas}
+      redis-url: ${EASYV_ACTION_REDIS_URL:}
     source:
       # Enable only in the ingestion process; use a dedicated source read-only role.
       enabled: ${EASYV_POSTGRES_ENABLED:false}
