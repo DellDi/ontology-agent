@@ -35,7 +35,7 @@ class EasyVBlockActionDatabaseAdapterTest {
   @BeforeAll static void database() {
     jdbc = new JdbcTemplate(new DriverManagerDataSource(POSTGRES.getJdbcUrl(),POSTGRES.getUsername(),POSTGRES.getPassword()));
     jdbc.execute("CREATE SCHEMA easyv_saas");
-    jdbc.execute("CREATE TABLE easyv_saas.ai_screen_app (app_id text PRIMARY KEY, app_name text, generation_task_id text, user_id bigint, space_id bigint, team_id bigint, is_delete text)");
+    jdbc.execute("CREATE TABLE easyv_saas.ai_screen_app (app_id text PRIMARY KEY, app_name text, generation_task_id text, user_id bigint, space_id bigint, team_id bigint, scope_type text NOT NULL, is_delete text)");
     jdbc.execute("CREATE TABLE easyv_saas.ai_screen_prototype (id bigint PRIMARY KEY, app_id text UNIQUE, screen_structure_xml text, screen_template_json jsonb, screen_prototype_json jsonb, screen_app_json jsonb, update_time timestamp)");
     jdbc.execute("CREATE TABLE easyv_saas.ai_pipeline_node_record (id bigint PRIMARY KEY, task_id text, step_name text, output jsonb)");
     jdbc.execute("CREATE TABLE easyv_saas.ai_block_data (id int PRIMARY KEY, block_type_id text, chat_count int, block_slots_data text)");
@@ -68,7 +68,7 @@ class EasyVBlockActionDatabaseAdapterTest {
     var event=JSON.createObjectNode().put("summary","原生成记录");
     var snapshot=event.putObject("output").putObject("raw").putObject("regenContextSnapshot"); snapshot.put("unrelated","keep"); snapshot.putArray("currentFilledBlocks").add(context);
     output=event.toString();
-    jdbc.update("INSERT INTO easyv_saas.ai_screen_app VALUES ('app','业务屏','task',3,4,0,'0')");
+    jdbc.update("INSERT INTO easyv_saas.ai_screen_app VALUES ('app','业务屏','task',3,4,0,'USER','0')");
     jdbc.update("INSERT INTO easyv_saas.ai_screen_prototype VALUES (1,'app',?,?::jsonb,?::jsonb,'{\"legacy\":true}',CURRENT_TIMESTAMP)",XML,"{\"template\":true}",original);
     jdbc.update("INSERT INTO easyv_saas.ai_pipeline_node_record VALUES (1,'task','PipelineCompleted',?::jsonb)",output);
     jdbc.update("INSERT INTO easyv_saas.ai_block_internal_data VALUES (1,'[\"chart\",\"indicator\"]','[]')");
@@ -136,6 +136,13 @@ class EasyVBlockActionDatabaseAdapterTest {
   @Test void rechecksLiveOwnershipEvenWhenTheFrozenPlatformRecordStillBelongsToTheViewer() {
     var prepared=prepare(); jdbc.update("UPDATE easyv_saas.ai_screen_app SET user_id=99");
     assertEquals("EASYV_ACTION_FORBIDDEN",failure(()->adapter.apply(prepared,"3","4","0"))); verifyNoInteractions(cache);
+  }
+  @Test void unknownLiveScopeRejectsPreparationAndConfirmation() {
+    Map<String,Object> prepared=prepare();
+    jdbc.update("UPDATE easyv_saas.ai_screen_app SET scope_type='UNKNOWN'");
+    assertEquals("EASYV_ACTION_FORBIDDEN",failure(this::prepare));
+    assertEquals("EASYV_ACTION_FORBIDDEN",failure(()->adapter.apply(prepared,"3","4","0")));
+    verifyNoInteractions(cache);
   }
   @Test void changedPrototypeOrSchemeCannotOverwriteAConfirmedResult() {
     var prepared=prepare(); jdbc.update("UPDATE easyv_saas.ai_screen_prototype SET screen_prototype_json=jsonb_set(screen_prototype_json,'{page-1,blocks,other,title}','\"人工调整\"')");
