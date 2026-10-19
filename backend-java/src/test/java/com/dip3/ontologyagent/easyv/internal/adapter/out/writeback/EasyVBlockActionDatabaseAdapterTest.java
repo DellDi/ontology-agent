@@ -47,7 +47,7 @@ class EasyVBlockActionDatabaseAdapterTest {
     jdbc.execute("TRUNCATE easyv_saas.ai_screen_app, easyv_saas.ai_screen_prototype, easyv_saas.ai_pipeline_node_record, easyv_saas.ai_block_data, easyv_saas.ai_block_internal_data, easyv_saas.ai_chart_type_mapping");
     cache=mock(RedisCommands.class); adapter=new EasyVBlockActionDatabaseAdapter(jdbc,cache,"easyv_saas");
     ObjectNode block=JSON.createObjectNode();
-    block.put("id","b"); block.put("businessModule","处置情况"); block.put("title","处置情况"); block.put("moduleName","处置情况");
+    block.put("id","b"); block.put("themeId","theme"); block.put("businessModule","处置情况"); block.put("title","处置情况"); block.put("moduleName","处置情况");
     block.put("moduleDescription","先关注积压再看响应"); block.put("blockTypeId","1"); block.put("schemeId","1"); block.put("titlePresent",true);
     ArrayNode components=block.putArray("components"), ids=block.putArray("boundMetricIds"), metrics=block.putArray("boundMetrics");
     ArrayNode bindings=JSON.createArrayNode();
@@ -67,6 +67,15 @@ class EasyVBlockActionDatabaseAdapterTest {
     context.set("selectedScheme",JSON.createObjectNode().put("schemeId","1").put("chartCount",2)); context.set("slotBindings",bindings);
     var event=JSON.createObjectNode().put("summary","原生成记录");
     var snapshot=event.putObject("output").putObject("raw").putObject("regenContextSnapshot"); snapshot.put("unrelated","keep"); snapshot.putArray("currentFilledBlocks").add(context);
+    ObjectNode theme=JSON.createObjectNode().put("themeId","theme").put("businessModule","处置情况").put("moduleDescription","先关注积压再看响应");
+    theme.putArray("metrics").addObject().put("metricId","unselected").put("sourceId","retain-candidate-source");
+    snapshot.putArray("currentBlockThemes").add(theme).addObject().put("themeId","other").put("businessModule","其他主题");
+    ObjectNode candidates=snapshot.putObject("step5Candidates");
+    candidates.putArray("blockCandidates").addObject().put("blockId","b").put("businessModule","处置情况").put("untouched","keep-candidate");
+    candidates.withArray("/blockCandidates").addObject().put("blockId","other").put("businessModule","其他主题");
+    ObjectNode assignment=candidates.putObject("step4Output").putArray("blockAssignments").addObject().put("blockId","b").put("themeId","theme").put("businessModule","处置情况");
+    assignment.set("assignedTheme",theme.deepCopy());
+    candidates.withObject("/step4Output").withArray("/blockAssignments").addObject().put("blockId","other").put("themeId","other");
     output=event.toString();
     jdbc.update("INSERT INTO easyv_saas.ai_screen_app VALUES ('app','业务屏','task',3,4,0,'USER','0')");
     jdbc.update("INSERT INTO easyv_saas.ai_screen_prototype VALUES (1,'app',?,?::jsonb,?::jsonb,'{\"legacy\":true}',CURRENT_TIMESTAMP)",XML,"{\"template\":true}",original);
@@ -164,6 +173,17 @@ class EasyVBlockActionDatabaseAdapterTest {
     for (String field:List.of("title","moduleName","businessModule")) assertEquals("积压与响应",prototype().at("/page-1/blocks/b/"+field).asText());
     assertEquals(JSON.readTree(original).at("/page-1/blocks/b/components"),prototype().at("/page-1/blocks/b/components"));
     assertEquals("积压与响应",context().at("/output/raw/regenContextSnapshot/currentFilledBlocks/0/businessModule").asText());
+    String root="/output/raw/regenContextSnapshot/";
+    for (String path:List.of("currentBlockThemes/0/", "step5Candidates/step4Output/blockAssignments/0/assignedTheme/")) {
+      assertEquals("积压与响应",context().at(root+path+"businessModule").asText());
+      assertEquals("判断待处置积压和响应效率",context().at(root+path+"moduleDescription").asText());
+      assertEquals(JSON.readTree(output).at(root+path+"metrics"),context().at(root+path+"metrics"));
+    }
+    for (String path:List.of("step5Candidates/step4Output/blockAssignments/0/", "step5Candidates/blockCandidates/0/"))
+      assertEquals("积压与响应",context().at(root+path+"businessModule").asText());
+    for (String path:List.of("currentBlockThemes/1", "step5Candidates/step4Output/blockAssignments/1", "step5Candidates/blockCandidates/1"))
+      assertEquals(JSON.readTree(output).at(root+path),context().at(root+path));
+    assertEquals("keep-candidate",context().at(root+"step5Candidates/blockCandidates/0/untouched").asText());
   }
   @Test void invalidSchemaCannotBecomeAnSqlIdentifierAndDisabledAdapterDoesNotConnect() {
     assertThrows(IllegalArgumentException.class,()->new EasyVBlockActionDatabaseAdapter(jdbc,cache,"bad;DROP TABLE x"));
@@ -171,6 +191,29 @@ class EasyVBlockActionDatabaseAdapterTest {
     var config=new EasyVActionProperties(false,"","","secret","easyv_saas","redis://:secret@localhost");
     assertFalse(config.toString().contains("secret"));
     assertThrows(IllegalArgumentException.class,()->new EasyVActionProperties(true,"","","","easyv_saas",""));
+  }
+  @Test void missingOrAmbiguousThemeProjectionRejectsPreparationWithoutWriting() throws Exception {
+    plan.put("schemeId",null); plan.put("choices",List.of()); plan.put("targetTitle","积压与响应");
+    for (String path:List.of("/currentBlockThemes", "/step5Candidates/blockCandidates", "/step5Candidates/step4Output/blockAssignments")) {
+      ObjectNode damaged=(ObjectNode)JSON.readTree(output);
+      ((ArrayNode)damaged.at("/output/raw/regenContextSnapshot"+path)).removeAll();
+      jdbc.update("UPDATE easyv_saas.ai_pipeline_node_record SET output=?::jsonb",damaged.toString());
+      assertEquals("EASYV_ACTION_REJECTED",failure(this::prepare));
+      assertEquals(JSON.readTree(original),prototype());
+    }
+    ObjectNode damaged=(ObjectNode)JSON.readTree(output);
+    ArrayNode themes=(ArrayNode)damaged.at("/output/raw/regenContextSnapshot/currentBlockThemes"); themes.add(themes.get(0).deepCopy());
+    jdbc.update("UPDATE easyv_saas.ai_pipeline_node_record SET output=?::jsonb",damaged.toString());
+    assertEquals("EASYV_ACTION_REJECTED",failure(this::prepare)); verifyNoInteractions(cache);
+  }
+  @Test void sameConfirmedResultRepairsOldThemeNamesWithoutRewritingPrototype() throws Exception {
+    plan.put("schemeId",null); plan.put("choices",List.of()); plan.put("targetTitle","积压与响应");
+    Map<String,Object> prepared=prepare(); adapter.apply(prepared,"3","4","0");
+    Object time=jdbc.queryForObject("SELECT update_time FROM easyv_saas.ai_screen_prototype",Object.class);
+    jdbc.update("UPDATE easyv_saas.ai_pipeline_node_record SET output=?::jsonb",output);
+    assertEquals("verified",adapter.apply(prepared,"3","4","0").get("status"));
+    assertEquals(time,jdbc.queryForObject("SELECT update_time FROM easyv_saas.ai_screen_prototype",Object.class));
+    assertEquals("积压与响应",context().at("/output/raw/regenContextSnapshot/currentBlockThemes/0/businessModule").asText());
   }
   @Test void crossBlockChoicesAndCoreOrDynamicBlocksNeverBecomePrepared() {
     var choice=(Map<String,Object>)((List<?>)plan.get("choices")).getFirst(); choice.put("componentId","outside");
