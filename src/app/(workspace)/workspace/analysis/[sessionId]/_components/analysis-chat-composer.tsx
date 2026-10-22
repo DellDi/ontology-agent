@@ -29,6 +29,7 @@ export function AnalysisChatComposer({
   return (
     <div data-testid="analysis-chat-composer">
       <PromptInput
+        className="[&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:ring-0"
         onSubmit={(message) => {
           const text = message.text.trim();
           if (!text || busy) return;

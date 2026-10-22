@@ -74,7 +74,7 @@ function MdTable({ children }: { children?: ReactNode }) {
   return (
     <TableNumericColumnsContext.Provider value={numericColumns}>
       <div className="mb-3 overflow-x-auto last:mb-0">
-        <table className="w-full border-collapse text-sm">{children}</table>
+        <table className="w-full min-w-[36rem] border-separate border-spacing-y-1 text-sm">{children}</table>
       </div>
     </TableNumericColumnsContext.Provider>
   );
@@ -94,7 +94,7 @@ function MdTh({ children, columnIndex }: TableCellProps) {
   const numeric =
     columnIndex != null && numericColumns?.[columnIndex] === true;
   return (
-    <th className={cellAlignment(numeric, 'px-3 py-2 font-semibold text-foreground')}>
+    <th className={cellAlignment(numeric, 'whitespace-nowrap px-3 py-3 font-semibold text-foreground')}>
       {children}
     </th>
   );
@@ -107,7 +107,7 @@ function MdTd({ children, columnIndex }: TableCellProps) {
       ? numericColumns[columnIndex] === true
       : isNumericCell(children);
   return (
-    <td className={cellAlignment(numeric, 'border-b border-border px-3 py-2 text-foreground/90')}>
+    <td className={cellAlignment(numeric, 'px-3 py-3 align-top text-foreground/90')}>
       {children}
     </td>
   );
@@ -178,19 +178,19 @@ const markdownComponents = {
     );
   },
   pre: ({ children }: MdElementProps) => (
-    <pre className="mb-3 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-sm last:mb-0">
+    <pre className="mb-3 overflow-x-auto rounded-lg bg-muted p-4 text-sm last:mb-0">
       {children}
     </pre>
   ),
   blockquote: ({ children }: MdElementProps) => (
-    <blockquote className="mb-3 border-l-4 border-primary/30 pl-4 text-sm italic text-muted-foreground last:mb-0">
+    <blockquote className="mb-3 py-1 text-sm text-muted-foreground last:mb-0">
       {children}
     </blockquote>
   ),
-  hr: () => <hr className="my-6 border-border" />,
+  hr: () => <hr className="my-6 border-0" />,
   table: MdTable,
   thead: ({ children }: MdElementProps) => (
-    <thead className="border-b border-border bg-muted">{children}</thead>
+    <thead className="text-muted-foreground">{children}</thead>
   ),
   tbody: MdTbody,
   th: MdTh,

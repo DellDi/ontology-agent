@@ -35,7 +35,7 @@ function ConclusionSummaryBlock({
         return (
           <div
             key={`${cause.title}-${index}`}
-            className="rounded-lg border border-border bg-card p-4"
+            className="py-3"
           >
             <div className="flex items-start justify-between gap-3">
               <h4 className="text-base font-semibold text-foreground">

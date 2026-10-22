@@ -38,11 +38,11 @@ export function ObjectCollectionControls({ properties, controls, maxFilters, dis
   };
 
   return <section className="space-y-2" aria-label="对象排序与筛选">
-    <details className="rounded-lg border border-border">
+    <details className="py-2">
       <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <SlidersHorizontal className="size-3.5" aria-hidden />排序与筛选{active ? ` · ${active}` : ''}
       </summary>
-      <div className="space-y-3 border-t border-border p-3">
+      <div className="space-y-3 pt-3">
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex min-w-0 flex-col gap-1 text-[10px] text-muted-foreground">排序字段
             <select className={FIELD} disabled={disabled} value={controls.order?.member ?? ''}

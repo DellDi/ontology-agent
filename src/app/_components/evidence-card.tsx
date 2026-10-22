@@ -31,7 +31,7 @@ export function EvidenceCard({
       className={cn(
         flat
           ? 'p-0'
-          : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
+          : 'py-3',
         className,
       )}
       {...props}
@@ -54,7 +54,7 @@ export function EvidenceCard({
           {items.map((item, index) => (
             <li
               key={`${typeof item.label === 'string' ? item.label : index}`}
-              className="flex flex-col gap-0.5 rounded border border-border/60 bg-background px-3 py-2"
+              className="flex flex-col gap-1 py-2"
             >
               <span className="text-xs font-medium text-muted-foreground">
                 {item.label}

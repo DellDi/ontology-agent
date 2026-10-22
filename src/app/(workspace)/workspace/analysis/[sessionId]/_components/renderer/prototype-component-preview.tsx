@@ -71,10 +71,10 @@ export function PrototypeComponentPreview({ rows, geometry, metricStyle = 'numbe
   const { items, diagnostics } = projectPrototypeComponents(rows, geometry);
   const unsupported = [...new Set(rows.map((row) => row.properties.chartFamily).filter((family) => !Object.hasOwn(charts, String(family))))];
   return <div className={cn('space-y-2', thumbnail && 'w-full', fill && 'h-full')}>
-    <div className={cn('relative overflow-hidden rounded-md border border-border bg-background', fill ? 'h-full' : thumbnail ? 'h-12' : 'aspect-square')}
+    <div className={cn('relative overflow-hidden rounded-md', fill ? 'h-full' : thumbnail ? 'h-12' : 'aspect-square')}
       role={thumbnail ? undefined : 'group'} aria-label={thumbnail ? undefined : '区域组件布局'} aria-hidden={thumbnail || undefined}>
       {items.map((item) => {
-        const content = <span className={cn('flex h-full w-full items-center justify-center rounded-sm border border-primary/25 bg-primary/10 text-primary', selected === item.objectId && 'border-primary bg-primary/20 ring-2 ring-inset ring-primary')}>
+        const content = <span className={cn('flex h-full w-full items-center justify-center rounded-sm bg-primary/10 text-primary', selected === item.objectId && 'bg-primary/20 ring-2 ring-inset ring-primary')}>
           <ComponentGlyph family={item.chartFamily} metricStyle={metricStyle} />
         </span>;
         const style = { left: `${item.x}%`, top: `${item.y}%`, width: `${item.width}%`, height: `${item.height}%` };

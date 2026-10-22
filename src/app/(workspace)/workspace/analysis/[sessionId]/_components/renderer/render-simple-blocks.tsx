@@ -58,7 +58,7 @@ export function renderKvListBlock(input: AnalysisInteractionUiRenderInput) {
         {items.map((item, index) => (
           <div
             key={getString(item.label)}
-            className={renderedBlock.payload.drilldowns ? 'rounded-lg bg-muted/50 px-4 py-3' : 'rounded border border-border/60 bg-background px-3 py-2'}
+            className={renderedBlock.payload.drilldowns ? 'rounded-lg bg-muted/50 px-4 py-3' : 'py-3'}
           >
             <dt className="text-xs font-medium text-muted-foreground">
               {getString(item.label)}

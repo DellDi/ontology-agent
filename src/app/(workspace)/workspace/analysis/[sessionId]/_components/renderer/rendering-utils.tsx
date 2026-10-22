@@ -4,15 +4,15 @@ export function getToneClassName(tone: unknown) {
   // 全部走 shadcn 语义色 + 透明度，自动响应 dark
   switch (tone) {
     case 'success':
-      return 'bg-emerald-500/10 border border-emerald-500/30';
+      return 'bg-emerald-500/10';
     case 'error':
-      return 'bg-rose-500/10 border border-rose-500/30';
+      return 'bg-rose-500/10';
     case 'warning':
-      return 'bg-amber-500/10 border border-amber-500/30';
+      return 'bg-amber-500/10';
     case 'info':
-      return 'bg-primary/10 border border-primary/30';
+      return 'bg-primary/10';
     default:
-      return 'bg-card border border-border';
+      return 'bg-card';
   }
 }
 
@@ -56,5 +56,5 @@ export function renderTitle(block: AnalysisRenderedBlock, fallback?: string) {
 export function panelChrome(embedded?: boolean) {
   return embedded
     ? 'p-0'
-    : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]';
+    : 'py-3';
 }

@@ -200,6 +200,14 @@ body {
 }
 
 @layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
+
   a {
     color: inherit;
     text-decoration: none;

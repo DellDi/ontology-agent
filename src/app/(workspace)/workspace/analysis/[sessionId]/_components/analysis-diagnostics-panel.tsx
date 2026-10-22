@@ -85,7 +85,7 @@ export function AnalysisDiagnosticsPanel({
             {candidateValidation.validations.map((validation) => (
               <div
                 key={validation.factorKey}
-                className="rounded-lg border border-border bg-card p-4"
+                className="py-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-foreground">
@@ -190,7 +190,7 @@ export function AnalysisDiagnosticsPanel({
         </section>
       ) : null}
 
-      <details className="rounded-lg border border-border bg-card p-4 text-xs text-muted-foreground">
+      <details className="py-3 text-xs text-muted-foreground">
         <summary className="cursor-pointer font-medium text-foreground">
           技术信息
         </summary>

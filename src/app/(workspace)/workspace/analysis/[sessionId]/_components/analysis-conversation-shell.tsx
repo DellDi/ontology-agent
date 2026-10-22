@@ -464,8 +464,8 @@ export function AnalysisConversationShell({
         ) : null}
 
         {/* 输入框：对话窗口底部，下方无任何内容 */}
-        <div className="pb-4 pt-3">
-          {selectedObject ? <div className="mb-2 flex min-w-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs" data-testid="analysis-object-selection">
+        <div className="mb-4 mt-3 rounded-2xl bg-card px-2 pb-1 pt-2 focus-within:ring-2 focus-within:ring-ring/30">
+          {selectedObject ? <div className="mb-1 flex min-w-0 items-center gap-2 px-3 py-1 text-xs text-muted-foreground" data-testid="analysis-object-selection">
             <span className="min-w-0 flex-1 break-all">针对：{selectedObject.label}</span>
             <Button type="button" variant="ghost" size="icon-sm" aria-label="取消对象选择" onClick={() => setSelectedObject(null)}><X className="size-3.5" /></Button>
           </div> : null}

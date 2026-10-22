@@ -133,7 +133,7 @@ export function AnalysisAttributionPanel({
         <p className="mt-1 text-xs text-muted-foreground">
           结论断言 → 证据锚点（行/字段/值）→ 证据源，全部来自冻结数据集版本。
         </p>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-muted/30 p-2">
+        <div className="mt-3 overflow-x-auto py-2">
           <svg
             aria-label="论据血缘关系图"
             className="block"
@@ -300,7 +300,7 @@ export function AnalysisAttributionPanel({
           </svg>
         </div>
         {selectedAnchor ? (
-          <div className="mt-2 rounded-md border border-border bg-card px-3 py-2 text-xs">
+          <div className="mt-3 py-2 text-xs">
             <span className="font-medium text-foreground">
               {shortSource(selectedAnchor.ref.source)}
             </span>
@@ -325,10 +325,10 @@ export function AnalysisAttributionPanel({
               const ev = evidenceBySource.get(`easyv-query:${tool.name}`);
               return (
                 <div
-                  className="rounded-lg border border-border bg-card"
+                  className="space-y-2 py-3"
                   key={tool.name}
                 >
-                  <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2 py-2">
                     <span className="text-xs font-medium text-foreground">
                       {tool.label}
                     </span>
@@ -348,7 +348,7 @@ export function AnalysisAttributionPanel({
                       {tool.sql.trim()}
                     </pre>
                   ) : null}
-                  <dl className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-border px-3 py-2 text-[11px] sm:grid-cols-2">
+                  <dl className="grid grid-cols-1 gap-x-4 gap-y-2 py-2 text-[11px] sm:grid-cols-2">
                     {rangeLabel ? (
                       <div className="flex gap-2">
                         <dt className="text-muted-foreground">时间窗口</dt>
