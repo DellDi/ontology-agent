@@ -19,6 +19,11 @@ public class IngestionManagementService {
         return port.overview();
     }
 
+    public IngestionManagementPort.Health health(AuthSession actor) {
+        access.requireView(actor);
+        return port.health();
+    }
+
     static void requireAdmin(AuthSession actor) {
         // Publishing and access changes remain platform operations, regardless of view grants.
         if (!actor.scope().roleCodes().contains("PLATFORM_ADMIN")) {

@@ -102,4 +102,60 @@ public class IngestionManagementPostgresAdapter implements IngestionManagementPo
         var value = rs.getTimestamp(column);
         return value == null ? null : value.toInstant();
     }
+
+    @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Health health() {
+        // 每个产品独立取最新任务与成功检查，不从最近 50 条任务窗口推断。
+        var products = jdbc.query("""
+                select p.product_key, p.domain_key, p.status as catalog_status,
+                       pub.set_id, pub.version_id, pub.row_count, pub.frozen_at, pub.oldest_input_at,
+                       latest.*, success.checked_at
+                from ingestion.data_product_definitions p
+                left join lateral (
+                  select s.set_id, v.id as version_id, v.row_count, s.frozen_at,
+                    (select case when count(*) filter (where r.finished_at is null) > 0 then null
+                                 else min(r.finished_at) end
+                     from ingestion.data_product_version_lineage l
+                     join ingestion.source_dataset_versions sv on sv.id=l.source_dataset_version_id
+                     join ingestion.source_ingestion_runs r on r.id=sv.source_ingestion_run_id
+                     where l.product_version_id=v.id) as oldest_input_at
+                  from ingestion.dataset_version_sets s
+                  join ingestion.dataset_version_set_items i on i.set_id=s.set_id and i.product_key=p.product_key
+                  join ingestion.data_product_versions v on v.id=i.product_version_id
+                  where s.status='frozen' and v.status='published' and v.schema_version=p.schema_version
+                    and not exists (select 1 from ingestion.dataset_version_set_items other
+                                    join ingestion.data_product_versions ov on ov.id=other.product_version_id
+                                    where other.set_id=s.set_id and ov.status<>'published')
+                  order by s.captured_at desc, s.set_id desc limit 1
+                ) pub on true
+                left join lateral (
+                  select * from (
+                    select id, 'product' as kind, product_key as target_key, mode, status,
+                           error_code, correlation_id, created_at, started_at, finished_at
+                    from ingestion.product_materialization_runs where product_key=p.product_key
+                    union all
+                    select id, 'source' as kind, source_key as target_key, mode, status,
+                           error_code, correlation_id, created_at, started_at, finished_at
+                    from ingestion.source_ingestion_runs r
+                    where exists (select 1 from ingestion.data_product_inputs i
+                                  join ingestion.dataset_definitions d on d.dataset_key=i.dataset_key
+                                  where i.product_key=p.product_key and d.source_key=r.source_key)
+                  ) checks order by created_at desc, kind, id desc limit 1
+                ) latest on true
+                left join lateral (
+                  select max(finished_at) as checked_at from ingestion.product_materialization_runs
+                  where product_key=p.product_key and status='completed' and result_product_version_id is not null
+                ) success on true
+                order by p.domain_key,p.product_key
+                """, (rs, n) -> new ProductHealth(rs.getString("product_key"), rs.getString("domain_key"),
+                rs.getString("catalog_status"), rs.getString("version_id") == null ? null
+                : new PublishedProduct(rs.getString("set_id"), rs.getString("version_id"), rs.getLong("row_count"),
+                    instant(rs, "frozen_at"), instant(rs, "oldest_input_at")),
+                rs.getString("id") == null ? null : new Run(rs.getString("id"), rs.getString("kind"),
+                    rs.getString("target_key"), rs.getString("mode"), rs.getString("status"), rs.getString("error_code"),
+                    rs.getString("correlation_id"), instant(rs, "created_at"), instant(rs, "started_at"), instant(rs, "finished_at")),
+                instant(rs, "checked_at")));
+        return new Health("platform", List.copyOf(products));
+    }
 }

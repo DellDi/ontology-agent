@@ -5,7 +5,17 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布：D 血缘采集与发布时点（2026-10-13）
+## 当前发布：C 与工作台去框（2026-10-22）
+
+Web、API/分析 Worker 与发布 Worker 已发布 `c-workspace-de976ea`，提交 `de976ea12f078f63dc3afd54352c4bdeda1cb174`。先构建并核对源归档、已测 JAR SHA-256 与 OCI revision，再确认无活动分析/发布任务，暂停消费者备份并完成 V31→V32，最后替换三个应用服务。Web/backend/Cube healthy、EasyV health UP、登录页 200；四个基础设施容器 ID 保持。
+
+备份 `/opt/ontology-agent-backups/c-workspace-de976ea/ontology-agent-ontology_agent_test-20261022222556.dump`（0600、目录 0700），`pg_restore -l` 可读；本批没有执行恢复演练。回执 `/opt/ontology-agent-releases/c-workspace-de976ea/deployment-report.json`。依赖下载在默认 Docker bridge 停滞后，构建改用宿主机网络，锁文件与官方依赖不变。
+
+公司 C 写回适配器代码已发布，但 `EASYV_ACTION_ENABLED` 未启用，不能把本地授权测试源写回证据当作公司已开通。采集保持手动，发布 Worker 的清理配置实测为 30 天、最近 5 个版本，03:00 Asia/Shanghai。未重新采集、修改源数据或执行清理。应用回退沿上一版目录和镜像；V32 是新增动作表，不自动 restore。
+
+同日按用户要求将公司全部 13 个 frozen 集合及依赖导入本地，逐表校验通过，账号与分析历史保持；同步与 D 的首批目标见 [D 推进记录](./acceptance/d-operations-plan.md)。
+
+## 上批发布：D 血缘采集与发布时点（2026-10-13）
 
 Web/API/分析 Worker 更新到 `d-lineage-times-37c3821`，提交 `37c38213542470d3b42f7160144208a73e1094dc`。数据接入页的冻结版本可查看真实发布完成时间，以及每份输入所对应的原采集任务起止时间；不把无变化复用的旧版本时间视为最近一次检查。沿用平台 V31，不新增迁移，也没有采集、清理或重复公司业务题。
 

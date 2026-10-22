@@ -8,6 +8,7 @@ import {
   ingestionAccessSchema,
   ingestionOverviewSchema,
   ingestionReleaseTaskListSchema,
+  ingestionHealthSchema,
 } from '@/infrastructure/java-backend/ingestion-schema';
 import { IngestionWorkbench } from './ingestion-workbench';
 
@@ -20,14 +21,16 @@ export default async function IngestionPage({
   let overview;
   let tasks;
   let access;
+  let health;
   try {
-    [overview, tasks, access] = await Promise.all([
+    [overview, tasks, access, health] = await Promise.all([
       readJavaBackend('/api/admin/ingestion/overview', ingestionOverviewSchema),
       readJavaBackend(
         '/api/admin/ingestion/release-tasks',
         ingestionReleaseTaskListSchema,
       ),
       readJavaBackend('/api/admin/ingestion/access', ingestionAccessSchema),
+      readJavaBackend('/api/admin/ingestion/health', ingestionHealthSchema),
     ]);
   } catch (error) {
     if (error instanceof JavaBackendHttpError) {
@@ -49,8 +52,9 @@ export default async function IngestionPage({
     <IngestionWorkbench
       overview={overview}
       access={access}
+      health={health}
       releaseTasks={tasks.items}
-      initialView={view === 'releases' ? 'releases' : 'publish'}
+      initialView={view === 'releases' ? 'releases' : view === 'publish' ? 'publish' : 'health'}
     />
   );
 }

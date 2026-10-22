@@ -169,6 +169,19 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /api/admin/ingestion/health:
+    get:
+      summary: Read per-product publication and latest check metadata across full task history
+      description: Authenticated platform metadata view. Distinguishes successful materialization checks, frozen publication and original input collection. Latest source failures are included. No credentials, raw errors, source queries or automatic freshness thresholds.
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: Read-only data health snapshot
+          content:
+            application/json: { schema: { $ref: './schemas/ingestion-health.schema.json' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/admin/ingestion/overview:
     get:
       summary: Read platform ingestion catalogs, latest 50 runs and latest 20 version sets with lineage
