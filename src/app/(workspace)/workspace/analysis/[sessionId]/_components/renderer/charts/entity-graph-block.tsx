@@ -27,7 +27,7 @@ export function EntityGraphBlock({ block, flat = false }: EntityGraphBlockProps)
       : '关系图';
   const shellClass = flat
     ? 'p-0'
-    : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]';
+    : 'py-3';
 
   if (nodes.length === 0 && edges.length === 0) {
     return (

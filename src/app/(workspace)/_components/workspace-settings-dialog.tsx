@@ -47,14 +47,14 @@ export function WorkspaceSettingsDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        className="gap-0 overflow-hidden border-0 p-0 sm:max-w-2xl"
       >
         <DialogTitle className="sr-only">设置</DialogTitle>
         <div className="grid min-h-[380px] sm:grid-cols-[180px_minmax(0,1fr)]">
           {/* 左侧分组导航 */}
           <nav
             aria-label="设置分组"
-            className="border-b border-border bg-secondary/40 p-3 sm:border-b-0 sm:border-r"
+            className="bg-secondary/40 p-3"
           >
             <ul className="flex gap-1 sm:flex-col">
               {SECTIONS.map((item) => {

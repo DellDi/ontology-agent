@@ -20,7 +20,7 @@ function AssessmentCard({ title, assessment, input, baseline }: { title: string;
   const [details, setDetails] = useState(false);
   const delta = assessment.score !== null && baseline != null ? assessment.score - baseline : null;
   const bounds = input.bounds;
-  return <article className="space-y-3 rounded-xl border border-border bg-background p-4">
+  return <article className="space-y-3 py-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h5 className="text-sm font-semibold">{title}</h5><p className="mt-1 text-xs text-muted-foreground">方案 {assessment.schemeId ?? '未保留'}</p></div>
       <div className="text-right"><p className="flex items-center justify-end gap-1.5 text-xs font-medium">
@@ -29,15 +29,15 @@ function AssessmentCard({ title, assessment, input, baseline }: { title: string;
         {delta !== null ? <p className="text-xs text-muted-foreground">较当前 {delta >= 0 ? '+' : ''}{delta.toFixed(1)}</p> : null}
       </div>
     </div>
-    {bounds && assessment.assignments.length ? <div className="relative overflow-hidden rounded-md border border-border bg-muted/30" style={{ aspectRatio: `${bounds.width} / ${bounds.height}`, maxHeight: 220 }} aria-label={`${title}的指标分配示意`}>
-      {assessment.assignments.map((a) => <div key={a.slotIndex} className="absolute flex flex-col items-center justify-center overflow-hidden rounded-sm border border-primary/25 bg-primary/10 px-1 text-center text-[10px] text-primary"
+    {bounds && assessment.assignments.length ? <div className="relative overflow-hidden rounded-md bg-muted/30" style={{ aspectRatio: `${bounds.width} / ${bounds.height}`, maxHeight: 220 }} aria-label={`${title}的指标分配示意`}>
+      {assessment.assignments.map((a) => <div key={a.slotIndex} className="absolute flex flex-col items-center justify-center overflow-hidden rounded-sm bg-primary/10 px-1 text-center text-[10px] text-primary"
         style={{ left: `${(a.bounds.x - bounds.x) / bounds.width * 100}%`, top: `${(a.bounds.y - bounds.y) / bounds.height * 100}%`, width: `${a.bounds.width / bounds.width * 100}%`, height: `${a.bounds.height / bounds.height * 100}%` }}>
         <span className="max-w-full truncate">槽位 {a.slotIndex + 1} · {a.chartFamily}</span><span className="max-w-full truncate">{a.metricId}</span>
       </div>)}
     </div> : null}
     {assessment.findings.length ? <ul className="space-y-1.5 text-xs leading-5 text-muted-foreground">{[...new Set(assessment.findings.map((f) => f.message))].map((message) => <li key={message}>{message}</li>)}</ul> : null}
     <Button type="button" variant="ghost" size="sm" aria-expanded={details} onClick={() => setDetails(!details)}>{details ? '收起依据' : '查看评估依据'}</Button>
-    {details ? <div className="space-y-2 border-t border-border pt-3 text-xs">
+    {details ? <div className="space-y-3 pt-3 text-xs">
       {assessment.assignments.map((a) => <div key={a.slotIndex} className="space-y-1"><p className="break-all font-medium">槽位 {a.slotIndex + 1} → 指标 {a.metricId} · 组件 {a.componentId}</p>
         <p className="text-muted-foreground">有效尺寸 {a.bounds.width.toFixed(1)} × {a.bounds.height.toFixed(1)} px；阈值 {a.minimum.width} × {a.minimum.height} px</p>
         <p className="text-muted-foreground">可读余量 {a.readability.toFixed(1)} · 角色 {a.role.toFixed(1)} · 位置 {a.position.toFixed(1)}</p></div>)}
@@ -52,14 +52,14 @@ export function SchemeAssessmentPanel({ sessionId, selection, initialResult }: {
   const result = assessment.data ?? initialResult;
   const comparison = result?.comparison;
   const candidates = comparison?.candidates ?? [];
-  return <section className="space-y-4 rounded-xl border border-border bg-muted/20 p-4" aria-label="区域方案比较">
+  return <section className="space-y-5 py-3" aria-label="区域方案比较">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="text-sm font-semibold">区域方案比较</h4>
       <p className="mt-1 max-w-lg text-xs leading-5 text-muted-foreground">固定本轮指标和区域尺寸，检查候选方案能否放下并满足类型约束。</p></div>
       <Button type="button" variant="outline" size="sm" disabled={assessment.isPending} onClick={() => assessment.mutate()}>
         {assessment.isPending ? <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden /> : null}{assessment.isPending ? '正在评估…' : result ? '重新评估' : '评估候选方案'}</Button></div>
     {assessment.isPending ? <p className="text-xs text-muted-foreground" role="status">正在检查冻结输入、槽位约束和指标分配。</p> : null}
     {assessment.error ? <p className="rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{assessment.error.message}</p> : null}
-    {result?.reason ? <div className="rounded-lg border border-border bg-background p-4"><p className="text-sm font-medium">暂时无法比较</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{reasons[result.reason] ?? result.reason}</p></div> : null}
+    {result?.reason ? <div className="py-4"><p className="text-sm font-medium">暂时无法比较</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{reasons[result.reason] ?? result.reason}</p></div> : null}
     {comparison ? <>
       <p className="text-xs leading-5 text-muted-foreground">以下为适配评估，使用尚待真实数据校准的规则。分数表示可行分配的相对适配程度，与历史生成评分分别保留。</p>
       <AssessmentCard title="当前方案 · 源组件位置" assessment={comparison.current} input={comparison.input} />

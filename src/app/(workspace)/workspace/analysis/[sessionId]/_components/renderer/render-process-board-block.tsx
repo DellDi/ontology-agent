@@ -29,7 +29,7 @@ export function renderProcessBoardBlock({
 
   return (
     <section
-      className={`${className} ${embedded ? 'p-0' : 'rounded-lg border border-border bg-card p-5'}`}
+      className={`${className} ${embedded ? 'p-0' : 'py-3'}`}
       data-testid="analysis-process-board"
     >
       {renderTitle(renderedBlock, '执行流程看板')}

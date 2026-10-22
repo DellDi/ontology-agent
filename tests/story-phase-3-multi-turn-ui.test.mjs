@@ -34,6 +34,13 @@ test('Chat UI | 等待首个进度显示反馈，真实步骤、回答和错误�
       running: render({ status: 'running' }),
       streaming: render({ status: 'running', streamingAnswer: '正在生成真实回答' }),
       timeline: render({ status: 'running', toolTimeline: [{ stepId: 'query', stepName: '查询授权数据', status: 'running', subSteps: [] }] }),
+      emptyTimeline: render({ status: 'completed', toolTimeline: [{ stepId: 'plan', stepName: '规划完成', status: 'completed', subSteps: [] }] }),
+      emptyQuery: render({ status: 'completed', toolTimeline: [{ stepId: 'query', stepName: '查询', status: 'completed', subSteps: [
+        { toolName: 'cube.query', objective: '数据查询', status: 'completed', output: { rows: 0 } },
+      ] }] }),
+      failedAfterRead: render({ status: 'failed', toolTimeline: [{ stepId: 'plan', stepName: '规划失败', status: 'failed', subSteps: [
+        { toolName: 'read', toolLabel: '读取对象', objective: '读取对象', status: 'completed' },
+      ] }] }),
       tool: render({ status: 'running', toolActivities: [{ toolName: 'semantic-query', objective: '查询', status: 'running' }] }),
       completed: render({ status: 'completed', primaryAnswer: '共有 119 个原型' }),
       failed: render({ status: 'failed', errorSummary: '数据查询失败：权限不足' }),
@@ -58,6 +65,9 @@ test('Chat UI | 等待首个进度显示反馈，真实步骤、回答和错误�
   assert.match(html.timeline, /查看分析过程/);
   assert.match(html.timeline, /aria-expanded="false"/);
   assert.doesNotMatch(html.timeline, /查询授权数据/);
+  assert.doesNotMatch(html.emptyTimeline, /查看分析过程/, '只有完成节点时不展示空过程');
+  assert.match(html.emptyQuery, /查看分析过程/, '查询返回零条也是真实结果，不能隐藏');
+  assert.match(html.failedAfterRead, /查看分析过程/, '子工具完成不能遮掉后续步骤失败');
   assert.match(html.tool, /执行中/);
   assert.match(html.completed, /共有 119 个原型/);
   assert.match(html.failed, /数据查询失败：权限不足/);

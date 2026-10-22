@@ -81,11 +81,6 @@ export function VisualizationBlock({
 
   return (
     <div className="analysis-block-enter mt-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h4 className="text-sm font-medium text-foreground">
-          {visualization.title}
-        </h4>
-      </div>
       {registry.render({ renderedBlock: block, embedded: true })}
       {visualization.summary ? (
         <p className="mt-2 text-xs leading-5 text-muted-foreground">

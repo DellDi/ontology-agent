@@ -59,7 +59,7 @@ export function ChartShell({
       className={cn(
         flat
           ? 'p-0'
-          : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
+          : 'py-3',
         className,
       )}
     >

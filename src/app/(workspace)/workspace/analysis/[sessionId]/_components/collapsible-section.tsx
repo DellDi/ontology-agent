@@ -27,7 +27,7 @@ export function CollapsibleSection({
         {title}
       </button>
       {isOpen ? (
-        <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
+        <div className="mt-3 space-y-3">
           {children}
         </div>
       ) : null}

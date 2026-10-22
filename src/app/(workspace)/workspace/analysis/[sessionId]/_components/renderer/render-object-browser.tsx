@@ -90,15 +90,15 @@ function ObjectList({ title, rows, type, selected, onSelect, hasMore, loading, o
 }) {
   return <section className="space-y-2">
     <h4 className="text-xs font-semibold text-muted-foreground">{title} · {rows.length}{hasMore ? '+' : ''}</h4>
-    <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
+    <div className="max-h-64 space-y-1 overflow-y-auto">
       {!rows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">当前数据中没有关联对象。</p> : rows.map((row) => <button
         key={row.reference.objectId} type="button" aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
-        onClick={() => onSelect(row)} className={cn('flex w-full flex-col items-start gap-1 border-b border-border/50 px-3 py-2.5 text-left text-xs last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+        onClick={() => onSelect(row)} className={cn('flex w-full flex-col items-start gap-1 rounded-md px-3 py-3 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey && 'bg-primary/10 text-primary')}>
         <span className="min-w-0 break-all font-medium">{viewOf(row.reference.objectKey).rows.title(row, type)}</span><span className="break-all text-muted-foreground">{viewOf(row.reference.objectKey).rows.summary(row, type)}</span>
       </button>)}
     </div>
-    {hasMore && onMore ? <Button type="button" variant="outline" size="sm" disabled={loading} onClick={onMore}>{loading ? '正在读取…' : '加载更多'}</Button> : null}
+    {hasMore && onMore ? <Button type="button" variant="ghost" size="sm" disabled={loading} onClick={onMore}>{loading ? '正在读取…' : '加载更多'}</Button> : null}
   </section>;
 }
 
@@ -118,12 +118,12 @@ function ComponentComposition({ context, object, summary, onSelect }: {
       key={item.chartFamily ?? 'missing-family'} type="button" aria-pressed={index === groupIndex}
       aria-label={`查看${chartPlaceholder(item.chartFamily).label} ${item.count} 个组件`}
       onClick={() => { setGroupIndex(index); setOffset(0); }}
-      className={cn('flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', index === groupIndex && 'border-primary bg-primary/5')}>
+      className={cn('flex min-w-0 items-center gap-2 rounded-md px-3 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', index === groupIndex && 'bg-primary/10 text-primary')}>
       <ComponentGlyph family={item.chartFamily ?? ''} metricStyle="number" className="h-5 w-7 shrink-0 text-primary" />
       <span className="min-w-0 flex-1 break-words text-xs">{chartPlaceholder(item.chartFamily).label}</span>
       <span className="shrink-0 text-lg font-semibold tabular-nums">{item.count}</span>
-    </button>)}</div> : <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">所选对象在本轮数据版本中没有组件。</p>}
-    {group ? <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+    </button>)}</div> : <p className="py-3 text-xs text-muted-foreground">所选对象在本轮数据版本中没有组件。</p>}
+    {group ? <div className="space-y-3 py-3">
       <p className="text-xs font-medium">{chartPlaceholder(group.chartFamily).label} · 共 {group.count} 个</p>
       {components.isPending ? <Pending>正在读取对应组件…</Pending> : null}
       {components.error ? <Notice error={components.error} /> : null}
@@ -174,7 +174,7 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
   const propertyList = (properties: Type['properties'] | undefined) => <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
     {properties?.map((property) => {
       const presentation = detail.data?.propertyPresentations?.[property.key];
-      return <div key={property.key} className={presentation ? 'col-span-2 space-y-2 rounded-lg border border-border p-3' : 'contents'}>
+      return <div key={property.key} className={presentation ? 'col-span-2 space-y-3 py-3' : 'contents'}>
         <dt className={presentation ? 'font-semibold' : 'text-muted-foreground'}>{property.label}</dt>
         <dd className="whitespace-pre-wrap break-words leading-5"><PropertyContent property={property}
           value={selected.properties[property.key]} presentation={presentation} /></dd>
@@ -182,9 +182,9 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
     })}
   </dl>;
   const traceProperties = type?.properties.filter((property) => property.identifier || Object.keys(property.valueLabels ?? {}).length);
-  return <section className="space-y-3 border-t border-border pt-4" aria-label="所选对象属性">
+  return <section className="space-y-4 pt-6" aria-label="所选对象属性">
     <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {title}</h4>
-    {onObjectSelect ? <Button type="button" size="sm" variant="outline" disabled={!detail.data?.page.rows[0] || !type}
+    {onObjectSelect ? <Button type="button" size="sm" variant="ghost" disabled={!detail.data?.page.rows[0] || !type}
       onClick={() => { if (detail.data?.page.rows[0] && type) onObjectSelect({ executionId: detail.data.executionId,
         datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }, objectRecordSelectionLabel(selected.properties, type)); }}>
       针对这个对象追问
@@ -197,8 +197,8 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
       <div className="mt-3">{propertyList(otherProperties)}</div></details> : null}
     {afterProperties}
     {type?.links.some((link) => link.cardinality === 'ONE_TO_MANY') ? <div className="space-y-2">
-      <Button type="button" variant="outline" size="sm" aria-expanded={metricsOpen} onClick={() => setMetricsOpen(!metricsOpen)}>关联统计</Button>
-      {metricsOpen ? <section aria-label="所选对象的关联统计" className="space-y-2 rounded-lg border border-border p-3">
+      <Button type="button" variant="ghost" size="sm" aria-expanded={metricsOpen} onClick={() => setMetricsOpen(!metricsOpen)}>关联统计</Button>
+      {metricsOpen ? <section aria-label="所选对象的关联统计" className="space-y-3 py-3">
         <p className="text-xs text-muted-foreground">按所选对象的全部关联记录统计，点击数量查看对应记录。</p>
         {metrics.isPending ? <Pending>正在统计关联记录…</Pending> : null}{metrics.error ? <Notice error={metrics.error} /> : null}
         {metrics.data && metrics.data.datasetVersionSetId !== detail.data?.datasetVersionSetId
@@ -211,7 +211,7 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
           </div>)}
       </section> : null}
     </div> : null}
-    {type?.links.length ? <div className="flex flex-wrap gap-2">{type.links.map((link) => <Button key={link.key} type="button" variant="outline" size="sm"
+    {type?.links.length ? <div className="flex flex-wrap gap-2">{type.links.map((link) => <Button key={link.key} type="button" variant="ghost" size="sm"
       aria-pressed={relation?.key === link.key} onClick={() => setRelation(link)}>查看{link.timeline?.title ?? link.targetLabel}</Button>)}</div> : null}
     {relation ? <RelatedObjectCollection key={`${relation.key}:${detail.data?.datasetVersionSetId ?? context.datasetVersionSetId}`}
       context={{ ...context, datasetVersionSetId: detail.data?.datasetVersionSetId ?? context.datasetVersionSetId }}
@@ -250,10 +250,10 @@ export function RelatedObjectCollection({ context, source, link, selected, onSel
     {related.error ? <Notice error={related.error} /> : null}
     {changed ? <p role="alert" className="text-xs text-destructive">数据已更新，请重新打开关联记录，避免混用不同版本。</p> : null}
     {data && !changed ? <>
-      {link.timeline ? <ol className="max-h-80 space-y-2 overflow-y-auto border-l border-border pl-3">
+      {link.timeline ? <ol className="max-h-80 space-y-3 overflow-y-auto">
         {!data.page.rows.length ? <li className="py-3 text-xs text-muted-foreground">当前数据中没有关联操作记录。</li> : data.page.rows.map((row) => <li key={row.reference.objectId}>
           <button type="button" onClick={() => onSelect(row)} aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
-            className="w-full space-y-1 rounded-lg border border-border px-3 py-2.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="w-full space-y-1 rounded-md px-3 py-3 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <p className="text-muted-foreground">{formatShanghaiDateTime(String(row.properties[link.timeline!.timeProperty] ?? ''))}（北京时间）</p>
             <p className="font-medium">{objectRecordTitle(row.properties, data.objectType)}</p>
             <p className="break-words text-muted-foreground">{data.objectType.properties.filter((property) => property.prominent && !property.identifier && !property.title && property.type !== 'TIME')
@@ -288,7 +288,7 @@ function LinkedObjectPreview({ context, source, link }: { context: Context; sour
   const object = selected ?? related.data?.page.rows[0];
   const detail = useObjectRead(context, { objectKey: link.targetObjectKey, objectId: object?.reference.objectId }, !!object);
   const row = detail.data?.page.rows[0];
-  return <section className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" aria-label={link.targetLabel}>
+  return <section className="space-y-3 py-3" aria-label={link.targetLabel}>
     <h5 className="text-xs font-semibold">{link.targetLabel}</h5>
     {related.isPending || (object && detail.isPending) ? <Pending>正在读取关联信息…</Pending> : null}
     {related.error ? <Notice error={related.error} /> : null}{detail.error ? <Notice error={detail.error} /> : null}
@@ -332,12 +332,12 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
 
   if (!layoutId) return <p role="alert" className="text-sm text-destructive">对象缺少所属应用 ID，无法定位原型。</p>;
   return <div className="space-y-4">
-    <div className="space-y-1 rounded-lg border px-3 py-3 text-sm">
+    <div className="space-y-2 py-1 text-sm">
       {layout.data?.sourceUrl ? <a href={layout.data.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-4">在 EasyV 查看当前原型</a>
         : <p className="text-muted-foreground">尚未配置 EasyV 原型查看入口。</p>}
       <p className="text-xs leading-5 text-muted-foreground">下方用于观察结构。实际图形、配色及数据请在 EasyV 核对；原型中的示例数据不代表已接通业务数据。</p>
     </div>
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-2 py-2">
       <span className="text-sm font-medium">原型结构</span>
       <Button type="button" variant="ghost" size="sm" onClick={() => { const row = layout.data?.page.rows[0]; if (row) setFocus(row); }} disabled={!layout.data}>版式属性</Button>
     </div>
@@ -348,19 +348,19 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
     {structure?.status === 'parse_failed' ? <p className="rounded-lg border border-destructive/25 p-4 text-sm text-destructive">源原型结构解析失败。请在版式属性中查看解析错误代码。</p> : null}
     {!blocks.isPending && !blocks.error ? pages.map((page, index) => <section className="space-y-2" key={page.key}>
       <h4 className="text-xs font-medium text-muted-foreground">页面 {index + 1}{page.width && page.height ? ` · ${page.width} × ${page.height}` : ''} · 结构示意</h4>
-      {page.items.length && page.width && page.height ? <div className="relative min-w-0 overflow-hidden rounded-lg border border-border bg-muted/30" style={{ aspectRatio: `${page.width} / ${page.height}` }}>
+      {page.items.length && page.width && page.height ? <div className="relative min-w-0 overflow-hidden rounded-lg bg-muted/40" style={{ aspectRatio: `${page.width} / ${page.height}` }}>
         {page.items.map((item) => {
           const style = { left: `${item.x / page.width! * 100}%`, top: `${item.y / page.height! * 100}%`, width: `${item.width / page.width! * 100}%`, height: `${item.height / page.height! * 100}%` };
           const row = blockRows.find((candidate) => candidate.reference.objectId === item.objectId);
           const displayLabel = row ? label(row, blocks.data?.pages[0]?.objectType) : item.label;
           return item.objectId ? <button key={item.key} type="button" title={displayLabel} aria-label={`选择区域 ${displayLabel}`} aria-pressed={item.objectId === selectedBlock}
             onClick={() => { const row = blockRows.find((candidate) => candidate.reference.objectId === item.objectId); if (row) setFocus(row); }}
-            className={cn('absolute flex flex-col overflow-hidden rounded-sm border border-primary/30 bg-primary/5 p-1 text-[10px] text-primary hover:bg-primary/15 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', item.objectId === selectedBlock && 'border-primary bg-primary/20 ring-2 ring-inset ring-primary')} style={style}>
+            className={cn('absolute flex flex-col overflow-hidden rounded-sm bg-primary/5 p-1 text-[10px] text-primary hover:bg-primary/15 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', item.objectId === selectedBlock && 'bg-primary/20 ring-2 ring-inset ring-primary')} style={style}>
             <span className="w-full shrink-0 truncate text-center">{displayLabel}</span>
             <span className="pointer-events-none min-h-0 w-full flex-1" aria-hidden>
               <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === item.objectId)} geometry={componentGeometry} metricStyle={metricStyle} thumbnail fill />
             </span>
-          </button> : <div key={item.key} style={style} title={item.label} className="absolute flex items-center justify-center overflow-hidden border border-dashed border-muted-foreground/40 p-1 text-[10px] text-muted-foreground"><span className="truncate">{item.kind === 'content' ? '主视觉' : item.label}</span></div>;
+          </button> : <div key={item.key} style={style} title={item.label} className="absolute flex items-center justify-center overflow-hidden bg-muted/50 p-1 text-[10px] text-muted-foreground"><span className="truncate">{item.kind === 'content' ? '主视觉' : item.label}</span></div>;
         })}
       </div> : null}
       {page.diagnostics.map((message) => <p key={message} className="text-xs text-muted-foreground" role="status">{message}</p>)}
@@ -371,17 +371,17 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
     <div className="grid items-start gap-3 @min-[320px]:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
       <section className="min-w-0 space-y-2" aria-label="原型区域列表">
         <h4 className="text-xs font-semibold text-muted-foreground">区域 · {blockRows.length}{blocks.hasNextPage ? '+' : ''}</h4>
-        <div className="max-h-96 overflow-y-auto rounded-lg border border-border">
+        <div className="max-h-96 space-y-2 overflow-y-auto">
           {!blockRows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">当前数据中没有关联区域。</p> : null}
           {blockRows.map((row) => <button key={row.reference.objectId} type="button" aria-label={`选择区域 ${label(row, blocks.data?.pages[0]?.objectType)}`} aria-pressed={row.reference.objectId === selectedBlock}
-            title={label(row, blocks.data?.pages[0]?.objectType)} onClick={() => setFocus(row)} className={cn('flex w-full flex-col items-start gap-2 border-b border-border/50 px-2 py-3 text-left last:border-0 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-primary/10 text-primary')}>
+            title={label(row, blocks.data?.pages[0]?.objectType)} onClick={() => setFocus(row)} className={cn('flex w-full flex-col items-start gap-2 rounded-md px-2 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-primary/10 text-primary')}>
             <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === row.reference.objectId)} geometry={componentGeometry} metricStyle={metricStyle} thumbnail />
             <span className="min-w-0 space-y-1"><span className="block break-all text-xs font-medium">{label(row, blocks.data?.pages[0]?.objectType)}</span><span className="block whitespace-nowrap text-[10px] text-muted-foreground">{String(row.properties.componentCount ?? '—')} 个组件</span></span>
           </button>)}
         </div>
         {components.error ? <Notice error={components.error} /> : null}
         {components.hasNextPage ? <Button type="button" variant="ghost" size="sm" disabled={components.isFetchingNextPage} onClick={() => { void components.fetchNextPage(); }}>补齐结构缩略图</Button> : null}
-        {blocks.hasNextPage ? <Button type="button" variant="outline" size="sm" disabled={blocks.isFetchingNextPage} onClick={() => { void blocks.fetchNextPage(); }}>加载更多区域</Button> : null}
+        {blocks.hasNextPage ? <Button type="button" variant="ghost" size="sm" disabled={blocks.isFetchingNextPage} onClick={() => { void blocks.fetchNextPage(); }}>加载更多区域</Button> : null}
       </section>
       <section className="min-w-0 space-y-3" aria-label="所选区域组件">
         <div className="space-y-1"><h4 className="break-all text-xs font-semibold">{selectedRegion ? label(selectedRegion, blocks.data?.pages[0]?.objectType) : '选择区域查看指标'}</h4>
@@ -397,15 +397,15 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
             <p className="text-[10px] leading-4 text-muted-foreground">源数据未区分这两种样式，可切换查看示意。</p>
           </div> : null}
           {regionComponentRows.length ? <PrototypeComponentPreview rows={regionComponentRows} geometry={regionGeometry} metricStyle={metricStyle} selected={selected.reference.objectId} onSelect={setFocus} getLabel={(row) => label(row, regionComponents.data?.pages[0]?.objectType)} />
-            : <p className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">该区域没有关联组件。</p>}
+            : <p className="py-4 text-xs text-muted-foreground">该区域没有关联组件。</p>}
           <div className="space-y-1.5">{regionComponentRows.map((row, index) => {
             const chartLabel = label(row, regionComponents.data?.pages[0]?.objectType);
             return <button key={row.reference.objectId} type="button" aria-label={`查看组件 ${chartLabel}`} aria-pressed={selected.reference.objectId === row.reference.objectId}
-              onClick={() => setFocus(row)} className={cn('flex w-full items-center gap-2 rounded-lg border border-border bg-background px-2 py-2 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', selected.reference.objectId === row.reference.objectId && 'border-primary bg-primary/10 text-primary')}>
+              onClick={() => setFocus(row)} className={cn('flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', selected.reference.objectId === row.reference.objectId && 'bg-primary/10 text-primary')}>
               <ComponentGlyph family={String(row.properties.chartFamily ?? '')} metricStyle={metricStyle} className="h-5 w-8 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all">{chartLabel}</span><span className="text-[10px] text-muted-foreground">{index + 1}</span>
             </button>;
           })}</div>
-          {regionComponents.hasNextPage ? <Button type="button" variant="outline" size="sm" disabled={regionComponents.isFetchingNextPage} onClick={() => { void regionComponents.fetchNextPage(); }}>加载更多组件</Button> : null}
+          {regionComponents.hasNextPage ? <Button type="button" variant="ghost" size="sm" disabled={regionComponents.isFetchingNextPage} onClick={() => { void regionComponents.fetchNextPage(); }}>加载更多组件</Button> : null}
         </> : null}
       </section>
     </div>
@@ -459,7 +459,7 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
     {drilldownId ? <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p> : null}
     <p className="text-xs leading-5 text-muted-foreground">当前对象按最新已发布数据读取；历史回答保留当时结论，数量与属性可能已变化。</p>
     {!singleTarget && list.data?.page.hasMore ? <p className="text-xs leading-5 text-muted-foreground">这里只显示当前页，可翻页继续查看。</p> : null}
-    {!singleTarget ? <details open={!selected || !!list.error} className="rounded-lg border px-3 py-2">
+    {!singleTarget ? <details open={!selected || !!list.error} className="py-2">
       <summary className="cursor-pointer text-sm font-medium">{selected ? `切换${list.data?.objectType.label ?? '查看对象'}` : '选择要查看的内容'}</summary>
       <div className="mt-3 space-y-4">
     {knownType && !singleTarget ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties.filter((property) => !property.identifier)}
@@ -467,7 +467,7 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
     {list.isPending ? <Pending>正在读取当前对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}
     {list.data && !singleTarget ? <>
-      {!list.data.page.rows.length ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}
+      {!list.data.page.rows.length ? <div className="py-8 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}
       <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span><div className="flex gap-1">
         <Button type="button" size="sm" variant="ghost" aria-label="上一页对象" disabled={!offset || list.isFetching} onClick={() => { setOffset(offset - 20); setSelected(null); }}><ChevronLeft className="size-4" /></Button>
         <Button type="button" size="sm" variant="ghost" aria-label="下一页对象" disabled={!list.data.page.hasMore || offset >= 10000 || list.isFetching} onClick={() => { setOffset(offset + 20); setSelected(null); }}><ChevronRight className="size-4" /></Button>

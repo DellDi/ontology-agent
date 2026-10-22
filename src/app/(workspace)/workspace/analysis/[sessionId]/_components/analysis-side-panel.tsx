@@ -41,14 +41,14 @@ export function AnalysisSidePanel({
     <aside
       aria-label={typeof title === 'string' ? title : undefined}
       className={cn(
-        'absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-border bg-background',
+        'absolute inset-y-0 right-0 z-20 flex w-full flex-col bg-card',
         'md:static md:shrink-0',
         wide ? 'md:w-[460px] lg:w-[520px]' : 'md:w-[360px] lg:w-[400px]',
       )}
       data-testid={testId}
       role="complementary"
     >
-      <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-3.5">
+      <header className="flex items-start justify-between gap-3 px-5 py-4">
         <div className="min-w-0 space-y-0.5">
           <h2 className="truncate text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
             {title}

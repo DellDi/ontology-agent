@@ -260,7 +260,7 @@ export function AnalysisAssistantMessage({
         <div
           className={waitingForProgress
             ? 'mt-2 flex items-center gap-2 text-sm leading-6 text-muted-foreground'
-            : 'mt-1.5 rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 shadow-sm'}
+            : 'mt-3'}
           role={waitingForProgress ? 'status' : undefined}
           aria-live={waitingForProgress ? 'polite' : undefined}
           aria-busy={waitingForProgress || undefined}
@@ -308,10 +308,7 @@ export function AnalysisAssistantMessage({
             />
           ))}
 
-          {/* 可折叠步骤时间线（替代线性工具活动条） */}
-          {status === 'running' || toolTimeline.length > 0 ? (
-            <CollapsibleSection title="查看分析过程"><AnalysisStepTimeline entries={toolTimeline} /></CollapsibleSection>
-          ) : null}
+          <AnalysisStepTimeline entries={toolTimeline} />
 
           {/* 工具活动状态条（保留为降级展示） */}
           {status === 'running' && toolTimeline.length === 0 ? (
@@ -383,7 +380,7 @@ export function AnalysisAssistantMessage({
 
           {/* 底部业务入口 */}
           {detailItemCount > 0 || businessDetails.length > 0 || (suggestions?.length && status === 'completed') ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+            <div className="mt-3 flex flex-wrap items-center gap-2 pt-3">
               {detailItemCount > 0 ? (
                 <button
                   className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -416,7 +413,7 @@ export function AnalysisAssistantMessage({
         {/* 我的理解：完成态语义查询轮的逐查询解读 + 覆盖度 + 结构化调整入口 */}
         {status === 'completed' && understanding && understanding.length > 0 ? (
           <div
-            className="mt-2 rounded-xl border border-border bg-muted/30 px-4 py-3"
+            className="mt-5 space-y-3 py-2"
             data-testid="analysis-understanding"
           >
             <div className="flex items-center justify-between gap-3">
@@ -469,9 +466,11 @@ export function AnalysisAssistantMessage({
 
         {/* 上下文相关追问建议：作为对话内容的一部分，点击即发送 */}
         {status === 'completed' && suggestions && suggestions.length > 0 && onSuggestionClick ? (
-          <Suggestions className="mt-2">
+          <Suggestions className="mt-3 w-full flex-col items-start gap-1">
             {suggestions.map((question) => (
               <Suggestion
+                className="h-auto w-full justify-start whitespace-normal rounded-md px-2 py-2 text-left text-xs font-normal text-muted-foreground"
+                variant="ghost"
                 key={question}
                 onClick={onSuggestionClick}
                 suggestion={question}

@@ -391,7 +391,7 @@ export function WorkspaceShell({
       {/* 左侧栏：品牌 / 新分析 / 会话历史 / 用户入口。可收起为图标栏、可拖拽调宽 */}
       <aside
         className={cn(
-          'relative hidden shrink-0 flex-col border-r border-border bg-secondary/40 md:flex',
+          'relative hidden shrink-0 flex-col bg-secondary/40 md:flex',
           !resizing && 'transition-[width] duration-200 ease-out',
         )}
         ref={asideRef}
@@ -480,7 +480,7 @@ export function WorkspaceShell({
           其余页面在 main 内滚动 */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 移动端顶栏（侧栏在 md 以下隐藏） */}
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
+        <header className="flex items-center justify-between px-4 py-3 md:hidden">
           <span className="flex min-w-0 items-center gap-2">
             <Link
               className="shrink-0 text-sm font-semibold tracking-[0.1em] text-primary"

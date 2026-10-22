@@ -26,7 +26,7 @@ export function AnalysisToolActivityStrip({
         const displayName = translateToolName(activity.toolName);
         return (
           <div
-            className="flex items-center gap-2 rounded-md border bg-card px-3 py-2"
+            className="flex items-center gap-2 py-2"
             key={`${activity.toolName}::${activity.objective}`}
           >
             <WrenchIcon className="size-4 text-muted-foreground" />

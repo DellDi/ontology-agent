@@ -93,12 +93,12 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
         className={cn(
           flat
             ? 'p-0'
-            : 'rounded-md border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
+            : 'py-4',
           className,
         )}
       >
         {title ? (
-          <p className="mb-3 text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
+          <p className="mb-3 text-sm font-medium text-foreground">
             {title}
           </p>
         ) : null}
@@ -115,28 +115,23 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
       className={cn(
         flat
           ? ''
-          : 'rounded-md border border-border bg-card shadow-[var(--shadow-panel)]',
+          : 'py-2',
         className,
       )}
     >
       {title ? (
-        <p
-          className={cn(
-            'text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground',
-            flat ? 'mb-2' : 'px-4 pt-3',
-          )}
-        >
+        <h4 className="mb-3 text-sm font-medium text-foreground">
           {title}
-        </p>
+        </h4>
       ) : null}
       {typeof block.payload.presentationReason === 'string' ? (
-        <p className={cn('mb-3 text-xs leading-5 text-muted-foreground', !flat && 'px-4 pt-2')}>
+        <p className={cn('mb-3 text-xs leading-5 text-muted-foreground', !flat && 'pt-2')}>
           {block.payload.presentationReason}
         </p>
       ) : null}
       <div className="overflow-x-auto" role="region" aria-label={`${title ?? '分析结果'}表格，可横向滚动`} tabIndex={0}>
-        <table className="min-w-full text-left text-sm text-foreground">
-          <thead className="sticky top-0 bg-secondary/40 backdrop-blur-sm">
+        <table className="min-w-full border-separate border-spacing-y-1 text-left text-sm text-foreground">
+          <thead className="sticky top-0 bg-card">
             <tr>
               {columns.map((column, index) => (
                 <th
@@ -155,7 +150,7 @@ export function DataTableBlock({ block, className, flat = false, drilldown }: Da
             {rows.map((row, rowIndex) => (
               <tr
                 key={`${block.source.eventId ?? block.source.sourceType}-row-${rowIndex}`}
-                className="border-t border-border/70 transition-colors hover:bg-secondary/40"
+                className="transition-colors hover:bg-secondary/40"
               >
                 {row.map((cell, cellIndex) => {
                   const displayValue = formatCellValue(cell);
