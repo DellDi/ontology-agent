@@ -5,7 +5,15 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布：C 与工作台去框（2026-10-22）
+## 当前发布：D1 数据健康（2026-10-22）
+
+Web、API/分析 Worker 与发布 Worker 已更新为 `d-health-ddaff72`，代码提交 `ddaff72926d0250c5129b0132551ef0c3359a14e`。新增只读健康视图，独立展示每类产品的最近成功检查、发布与原输入采集时间，最新任务失败时仍保留上一发布依据。代码、契约、验证及下一场景见 [D 推进记录](./acceptance/d-operations-plan.md)。
+
+源归档、已测 JAR SHA-256 与 Java/Web OCI revision 一致，服务更新前无活动分析/发布任务。Web/backend/Cube healthy、EasyV health UP、登录页 200；Java 与 BFF 的健康元数据入口匿名请求均为 401。发布 Worker RestartCount=0，清理仍启用；四个基础设施容器 ID 保持，Cube 挂载不变。沿用 V32，没有再次迁移、采集、源写回或清理。
+
+回执 `/opt/ontology-agent-releases/d-health-ddaff72/deployment-report.json`。本批仅在本地同步快照完成业务页面与行为验证，公司只检查部署健康和认证边界；没有重复公司业务问题。应用回退使用上一批 `c-workspace-de976ea` 的 Web、Java 与发布 Worker 镜像，平台库不变。公司 C 源写回仍未启用；采集手动、清理 03:00 Asia/Shanghai。
+
+## 上批发布：C 与工作台去框（2026-10-22）
 
 Web、API/分析 Worker 与发布 Worker 已发布 `c-workspace-de976ea`，提交 `de976ea12f078f63dc3afd54352c4bdeda1cb174`。先构建并核对源归档、已测 JAR SHA-256 与 OCI revision，再确认无活动分析/发布任务，暂停消费者备份并完成 V31→V32，最后替换三个应用服务。Web/backend/Cube healthy、EasyV health UP、登录页 200；四个基础设施容器 ID 保持。
 
