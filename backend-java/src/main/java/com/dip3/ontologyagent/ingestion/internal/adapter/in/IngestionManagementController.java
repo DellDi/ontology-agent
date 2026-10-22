@@ -23,4 +23,10 @@ public class IngestionManagementController {
         return service.overview(auth.authenticate(request)
                 .orElseThrow(() -> new BackendException("AUTH_REQUIRED", "未登录。")));
     }
+
+    @GetMapping("/api/admin/ingestion/health")
+    public IngestionManagementPort.Health health(HttpServletRequest request) {
+        return service.health(auth.authenticate(request)
+                .orElseThrow(() -> new BackendException("AUTH_REQUIRED", "未登录。")));
+    }
 }

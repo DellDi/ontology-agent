@@ -6,6 +6,13 @@ import java.util.List;
 /** Read-only platform control-plane metadata. Never includes credentials or source row payloads. */
 public interface IngestionManagementPort {
     Overview overview();
+    Health health();
+
+    record Health(String scope, List<ProductHealth> products) {}
+    record ProductHealth(String key, String domainKey, String status, PublishedProduct published,
+                         Run latestRun, Instant lastSuccessfulCheckAt) {}
+    record PublishedProduct(String setId, String versionId, long rowCount,
+                            Instant publishedAt, Instant oldestInputAt) {}
 
     record Overview(String scope, int runLimit, int releaseLimit, List<Source> sources,
                     List<Dataset> datasets, List<Product> products, List<Run> runs, List<Release> releases) {}

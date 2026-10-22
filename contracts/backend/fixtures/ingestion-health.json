@@ -1,0 +1,30 @@
+{
+  "scope": "platform",
+  "products": [
+    {
+      "key": "easyv-prototype-block",
+      "domainKey": "easyv",
+      "status": "active",
+      "published": {
+        "setId": "set-a",
+        "versionId": "version-a",
+        "rowCount": 801,
+        "publishedAt": "2026-10-11T15:18:51Z",
+        "oldestInputAt": "2026-10-11T15:18:40Z"
+      },
+      "latestRun": {
+        "id": "failed-source",
+        "kind": "source",
+        "targetKey": "easyv",
+        "mode": "incremental",
+        "status": "failed",
+        "errorCode": "SOURCE_CONNECTION_FAILED",
+        "correlationId": "trace-check",
+        "createdAt": "2026-10-22T12:00:00Z",
+        "startedAt": "2026-10-22T12:00:01Z",
+        "finishedAt": "2026-10-22T12:00:03Z"
+      },
+      "lastSuccessfulCheckAt": "2026-10-11T15:18:49Z"
+    }
+  ]
+}

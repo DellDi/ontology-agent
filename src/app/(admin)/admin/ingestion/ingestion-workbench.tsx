@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { IngestionAccessPanel } from './ingestion-access-panel';
 import { IngestionReleasePanel } from './ingestion-release-panel';
+import { IngestionHealthPanel } from './ingestion-health-panel';
 import type {
   IngestionAccess,
   IngestionOverview,
   IngestionReleaseTask,
+  IngestionHealth,
 } from '@/infrastructure/java-backend/ingestion-schema';
 import { StatusBadge, formatTimestamp } from '../../_components/admin-shell';
 
@@ -41,6 +43,7 @@ function Status({ value }: { value: keyof typeof labels }) {
 }
 const modes = { full: '全量', incremental: '增量', reconcile: '对账' };
 const views = [
+  { key: 'health', label: '数据健康' },
   { key: 'publish', label: '发布任务' },
   { key: 'runs', label: '采集与物化' },
   { key: 'catalog', label: '数据目录' },
@@ -57,11 +60,13 @@ export function IngestionWorkbench({
   releaseTasks,
   access,
   initialView = 'publish',
+  health,
 }: {
   overview: IngestionOverview;
   access: IngestionAccess;
   releaseTasks: IngestionReleaseTask[];
-  initialView?: 'publish' | 'releases';
+  health: IngestionHealth;
+  initialView?: 'health' | 'publish' | 'releases';
 }) {
   const [view, setView] = useState<(typeof views)[number]['key']>(initialView);
   const [status, setStatus] = useState('all');
@@ -111,6 +116,7 @@ export function IngestionWorkbench({
             </button>
           ))}
       </nav>
+      {view === 'health' ? <IngestionHealthPanel health={health} onInspectRuns={() => setView('runs')} /> : null}
       <div hidden={view !== 'publish'}>
         <IngestionReleasePanel
           overview={overview}

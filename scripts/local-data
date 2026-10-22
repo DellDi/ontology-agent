@@ -41,7 +41,7 @@ note() { echo "· $*"; }
 usage() {
   cat >&2 <<USAGE
 usage: scripts/local-data <command>
-  export [--sets N] [--out DIR]    精选导出最近 N（默认 3）个冻结集；默认输出 snapshots/<时间>
+  export [--sets N | --all] [--out DIR]  导出最近 N（默认 3）个或全部冻结集
   import <快照目录> [--replace]    导入本地库；--replace 先清空快照涉及的表（其他表有数据引用时拒绝）
   verify <快照目录>                逐表核对本地库与快照清单
 USAGE
@@ -128,7 +128,9 @@ table_digest() {
   printf '%s\t%s\t%s\n' "$table" "$rows_hash" "$cols_hash"
 }
 
-file_sum() { shasum -a 256 "$1" | cut -d' ' -f1; }
+file_sum() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
+}
 
 flyway_max() { $1 -c "select max(version::int) from public.flyway_schema_history where success"; }
 ontology_signature() {
@@ -143,18 +145,27 @@ cmd_export() {
   while (( $# )); do
     case $1 in
       --sets) sets=${2:-}; shift 2 ;;
+      --all) sets=all; shift ;;
       --out) out=${2:-}; shift 2 ;;
       *) usage ;;
     esac
   done
-  [[ $sets =~ ^[0-9]+$ ]] && (( sets >= 1 && sets <= 10 )) || fail "--sets 必须是 1-10 的整数。"
+  if [[ $sets != all ]]; then
+    [[ $sets =~ ^[0-9]+$ ]] && (( sets >= 1 && sets <= 10 )) || fail "--sets 必须是 1-10 的整数；全部导出使用 --all。"
+  fi
   require_container; load_company
   [[ -n $out ]] || out="$ROOT_DIR/snapshots/$(date -u +%Y%m%dT%H%M%SZ)"
   [[ ! -e $out ]] || fail "输出目录已存在：$out"
   cpsql -c "select 1" >/dev/null || fail "无法连接公司平台库 $C_HOST:$C_PORT/${C_DB}（需要公司网络）。"
-  note "公司平台库 $C_HOST:$C_PORT/${C_DB}（只读会话），导出最近 $sets 个冻结集"
+  local limit=""
+  if [[ $sets == all ]]; then
+    note "公司平台库 $C_HOST:$C_PORT/${C_DB}（只读会话），导出全部冻结集"
+  else
+    limit="limit $sets"
+    note "公司平台库 $C_HOST:$C_PORT/${C_DB}（只读会话），导出最近 $sets 个冻结集"
+  fi
 
-  SETS=$(cpsql -c "select set_id from ingestion.dataset_version_sets where status = 'frozen' order by captured_at desc, set_id desc limit $sets" | array_literal)
+  SETS=$(cpsql -c "select set_id from ingestion.dataset_version_sets where status = 'frozen' order by captured_at desc, set_id desc $limit" | array_literal)
   PV=$(cpsql -c "select product_version_id from ingestion.dataset_version_set_items where set_id = ANY($SETS)" | array_literal)
   local seed="select source_dataset_version_id from ingestion.data_product_version_lineage where product_version_id = ANY($PV)" table
   for table in $FACT_TABLES; do seed="$seed union select source_dataset_version_id from facts.$table where product_version_id = ANY($PV)"; done
@@ -163,7 +174,7 @@ cmd_export() {
   SR=$(cpsql -c "select source_ingestion_run_id from ingestion.source_dataset_versions where id = ANY($SV)" | array_literal)
 
   mkdir -p "$out"; chmod 700 "$out"
-  local manifest="$out/manifest.tsv" spec predicate rows file lines
+  local manifest="$out/manifest.tsv" spec predicate rows file lines filesum
   {
     printf '#snapshot\t%s\n' "$(basename "$out")"
     printf '#created_at\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -183,7 +194,9 @@ cmd_export() {
       lines=$(wc -l < "$file" | tr -d ' ')
       [[ $lines == "$rows" ]] || fail "$table 导出行数不一致：文件 ${lines}，查询 ${rows}（源数据在导出期间发生了变化，请重新导出）。"
     fi
-    printf '%s\t%s\t%s\n' "$kind" "$spec" "$([[ $kind == T ]] && file_sum "$file" || echo -)" >> "$manifest"
+    filesum=-
+    if [[ $kind == T ]]; then filesum=$(file_sum "$file"); fi
+    printf '%s\t%s\t%s\n' "$kind" "$spec" "$filesum" >> "$manifest"
     note "$(printf '%-48s %8s 行%s' "$table" "$rows" "$([[ $kind == D ]] && echo '（定义表：只核对，不导入）')")"
   done
   chmod 600 "$out"/*

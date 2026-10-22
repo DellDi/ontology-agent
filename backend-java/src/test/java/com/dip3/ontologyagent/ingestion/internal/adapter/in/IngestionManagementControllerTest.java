@@ -35,7 +35,18 @@ class IngestionManagementControllerTest {
     void rejectsAnonymousBeforeReadingCatalog() throws Exception {
         when(auth.authenticate(any())).thenReturn(Optional.empty());
         mvc.perform(get("/api/admin/ingestion/overview")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/ingestion/health")).andExpect(status().isUnauthorized());
         verifyNoInteractions(port);
+    }
+
+    @Test
+    void authenticatedHealthReadKeepsAnEmptyCatalogExplicit() throws Exception {
+        actor("org-a", "EASYV_ANALYST");
+        when(port.health()).thenReturn(new IngestionManagementPort.Health("platform", List.of()));
+        mvc.perform(get("/api/admin/ingestion/health")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.scope").value("platform"))
+                .andExpect(jsonPath("$.products").isEmpty());
+        verify(port).health();
     }
 
     @Test

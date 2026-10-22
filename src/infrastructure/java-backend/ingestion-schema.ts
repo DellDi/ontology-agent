@@ -11,6 +11,25 @@ const sourceVersion = z.strictObject({
   finishedAt: instant.nullable(),
 });
 
+const ingestionRunSchema = z.strictObject({
+  id: key,
+  kind: z.enum(['source', 'product']),
+  targetKey: key,
+  mode: z.enum(['full', 'incremental', 'reconcile']),
+  status: z.enum([
+    'pending',
+    'running',
+    'completed',
+    'failed',
+    'cancelled',
+  ]),
+  errorCode: key.nullable(),
+  correlationId: key.nullable(),
+  createdAt: instant,
+  startedAt: instant.nullable(),
+  finishedAt: instant.nullable(),
+});
+
 export const ingestionOverviewSchema = z.strictObject({
   scope: z.enum(['platform', 'organization']),
   runLimit: z.number().int().positive(),
@@ -34,26 +53,7 @@ export const ingestionOverviewSchema = z.strictObject({
       datasetKeys: z.array(key),
     }),
   ),
-  runs: z.array(
-    z.strictObject({
-      id: key,
-      kind: z.enum(['source', 'product']),
-      targetKey: key,
-      mode: z.enum(['full', 'incremental', 'reconcile']),
-      status: z.enum([
-        'pending',
-        'running',
-        'completed',
-        'failed',
-        'cancelled',
-      ]),
-      errorCode: key.nullable(),
-      correlationId: key.nullable(),
-      createdAt: instant,
-      startedAt: instant.nullable(),
-      finishedAt: instant.nullable(),
-    }),
-  ),
+  runs: z.array(ingestionRunSchema),
   releases: z.array(
     z.strictObject({
       id: key,
@@ -110,3 +110,22 @@ export const ingestionAccessSchema = z.strictObject({
   ),
 });
 export type IngestionAccess = z.infer<typeof ingestionAccessSchema>;
+
+export const ingestionHealthSchema = z.strictObject({
+  scope: z.literal('platform'),
+  products: z.array(z.strictObject({
+    key,
+    domainKey: key,
+    status: catalogStatus,
+    published: z.strictObject({
+      setId: key,
+      versionId: key,
+      rowCount: z.number().int().nonnegative(),
+      publishedAt: instant.nullable(),
+      oldestInputAt: instant.nullable(),
+    }).nullable(),
+    latestRun: ingestionRunSchema.nullable(),
+    lastSuccessfulCheckAt: instant.nullable(),
+  })),
+});
+export type IngestionHealth = z.infer<typeof ingestionHealthSchema>;

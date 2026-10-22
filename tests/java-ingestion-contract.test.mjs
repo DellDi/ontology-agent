@@ -117,3 +117,52 @@ test('版本血缘展示区分输入采集时间与发布时间，旧输入不�
   assert.match(html, /2026\/09\/12 09:10/);
   assert.match(html, /这些时间不代表最近一次采集检查/);
 });
+
+test('数据健康契约 | 保留旧发布与最新失败，缺失时间不伪造，拒绝连接和原始错误', async () => {
+  const ajv = new Ajv2020({ strict: true, allErrors: true });
+  addFormats(ajv);
+  const validate = ajv.compile(await read('../contracts/backend/schemas/ingestion-health.schema.json'));
+  const fixture = await read('../contracts/backend/fixtures/ingestion-health.json');
+  const check = (value, expected) => {
+    assert.equal(validate(value), expected, ajv.errorsText());
+    assert.equal(schemas.ingestionHealthSchema.safeParse(value).success, expected);
+  };
+  check(fixture, true);
+  const missing = structuredClone(fixture);
+  Object.assign(missing.products[0], { published: null, latestRun: null, lastSuccessfulCheckAt: null });
+  check(missing, true);
+  for (const mutate of [
+    product => { product.connectionRef = 'private'; },
+    product => { product.latestRun.errorDetail = { password: 'private' }; },
+    product => { product.lastSuccessfulCheckAt = 'invalid'; },
+    product => { product.published.rowCount = -1; },
+    product => { delete product.latestRun; },
+  ]) {
+    const invalid = structuredClone(fixture);
+    mutate(invalid.products[0]);
+    check(invalid, false);
+  }
+});
+
+test('数据健康呈现 | 最近任务失败保留已有版本，空发布和零条记录分别展示', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const html = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import { readFileSync } from 'node:fs';
+    import panel from './src/app/(admin)/admin/ingestion/ingestion-health-panel.tsx';
+    const health = JSON.parse(readFileSync('./contracts/backend/fixtures/ingestion-health.json', 'utf8'));
+    const empty = structuredClone(health.products[0]);
+    Object.assign(empty, { key: 'empty-product', published: null, latestRun: null, lastSuccessfulCheckAt: null });
+    const zero = structuredClone(health.products[0]);
+    zero.key = 'zero-product'; zero.published.rowCount = 0;
+    health.products.push(empty, zero);
+    console.log(renderToStaticMarkup(React.createElement(panel.IngestionHealthPanel, { health, onInspectRuns: () => {} })));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
+  assert.match(html, /最近任务失败/);
+  assert.match(html, /上一发布版本仍保留/);
+  assert.match(html, /尚无成功检查记录/);
+  assert.match(html, /尚无发布版本/);
+  assert.match(html, /发布版本含 0 条记录/);
+  assert.match(html, /没有配置新鲜度时限/);
+});

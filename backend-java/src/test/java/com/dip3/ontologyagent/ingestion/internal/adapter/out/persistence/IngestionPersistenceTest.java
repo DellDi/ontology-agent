@@ -662,6 +662,55 @@ class IngestionPersistenceTest {
     }
 
     @Test
+    void healthKeepsPublishedDataAndSuccessfulCheckWhenRecentSourceChecksFail() {
+        publishSource("source-run-a");
+        publishProduct("product-run-a", "product-a", "product-version-a",
+                Map.of("input-a", "version-a-1", "input-b", "version-b-1"));
+        persistence.freezeVersionSet(new IngestionPersistencePort.VersionSetPublication(
+                "set-a", Map.of("product-a", "product-version-a"), Instant.now(), "operator"));
+        for (int i = 0; i < 55; i++) {
+            persistence.createSourceRun(sourceRunRequest("health-failed-" + i));
+            persistence.failSourceRun("health-failed-" + i, "SOURCE_CONNECTION_FAILED",
+                    Map.of("password", "secret-sentinel", "sql", "private-sql"));
+        }
+        var health = new IngestionManagementPostgresAdapter(jdbc).health();
+        var product = health.products().getFirst();
+        assertEquals("product-a", product.key());
+        assertEquals("product-version-a", product.published().versionId());
+        assertEquals("failed", product.latestRun().status());
+        assertEquals("source", product.latestRun().kind());
+        assertEquals("SOURCE_CONNECTION_FAILED", product.latestRun().errorCode());
+        assertEquals(jdbc.queryForObject("select finished_at from ingestion.product_materialization_runs where id='product-run-a'", Timestamp.class).toInstant(),
+                product.lastSuccessfulCheckAt());
+        assertEquals(jdbc.queryForObject("select finished_at from ingestion.source_ingestion_runs where id='source-run-a'", Timestamp.class).toInstant(),
+                product.published().oldestInputAt());
+        assertEquals(55, jdbc.queryForObject("select count(*) from ingestion.source_ingestion_runs where status='failed'", Integer.class));
+        String serialized = new JsonCodec().write(health);
+        org.junit.jupiter.api.Assertions.assertFalse(serialized.contains("secret-sentinel"));
+        org.junit.jupiter.api.Assertions.assertFalse(serialized.contains("private-sql"));
+    }
+
+    @Test
+    void healthRequiresFrozenPublishedVersionsMatchingCurrentDefinition() {
+        publishSource("source-run-a");
+        publishProduct("product-run-a", "product-a", "product-version-a",
+                Map.of("input-a", "version-a-1", "input-b", "version-b-1"));
+        var management = new IngestionManagementPostgresAdapter(jdbc);
+        assertEquals(null, management.health().products().getFirst().published());
+        persistence.freezeVersionSet(new IngestionPersistencePort.VersionSetPublication(
+                "set-a", Map.of("product-a", "product-version-a"), Instant.now(), "operator"));
+        assertEquals("product-version-a", management.health().products().getFirst().published().versionId());
+        jdbc.update("update ingestion.data_product_definitions set schema_version=schema_version+1 where product_key='product-a'");
+        assertEquals(null, management.health().products().getFirst().published());
+        jdbc.update("update ingestion.data_product_definitions set schema_version=schema_version-1 where product_key='product-a'");
+        assertThrows(DataAccessException.class, () -> jdbc.update(
+                "update ingestion.data_product_versions set status='revoked' where id='product-version-a'"));
+        jdbc.update("update ingestion.dataset_version_sets set status='revoked' where set_id='set-a'");
+        jdbc.update("update ingestion.data_product_versions set status='revoked' where id='product-version-a'");
+        assertEquals(null, management.health().products().getFirst().published());
+    }
+
+    @Test
     void releaseRequestsAreIdempotentAndAuditedAndRejectChangedPayloads() {
         var tasks = releaseTasks();
         String id = java.util.UUID.randomUUID().toString();
@@ -840,6 +889,10 @@ class IngestionPersistenceTest {
         assertEquals(1L, count("ingestion.data_product_versions"));
         assertEquals(original.id(), value("select result_product_version_id from ingestion.product_materialization_runs where id='check-a'"));
         assertEquals("completed", value("select status from ingestion.product_materialization_runs where id='check-a'"));
+        var health = new IngestionManagementPostgresAdapter(jdbc).health().products().getFirst();
+        assertEquals("check-a", health.latestRun().id());
+        assertEquals(jdbc.queryForObject("select finished_at from ingestion.product_materialization_runs where id='check-a'", Timestamp.class).toInstant(), health.lastSuccessfulCheckAt());
+        assertEquals(null, health.published(), "产品版本尚未冻结，不能冒充已发布数据");
         assertThrows(BackendException.class, () -> persistence.publishProduct(
                 new IngestionPersistencePort.ProductPublication("check-a", "different", "facts.product_a@1", 3, "changed", 1), () -> {}));
     }
