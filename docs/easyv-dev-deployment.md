@@ -5,7 +5,15 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布：D1 数据健康（2026-10-22）
+## 当前发布：D2 按需生成失败巡检（2026-10-23）
+
+Web、API/分析 Worker 与发布 Worker 已更新为 `d-inspection-d5f6ff9`，代码提交 `d5f6ff9abca9caedabcbf3963a4e3995008c8712`。工作台首页增加生成失败巡检入口，沿用正式对象查询的成员资格和账号范围，区分转为失败、首次可见、前后均失败；完整统计后分页展示，并支持把任务/应用问题预填到后续分析。具体口径、权限、完整查询边界和未闭环项见 [D 推进记录](./acceptance/d-operations-plan.md)。
+
+源归档、已测 JAR SHA-256 与 Java/Web OCI revision 一致，更新前无活动分析或发布任务。Web/backend/Cube healthy、EasyV health UP、登录页 200；Java 与 BFF 巡检接口匿名请求均为 401。发布 Worker RestartCount=0、每日清理保持；四个基础设施容器 ID 不变。沿用 V32，无迁移、采集、源写回或手动清理，源周期采集仍关闭。
+
+回执 `/opt/ontology-agent-releases/d-inspection-d5f6ff9/deployment-report.json`。业务和页面验证在本地同步快照完成，公司只核对部署健康、版本与认证边界。应用回退使用 `d-health-ddaff72` 的 Web、Java 与发布 Worker 镜像及目录，数据库与 Cube 配置不变；公司 C 写回仍未启用。完整 D、源端孤立任务原因、D3 和通知不因本次巡检上线而宣布完成。
+
+## 上批发布：D1 数据健康（2026-10-22）
 
 Web、API/分析 Worker 与发布 Worker 已更新为 `d-health-ddaff72`，代码提交 `ddaff72926d0250c5129b0132551ef0c3359a14e`。新增只读健康视图，独立展示每类产品的最近成功检查、发布与原输入采集时间，最新任务失败时仍保留上一发布依据。代码、契约、验证及下一场景见 [D 推进记录](./acceptance/d-operations-plan.md)。
 
