@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "current": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "capturedAt"
+      ]
+    },
+    "baseline": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "capturedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "capturedAt"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "scopeLabel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "totalFailures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changedToFailed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstVisibleFailures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failedInBoth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "withoutBaseline": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "repeatedApplications": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "totalFailures",
+        "changedToFailed",
+        "firstVisibleFailures",
+        "failedInBoth",
+        "withoutBaseline",
+        "repeatedApplications"
+      ]
+    },
+    "repeatedApplications": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "objectKey": {
+                "const": "easyv-ai-application",
+                "type": "string"
+              },
+              "objectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "productVersionId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "objectKey",
+              "objectId",
+              "productVersionId"
+            ]
+          },
+          "failureCount": {
+            "type": "integer",
+            "minimum": 2
+          }
+        },
+        "required": [
+          "reference",
+          "failureCount"
+        ]
+      }
+    },
+    "failures": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "objectKey": {
+                "const": "easyv-forge-task",
+                "type": "string"
+              },
+              "objectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "productVersionId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "objectKey",
+              "objectId",
+              "productVersionId"
+            ]
+          },
+          "application": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "objectKey": {
+                "const": "easyv-ai-application",
+                "type": "string"
+              },
+              "objectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "productVersionId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "objectKey",
+              "objectId",
+              "productVersionId"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previousStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "CHANGED_TO_FAILED",
+              "FIRST_VISIBLE_FAILURE",
+              "FAILED_IN_BOTH",
+              "NO_BASELINE"
+            ]
+          }
+        },
+        "required": [
+          "reference",
+          "application",
+          "reason",
+          "createdAt",
+          "finishedAt",
+          "previousStatus",
+          "change"
+        ]
+      }
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "limit": {
+      "type": "integer",
+      "const": 50
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "current",
+    "baseline",
+    "scopeLabel",
+    "summary",
+    "repeatedApplications",
+    "failures",
+    "offset",
+    "limit",
+    "hasMore"
+  ]
+}

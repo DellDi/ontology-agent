@@ -166,3 +166,62 @@ test('数据健康呈现 | 最近任务失败保留已有版本，空发布和�
   assert.match(html, /发布版本含 0 条记录/);
   assert.match(html, /没有配置新鲜度时限/);
 });
+
+test('失败巡检契约 | 分开状态变化与首次可见，严格保留版本和缺失时间', async () => {
+  const inspection = await import('../src/infrastructure/java-backend/inspection-schema.ts');
+  const ajv = new Ajv2020({ strict: true, allErrors: true }); addFormats(ajv);
+  const validate = ajv.compile(await read('../contracts/backend/schemas/failure-inspection.schema.json'));
+  const fixture = await read('../contracts/backend/fixtures/failure-inspection.json');
+  const check = (value, expected) => {
+    assert.equal(validate(value), expected, ajv.errorsText());
+    assert.equal(inspection.failureInspectionSchema.safeParse(value).success, expected);
+  };
+  check(fixture, true);
+  for (const change of ['CHANGED_TO_FAILED','FIRST_VISIBLE_FAILURE','FAILED_IN_BOTH','NO_BASELINE']) {
+    const value = structuredClone(fixture); value.failures[0].change = change; value.failures[0].previousStatus = null; check(value, true);
+  }
+  const empty = structuredClone(fixture); empty.baseline = null; empty.failures = []; check(empty, true);
+  for (const mutate of [
+    value => { value.scopeLabel = ''; }, value => { value.summary.totalFailures = -1; },
+    value => { value.failures[0].change = 'NEW_ROOT_CAUSE'; },
+    value => { value.failures[0].reference.productVersionId = ''; },
+    value => { value.failures[0].reference.objectKey = 'free-sql'; },
+    value => { value.failures[0].createdAt = 'not-a-date'; },
+    value => { value.connectionRef = 'private'; }, value => { value.failures[0].sql = 'private'; },
+    value => { value.limit = 1000; }, value => { delete value.hasMore; },
+  ]) { const broken = structuredClone(fixture); mutate(broken); check(broken, false); }
+});
+
+test('失败巡检页面 | 解释空范围、无对比版本、首次可见与后续分析边界', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const html = execFileSync('node', ['--import','tsx','--input-type=module','-e', `
+    import React from 'react'; import { renderToStaticMarkup } from 'react-dom/server';
+    import { readFileSync } from 'node:fs';
+    import view from './src/app/(workspace)/workspace/inspection/inspection-view.tsx';
+    const report=JSON.parse(readFileSync('./contracts/backend/fixtures/failure-inspection.json','utf8'));
+    console.log(renderToStaticMarkup(React.createElement(view.InspectionView,{report})));
+    report.baseline=null; report.failures=[];report.summary.totalFailures=0;
+    console.log(renderToStaticMarkup(React.createElement(view.InspectionView,{report})));
+  `], { encoding:'utf8',env:{...process.env,NODE_OPTIONS:''} });
+  assert.match(html,/首次可见不等于刚刚发生/);
+  assert.match(html,/当前可见范围内没有符合上述口径/);
+  assert.match(html,/尚无更早的完整冻结版本/);
+  assert.match(html,/不等于已验证的根因/);
+  assert.match(html,/后续分析按当时最新发布数据读取/);
+  assert.match(html,/\/workspace\?draft=/);
+  assert.match(html,/task-a/);
+});
+
+test('失败巡检 BFF | 保留冻结版本和分页，只透传会话 Cookie', async context => {
+  const { createServer } = await import('node:http'); const { once } = await import('node:events');
+  const { forwardJavaBackendRequest } = await import('../src/infrastructure/java-backend/client.ts');
+  const old = process.env.JAVA_BACKEND_URL; const seen=[];
+  const fixture = await read('../contracts/backend/fixtures/failure-inspection.json');
+  const server=createServer((request,response) => { seen.push({url:request.url,cookie:request.headers.cookie}); response.writeHead(200,{'Content-Type':'application/json'}); response.end(JSON.stringify(fixture)); });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  context.after(() => { server.close(); if(old===undefined) delete process.env.JAVA_BACKEND_URL; else process.env.JAVA_BACKEND_URL=old; });
+  process.env.JAVA_BACKEND_URL=`http://127.0.0.1:${server.address().port}`;
+  const response=await forwardJavaBackendRequest(new Request('http://next.local/api/easyv/inspection?setId=set-current&offset=50',{headers:{cookie:'dip3_session=signed; private=omit'}}));
+  assert.equal(response.status,200); assert.deepEqual(await response.json(),fixture);
+  assert.deepEqual(seen,[{url:'/api/easyv/inspection?setId=set-current&offset=50',cookie:'dip3_session=signed'}]);
+});

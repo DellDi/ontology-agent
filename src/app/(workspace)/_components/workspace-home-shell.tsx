@@ -34,6 +34,9 @@ export function WorkspaceHomeShell({ model, creationError, draftQuestion }: Work
         </StatusBanner>
       ) : null}
       {creationError ? <StatusBanner tone="error" className="mb-4">{creationError}</StatusBanner> : null}
+      {model.capabilities.some((capability) => capability.domainKey === 'easyv' && capability.available) ? (
+        <div className="mb-7 flex justify-end"><Link href="/workspace/inspection" className="text-sm text-muted-foreground hover:text-foreground">生成失败巡检 →</Link></div>
+      ) : null}
 
       {model.canCreateAnalysis ? (
         isEmpty ? (
