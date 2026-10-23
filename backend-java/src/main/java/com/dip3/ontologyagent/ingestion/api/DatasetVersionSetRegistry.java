@@ -7,5 +7,7 @@ import java.util.Set;
 public interface DatasetVersionSetRegistry {
     Optional<DatasetVersionSet> latestFrozen(Set<String> requiredProductKeys);
 
+    Optional<DatasetVersionSet> previousFrozen(String currentSetId, Set<String> requiredProductKeys);
+
     DatasetVersionSet requireFrozen(String setId, Set<String> requiredProductKeys);
 }

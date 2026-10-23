@@ -1,0 +1,42 @@
+{
+  "current": {
+    "id": "set-current",
+    "capturedAt": "2026-10-11T15:18:51Z"
+  },
+  "baseline": {
+    "id": "set-previous",
+    "capturedAt": "2026-10-10T07:50:48Z"
+  },
+  "scopeLabel": "全部数据",
+  "summary": {
+    "totalFailures": 1,
+    "changedToFailed": 0,
+    "firstVisibleFailures": 0,
+    "failedInBoth": 1,
+    "withoutBaseline": 0,
+    "repeatedApplications": 0
+  },
+  "repeatedApplications": [],
+  "failures": [
+    {
+      "reference": {
+        "objectKey": "easyv-forge-task",
+        "objectId": "task-a",
+        "productVersionId": "forge-current"
+      },
+      "application": {
+        "objectKey": "easyv-ai-application",
+        "objectId": "app-a",
+        "productVersionId": "apps-current"
+      },
+      "reason": "源任务记录生成失败；需要继续核对。",
+      "createdAt": "2026-10-09T01:00:00Z",
+      "finishedAt": null,
+      "previousStatus": "failed",
+      "change": "FAILED_IN_BOTH"
+    }
+  ],
+  "offset": 0,
+  "limit": 50,
+  "hasMore": false
+}

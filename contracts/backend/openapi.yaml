@@ -3,6 +3,29 @@ info:
   title: DIP3 Java Analysis Backend
   version: 2.0.0
 paths:
+  /api/easyv/inspection:
+    get:
+      summary: Inspect failed generation tasks in the current EasyV user scope
+      description: Read-only canonical object queries. Compares the same task identity against the previous complete frozen version under current permissions. First visible is distinct from changed to failed. Linked undeleted applications are required. No source reads or automatic actions.
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: setId
+          schema: { type: string }
+          description: Frozen version retained during pagination; absent selects latest
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 10000, multipleOf: 50, default: 0 }
+      responses:
+        '200':
+          description: Complete summary with a page of failures and top ten repeated applications
+          content:
+            application/json: { schema: { $ref: './schemas/failure-inspection.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /api/admin/identity/accounts:
     get:
       summary: List provisioned platform accounts (PLATFORM_ADMIN only)

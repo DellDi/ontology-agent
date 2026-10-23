@@ -55,6 +55,26 @@ public class DatasetVersionSetPostgresAdapter implements DatasetVersionSetRegist
     }
 
     @Override
+    public Optional<DatasetVersionSet> previousFrozen(String currentSetId, Set<String> requiredProductKeys) {
+        var current = requireFrozen(currentSetId, requiredProductKeys);
+        var ids = jdbc.queryForList("""
+                select s.set_id from ingestion.dataset_version_sets s
+                join ingestion.dataset_version_set_items i on i.set_id=s.set_id
+                join ingestion.data_product_versions v on v.id=i.product_version_id
+                where s.status='frozen' and v.status='published'
+                  and (s.captured_at,s.set_id) < (?,?)
+                  and not exists (select 1 from ingestion.dataset_version_set_items other
+                      join ingestion.data_product_versions ov on ov.id=other.product_version_id
+                      where other.set_id=s.set_id and ov.status<>'published')
+                group by s.set_id,s.captured_at
+                having jsonb_agg(i.product_key order by i.product_key) @> cast(? as jsonb)
+                order by s.captured_at desc,s.set_id desc limit 1
+                """, String.class, java.sql.Timestamp.from(current.capturedAt()), currentSetId,
+                json.write(requiredKeys(requiredProductKeys)));
+        return ids.isEmpty() ? Optional.empty() : Optional.of(requireFrozen(ids.getFirst(), requiredProductKeys));
+    }
+
+    @Override
     public DatasetVersionSet requireFrozen(String setId, Set<String> requiredProductKeys) {
         if (setId == null || !setId.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
             throw new BackendException("DATASET_VERSION_SET_INVALID",

@@ -416,6 +416,24 @@ class IngestionPersistenceTest {
         assertEquals("set-captured-later", selected.publicationId());
         assertEquals(newerCapture, selected.capturedAt());
         assertEquals(newerFreeze, selected.frozenAt());
+        assertEquals("set-frozen-later", versionSets.previousFrozen(selected.publicationId(), products.keySet())
+                .orElseThrow().publicationId(), "对比依据是采集时点，不能按更晚的发布完成时间选择");
+        assertEquals(java.util.Optional.empty(), versionSets.previousFrozen("set-frozen-later", products.keySet()));
+    }
+
+    @Test
+    void previousFrozenSkipsIncompleteAndRevokedManifestsAndOrdersCaptureTiesById() {
+        publishSource("source-run-a");
+        var a=publishProduct("product-run-a", "product-a", "product-version-a", Map.of("input-a", "version-a-1", "input-b", "version-b-1"));
+        var b=publishProduct("product-run-b", "product-b", "product-version-b", Map.of("input-a", "version-a-1"));
+        var products=Map.of("product-a",a.id(),"product-b",b.id());
+        var at=Instant.parse("2026-09-01T00:00:00Z");
+        insertFrozenManifest("a-complete",products,at,at.plusSeconds(1));
+        insertFrozenManifest("b-revoked",products,at,at.plusSeconds(2));
+        jdbc.update("update ingestion.dataset_version_sets set status='revoked' where set_id='b-revoked'");
+        insertFrozenManifest("c-partial",Map.of("product-a",a.id()),at,at.plusSeconds(3));
+        insertFrozenManifest("d-current",products,at,at.plusSeconds(4));
+        assertEquals("a-complete",versionSets.previousFrozen("d-current",products.keySet()).orElseThrow().publicationId());
     }
 
     @Test
