@@ -23,13 +23,14 @@ export default async function IngestionPage({
   let access;
   let health;
   try {
-    [overview, tasks, access, health] = await Promise.all([
+    access = await readJavaBackend('/api/admin/ingestion/access', ingestionAccessSchema);
+    if (!access.canManage) redirect('/workspace/data');
+    [overview, tasks, health] = await Promise.all([
       readJavaBackend('/api/admin/ingestion/overview', ingestionOverviewSchema),
       readJavaBackend(
         '/api/admin/ingestion/release-tasks',
         ingestionReleaseTaskListSchema,
       ),
-      readJavaBackend('/api/admin/ingestion/access', ingestionAccessSchema),
       readJavaBackend('/api/admin/ingestion/health', ingestionHealthSchema),
     ]);
   } catch (error) {

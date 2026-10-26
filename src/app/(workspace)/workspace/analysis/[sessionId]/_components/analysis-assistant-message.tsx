@@ -148,7 +148,7 @@ export function AnalysisAssistantMessage({
     content: ReactNode;
     testId?: string;
   }) => void;
-  onObjectSelect?: (selection: AnalysisObjectSelection, label: string) => void;
+  onObjectSelect?: (selection: AnalysisObjectSelection, label: string, question?: string) => void;
   availableDetails?: Exclude<DetailDrawerType, null>[];
   suggestions?: string[];
   onSuggestionClick?: (question: string) => void;

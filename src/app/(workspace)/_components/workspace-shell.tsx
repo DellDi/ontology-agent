@@ -293,6 +293,9 @@ function UserMenu({
           <Settings aria-hidden className="size-4" />
           设置
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/workspace/data">分析数据</Link>
+        </DropdownMenuItem>
         {adminItems.length ? (
           <>
             <DropdownMenuSeparator />

@@ -82,6 +82,10 @@ class BlockImprovementTest {
         new Proposal(null, List.of(), diagnosis, List.of(), context.title(), context.purpose()), types));
     code("BLOCK_IMPROVEMENT_INVALID", () -> BlockImprovement.preview(context,
         new Proposal(null, List.of(), diagnosis, List.of(), " ", null), types));
+    var missingMeaning = new Context(context.title(), context.purpose(),
+        List.of(new Metric("component-0", "same-metric", "门诊量", null, null, "人次", "按日求和", "bar")), context.input(), context.schemes());
+    code("BLOCK_IMPROVEMENT_INVALID", () -> BlockImprovement.preview(missingMeaning,
+        new Proposal(null, List.of(), diagnosis, List.of(), "门诊量趋势", null), types));
   }
   private Metric metric(String component) { return new Metric(component,"same-metric","门诊量","每日接诊人次",null,"人次","按日求和","bar"); }
   private Proposal proposal(String scheme, List<Choice> choices) { return new Proposal(scheme, choices, diagnosis, List.of()); }

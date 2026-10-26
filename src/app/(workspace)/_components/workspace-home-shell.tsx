@@ -34,9 +34,10 @@ export function WorkspaceHomeShell({ model, creationError, draftQuestion }: Work
         </StatusBanner>
       ) : null}
       {creationError ? <StatusBanner tone="error" className="mb-4">{creationError}</StatusBanner> : null}
-      {model.capabilities.some((capability) => capability.domainKey === 'easyv' && capability.available) ? (
-        <div className="mb-7 flex justify-end"><Link href="/workspace/inspection" className="text-sm text-muted-foreground hover:text-foreground">生成失败巡检 →</Link></div>
-      ) : null}
+      <div className="mb-7 flex flex-wrap justify-end gap-x-6 gap-y-2 text-sm text-muted-foreground">
+        <Link href="/workspace/data" className="py-2 hover:text-foreground">分析数据 →</Link>
+        {model.capabilities.some((capability) => capability.domainKey === 'easyv' && capability.available) ? <Link href="/workspace?draft=先列出我最近的大屏原型，我想选择几张一起检查和改进。" className="py-2 hover:text-foreground">检查与改进大屏 →</Link> : null}
+      </div>
 
       {model.canCreateAnalysis ? (
         isEmpty ? (

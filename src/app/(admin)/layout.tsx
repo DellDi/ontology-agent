@@ -33,7 +33,7 @@ export default async function AdminLayout({
           (item.href === '/admin/accounts'
             ? state.viewer.scope.roleCodes.includes('PLATFORM_ADMIN')
             : item.href === '/admin/ingestion'
-            ? access.canView
+            ? access.canManage
             : state.capabilities.canView),
       )}
       userDisplayName={state.viewer.displayName}

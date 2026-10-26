@@ -11,6 +11,7 @@ import type {
   IngestionHealth,
 } from '@/infrastructure/java-backend/ingestion-schema';
 import { StatusBadge, formatTimestamp } from '../../_components/admin-shell';
+import { dataName, updateFailureMessage } from './ingestion-presentation';
 
 const labels = {
   pending: '待执行',
@@ -43,14 +44,14 @@ function Status({ value }: { value: keyof typeof labels }) {
 }
 const modes = { full: '全量', incremental: '增量', reconcile: '对账' };
 const views = [
-  { key: 'health', label: '数据健康' },
-  { key: 'publish', label: '发布任务' },
-  { key: 'runs', label: '采集与物化' },
+  { key: 'health', label: '数据概况' },
+  { key: 'publish', label: '更新与处理' },
+  { key: 'runs', label: '运行记录' },
   { key: 'catalog', label: '数据目录' },
-  { key: 'releases', label: '冻结版本' },
+  { key: 'releases', label: '历史版本' },
   { key: 'access', label: '组织授权' },
 ] as const;
-const detailClass = 'border-b border-border py-4';
+const detailClass = 'py-4';
 const summaryClass =
   'flex cursor-pointer flex-wrap items-center justify-between gap-3 rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-ring';
 const codeClass = 'break-all font-mono text-xs text-muted-foreground';
@@ -59,7 +60,7 @@ export function IngestionWorkbench({
   overview,
   releaseTasks,
   access,
-  initialView = 'publish',
+  initialView = 'health',
   health,
 }: {
   overview: IngestionOverview;
@@ -74,7 +75,7 @@ export function IngestionWorkbench({
   const runs = overview.runs.filter(
     (run) =>
       (status === 'all' || run.status === status) &&
-      `${run.targetKey} ${run.id} ${run.errorCode ?? ''}`
+      `${dataName(run.targetKey)} ${run.targetKey} ${run.id} ${run.errorCode ?? ''}`
         .toLowerCase()
         .includes(query.trim().toLowerCase()),
   );
@@ -84,39 +85,39 @@ export function IngestionWorkbench({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mb-2 text-xs text-muted-foreground">
-            {access.canManage ? '平台管理' : '组织共享源 · 只读'}
+            平台管理
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">数据接入</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">数据管理</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            查看接入进度，定位失败任务，追溯分析使用的数据版本。
+            更新分析数据，处理接入异常。
           </p>
         </div>
         <a
           href="/admin/ingestion"
-          className="rounded-md border border-input px-4 py-2 text-sm hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+          className="py-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
         >
-          刷新状态
+          重新查看状态
         </a>
       </header>
       <nav
-        aria-label="数据接入视图"
-        className="flex flex-wrap gap-6 border-b border-border"
+        aria-label="数据管理视图"
+        className="flex flex-wrap gap-6"
       >
         {views
-          .filter((item) => item.key !== 'access' || access.canManage)
+          .filter((item) => item.key === 'health' || item.key === 'publish')
           .map((item) => (
             <button
               key={item.key}
               type="button"
               aria-current={view === item.key ? 'page' : undefined}
               onClick={() => setView(item.key)}
-              className={`border-b-2 pb-3 text-sm focus-visible:outline-2 focus-visible:outline-ring ${view === item.key ? 'border-foreground font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              className={`py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring ${view === item.key ? 'font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               {item.label}
             </button>
           ))}
       </nav>
-      {view === 'health' ? <IngestionHealthPanel health={health} onInspectRuns={() => setView('runs')} /> : null}
+      {view === 'health' ? <IngestionHealthPanel health={health} onInspectRuns={() => setView('publish')} /> : null}
       <div hidden={view !== 'publish'}>
         <IngestionReleasePanel
           overview={overview}
@@ -124,6 +125,11 @@ export function IngestionWorkbench({
           canManage={access.canManage}
         />
       </div>
+      <details open={view !== 'health' && view !== 'publish'} className="text-sm">
+        <summary className="w-fit cursor-pointer py-2 text-muted-foreground">排查与历史记录</summary>
+        <nav aria-label="数据诊断视图" className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+          {views.filter(item => item.key !== 'health' && item.key !== 'publish' && (item.key !== 'access' || access.canManage)).map(item => <button key={item.key} type="button" aria-current={view === item.key ? 'page' : undefined} onClick={() => setView(item.key)} className={`py-2 focus-visible:outline-2 focus-visible:outline-ring ${view === item.key ? 'font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>{item.label}</button>)}
+        </nav>
       {view === 'access' && access.canManage && (
         <IngestionAccessPanel
           initialAccess={access}
@@ -185,7 +191,7 @@ export function IngestionWorkbench({
                   <span className="mr-3 text-xs text-muted-foreground">
                     {run.kind === 'source' ? '采集' : '物化'}
                   </span>
-                  <span className="break-all font-medium">{run.targetKey}</span>
+                  <span className="break-all font-medium">{dataName(run.targetKey)}</span>
                   <span className="ml-3 text-xs text-muted-foreground">
                     {modes[run.mode]}
                   </span>
@@ -201,6 +207,10 @@ export function IngestionWorkbench({
                 </span>
               </summary>
               <dl className="mt-5 grid gap-4 bg-muted/40 p-4 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="mb-1 text-muted-foreground">数据编号</dt>
+                  <dd className={codeClass}>{run.targetKey}</dd>
+                </div>
                 <div>
                   <dt className="mb-1 text-muted-foreground">任务编号</dt>
                   <dd className={codeClass}>{run.id}</dd>
@@ -220,10 +230,10 @@ export function IngestionWorkbench({
                 {run.status === 'failed' && (
                   <div className="sm:col-span-2">
                     <dt className="break-all font-medium text-destructive">
-                      {run.errorCode ?? '任务失败，未记录错误码'}
+                      {updateFailureMessage(run.errorCode)}
                     </dt>
                     <dd className="mt-2 leading-6 text-muted-foreground">
-                      请将任务编号和关联编号交给运维人员定位日志。修复原因后，通过现有接入流程重新执行。
+                      错误码：{run.errorCode ?? '未记录'}。请使用任务编号和关联编号定位日志，修复原因后重新执行。
                     </dd>
                   </div>
                 )}
@@ -248,9 +258,8 @@ export function IngestionWorkbench({
               <details key={source.key} className={detailClass}>
                 <summary className={summaryClass}>
                   <span className="break-all font-medium">
-                    {source.key}{' '}
+                    {dataName(source.key)}{' '}
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
-                      {source.connectorType} ·{' '}
                       {
                         overview.datasets.filter(
                           (dataset) => dataset.sourceKey === source.key,
@@ -266,7 +275,8 @@ export function IngestionWorkbench({
                     </span>
                   </span>
                 </summary>
-                <ul className="mt-4 divide-y divide-border border-l-2 border-border pl-4">
+                <p className={`mt-3 ${codeClass}`}>数据源编号：{source.key} · 连接类型：{source.connectorType}</p>
+                <ul className="mt-4 space-y-2">
                   {overview.datasets
                     .filter((dataset) => dataset.sourceKey === source.key)
                     .map((dataset) => (
@@ -275,9 +285,9 @@ export function IngestionWorkbench({
                         className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
                       >
                         <span className="break-all">
-                          {dataset.key}{' '}
+                          {dataName(dataset.key)}{' '}
                           <span className="text-xs text-muted-foreground">
-                            schema v{dataset.schemaVersion}
+                            结构版本 {dataset.schemaVersion} · {dataset.key}
                           </span>
                         </span>
                         <Status value={dataset.status} />
@@ -298,9 +308,9 @@ export function IngestionWorkbench({
               <details key={product.key} className={detailClass}>
                 <summary className={summaryClass}>
                   <span className="break-all font-medium">
-                    {product.key}{' '}
+                    {dataName(product.key)}{' '}
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
-                      {product.domainKey}
+                      {product.key}
                     </span>
                   </span>
                   <span className="flex items-center gap-4">
@@ -337,8 +347,8 @@ export function IngestionWorkbench({
           {overview.releases.map((release) => (
             <details key={release.id} className={detailClass}>
               <summary className={summaryClass}>
-                <span className="min-w-0 break-all font-mono text-sm">
-                  {release.id}
+                <span className="min-w-0 text-sm">
+                  {release.frozenAt ? `${formatTimestamp(release.frozenAt)} 的数据版本` : '未发布的数据版本'}
                 </span>
                 <span className="flex items-center gap-4">
                   <time className="text-xs text-muted-foreground">
@@ -350,6 +360,7 @@ export function IngestionWorkbench({
                   </span>
                 </span>
               </summary>
+              <p className={`mt-3 ${codeClass}`}>版本编号：{release.id}</p>
               <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
                 <div><dt className="text-muted-foreground">集合记录时点</dt><dd>{formatTimestamp(release.capturedAt)}</dd></div>
                 <div><dt className="text-muted-foreground">发布完成时间</dt><dd>{release.frozenAt ? formatTimestamp(release.frozenAt) : '尚未发布'}</dd></div>
@@ -359,12 +370,12 @@ export function IngestionWorkbench({
                   此版本集尚未绑定数据产品。
                 </p>
               )}
-              <div className="mt-4 space-y-5 border-l-2 border-border pl-4">
+              <div className="mt-4 space-y-5">
                 {release.products.map((product) => (
                   <div key={product.key}>
                     <div className="flex flex-wrap items-center gap-3 text-sm">
                       <span className="break-all font-medium">
-                        {product.key}
+                        {dataName(product.key)}
                       </span>
                       <Status value={product.status} />
                       <span className="text-muted-foreground">
@@ -381,7 +392,6 @@ export function IngestionWorkbench({
                       {product.sources.map((source, index) => (
                         <li
                           key={`${source.versionId}:${index}`}
-                          className="border-l border-border pl-3"
                         >
                           <p className="break-all text-xs">
                             {source.datasetKey}
@@ -406,6 +416,7 @@ export function IngestionWorkbench({
           ))}
         </div>
       )}
+      </details>
     </section>
   );
 }

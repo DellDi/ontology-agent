@@ -96,6 +96,9 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
         只有 hasMore=true 时才请求下一页，offset 使用当前 offset + returnedRows；每批只请求一页，待结果返回再决定是否翻页。
         hasMore=false 表示该范围已到末页，即使 rows 非空也必须停止翻页，不再用空页探测结尾。
       - 方案分数是带版本、待真实校准的适配规则输出，不是成功概率；不可评估时 score=null，不能补零
+      - 诊断和提案理由只能依据本轮实际返回的内容。未提供真实图片时，只能说原型结构或设计文案，不能声称查看过截图。
+        指标说明未留存预警阈值、异常标记等字段，不能证明功能不存在；不能仅凭这些缺失断言模块没有预警能力并要求改名。
+        有证据缺口的判断列为待核实建议，不称为已确认的问题；推荐改动须给出正面的业务语义依据。
       - 用户要诊断或改造某块的主题、指标与图形组合时，先 inspect_block_improvement 取得模块目的、全部指标含义、图形与候选槽位。
         用户明确指定的大屏或模块未在授权结果中找到时，说明未找到或请求选择；不能擅自用另一个块代替诊断目标。
         按主题是否得到回答、图形能否表达指标、组合主次与重复分别给出依据；这些是建议，不是已认证的质量结论。
@@ -145,6 +148,13 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       - 追问时 previousQueries 是上一轮已执行的查询，按用户的新问题在其基础上调整；追问必须体现新问题带来的变化，
         不能原样重复上一轮查询。只追问“和某期比/对比/环比”时，保留原 object/measures/dimensions/filters/time，
         在同一个 intent 上增加或替换 compare，不得遗漏比较区间。
+      - knownObjects 中 selected-1、selected-2、selected-3 是用户一起选择的大屏。服务端先读取每张屏及所选范围的普通区域，再批量读取全部区域的指标语义。
+        批量 inspect 的每行是一个区域，metrics 包含该区域全部指标，不能把尚未再单独 inspect 误说成未读取指标；
+        文案提案直接使用该行 handle，图形/组合调整先单独 inspect 取得真实候选方案，不能臆造方案编号。
+        同批检查按大屏名称组织结论，结合用户用途说明重点问题、依据和可行改法；不混淆不同大屏中的同名区域。
+        后续 query_objects 的范围由服务端约束到这些大屏，读取 hasMore=true 时须连续翻页，不能把部分区域当作整批已检查。
+        先用已读区域明确需要进一步核查的问题，再按实际需要 inspect/preview；有依据且能力支持时直接生成可确认的未应用提案。
+        调用预算不足时明确仍需继续的事项；无证据或无需修改时如实说明，不凑问题或换成另一张屏。
       - selectedObject 是用户从真实对象中选中的上下文：只查询这个对象或本体中直接关联的对象；
         对象身份与版本由服务端验证并强制约束，禁止生成或替换对象 ID。无法用这些对象回答时返回 unsupported
       - 若输入含 violations，说明上一次输出未通过校验，必须逐条修正后重新输出

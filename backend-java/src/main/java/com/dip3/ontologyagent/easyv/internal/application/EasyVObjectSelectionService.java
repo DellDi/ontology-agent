@@ -25,7 +25,9 @@ public class EasyVObjectSelectionService {
       EasyVScopeResolver scopes, SemanticModel model) {
     this.objects = objects; this.datasets = datasets; this.scopes = scopes; this.model = model;
   }
-  public record Selected(ResolvedScopeSnapshot scope, ObjectQueryPort.Row object) {}
+  public record Selected(ResolvedScopeSnapshot scope, ObjectQueryPort.Row object, List<ObjectQueryPort.Row> objects) {
+    public Selected(ResolvedScopeSnapshot scope, ObjectQueryPort.Row object) { this(scope, object, List.of(object)); }
+  }
 
   public Selected require(AuthSession viewer, ResolvedScopeSnapshot frozenScope, ObjectSelection selection) {
     if (!OBJECTS.contains(selection.reference().objectKey())) throw new BackendException("OBJECT_SELECTION_INVALID", "所选对象不在正式读取目录中。");
@@ -40,7 +42,13 @@ public class EasyVObjectSelectionService {
     }
     var object = objects.require(type.key(), selection.reference().objectId(),
         new SemanticQueryPort.AccessContext(versions, EasyVScopeResolver.dataScope(scope)));
-    return new Selected(scope, object);
+    var members = new ArrayList<ObjectQueryPort.Row>(); members.add(object);
+    for (var reference : selection.additionalReferences()) {
+      var member = require(viewer, scope, new ObjectSelection(selection.executionId(), selection.datasetVersionSetId(), reference));
+      if (!scope.equals(member.scope())) throw new BackendException("OBJECT_SCOPE_FORBIDDEN", "检查范围在读取过程中发生变化，请重新选择。");
+      members.add(member.object());
+    }
+    return new Selected(scope, object, List.copyOf(members));
   }
 
   public QueryIntent constrain(QueryIntent intent, ObjectQueryPort.Row selection) {
@@ -56,6 +64,25 @@ public class EasyVObjectSelectionService {
     var constraint = constraint(query.objectKey(), selection);
     if (!filters.contains(constraint)) filters.add(constraint);
     return new ObjectQueryPort.Query(query.objectKey(), filters, query.order(), query.limit(), query.offset());
+  }
+
+  public QueryIntent constrain(QueryIntent intent, List<ObjectQueryPort.Row> selections) {
+    var filters = new ArrayList<>(intent.filters()); filters.add(constraint(intent.objectKey(), selections));
+    return new QueryIntent(intent.objectKey(), intent.measures(), intent.dimensions(), filters, intent.time(), intent.compare(), intent.order(), intent.limit());
+  }
+
+  public ObjectQueryPort.Query constrain(ObjectQueryPort.Query query, List<ObjectQueryPort.Row> selections) {
+    var filters = new ArrayList<>(query.filters()); filters.add(constraint(query.objectKey(), selections));
+    return new ObjectQueryPort.Query(query.objectKey(), filters, query.order(), query.limit(), query.offset());
+  }
+
+  private QueryIntent.Filter constraint(String targetKey, List<ObjectQueryPort.Row> selections) {
+    if (selections.isEmpty()) throw new BackendException("OBJECT_SELECTION_INVALID", "请先选择需要检查的大屏。");
+    var constraints = selections.stream().map(selection -> constraint(targetKey, selection)).toList();
+    var first = constraints.getFirst();
+    if (constraints.stream().anyMatch(filter -> !first.member().equals(filter.member())))
+      throw new BackendException("OBJECT_SELECTION_QUERY_UNSUPPORTED", "所选大屏无法使用同一关系约束查询。");
+    return new QueryIntent.Filter(first.member(), QueryIntent.Operator.EQUALS, constraints.stream().flatMap(filter -> filter.values().stream()).distinct().toList());
   }
 
   public Selected requireDuringExecution(AuthSession principal, ResolvedScopeSnapshot scope, ObjectSelection selection) {

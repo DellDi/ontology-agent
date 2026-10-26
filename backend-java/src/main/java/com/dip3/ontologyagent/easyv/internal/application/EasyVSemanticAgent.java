@@ -12,6 +12,7 @@ import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.Plan
 import com.dip3.ontologyagent.easyv.internal.application.EasyVAnalysisModel.PlanRequest;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVGenerationOntology;
 import com.dip3.ontologyagent.easyv.internal.domain.EasyVInvocationContract;
+import com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement;
 import com.dip3.ontologyagent.execution.InvocationEventRecorder;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSet;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
@@ -99,7 +100,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
                        DataCoverage coverage) {}
 
   private record ToolCall(String tool, Map<String, Object> input, CompiledSemanticQuery metric, EasyVAgentTools.Prepared object) {
-    Object identity() { return metric != null ? metric.cubeQuery() : object.request() != null ? object.request() : object.selection(); }
+    Object identity() { return metric != null ? metric.cubeQuery() : object.request() != null ? object.request() : object.selection() != null ? object.selection() : input; }
   }
   private record ExecutedTool(String id, EasyVAgentTools.Output output) {}
 
@@ -169,6 +170,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     List<ToolCall> compiled;
     EasyVAgentTools.Run objectRun;
     ObjectQueryPort.Row selectedObject = null;
+    List<ObjectQueryPort.Row> selectedObjects = List.of();
     try {
       if (turn.effectiveContext().get("objectSelection") != null) {
         ObjectSelection selection = ObjectSelection.read(turn.effectiveContext().get("objectSelection"));
@@ -185,7 +187,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
           remainingMillis(deadline);
           recorder.succeedWhileLeased(selectedInvocation, Map.of("reference", selected.object().reference(),
               "properties", selected.object().properties(), "scope", selected.scope().values()), executionId, leaseOwner);
-          selectedObject = selected.object();
+          selectedObjects = selected.objects();
+          selectedObject = selectedObjects.size() == 1 ? selected.object() : null;
           scope = selected.scope();
           access = new AccessContext(versionSet.productVersionIds(), EasyVScopeResolver.dataScope(scope));
           dataScope = EasyVScopeResolver.dataScopeLabel(scope);
@@ -197,8 +200,10 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
         }
         progress.emit("tool-completed", planStep, Map.of("name", "read_selected_object", "label", "读取所选对象", "output", Map.of("reference", selection.snapshot().get("reference"))));
       }
-      objectRun = tools.open(new CapabilityExecutionContext(principal, turn, executionId, ontology, datasetVersionSetId,
-          traceId, leaseOwner, progress), scope, versionSet.productVersionIds(), selectedObject, previousCalls(turn));
+      var context = new CapabilityExecutionContext(principal, turn, executionId, ontology, datasetVersionSetId, traceId, leaseOwner, progress);
+      objectRun = selectedObjects.size() > 1
+          ? tools.openBatch(context, scope, versionSet.productVersionIds(), selectedObjects, List.of())
+          : tools.open(context, scope, versionSet.productVersionIds(), selectedObject, previousCalls(turn));
       scope = objectRun.currentScope();
       dataScope = EasyVScopeResolver.dataScopeLabel(scope);
       compiled = plan(turn, selectedObject, List.of(), MAX_QUERIES, MAX_TOOL_CALLS, deadline, objectRun, versionSet);
@@ -261,6 +266,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       }
     }
     objectRun.currentScope();
+    objectRun.requireBatchCoverage();
     List<Evidence> evidence = evidence(executed, objectResults, ontology, datasetVersionSetId, versionSet, dataScope);
 
     performedSteps.add(planStep("compose-answer", performedSteps.size() + 1, "llm-compose", "综合回答"));
@@ -276,8 +282,9 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       Consumer<String> sink = throttled(progress);
       for (int attempt = 1; attempt <= 2 && references == null; attempt += 1) {
         try {
-          answer = model.compose(new ComposeRequest(turn.questionText(), dataScope,
-              projections(executed, objectResults, evidence, false), violations, remainingMillis(deadline)), sink);
+          answer = objectRun.batchSelected() ? batchReviewAnswer(objectRun.batchCoverageLabel(), dataScope, objectResults)
+              : model.compose(new ComposeRequest(turn.questionText(), dataScope,
+                  projections(executed, objectResults, evidence, false), violations, remainingMillis(deadline)), sink);
           remainingMillis(deadline);
           objectRun.currentScope();
         } catch (BackendException error) {
@@ -318,9 +325,42 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     List<Map<String, Object>> blocks = new ArrayList<>(EasyVRenderBlocks.build(executed, answer.highlights(), semantic, datasetVersionSetId));
     blocks.addAll(EasyVRenderBlocks.objectBrowsers(executed, semantic, datasetVersionSetId,
         versionSet.productVersionIds().keySet()));
-    blocks.addAll(objectResults.stream().map(tool -> tool.output().renderBlock()).toList());
+    blocks.addAll(objectResults.stream().map(tool -> tool.output().renderBlock()).filter(java.util.Objects::nonNull).toList());
     return new WorkflowResult(planSnapshot(turn, scope, dataScope, executed, evidence, answer, performedSteps, callTrace, selectedObject), evidence,
         answer.markdown(), claims, blocks);
+  }
+
+  /** 同批检查只组织已经校验的提案，不让综合模型再次推断问题或改写前后结果。 */
+  private static ComposedAnswer batchReviewAnswer(String coverage, String scope, List<ExecutedTool> tools) {
+    var answer = new StringBuilder(coverage).append("\n\n");
+    var citations = new ArrayList<Citation>();
+    var source = tools.getFirst();
+    source.output().rows().getFirst().entrySet().stream().filter(entry -> !entry.getKey().equals("handle") && citableValue(entry.getValue()))
+        .findFirst().ifPresent(entry -> citations.add(new Citation(source.id(), 0, entry.getKey())));
+    int count = 0;
+    for (var tool : tools) {
+      if (!"preview_block_improvement".equals(tool.output().observation().get("tool"))) continue;
+      var preview = (BlockImprovement.Preview) tool.output().observation().get("preview");
+      var reference = tool.output().references().stream().filter(ref -> "easyv-prototype-block".equals(ref.objectKey())).findFirst().orElseThrow();
+      var inspected = tools.stream().filter(item -> Boolean.TRUE.equals(item.output().observation().get("complete"))
+          && item.output().references().contains(reference)).findFirst()
+          .orElseThrow(() -> new BackendException("EASYV_REVIEW_INCOMPLETE", "提案缺少本批区域的完整读取依据。"));
+      int row = inspected.output().references().indexOf(reference);
+      var region = inspected.output().rows().get(row);
+      citations.add(new Citation(inspected.id(), row, "title"));
+      answer.append("### ").append(++count).append(". ").append(region.get("pageTitle")).append(" · ").append(preview.title()).append("\n\n")
+          .append("建议依据：").append(preview.diagnosis().themeFit()).append("\n\n");
+      var text = preview.textChange();
+      if (text != null) {
+        if (!text.beforeTitle().equals(text.afterTitle())) answer.append("标题：").append(text.beforeTitle()).append(" → ").append(text.afterTitle()).append("\n\n");
+        if (!text.beforePurpose().equals(text.afterPurpose())) answer.append("用途：").append(text.beforePurpose()).append(" → ").append(text.afterPurpose()).append("\n\n");
+      }
+      if (!preview.changes().isEmpty()) answer.append("图形与组合调整见下方逐项预览。\n\n");
+    }
+    if (count == 0) answer.append("本轮没有生成可确认的改法。没有提案不代表所有区域无需修改或已通过质量检查。\n\n");
+    else answer.append("以上 ").append(count).append(" 项均尚未应用。请在下方逐项查看依据、准备结果并确认保存；没有提案的区域不视为检查通过。\n\n");
+    answer.append("真实字段、业务数值和最终画面尚未核验；提案的信息缺口保留在各项预览中。\n\n数据范围：").append(scope).append("。");
+    return new ComposedAnswer(answer.toString(), List.copyOf(citations), List.of(), List.of(), List.of());
   }
 
   private List<ToolCall> plan(AgentTurn turn, ObjectQueryPort.Row selectedObject, List<Map<String, Object>> observations,
@@ -330,11 +370,23 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       List<CompiledSemanticQuery> compiled = compileOverride(override, turn.anchoredAt());
       return compiled.stream().map(query -> {
         var constrained = selectedObject == null ? query : compiler.compile(selections.constrain(query.intent(), selectedObject), turn.anchoredAt()).require();
+        if (objectRun.batchSelected()) constrained = compiler.compile(objectRun.constrainBatch(constrained.intent()), turn.anchoredAt()).require();
         return new ToolCall("query_metrics", Map.of("intent", QueryIntentCodec.write(constrained.intent())), constrained, null);
       }).toList();
     }
     boolean objectTools = versions.productVersionIds().keySet().containsAll(Set.of(
         "easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component"));
+    if (objectTools && observations.isEmpty() && objectRun.batchSelected()) {
+      return objectRun.batchInputs().stream().map(call -> new ToolCall(call.tool(), call.input(), null, call)).toList();
+    }
+    if (objectTools && !observations.isEmpty() && objectRun.batchSelected()) {
+      var inspection = objectRun.batchInspection();
+      if (inspection.isPresent()) {
+        if (remainingCalls < 1) throw new BackendException("EASYV_REVIEW_INCOMPLETE", "剩余预算不足以读取全部区域的指标依据，请缩小检查范围。");
+        var call = inspection.get();
+        return List.of(new ToolCall(call.tool(), call.input(), null, call));
+      }
+    }
     // 选屏后的整屏上下文先读齐，再分配剩余调用；主视觉不在普通块/组件集合中。
     if (objectTools && observations.isEmpty() && selectedObject != null
         && "easyv-prototype-layout".equals(selectedObject.reference().objectKey())) {
@@ -431,6 +483,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
               if (row.properties().isEmpty()) throw new BackendException("EASYV_PLAN_INVALID", "历史对象先 read_object，再按真实属性查询指标。");
               query = compiler.compile(selections.constrain(query.intent(), row), anchor).require();
             }
+            if (objectRun != null && objectRun.batchSelected()) query = compiler.compile(objectRun.constrainBatch(query.intent()), anchor).require();
             compiled.add(new ToolCall(tool, Map.copyOf(input), query, null));
           }
         } else {
@@ -625,7 +678,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       long deadline, ExecutionProgress progress) {
     String label = toolLabel(call.tool());
     Map<String, Object> input = new LinkedHashMap<>(); input.put("id", id); input.put("toolInput", call.input());
-    input.put("executionId", executionId); input.put("datasetVersionSetId", runContextSet(call));
+    input.put("executionId", executionId); input.put("datasetVersionSetId", run.datasetVersionSetId());
     input.put("request", call.request()); input.put("selection", call.selection());
     var access = run.access();
     input.put("productVersions", access.productVersions()); input.put("scope", access.scope());
@@ -649,7 +702,6 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
       failInvocation(invocation, error, executionId, leaseOwner); throw error;
     }
   }
-  private static String runContextSet(EasyVAgentTools.Prepared call) { return call.request() == null ? call.selection().datasetVersionSetId() : call.request().datasetVersionSetId(); }
 
   private String label(CompiledSemanticQuery compiled) {
     List<String> measures = new ArrayList<>();
@@ -978,7 +1030,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     if (turn.effectiveContext().get("objectSelection") != null) {
       ObjectSelection selection = ObjectSelection.read(turn.effectiveContext().get("objectSelection"));
       plan.put("_objectSelection", selection.snapshot());
-      plan.put("_objectSelectionLabel", selectionLabel(selectedObject));
+      plan.put("_objectSelectionLabel", selection.additionalReferences().isEmpty() ? selectionLabel(selectedObject) : selection.references().size() + " 张大屏的检查与改进");
     }
     resolved.put("toolCalls", List.copyOf(callTrace));
     plan.put("_resolvedContext", Map.copyOf(resolved));

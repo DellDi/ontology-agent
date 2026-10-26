@@ -37,11 +37,7 @@
 
 ## 3. 目标架构
 
-当前已部署的 EasyV 只读主链（2026-10-08，验收见 §12.3 B2.6–B2.7）：
-
-![EasyV 本体驱动的 Data Agent 当前架构](assets/easyv-data-agent-architecture.png)
-
-[PPT 用 16:9 PNG](assets/easyv-data-agent-architecture.png) · [SVG 矢量版本](assets/easyv-data-agent-architecture.svg)。下方为后续目标架构，动作与通用配置能力不表示已实施。
+以下为后续目标架构；当前实现与验收记录见 §6.1、§12.3 及 §14。动作与通用配置能力不表示已实施。
 
 ```
                    Ontology（唯一契约；版本冻结、审计）

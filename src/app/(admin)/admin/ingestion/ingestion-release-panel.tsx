@@ -10,6 +10,7 @@ import {
 } from '@/infrastructure/java-backend/ingestion-schema';
 import { InlineError } from '@/app/_components/inline-error';
 import { StatusBadge, formatTimestamp } from '../../_components/admin-shell';
+import { dataName, updateFailureMessage } from './ingestion-presentation';
 
 const errorSchema = z.object({
   error: z.string(),
@@ -18,12 +19,12 @@ const errorSchema = z.object({
 });
 const statuses = {
   pending: '等待执行',
-  running: '发布中',
-  completed: '已完成',
-  failed: '失败',
+  running: '更新中',
+  completed: '更新完成',
+  failed: '更新失败',
 };
 const buttonClass =
-  'rounded-md border border-input px-4 py-2 text-sm hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
+  'rounded-md bg-secondary px-4 py-2 text-sm hover:bg-secondary/70 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
 
 export function IngestionReleasePanel({
   overview,
@@ -36,6 +37,7 @@ export function IngestionReleasePanel({
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [showForm, setShowForm] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [sourceKey, setSourceKey] = useState('');
   const [productKeys, setProductKeys] = useState<string[]>([]);
   const [mode, setMode] = useState('full');
@@ -129,7 +131,7 @@ export function IngestionReleasePanel({
       setTasks((current) =>
         [task, ...current.filter((item) => item.id !== task.id)].slice(0, 50),
       );
-      setNotice(`发布任务已受理：${task.id}。页面关闭后仍会执行。`);
+      setNotice('数据更新已受理，页面关闭后仍会执行。可在下方查看进度。');
       setShowForm(false);
       setPollError(null);
     } catch (cause) {
@@ -148,7 +150,7 @@ export function IngestionReleasePanel({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          平台最近 50 条发布任务中的可见记录 · 采集 → 物化 → 冻结版本
+          最近 50 次数据更新 · 执行中的更新与失败任务优先展示
           {hasActive ? ' · 每 3 秒更新' : ''}
         </p>
         {canManage && (
@@ -162,7 +164,7 @@ export function IngestionReleasePanel({
             disabled={busy}
             aria-expanded={showForm}
           >
-            {showForm ? '收起表单' : '新建发布'}
+            {showForm ? '收起表单' : '发起数据更新'}
           </button>
         )}
       </div>
@@ -173,15 +175,19 @@ export function IngestionReleasePanel({
       )}
       {error && (
         <InlineError title="提交未完成">
-          {error} 若响应中断，请保持相同配置再次提交，系统会返回同一请求。
+          更新请求未成功确认，请检查所选数据源、更新范围与模式。若响应中断，请保持相同配置再次提交，系统会返回同一请求。
+          <details className="mt-2 text-xs"><summary className="w-fit cursor-pointer py-2">诊断信息</summary><p className="break-all">{error}</p></details>
         </InlineError>
       )}
       {pollError && (
-        <InlineError title="状态更新已停止">{pollError}</InlineError>
+        <InlineError title="状态更新已停止">
+          未能读取最新进度，请重新查看页面确认执行状态。
+          <details className="mt-2 text-xs"><summary className="w-fit cursor-pointer py-2">诊断信息</summary><p className="break-all">{pollError}</p></details>
+        </InlineError>
       )}
       {canManage && showForm && (
         <form
-          className="space-y-5 border-y border-border py-5"
+          className="space-y-5 rounded-lg bg-muted/40 p-5"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
@@ -205,7 +211,7 @@ export function IngestionReleasePanel({
                   .filter((source) => source.status === 'active')
                   .map((source) => (
                     <option key={source.key} value={source.key}>
-                      {source.key}
+                      {dataName(source.key)}
                     </option>
                   ))}
               </select>
@@ -225,7 +231,7 @@ export function IngestionReleasePanel({
             </label>
           </div>
           <fieldset disabled={busy} className="space-y-3">
-            <legend className="mb-3 text-sm font-medium">发布的数据产品</legend>
+            <legend className="mb-3 text-sm font-medium">需要更新的数据</legend>
             {availableProducts.map((product) => (
               <label
                 key={product.key}
@@ -244,10 +250,7 @@ export function IngestionReleasePanel({
                   }
                 />
                 <span className="break-all">
-                  {product.key}
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {product.domainKey}
-                  </span>
+                  {dataName(product.key)}
                 </span>
               </label>
             ))}
@@ -265,34 +268,39 @@ export function IngestionReleasePanel({
               : mode === 'full'
                 ? '全量采集会重新读取该数据源的全部已启用数据集。'
                 : '增量采集会读取配置了水位的数据集；没有可用基线时会明确失败。'}
-            完成物化后将冻结所选产品的版本集，后续分析可引用新版本。
+            完成后发布为可供分析的数据；失败时保留已有发布数据。
           </p>
           <button
             disabled={busy || !sourceKey || productKeys.length === 0}
             className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
             type="submit"
           >
-            {busy ? '提交中…' : '确认并提交发布'}
+            {busy ? '提交中…' : '确认更新数据'}
           </button>
         </form>
       )}
       {tasks.length === 0 && (
         <p className="py-12 text-center text-sm text-muted-foreground">
-          尚无页面提交的发布任务。历史采集记录可在“采集与物化”中查看。
+          尚无更新请求。可发起数据更新，早期采集记录保留在“排查与历史记录”中。
         </p>
       )}
-      {tasks.map((task) => (
-        <details key={task.id} className="border-b border-border py-4">
+      {tasks.length > 0 && tasks.every(task => task.status === 'completed') && !showHistory ? <p className="py-4 text-sm text-muted-foreground">已加载的更新均已完成。</p> : null}
+      {tasks.filter(task => task.status === 'completed').length ? <button type="button" className="py-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" aria-expanded={showHistory} onClick={() => setShowHistory(value => !value)}>{showHistory ? '收起已完成更新' : `查看 ${tasks.filter(task => task.status === 'completed').length} 次已完成更新`}</button> : null}
+      {tasks.filter(task => showHistory || task.status !== 'completed').sort((a, b) => {
+        const priority = { running: 0, pending: 0, failed: 1, completed: 2 };
+        return priority[a.status] - priority[b.status] || Date.parse(b.createdAt) - Date.parse(a.createdAt);
+      }).map((task) => (
+        <details key={task.id} open={task.status !== 'completed'} className="py-4">
           <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 text-sm">
             <span className="break-all font-medium">
-              {task.sourceKey}
+              {dataName(task.sourceKey)}
               <span className="ml-3 text-xs font-normal text-muted-foreground">
                 {
                   { full: '全量', incremental: '增量', reconcile: '对账' }[
                     task.mode
                   ]
                 }{' '}
-                · {task.productKeys.length} 个产品
+                · {task.productKeys.length} 类数据
                 {task.triggerType === 'scheduled' ? ' · 定时' : ''}
               </span>
             </span>
@@ -314,40 +322,37 @@ export function IngestionReleasePanel({
               <span aria-hidden="true">⌄</span>
             </span>
           </summary>
-          <div className="mt-4 space-y-3 border-l-2 border-border pl-4 text-sm">
-            <p className="break-all font-mono text-xs text-muted-foreground">
-              任务 / 版本集编号：{task.id}
-            </p>
-            <p className="break-all">数据产品：{task.productKeys.join('、')}</p>
-            <p className="break-all text-muted-foreground">
-              {task.triggerType === 'scheduled'
-                ? '触发：系统定时'
-                : `提交人：${task.requestedBy}`}{' '}
-              · 追踪号：{task.correlationId}
-            </p>
+          <div className="mt-4 space-y-3 text-sm">
+            <p className="break-all">更新范围：{task.productKeys.map(dataName).join('、')}</p>
             <p className="text-muted-foreground">
               开始：{formatTimestamp(task.startedAt)} · 结束：
               {formatTimestamp(task.finishedAt)}
             </p>
-            {task.retryOf && (
-              <p className="break-all text-xs text-muted-foreground">
-                原失败任务：{task.retryOf}
-              </p>
-            )}
+            <details className="text-xs text-muted-foreground">
+              <summary className="w-fit cursor-pointer py-2">诊断信息</summary>
+              <dl className="space-y-2 break-all">
+                <div><dt>任务编号</dt><dd>{task.id}</dd></div>
+                <div><dt>数据源与产品编号</dt><dd>{task.sourceKey} · {task.productKeys.join('、')}</dd></div>
+                <div><dt>触发来源</dt><dd>{task.triggerType === 'scheduled' ? '系统定时' : task.requestedBy}</dd></div>
+                <div><dt>追踪号</dt><dd>{task.correlationId}</dd></div>
+                {task.errorCode ? <div><dt>错误码</dt><dd>{task.errorCode}</dd></div> : null}
+                {task.retryOf ? <div><dt>原失败任务</dt><dd>{task.retryOf}</dd></div> : null}
+              </dl>
+            </details>
             {task.status === 'completed' && (
               <>
-                <p>所选产品已物化并冻结，版本集编号与任务编号一致。</p>
+                <p>这次更新已完成。具体分析采用的数据以结果中的数据出处为准。</p>
                 <a
                   className={buttonClass}
                   href="/admin/ingestion?view=releases"
                 >
-                  查看版本溯源
+                  查看历史版本
                 </a>
               </>
             )}
             {canManage && task.status === 'failed' && (
               <>
-                <p className="break-all text-destructive">{task.errorCode}</p>
+                <p className="break-all text-destructive">{updateFailureMessage(task.errorCode)}</p>
                 <p className="text-muted-foreground">
                   请先根据任务编号定位日志并修复原因。重新执行将保留此记录，并按原数据源、产品和模式创建新任务。
                 </p>

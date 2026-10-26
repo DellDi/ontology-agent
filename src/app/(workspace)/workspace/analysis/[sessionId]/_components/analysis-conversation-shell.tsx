@@ -1,5 +1,7 @@
 'use client';
 
+import { sameObjectSelectionScope } from '@/domain/analysis-execution/object-selection';
+
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Database, X } from 'lucide-react';
@@ -130,15 +132,8 @@ export function AnalysisConversationShell({
   const latestSelection = latestCompleted?.objectSelection;
   const selection = selectedObject && latestSelection
     && latestCompletedKey !== selectedObject.completedKey
-    && latestSelection.datasetVersionSetId === selectedObject.selection.datasetVersionSetId
-    && latestSelection.reference.objectKey === selectedObject.selection.reference.objectKey
-    && latestSelection.reference.objectId === selectedObject.selection.reference.objectId
-    && latestSelection.reference.productVersionId === selectedObject.selection.reference.productVersionId
+    && sameObjectSelectionScope(latestSelection, selectedObject.selection)
       ? latestSelection : selectedObject?.selection ?? null;
-  const selectObject = useCallback((selection: AnalysisObjectSelection, label: string) => {
-    setSelectedObject({ selection, label, completedKey: latestCompletedKey });
-    setSidePanel(null);
-  }, [latestCompletedKey]);
   const [structuredError, setStructuredError] = useState<string | null>(null);
   const [isSending, startSendTransition] = useTransition();
   // 乐观轮次随 transition 生命周期存在：真实轮次经 RSC 提交后自动回收，
@@ -158,7 +153,7 @@ export function AnalysisConversationShell({
   const hasCompletedRoot = rootTurn?.status === 'completed';
 
   const sendMessage = useCallback(
-    (question: string) => {
+    (question: string, selectedOverride?: AnalysisObjectSelection) => {
       const text = question.trim();
       if (!text || sendingRef.current || isSending) return;
       sendingRef.current = true;
@@ -176,8 +171,8 @@ export function AnalysisConversationShell({
             rootClarification: rootTurn?.clarification ?? null,
             text,
           });
-          const url = target.mode === 'follow-up'
-            ? await createFollowUpAndExecute(sessionId, target.question, selection)
+          const url = target.mode === 'follow-up' || selectedOverride
+            ? await createFollowUpAndExecute(sessionId, selectedOverride ? text : target.question, selectedOverride ?? selection)
             : await createSessionWithQuestion(target.question);
           // 客户端导航：RSC 增量刷新，避免整页重载闪烁与滚动归零；
           // 导航提交随本 transition 结束，乐观轮次届时自动回收
@@ -195,6 +190,12 @@ export function AnalysisConversationShell({
     },
     [sessionId, router, isSending, addOptimisticQuestion, hasCompletedRoot, rootTurn, selection],
   );
+
+  const selectObject = useCallback((selection: AnalysisObjectSelection, label: string, question?: string) => {
+    setSelectedObject({ selection, label, completedKey: latestCompletedKey });
+    setSidePanel(null);
+    if (question) sendMessage(question, selection);
+  }, [latestCompletedKey, sendMessage]);
 
   const answerClarification = useCallback(
     (turn: ChatTurn) => (option: string) => {

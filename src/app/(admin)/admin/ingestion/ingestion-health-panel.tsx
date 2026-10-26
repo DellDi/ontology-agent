@@ -1,71 +1,74 @@
-'use client';
-
 import type { IngestionHealth } from '@/infrastructure/java-backend/ingestion-schema';
 import { formatTimestamp } from '../../_components/admin-shell';
+import { dataGroups, dataName, updateFailureMessage } from './ingestion-presentation';
 
-const productNames: Record<string, string> = {
-  'easyv-ai-application': '大屏应用',
-  'easyv-prototype-task': '原型生成任务',
-  'easyv-prototype-layout': '原型布局',
-  'easyv-prototype-block': '原型区块',
-  'easyv-prototype-component': '原型组件',
-  'easyv-scheme-library': '方案库',
-  'easyv-pipeline-node': '生成流程节点',
-  'easyv-forge-task': '页面生成任务',
-  'easyv-generation-feedback': '生成反馈',
-};
-
+/** 只聚合平台接入记录；分析能力与用户数据权限由工作台后端决定。 */
 export function IngestionHealthPanel({ health, onInspectRuns }: {
   health: IngestionHealth;
-  onInspectRuns: () => void;
+  onInspectRuns?: () => void;
 }) {
   const products = health.products.filter((product) => product.status === 'active');
-  const published = products.filter((product) => product.published !== null).length;
-  const failed = products.filter((product) => product.latestRun?.status === 'failed').length;
-  return <section className="space-y-7" aria-label="数据健康">
-    <div className="space-y-2">
-      <h2 className="text-lg font-semibold">这批数据最近检查过吗？</h2>
-      <p className="text-sm leading-6 text-muted-foreground">
-        {products.length} 类数据已启用，{published} 类有可用发布版本；{failed} 类的最近相关任务失败。
-        检查、发布和输入采集是三个时间点；检查成功可能复用旧版本。
-      </p>
-      <p className="text-xs leading-5 text-muted-foreground">当前没有配置新鲜度时限，因此只展示真实时间，不自动判定数据过期。</p>
-    </div>
-    <div className="space-y-8">
-      {products.map((product) => {
-        const run = product.latestRun;
-        const failed = run?.status === 'failed';
-        const checking = run?.status === 'running' || run?.status === 'pending';
-        return <article key={product.key} className="space-y-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="break-all text-sm font-semibold">{productNames[product.key] ?? product.key}</h3>
-            <span className={`text-xs ${failed ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {failed ? '最近任务失败' : checking ? '任务进行中' : product.published ? '已有发布版本' : '尚无发布版本'}
-            </span>
-          </div>
-          <dl className="grid gap-3 text-sm sm:grid-cols-3">
-            <div><dt className="text-xs text-muted-foreground">最近成功检查</dt><dd className="mt-1">{product.lastSuccessfulCheckAt ? formatTimestamp(product.lastSuccessfulCheckAt) : '尚无成功检查记录'}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">版本发布时间</dt><dd className="mt-1">{product.published?.publishedAt ? formatTimestamp(product.published.publishedAt) : '尚未发布'}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">最早一份输入的采集完成时间</dt><dd className="mt-1">{product.published?.oldestInputAt ? formatTimestamp(product.published.oldestInputAt) : '未留存'}</dd></div>
-          </dl>
-          {product.published ? <p className="text-xs text-muted-foreground">发布版本含 {product.published.rowCount.toLocaleString('zh-CN')} 条记录。{failed ? '最近任务失败，上一发布版本仍保留。' : ''}</p> : null}
-          {run ? <p className={`text-xs leading-5 ${failed ? 'text-destructive' : 'text-muted-foreground'}`}>
-            最近{run.kind === 'source' ? '采集' : '物化'}任务：{({ pending: '待执行', running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' } as const)[run.status]}
-            {' · '}{formatTimestamp(run.finishedAt ?? run.startedAt ?? run.createdAt)}{run.errorCode ? ` · ${run.errorCode}` : ''}
-          </p> : null}
-          {run || product.published ? <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer">任务与版本出处</summary>
-            <dl className="mt-2 space-y-2 break-all">
-              <div><dt>数据产品</dt><dd>{product.key}</dd></div>
-              {run ? <div><dt>最近任务</dt><dd>{run.id}</dd></div> : null}
-              {run?.correlationId ? <div><dt>关联编号</dt><dd>{run.correlationId}</dd></div> : null}
-              {product.published ? <><div><dt>冻结集合</dt><dd>{product.published.setId}</dd></div><div><dt>产品版本</dt><dd>{product.published.versionId}</dd></div></> : null}
-            </dl>
-          </details> : null}
-        </article>;
+  const groups = [...dataGroups, {
+    name: '其他数据',
+    keys: products.filter(product => !dataGroups.some(group => group.keys.includes(product.key))).map(product => product.key),
+  }];
+  const updates = new Map<string, { run: NonNullable<IngestionHealth['products'][number]['latestRun']>; products: typeof products }>();
+  for (const product of products) {
+    const run = product.latestRun;
+    if (!run || !['failed', 'pending', 'running'].includes(run.status)) continue;
+    const key = `${run.kind}:${run.id}`;
+    const group = updates.get(key) ?? { run, products: [] };
+    group.products.push(product);
+    updates.set(key, group);
+  }
+  const unpublished = products.filter(product => !product.published);
+  const needsAttention = updates.size > 0 || unpublished.length > 0;
+  const inputTimes = products.map(product => product.published?.oldestInputAt);
+  const sharedTime = inputTimes.length > 0 && inputTimes.every(time => time && formatTimestamp(time) === formatTimestamp(inputTimes[0]))
+    ? formatTimestamp(inputTimes[0]) : null;
+
+  return <section className="space-y-8" aria-label="平台数据概况">
+    {onInspectRuns ? <div className="space-y-3">
+      <h2 className="text-base font-semibold">{needsAttention ? '需要关注' : products.length ? '最近接入任务没有失败，已启用的数据均已发布' : '尚未接入分析数据'}</h2>
+      {[...updates.values()].map(({ run, products: affected }) => {
+        const updating = run.status === 'pending' || run.status === 'running';
+        const retained = affected.filter(product => product.published);
+        return <div key={`${run.kind}:${run.id}`} className="space-y-1 text-sm">
+          <p className={run.status === 'failed' ? 'text-destructive' : ''}>
+            <span className="font-medium">{affected.map(product => dataName(product.key)).join('、')}</span> · {updating ? '正在更新' : '最近更新失败'}
+          </p>
+          <p className="text-muted-foreground">{retained.length ? `${retained.map(product => dataName(product.key)).join('、')}的已有发布数据仍保留。` : ''}{run.status === 'failed' ? updateFailureMessage(run.errorCode) : ''}</p>
+        </div>;
       })}
+      {unpublished.length ? <p className="text-sm">尚未发布：{unpublished.map(product => dataName(product.key)).join('、')}。这部分数据暂不能用于分析。</p> : null}
+      {needsAttention ? <button type="button" onClick={onInspectRuns} className="py-2 text-sm text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring">查看更新与处理 →</button> : null}
+    </div> : null}
+    <div className="space-y-5">
+      <h2 className="text-base font-semibold">数据范围与采集时间</h2>
+      {sharedTime ? <p className="text-sm">现有数据最早采集于 {sharedTime}</p> : null}
+      {groups.map(group => {
+        const members = products.filter(product => group.keys.includes(product.key));
+        if (!members.length) return null;
+        const published = members.filter(product => product.published);
+        const times = [...new Set(published.flatMap(product => product.published!.oldestInputAt ? [product.published!.oldestInputAt] : []))].sort((a, b) => Date.parse(a) - Date.parse(b));
+        const first = times[0] ? formatTimestamp(times[0]) : null;
+        const last = times.length ? formatTimestamp(times[times.length - 1]) : null;
+        const missingTimes = published.some(product => !product.published!.oldestInputAt);
+        const missing = members.filter(product => !product.published);
+        const empty = published.filter(product => product.published!.rowCount === 0);
+        return <div key={group.name} className="space-y-1 text-sm sm:grid sm:grid-cols-[10rem_1fr] sm:gap-5 sm:space-y-0">
+          <h3 className="font-medium">{group.name}</h3>
+          <div className="space-y-2">
+            <p className="leading-6 text-muted-foreground">{members.map(product => dataName(product.key)).join('、')}</p>
+            {!sharedTime && first ? <p>最早输入采集时间：{first}{last !== first ? ` 至 ${last}` : ''}</p> : null}
+            {missingTimes ? <p className="text-muted-foreground">{times.length ? '部分' : ''}采集时间未留存。</p> : null}
+            {missing.length ? <p>尚未发布：{missing.map(product => dataName(product.key)).join('、')}</p> : null}
+            {empty.length ? <p className="text-muted-foreground">暂无记录：{empty.map(product => dataName(product.key)).join('、')}</p> : null}
+          </div>
+        </div>;
+      })}
+      {!products.length ? <p className="text-sm text-muted-foreground">尚未接入分析数据。</p> : null}
+      <p className="text-xs leading-5 text-muted-foreground">以上为平台数据的采集时间。具体分析采用的数据和时间以结果中的数据出处为准。</p>
     </div>
-    {!products.length ? <p className="text-sm text-muted-foreground">当前没有启用的数据产品。</p> : null}
-    <button type="button" onClick={onInspectRuns} className="rounded-md py-2 text-sm text-primary focus-visible:outline-2 focus-visible:outline-ring">查看采集与物化任务 →</button>
   </section>;
 }

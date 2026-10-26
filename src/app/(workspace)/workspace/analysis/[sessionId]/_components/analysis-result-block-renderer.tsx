@@ -78,7 +78,7 @@ export function AnalysisResultBlockRenderer({
   block: AnalysisRenderedBlock;
   /** 嵌套在对话气泡内：子块去卡片边框与阴影，避免大框套小框。 */
   embedded?: boolean;
-  onObjectSelect?: (selection: AnalysisObjectSelection, label: string) => void;
+  onObjectSelect?: (selection: AnalysisObjectSelection, label: string, question?: string) => void;
   onOpenSidePanel?: AnalysisInteractionUiRenderInput['onOpenSidePanel'];
 }) {
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();

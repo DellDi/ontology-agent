@@ -7,6 +7,7 @@ export type ReadableObjectKey = (typeof readableObjectKeys)[number];
 
 /** 用户显式选中的当前已发布对象；属性与权限由 Java 重新读取。 */
 export type AnalysisObjectSelection = {
+  additionalReferences?: AnalysisObjectSelection['reference'][];
   executionId: string;
   datasetVersionSetId: string;
   reference: {
@@ -15,3 +16,10 @@ export type AnalysisObjectSelection = {
     productVersionId: string;
   };
 };
+
+/** 来源执行可以续接，但整批对象及冻结集合必须保持一致。 */
+export function sameObjectSelectionScope(a: AnalysisObjectSelection, b: AnalysisObjectSelection): boolean {
+  const references = (selection: AnalysisObjectSelection) => [selection.reference, ...(selection.additionalReferences ?? [])]
+    .map(reference => JSON.stringify([reference.objectKey, reference.objectId, reference.productVersionId])).sort();
+  return a.datasetVersionSetId === b.datasetVersionSetId && JSON.stringify(references(a)) === JSON.stringify(references(b));
+}

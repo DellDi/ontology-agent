@@ -422,8 +422,62 @@
               "maxLength": 500
             }
           }
+        },
+        "additionalReferences": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "objectKey",
+              "objectId",
+              "productVersionId"
+            ],
+            "properties": {
+              "objectKey": {
+                "const": "easyv-prototype-layout"
+              },
+              "objectId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "productVersionId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "additionalReferences"
+            ],
+            "properties": {
+              "additionalReferences": {}
+            }
+          },
+          "then": {
+            "properties": {
+              "reference": {
+                "properties": {
+                  "objectKey": {
+                    "const": "easyv-prototype-layout"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        }
+      ]
     },
     "toolCalls": {
       "type": "array",

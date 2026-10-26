@@ -1,3 +1,4 @@
+import { sameObjectSelectionScope } from '@/domain/analysis-execution/object-selection';
 import type { JavaAnalysisSession } from '@/infrastructure/java-backend';
 import {
   resolvedQueryIntents,
@@ -34,9 +35,8 @@ function roundMetadata(round: JavaHistoryRound, followUp?: JavaAnalysisSession["
   const plan = round.planSnapshot;
   const selection = plan?._objectSelection ?? followUp?.mergedContext?.objectSelection;
   const previousLabel = selection ? rounds.find((candidate) => {
-    const ref = candidate.planSnapshot?._objectSelection?.reference;
-    return ref?.objectKey === selection.reference.objectKey && ref.objectId === selection.reference.objectId
-      && ref.productVersionId === selection.reference.productVersionId && candidate.planSnapshot?._objectSelectionLabel;
+    const previous = candidate.planSnapshot?._objectSelection;
+    return previous && sameObjectSelectionScope(previous, selection) && candidate.planSnapshot?._objectSelectionLabel;
   })?.planSnapshot?._objectSelectionLabel : undefined;
   return {
     ...(selection ? { objectSelection: { ...selection,
@@ -98,7 +98,7 @@ export function buildChatTurns(
       clarification: null,
       resolvedQueries: [],
       ...(followUp.mergedContext?.objectSelection ? {objectSelection: followUp.mergedContext.objectSelection,
-        objectSelectionLabel: '所选对象'} : {}),
+        objectSelectionLabel: followUp.mergedContext.objectSelection.additionalReferences?.length ? `${followUp.mergedContext.objectSelection.additionalReferences.length + 1} 张大屏的检查与改进` : '所选对象'} : {}),
     });
   }
 

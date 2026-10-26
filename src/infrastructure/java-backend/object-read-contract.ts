@@ -6,10 +6,20 @@ const objectKey = z.enum(readableObjectKeys);
 const summaryObjectKeys: readonly string[] = ['easyv-prototype-layout', 'easyv-prototype-block'];
 const scalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 
+const selectionReferenceSchema = z.object({ objectKey, objectId: z.string().min(1).max(500), productVersionId: z.string().min(1).max(500) }).strict();
+
 export const javaObjectSelectionSchema = z.object({
   executionId: z.string().min(1).max(500), datasetVersionSetId: z.string().min(1).max(500),
-  reference: z.object({ objectKey, objectId: z.string().min(1).max(500), productVersionId: z.string().min(1).max(500) }).strict(),
-}).strict();
+  reference: selectionReferenceSchema,
+  additionalReferences: z.array(selectionReferenceSchema).min(1).max(2).optional(),
+}).strict().superRefine((selection, context) => {
+  if (!selection.additionalReferences) return;
+  const references = [selection.reference, ...selection.additionalReferences];
+  if (references.some(reference => reference.objectKey !== 'easyv-prototype-layout' || reference.productVersionId !== selection.reference.productVersionId)
+      || new Set(references.map(reference => reference.objectId)).size !== references.length) {
+    context.addIssue({ code: 'custom', message: '一起检查只能选择同一数据版本下不同的大屏原型。' });
+  }
+});
 
 export const javaObjectReadRequestSchema = z.object({
   executionId: z.string().min(1),

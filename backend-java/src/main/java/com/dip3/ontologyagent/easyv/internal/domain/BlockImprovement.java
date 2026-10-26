@@ -31,6 +31,10 @@ public final class BlockImprovement {
         || context.metrics().size() > SchemeAdaptation.RULES.maxMetrics()) throw invalid("缺少完整的当前块指标与布局");
     requireText(context.title(), "源模块名称", 500);
     requireText(context.purpose(), "源模块目的", 4000);
+    for (var metric : context.metrics()) {
+      requireText(metric.name(), "源指标名称", 500);
+      requireText(metric.description(), "源指标含义", 4000);
+    }
     if (proposal == null || proposal.diagnosis() == null) throw invalid("缺少主题、指标图形与组合诊断");
     requireText(proposal.diagnosis().themeFit(), "主题契合依据", 2000);
     requireText(proposal.diagnosis().metricChartFit(), "指标与图形依据", 2000);
@@ -54,8 +58,6 @@ public final class BlockImprovement {
         .findFirst().orElseThrow(() -> invalid("方案不属于本轮冻结候选"));
     Map<String, Metric> metrics = new LinkedHashMap<>();
     for (var metric : context.metrics()) {
-      requireText(metric.name(), "源指标名称", 500);
-      requireText(metric.description(), "源指标含义", 4000);
       if (metrics.put(metric.componentId(), metric) != null) throw invalid("源组件绑定重复");
     }
     Map<String, Choice> choices = new LinkedHashMap<>();

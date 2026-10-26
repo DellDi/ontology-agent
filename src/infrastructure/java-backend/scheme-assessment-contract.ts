@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { javaObjectSelectionSchema } from './object-read-contract';
 
-export const javaSchemeAssessmentRequestSchema = javaObjectSelectionSchema.extend({ reference: javaObjectSelectionSchema.shape.reference.extend({ objectKey: z.literal('easyv-prototype-block') }) }).strict();
+export const javaSchemeAssessmentRequestSchema = javaObjectSelectionSchema.safeExtend({ reference: javaObjectSelectionSchema.shape.reference.extend({ objectKey: z.literal('easyv-prototype-block') }) }).strict();
 
 const rect = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict();
 const minimum = z.object({ width: z.number().positive(), height: z.number().positive() }).strict();

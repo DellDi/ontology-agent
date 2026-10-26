@@ -36,7 +36,7 @@ export function BlockImprovementPanel({executionId,invocationId}:{executionId:st
       </dl> : null}
       <ul className="space-y-2 text-sm">{view.proposal.changes.map(change=><li key={change.componentId}><span className="font-medium">{change.name}</span>：{view.chartLabels[change.beforeChart]??'当前图形'} → {view.chartLabels[change.afterChart]??'建议图形'}<p className="text-xs leading-5 text-muted-foreground">{change.reason}</p></li>)}</ul>
       {view.preparedBlock?<PreparedBlock block={view.preparedBlock} chartLabels={view.chartLabels}/>:null}
-      <p className="text-xs leading-5 text-muted-foreground">改造保留本块指标及业务目标。准备结果来自 EasyV 当前原型；确认后保存该结果。图形示意用于核对内容与位置,真实效果需在 EasyV 中查看。</p>
+      <p className="text-xs leading-5 text-muted-foreground">改造保留本块指标及业务目标。{view.preparedBlock ? '准备结果来自 EasyV 当前原型，请核对后再确认保存。' : '当前仅为基于分析数据的建议；点击准备后会读取 EasyV 当前原型，再核对前后结果。'}图形示意用于核对内容与位置，真实效果需在 EasyV 中查看。</p>
       {view.error?<p role="alert" className="text-sm text-destructive">{view.error}</p>:null}
       {view.status==='proposal'||view.status==='conflict'||view.status==='failed'?<Button disabled={busy} onClick={()=>void request(`${proposal}/prepare`,'POST')}>{busy?'正在准备…':'准备改造结果'}</Button>:null}
       {canConfirm?<div className="space-y-2"><p className="text-sm">确认将上面的准备结果保存到 EasyV？</p><Button disabled={busy} onClick={()=>void request(`${base}/actions/${encodeURIComponent(view.actionId ?? '')}/confirm`,'POST')}>{busy?'正在保存…':'确认并保存到 EasyV'}</Button></div>:null}

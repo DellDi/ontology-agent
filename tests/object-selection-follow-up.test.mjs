@@ -6,10 +6,25 @@ import turnsModule from '../src/app/(workspace)/workspace/analysis/[sessionId]/_
 import contract from '../src/infrastructure/java-backend/object-read-contract.ts';
 import staticModule from '../src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-static-assistant-props.ts';
 import readClient from '../src/infrastructure/java-backend/read-client.ts';
+import selectionScope from '../src/domain/analysis-execution/object-selection.ts';
 
 const selection = { executionId: 'execution-source', datasetVersionSetId: 'set-old', reference: {
   objectKey: 'easyv-prototype-block', objectId: 'a:left', productVersionId: 'blocks-old',
 } };
+
+test('批量检查 | 续接核对整批引用，不能只比较第一张；刷新保留全部选择', () => {
+  const first = { ...selection, reference: { objectKey: 'easyv-prototype-layout', objectId: 'a', productVersionId: 'layouts-old' },
+    additionalReferences: [{ objectKey: 'easyv-prototype-layout', objectId: 'b', productVersionId: 'layouts-old' }] };
+  assert.equal(selectionScope.sameObjectSelectionScope(first, { ...first, executionId: 'new-execution' }), true);
+  assert.equal(selectionScope.sameObjectSelectionScope(first, { ...first, additionalReferences: [{ ...first.additionalReferences[0], objectId: 'c' }] }), false);
+  assert.equal(selectionScope.sameObjectSelectionScope(first, { ...first, datasetVersionSetId: 'other-set' }), false);
+  const round = { id: 'batch', kind: 'follow-up', questionText: '一起检查', executionId: 'execution-result', followUpId: 'f-batch', status: 'completed',
+    conclusionState: null, planSnapshot: { _objectSelection: first, _objectSelectionLabel: '2 张大屏的检查与改进' } };
+  const [turn] = turnsModule.buildChatTurns({ history: [round], followUps: [] }, 'execution-result');
+  assert.equal(turn.objectSelection.executionId, 'execution-result');
+  assert.deepEqual(turn.objectSelection.additionalReferences, first.additionalReferences);
+  assert.equal(turn.objectSelectionLabel, '2 张大屏的检查与改进');
+});
 
 test('对象追问 | 真实引用提交、明确取消、结构化调整与拒绝原因', async (context) => {
   const oldFetch = globalThis.fetch; const oldWindow = globalThis.window; const calls = [];
@@ -29,6 +44,17 @@ test('对象追问 | 真实引用提交、明确取消、结构化调整与拒�
   assert.deepEqual(JSON.parse(calls[0].body.objectSelection), selection);
   assert.equal(calls[0].body.parentFollowUpId, undefined, 'parent comes from owned source execution');
   assert.equal(calls[2].body.followUpId, 'follow-test');
+  calls.length = 0;
+  const batch = { ...selection, reference: { objectKey: 'easyv-prototype-layout', objectId: 'a', productVersionId: 'layouts-old' },
+    additionalReferences: [{ objectKey: 'easyv-prototype-layout', objectId: 'b', productVersionId: 'layouts-old' }, { objectKey: 'easyv-prototype-layout', objectId: 'c', productVersionId: 'layouts-old' }] };
+  await client.createFollowUpAndExecute('session', '一起检查用于运营复盘的三张大屏', batch);
+  assert.deepEqual(JSON.parse(calls[0].body.objectSelection), batch);
+  for (const invalid of [
+    { ...batch, additionalReferences: [batch.reference] },
+    { ...batch, additionalReferences: [{ ...batch.additionalReferences[0], productVersionId: 'layouts-new' }] },
+    { ...batch, additionalReferences: [{ ...batch.additionalReferences[0], objectKey: 'easyv-prototype-block' }] },
+    { ...batch, additionalReferences: [...batch.additionalReferences, { ...batch.reference, objectId: 'd' }] },
+  ]) assert.equal(contract.javaObjectSelectionSchema.safeParse(invalid).success, false);
   calls.length = 0;
   await client.createFollowUpAndExecute('session', '看全部');
   assert.equal(calls[0].body.objectSelection, 'null');

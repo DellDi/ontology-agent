@@ -106,7 +106,7 @@ test('版本血缘展示区分输入采集时间与发布时间，旧输入不�
     const overview = JSON.parse(readFileSync('./contracts/backend/fixtures/ingestion-overview.json', 'utf8'));
     console.log(renderToStaticMarkup(React.createElement(workbench.IngestionWorkbench, {
       overview, releaseTasks: [], initialView: 'releases',
-      access: { canView: true, canManage: false, sourceKeys: ['property'], grants: [] },
+      access: { canView: true, canManage: true, sourceKeys: ['property'], grants: [] },
     })));
   `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
   assert.match(html, /输入采集开始/);
@@ -153,18 +153,59 @@ test('数据健康呈现 | 最近任务失败保留已有版本，空发布和�
     import panel from './src/app/(admin)/admin/ingestion/ingestion-health-panel.tsx';
     const health = JSON.parse(readFileSync('./contracts/backend/fixtures/ingestion-health.json', 'utf8'));
     const empty = structuredClone(health.products[0]);
-    Object.assign(empty, { key: 'empty-product', published: null, latestRun: null, lastSuccessfulCheckAt: null });
+    Object.assign(empty, { key: 'easyv-prototype-layout', published: null, latestRun: null, lastSuccessfulCheckAt: null });
     const zero = structuredClone(health.products[0]);
-    zero.key = 'zero-product'; zero.published.rowCount = 0;
+    zero.key = 'easyv-forge-task'; zero.published.rowCount = 0; zero.published.oldestInputAt = null;
     health.products.push(empty, zero);
     console.log(renderToStaticMarkup(React.createElement(panel.IngestionHealthPanel, { health, onInspectRuns: () => {} })));
   `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
-  assert.match(html, /最近任务失败/);
-  assert.match(html, /上一发布版本仍保留/);
-  assert.match(html, /尚无成功检查记录/);
-  assert.match(html, /尚无发布版本/);
-  assert.match(html, /发布版本含 0 条记录/);
-  assert.match(html, /没有配置新鲜度时限/);
+  assert.equal((html.match(/最近更新失败/g) ?? []).length, 1, '同一次采集失败只展示一次影响');
+  assert.match(html, /已有发布数据仍保留/);
+  assert.match(html, /尚未发布：原型布局/);
+  assert.match(html, /暂无记录：页面生成任务/);
+  assert.match(html, /采集时间未留存/);
+  assert.match(html, /2026\/10\/11 23:18/);
+  assert.doesNotMatch(html, /2026\/10\/22|SOURCE_CONNECTION_FAILED|set-a|version-a|failed-source/);
+  assert.doesNotMatch(html, /已过期|数据最新/);
+});
+
+test('数据概况聚合 | 同批时间只出现一次，跨批输入保留范围，不用发布时间替代', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const result = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react'; import { renderToStaticMarkup } from 'react-dom/server';
+    import { readFileSync } from 'node:fs';
+    import panel from './src/app/(admin)/admin/ingestion/ingestion-health-panel.tsx';
+    const health = JSON.parse(readFileSync('./contracts/backend/fixtures/ingestion-health.json', 'utf8'));
+    const base = health.products[0]; base.latestRun = null;
+    health.products = ['easyv-ai-application', 'easyv-prototype-layout', 'easyv-forge-task', 'easyv-scheme-library'].map(key => ({ ...structuredClone(base), key }));
+    const render = () => renderToStaticMarkup(React.createElement(panel.IngestionHealthPanel, { health }));
+    const shared = render();
+    health.products[1].published.oldestInputAt = '2026-10-09T08:00:00+08:00';
+    health.products[1].published.publishedAt = '2026-10-23T08:00:00+08:00';
+    console.log(JSON.stringify({ shared, mixed: render() }));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
+  const { shared, mixed } = JSON.parse(result);
+  assert.equal((shared.match(/2026\/10\/11 23:18/g) ?? []).length, 1);
+  assert.match(shared, /大屏与原型/); assert.match(shared, /生成过程与反馈/); assert.match(shared, /可复用方案/);
+  assert.doesNotMatch(shared, /需要关注|查看更新与处理|版本编号|SOURCE_CONNECTION/);
+  assert.match(mixed, /2026\/10\/09 08:00 至 2026\/10\/11 23:18/);
+  assert.doesNotMatch(mixed, /2026\/10\/23|现有数据最早采集于/);
+});
+
+test('数据更新呈现 | 默认隐藏完成记录，失败保留中文解释、原始诊断与重新执行入口', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const html = execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react'; import { renderToStaticMarkup } from 'react-dom/server';
+    import { readFileSync } from 'node:fs';
+    import panel from './src/app/(admin)/admin/ingestion/ingestion-release-panel.tsx';
+    const overview = JSON.parse(readFileSync('./contracts/backend/fixtures/ingestion-overview.json', 'utf8'));
+    const tasks = JSON.parse(readFileSync('./contracts/backend/fixtures/ingestion-release-task-list.json', 'utf8')).items;
+    console.log(renderToStaticMarkup(React.createElement(panel.IngestionReleasePanel, { overview, initialTasks: tasks, canManage: true })));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
+  assert.match(html, /发起数据更新/); assert.match(html, /查看 1 次已完成更新/);
+  assert.match(html, /未能获取数据源连接/); assert.match(html, /已修复，重新执行/);
+  assert.match(html, /诊断信息/); assert.match(html, /SOURCE_CONNECTION_RESOLUTION_FAILED/);
+  assert.doesNotMatch(html, /5b0d7a52-3f0c-3a46-9b43-0a1f3c1d2e77/);
 });
 
 test('失败巡检契约 | 分开状态变化与首次可见，严格保留版本和缺失时间', async () => {

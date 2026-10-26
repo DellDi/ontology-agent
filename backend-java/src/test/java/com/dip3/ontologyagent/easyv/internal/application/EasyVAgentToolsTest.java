@@ -36,6 +36,72 @@ class EasyVAgentToolsTest {
     when(scopes.resolveScope(principal)).thenReturn(ALL);
   }
 
+  @Test void batchScopeRejectsForeignRowsAndRequiresContinuousCompleteRegionCoverage() {
+    var screens = List.of(row(LAYOUT, "1", Map.of("appId", "1")), row(LAYOUT, "2", Map.of("appId", "2")), row(LAYOUT, "3", Map.of("appId", "3")));
+    var run = tools.openBatch(context, ALL, versions, screens, List.of());
+    assertEquals(4, run.batchInputs().size());
+    assertEquals(List.of("1", "2", "3"), run.batchInputs().getLast().request().filters().getFirst().values());
+    code("EASYV_REVIEW_INCOMPLETE", run::requireBatchCoverage);
+    var foreign = row(BLOCK, "4:b", Map.of("appId", "4", "blockKey", "4:b"));
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(result(BLOCK, foreign, false));
+    code("OBJECT_SCOPE_FORBIDDEN", () -> run.execute("q1", run.prepare("query_objects", Map.of("objectKey", BLOCK))));
+    var included = row(BLOCK, "2:b", Map.of("appId", "2", "blockKey", "2:b"));
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenReturn(result(BLOCK, included, true));
+    run.execute("q2", run.prepare("query_objects", Map.of("objectKey", BLOCK)));
+    code("EASYV_REVIEW_INCOMPLETE", run::requireBatchCoverage);
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenAnswer(call -> {
+      EasyVObjectReadService.Request request = call.getArgument(2);
+      return new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old",
+          new ObjectQueryPort.Page(BLOCK, List.of(), request.limit(), request.offset(), false), null,
+          new EasyVObjectReadService.ObjectTypeView(BLOCK, "区域", List.of(), List.of()), Map.of(), null, null, Map.of());
+    });
+    run.execute("q3", run.prepare("query_objects", Map.of("objectKey", BLOCK, "offset", 50)));
+    code("EASYV_REVIEW_INCOMPLETE", run::requireBatchCoverage);
+    run.execute("q4", run.prepare("query_objects", Map.of("objectKey", BLOCK, "offset", 1)));
+    code("EASYV_REVIEW_INCOMPLETE", run::requireBatchCoverage);
+    assertTrue(run.batchInspection().isPresent());
+    assertEquals(List.of("1", "2", "3"), run.constrainBatch(new QueryIntent(BLOCK, List.of("count"), List.of(), List.of(), null, null, List.of(), 10)).filters().getFirst().values());
+  }
+
+  @Test void batchInspectionReadsEveryRegionsMetricsBeforeReviewCanFinishAndKeepsProposalContext() throws Exception {
+    var fixture = assessmentFixture();
+    var screens = List.of(row(LAYOUT, "1", Map.of("appId", "1", "pageTitle", "水利")), row(LAYOUT, "2", Map.of("appId", "2", "pageTitle", "医疗")));
+    var blocks = List.of(row(BLOCK, "1:b", Map.of("appId", "1", "blockKey", "1:b")), row(BLOCK, "2:b", Map.of("appId", "2", "blockKey", "2:b")));
+    var run = tools.openBatch(context, ALL, versions, screens, List.of());
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenAnswer(call -> {
+      EasyVObjectReadService.Request req = call.getArgument(2);
+      var rows = req.objectId() == null ? blocks : blocks.stream().filter(block -> block.reference().objectId().equals(req.objectId())).toList();
+      return new EasyVObjectReadService.Result(context.executionId(), context.datasetVersionSetId(), "ontology-old",
+          new ObjectQueryPort.Page(BLOCK, rows, req.limit(), req.offset(), false), null,
+          new EasyVObjectReadService.ObjectTypeView(BLOCK, "区域", List.of(), List.of()), Map.of(), null, null, Map.of());
+    });
+    run.execute("q1", run.prepare("query_objects", Map.of("objectKey", BLOCK)));
+    code("EASYV_REVIEW_INCOMPLETE", run::requireBatchCoverage);
+    when(assessments.inspectImprovementDuringExecution(eq(context), eq(ALL), any())).thenAnswer(call -> {
+      ObjectSelection selection = call.getArgument(2);
+      var data = new com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement.Context("门诊效率", "观察每日接诊变化",
+          List.of(new com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement.Metric("c", "m", "门诊量", "每日接诊人次", null, "人次", "按日求和", "bar")),
+          fixture.comparison().input(), fixture.candidateInputs());
+      return new EasyVSchemeAssessmentService.ImprovementContext(selection, "ontology-old", versions, "assessment", data, Map.of("bar", "柱状图"), List.of(selection.reference()));
+    });
+    var inspection = run.batchInspection().orElseThrow();
+    assertEquals(List.of("o1", "o2"), inspection.input().get("handles"));
+    var output = run.execute("q2", inspection);
+    assertEquals(List.of("水利", "医疗"), output.rows().stream().map(row -> row.get("pageTitle")).toList());
+    assertEquals(2, ((List<?>) output.audit().get("blocks")).size());
+    assertNull(output.renderBlock());
+    assertEquals("门诊量", ((Map<?, ?>) ((List<?>) output.rows().getFirst().get("metrics")).getFirst()).get("name"));
+    assertDoesNotThrow(run::requireBatchCoverage);
+    assertTrue(run.batchInspection().isEmpty());
+    var proposal = Map.<String,Object>of("handle", "o2", "title", "门诊量趋势", "choices", List.of(),
+        "diagnosis", Map.of("themeFit", "忠实表达指标", "metricChartFit", "保留图形", "composition", "保留位置"), "limitations", List.of());
+    assertNotNull(run.prepare("preview_block_improvement", proposal));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("inspect_block_improvement", Map.of("handles", List.of("o1", "o1"))));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("inspect_block_improvement", Map.of("handles", List.of("o1"), "handle", "o1")));
+    when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenThrow(new BackendException("OBJECT_SCOPE_FORBIDDEN", "授权已撤回"));
+    code("OBJECT_SCOPE_FORBIDDEN", () -> run.execute("q3", inspection));
+  }
+
   @Test void improvementRequiresInspectedEvidenceThenReturnsNamedProposalAndFullAudit() throws Exception {
     var fixture = assessmentFixture();
     var block = row(BLOCK, "1:b", Map.of("appId", "1", "blockKey", "1:b"));

@@ -38,6 +38,11 @@ public final class EasyVAgentTools {
 
   public Run open(CapabilityExecutionContext context, ResolvedScopeSnapshot scope,
       Map<String, String> versions, ObjectQueryPort.Row selected, List<Map<String, Object>> previousCalls) {
+    return new Run(context, scope, versions, selected == null ? List.of() : List.of(selected), previousCalls);
+  }
+
+  public Run openBatch(CapabilityExecutionContext context, ResolvedScopeSnapshot scope,
+      Map<String, String> versions, List<ObjectQueryPort.Row> selected, List<Map<String, Object>> previousCalls) {
     return new Run(context, scope, versions, selected, previousCalls);
   }
 
@@ -49,7 +54,7 @@ public final class EasyVAgentTools {
       tools.add(Map.of("name", "read_object", "input", "{handle}"));
       tools.add(Map.of("name", "traverse_objects", "input", "{handle, relation, filters?, order?, limit?, offset?}"));
       tools.add(Map.of("name", "assess_scheme", "input", "{handle: 区域对象句柄}"));
-      tools.add(Map.of("name", "inspect_block_improvement", "input", "{handle: 区域对象句柄}；读取块目的、全部指标语义、图形与同数量方案，供改造诊断"));
+      tools.add(Map.of("name", "inspect_block_improvement", "input", "{handle: 区域对象句柄} 或 {handles: 1..50 个不重复的区域句柄}；读取块目的、全部指标语义和图形，供改造诊断；单块读取另提供同数量方案"));
       tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: inspect.chartTypes 的 key（保持图形则复制组件当前 chartFamily，不能填中文显示名）, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[], title?: 新标题, purpose?: 新用途}; 仅改文案时省略 schemeId 并用 choices:[]，保留原图形、指标与位置；必须先 inspect；只生成尚未应用的提案"));
     }
     return List.copyOf(tools);
@@ -59,19 +64,26 @@ public final class EasyVAgentTools {
     private final CapabilityExecutionContext context;
     private final Map<String, String> versions;
     private final ObjectQueryPort.Row selected;
+    private final List<ObjectQueryPort.Row> selectedObjects;
     private ResolvedScopeSnapshot scope;
     private final Map<String, ObjectQueryPort.Row> handles = new LinkedHashMap<>();
     private final Map<ObjectQueryPort.Reference, String> byReference = new LinkedHashMap<>();
     private final List<TerminalPage> terminalPages = new ArrayList<>();
+    private final List<TerminalPage> completedPages = new ArrayList<>();
     private final Map<ObjectQueryPort.Reference, EasyVSchemeAssessmentService.ImprovementContext> improvementContexts = new HashMap<>();
     private record TerminalPage(EasyVObjectReadService.Request request, int endOffset) {}
     private int nextHandle = 1;
     private boolean scopeResolved;
 
     private Run(CapabilityExecutionContext context, ResolvedScopeSnapshot scope, Map<String, String> versions,
-        ObjectQueryPort.Row selected, List<Map<String, Object>> previousCalls) {
-      this.context = context; this.scope = scope; this.versions = Map.copyOf(versions); this.selected = selected;
-      if (selected != null) { handles.put("selected", selected); byReference.put(selected.reference(), "selected"); }
+        List<ObjectQueryPort.Row> selectedObjects, List<Map<String, Object>> previousCalls) {
+      this.context = context; this.scope = scope; this.versions = Map.copyOf(versions); this.selectedObjects = List.copyOf(selectedObjects);
+      this.selected = selectedObjects.size() == 1 ? selectedObjects.getFirst() : null;
+      for (int index = 0; index < selectedObjects.size(); index++) {
+        var row = selectedObjects.get(index);
+        String handle = selectedObjects.size() == 1 ? "selected" : "selected-" + (index + 1);
+        handles.put(handle, row); byReference.put(row.reference(), handle);
+      }
       // 普通追问绑定最新集合，历史轨迹只提供对象身份；执行版本来自当前集合。
       // 显式选择仍使用来源集合。属性不继承，使用时必须重新做授权读取。
       for (Map<String, Object> call : previousCalls) {
@@ -86,6 +98,56 @@ public final class EasyVAgentTools {
           catch (IllegalArgumentException error) { throw invalid("历史工具对象引用无效"); }
         }
       }
+    }
+
+    public boolean batchSelected() { return selectedObjects.size() > 1; }
+    public String datasetVersionSetId() { return context.datasetVersionSetId(); }
+    public String batchCoverageLabel() {
+      int metrics = batchRegions().stream().mapToInt(entry -> improvementContexts.get(entry.getValue().reference()).block().metrics().size()).sum();
+      return "已读取 " + selectedObjects.size() + " 张大屏、" + batchRegions().size() + " 个普通区域、" + metrics + " 个图表指标的已留存语义。";
+    }
+
+    public QueryIntent constrainBatch(QueryIntent intent) {
+      return batchSelected() ? selections.constrain(intent, selectedObjects) : intent;
+    }
+
+    public List<Prepared> batchInputs() {
+      var calls = new ArrayList<Prepared>();
+      for (int index = 0; index < selectedObjects.size(); index++) calls.add(prepare("read_object", Map.of("handle", "selected-" + (index + 1))));
+      calls.add(prepare("query_objects", Map.of("objectKey", "easyv-prototype-block", "limit", 50)));
+      return List.copyOf(calls);
+    }
+
+    public void requireBatchCoverage() {
+      if (!batchSelected()) return;
+      if (!batchRegionCoverageComplete() || batchRegions().stream().anyMatch(entry -> !improvementContexts.containsKey(entry.getValue().reference())))
+        throw new BackendException("EASYV_REVIEW_INCOMPLETE", "尚未完整读取所选大屏的区域与指标依据，本次检查未完成。请缩小范围后重试。");
+    }
+
+    public Optional<Prepared> batchInspection() {
+      if (!batchSelected() || !batchRegionCoverageComplete()) return Optional.empty();
+      var pending = batchRegions().stream().filter(entry -> !improvementContexts.containsKey(entry.getValue().reference())).map(Map.Entry::getKey).toList();
+      if (pending.isEmpty()) return Optional.empty();
+      if (pending.size() > 50) throw new BackendException("EASYV_REVIEW_INCOMPLETE", "所选大屏超过本次可深入检查的 50 个区域，请减少大屏后重新检查。");
+      return Optional.of(prepare("inspect_block_improvement", Map.of("handles", pending)));
+    }
+
+    private List<Map.Entry<String, ObjectQueryPort.Row>> batchRegions() {
+      return handles.entrySet().stream().filter(entry -> "easyv-prototype-block".equals(entry.getValue().reference().objectKey())).toList();
+    }
+
+    private boolean batchRegionCoverageComplete() {
+      var expected = selections.constrain(new ObjectQueryPort.Query("easyv-prototype-block", List.of(), List.of(), 50, 0), selectedObjects).filters();
+      // 末页本身不足以证明完整读取，必须从 offset=0 连续读取同一范围。
+      var pages = completedPages.stream().filter(page -> page.request().objectKey().equals("easyv-prototype-block")
+          && page.request().objectId() == null && page.request().relation() == null && page.request().order().isEmpty() && page.request().filters().equals(expected)).toList();
+      int offset = 0;
+      for (var page : pages) {
+        if (page.request().offset() != offset) continue;
+        offset = page.endOffset();
+        if (terminalPages.contains(page)) return true;
+      }
+      return false;
     }
 
     public ResolvedScopeSnapshot currentScope() {
@@ -109,6 +171,12 @@ public final class EasyVAgentTools {
     }
 
     public Prepared prepare(String tool, Map<String, Object> input) {
+      if (tool.equals("inspect_block_improvement") && input.containsKey("handles")) {
+        if (!input.keySet().equals(Set.of("handles")) || !(input.get("handles") instanceof List<?> members)
+            || members.isEmpty() || members.size() > 50 || new HashSet<>(members).size() != members.size()) throw invalid("批量检查需要 1–50 个不重复的区域句柄");
+        for (var member : members) prepare(tool, Map.of("handle", text(member)));
+        return new Prepared(tool, Map.copyOf(input), null, null);
+      }
       Set<String> keys = switch (tool) {
         case "query_objects" -> Set.of("objectKey", "filters", "order", "limit", "offset");
         case "read_object", "assess_scheme", "inspect_block_improvement" -> Set.of("handle");
@@ -166,7 +234,8 @@ public final class EasyVAgentTools {
       }
       for (var item : order) if (item.member() == null || type.findProperty(item.member()).isEmpty() || type.requireProperty(item.member()).detailOnly() || item.direction() == null) throw invalid("对象排序必须使用已声明属性");
       var query = new ObjectQueryPort.Query(target, filters, order, limit, offset);
-      if (selected != null && (id == null || relation != null)) query = selections.constrain(query, selected);
+      if (!selectedObjects.isEmpty() && (id == null || relation != null)) query = selectedObjects.size() == 1
+          ? selections.constrain(query, selected) : selections.constrain(query, selectedObjects);
       if (query.filters().size() > (relation == null ? 10 : 9)) throw invalid("对象过滤没有足够空间保留所选范围与关系约束");
       var request = new EasyVObjectReadService.Request(context.executionId(), context.datasetVersionSetId(), key, id, relation,
           query.filters(), query.order(), id != null && relation == null ? 1 : limit, offset);
@@ -190,6 +259,29 @@ public final class EasyVAgentTools {
 
     public Output execute(String id, Prepared call) {
       var scope = currentScope();
+      if (call.tool().equals("inspect_block_improvement") && call.input().get("handles") instanceof List<?> members) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        List<Map<String, Object>> inputs = new ArrayList<>();
+        List<ObjectQueryPort.Reference> references = new ArrayList<>();
+        for (var member : members) {
+          var single = execute(id, prepare(call.tool(), Map.of("handle", member)));
+          var row = requireHandle(member);
+          var inspected = improvementContexts.get(row.reference());
+          String pageTitle = selectedObjects.stream().filter(screen -> Objects.equals(screen.properties().get("appId"), row.properties().get("appId")))
+              .map(screen -> display((String) screen.properties().get("pageTitle"))).findFirst().orElse("所属大屏");
+          Map<String, Object> values = new LinkedHashMap<>();
+          values.put("handle", member); values.put("pageTitle", pageTitle);
+          values.put("title", inspected.block().title()); values.put("purpose", inspected.block().purpose());
+          values.put("metrics", single.rows()); rows.add(Collections.unmodifiableMap(values));
+          inputs.add(single.audit()); references.add(row.reference());
+        }
+        var observation = new LinkedHashMap<String, Object>();
+        observation.put("id", id); observation.put("tool", call.tool()); observation.put("label", "读取所选区域的完整指标依据");
+        observation.put("rows", List.copyOf(rows)); observation.put("totalRows", rows.size()); observation.put("complete", true);
+        observation.put("notice", "已逐区读取全部指标语义；源文案仅为设计意图，真实数值与最终渲染仍未核验。文案提案可直接预览，图形调整须先读取单块方案。");
+        // 整批读取用于判断与证据，不在正文重复展开清单；已有区域浏览入口负责按需查看。
+        return new Output("读取所选区域的完整指标依据", List.copyOf(rows), improvementProducts(), observation, Map.of("blocks", inputs), null, List.copyOf(references));
+      }
       if (call.request() != null) requirePage(call.request());
       if (call.input().containsKey("handle")) {
         var known = requireHandle(call.input().get("handle"));
@@ -267,8 +359,9 @@ public final class EasyVAgentTools {
     }
 
     private void requireSelected(ObjectQueryPort.Row row) {
-      if (selected == null) return;
-      var constraints = selections.constrain(new ObjectQueryPort.Query(row.reference().objectKey(), List.of(), List.of(), 1, 0), selected).filters();
+      if (selectedObjects.isEmpty()) return;
+      var query = new ObjectQueryPort.Query(row.reference().objectKey(), List.of(), List.of(), 1, 0);
+      var constraints = (selectedObjects.size() == 1 ? selections.constrain(query, selected) : selections.constrain(query, selectedObjects)).filters();
       for (var filter : constraints) if (!filter.values().contains(String.valueOf(row.properties().get(filter.member())))) {
         throw new BackendException("OBJECT_SCOPE_FORBIDDEN", "工具对象超出用户所选对象的分析范围。");
       }
@@ -286,6 +379,7 @@ public final class EasyVAgentTools {
       if (!result.page().hasMore() && (call.tool().equals("query_objects") || call.tool().equals("traverse_objects"))) {
         terminalPages.add(new TerminalPage(call.request(), result.page().offset() + rows.size()));
       }
+      if (call.tool().equals("query_objects") || call.tool().equals("traverse_objects")) completedPages.add(new TerminalPage(call.request(), result.page().offset() + rows.size()));
       String label = result.objectType().label() + (call.tool().equals("traverse_objects") ? " · 关联对象" : " · 对象读取");
       Map<String, Object> observation = new LinkedHashMap<>();
       observation.put("id", id); observation.put("tool", call.tool()); observation.put("label", label);

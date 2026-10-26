@@ -87,11 +87,11 @@ export default async function WorkspaceLayout({
         item.href.startsWith('/admin') &&
         canViewOntologyGovernance(viewer.scope.roleCodes),
     ),
-    ...(access.canView
+    ...(access.canManage
       ? [
           {
             href: '/admin/ingestion',
-            label: '数据接入',
+            label: '数据管理',
             activePrefix: '/admin/ingestion',
           },
         ]

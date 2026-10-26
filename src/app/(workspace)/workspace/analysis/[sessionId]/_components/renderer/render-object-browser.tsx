@@ -18,6 +18,7 @@ import { formatShanghaiDateTime } from '@/lib/format-datetime';
 import { objectRecordTitle, objectPropertyText, objectRecordSelectionLabel } from '@/application/object-collection/presentation';
 import { ObjectCollectionControls } from './object-collection-controls';
 import { SchemeAssessmentPanel } from './scheme-assessment-panel';
+import { ScreenReviewPicker } from './screen-review-picker';
 import { chartPlaceholder, ComponentGlyph, PrototypeComponentPreview, type MetricPreviewStyle } from './prototype-component-preview';
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
 
@@ -437,6 +438,7 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
   context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; drilldownId?: string | null; scopeDescription: string; onObjectSelect?: SelectObject;
 }) {
   const [offset, setOffset] = useState(0);
+  const [reviewing, setReviewing] = useState(false);
   const [selected, setSelected] = useState<Row | null>(null);
   const [controls, setControls] = useState<CollectionControls>(EMPTY_CONTROLS);
   const [knownType, setKnownType] = useState<Type | null>(null);
@@ -456,6 +458,7 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
     && !controls.order && !controls.filters.length && filters?.some((filter) => filter.operator === 'EQUALS'
       && filter.values.length === 1 && knownType?.properties.some((property) => property.key === filter.member && property.identifier));
   return <div className="space-y-5" data-testid="analysis-object-browser">
+    {!singleTarget && objectKey === 'easyv-prototype-layout' && onObjectSelect ? <Button type="button" variant="ghost" onClick={() => { setReviewing(value => !value); setSelected(null); }}>{reviewing ? '返回浏览大屏' : '选择大屏一起检查与改进'}</Button> : null}
     {drilldownId ? <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p> : null}
     <p className="text-xs leading-5 text-muted-foreground">当前对象按最新已发布数据读取；历史回答保留当时结论，数量与属性可能已变化。</p>
     {!singleTarget && list.data?.page.hasMore ? <p className="text-xs leading-5 text-muted-foreground">这里只显示当前页，可翻页继续查看。</p> : null}
@@ -467,7 +470,7 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
     {list.isPending ? <Pending>正在读取当前对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}
     {list.data && !singleTarget ? <>
-      {!list.data.page.rows.length ? <div className="py-8 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} />}
+      {!list.data.page.rows.length ? <div className="py-8 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : !reviewing ? <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} /> : null}
       <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span><div className="flex gap-1">
         <Button type="button" size="sm" variant="ghost" aria-label="上一页对象" disabled={!offset || list.isFetching} onClick={() => { setOffset(offset - 20); setSelected(null); }}><ChevronLeft className="size-4" /></Button>
         <Button type="button" size="sm" variant="ghost" aria-label="下一页对象" disabled={!list.data.page.hasMore || offset >= 10000 || list.isFetching} onClick={() => { setOffset(offset + 20); setSelected(null); }}><ChevronRight className="size-4" /></Button>
@@ -475,7 +478,8 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
     </> : null}
       </div>
     </details> : null}
-    {root && Detail ? <Detail key={`${root.reference.objectKey}:${root.reference.objectId}`} context={context} root={root} onObjectSelect={onObjectSelect} /> : null}
+    {reviewing && onObjectSelect ? <ScreenReviewPicker executionId={context.executionId} data={list.data} onStart={onObjectSelect} /> : null}
+    {!reviewing && root && Detail ? <Detail key={`${root.reference.objectKey}:${root.reference.objectId}`} context={context} root={root} onObjectSelect={onObjectSelect} /> : null}
   </div>;
 }
 

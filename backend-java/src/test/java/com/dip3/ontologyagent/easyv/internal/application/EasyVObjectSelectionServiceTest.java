@@ -42,6 +42,32 @@ class EasyVObjectSelectionServiceTest {
     assertThrows(BackendException.class, () -> new ObjectSelection(" ", "set-old", selection.reference()));
   }
 
+  @Test void batchSelectionValidatesEveryMemberAndKeepsOneFrozenScope() {
+    var first = row(LAYOUT, "a", "layouts-old"); var second = row(LAYOUT, "b", "layouts-old");
+    var batch = new ObjectSelection("execution-old", "set-old", first.reference(), List.of(second.reference()));
+    assertEquals(batch, ObjectSelection.read(batch.snapshot()));
+    assertFalse(selection.snapshot().containsKey("additionalReferences"));
+    when(objects.require(eq(LAYOUT), eq("a"), any())).thenReturn(first);
+    when(objects.require(eq(LAYOUT), eq("b"), any())).thenReturn(second);
+    var selected = service.require(viewer("EASYV_ANALYST"), all, batch);
+    assertEquals(List.of(first, second), selected.objects()); assertEquals(scoped, selected.scope());
+    when(objects.require(eq(LAYOUT), eq("b"), any())).thenThrow(new BackendException("OBJECT_NOT_FOUND", "无权读取第二张大屏"));
+    assertEquals("OBJECT_NOT_FOUND", assertThrows(BackendException.class, () -> service.require(viewer("EASYV_ANALYST"), all, batch)).code());
+    assertThrows(BackendException.class, () -> new ObjectSelection("execution-old", "set-old", first.reference(), List.of(first.reference())));
+    assertThrows(BackendException.class, () -> new ObjectSelection("execution-old", "set-old", first.reference(), List.of(new ObjectQueryPort.Reference(LAYOUT, "b", "other-version"))));
+    assertThrows(BackendException.class, () -> new ObjectSelection("execution-old", "set-old", selection.reference(), List.of(first.reference())));
+    assertThrows(BackendException.class, () -> new ObjectSelection("execution-old", "set-old", first.reference(), List.of(second.reference(), new ObjectQueryPort.Reference(LAYOUT, "c", "layouts-old"), new ObjectQueryPort.Reference(LAYOUT, "d", "layouts-old"))));
+  }
+
+  @Test void batchQueriesUseTheUnionOfSelectedParentsWithoutDroppingModelFilters() {
+    var selected = List.of(row(LAYOUT, "a", "layouts-old"), new ObjectQueryPort.Row(new ObjectQueryPort.Reference(LAYOUT, "b", "layouts-old"), Map.of("appId", "b")));
+    var original = new ObjectQueryPort.Query(BLOCK, List.of(new QueryIntent.Filter("moduleName", QueryIntent.Operator.CONTAINS, List.of("运营"))), List.of(), 50, 0);
+    var constrained = service.constrain(original, selected);
+    assertEquals(original.filters().getFirst(), constrained.filters().getFirst());
+    assertEquals(new QueryIntent.Filter("appId", QueryIntent.Operator.EQUALS, List.of("a", "b")), constrained.filters().getLast());
+    assertEquals(List.of("a", "b"), service.constrain(intent(COMPONENT), selected).filters().getLast().values());
+  }
+
   @Test void exactVersionIsMandatoryAndNeverFallsBackToLatest() {
     var forged = new ObjectSelection("execution-old", "set-old", new ObjectQueryPort.Reference(BLOCK, "a:b", "blocks-new"));
     assertEquals("OBJECT_VERSION_MISMATCH", assertThrows(BackendException.class, () -> service.require(viewer("PLATFORM_ADMIN"), all, forged)).code());

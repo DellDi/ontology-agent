@@ -117,6 +117,7 @@ class EasyVSemanticAgentTest {
       when(objectRun.currentScope()).thenReturn(scope);
       when(objectRun.access()).thenReturn(new AccessContext(call.getArgument(2), EasyVScopeResolver.dataScope(scope)));
       when(objectRun.knownObjects()).thenReturn(List.of());
+      when(objectRun.datasetVersionSetId()).thenReturn("easyv-set-1");
       return objectRun;
     });
     when(queries.coverage(any(), any())).thenReturn(new DataCoverage(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 9, 27)));
@@ -795,6 +796,94 @@ class EasyVSemanticAgentTest {
     assertEquals(selection.snapshot(), workflow.plan().get("_objectSelection"));
     assertEquals("原型区域", workflow.plan().get("_objectSelectionLabel"));
     assertEquals("easyv-set-1", workflow.evidence().getFirst().provenance().datasetVersionSetId());
+  }
+
+  @Test
+  void batchReviewReadsEverySelectedScreenAndAllRegionsBeforeComposition() {
+    var objects = mock(EasyVObjectReadService.class); var scopes = mock(EasyVScopeResolver.class);
+    var semantic = SemanticModel.discover();
+    when(scopes.executionPrincipal(any())).thenReturn(principal()); when(scopes.resolveScope(any())).thenReturn(ALL);
+    var realTools = new EasyVAgentTools(objects, mock(EasyVSchemeAssessmentService.class),
+        new EasyVObjectSelectionService(null, null, null, semantic), scopes, semantic, new com.dip3.ontologyagent.support.JsonCodec());
+    agent = new EasyVSemanticAgent(model, semantic, new SemanticQueryCompiler(semantic), queries, datasets, recorder, selections, realTools);
+    var rows = List.of("a", "b", "c").stream().map(id -> new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(
+        new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", id, "v-easyv-prototype-layout"), Map.<String, Object>of("appId", id, "pageTitle", "运营大屏" + id))).toList();
+    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-0", "easyv-set-1", rows.getFirst().reference(), rows.subList(1, 3).stream().map(row -> row.reference()).toList());
+    when(selections.requireDuringExecution(any(), eq(ALL), eq(selection))).thenReturn(new EasyVObjectSelectionService.Selected(ALL, rows.getFirst(), rows));
+    when(objects.readDuringExecution(any(), eq(ALL), any())).thenAnswer(call -> {
+      EasyVObjectReadService.Request request = call.getArgument(2);
+      var pageRows = request.objectKey().equals("easyv-prototype-layout") ? rows.stream().filter(row -> row.reference().objectId().equals(request.objectId())).toList() : List.<com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row>of();
+      return new EasyVObjectReadService.Result("execution-1", "easyv-set-1", "easyv-v2",
+          new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Page(request.objectKey(), pageRows, request.limit(), request.offset(), false), null,
+          new EasyVObjectReadService.ObjectTypeView(request.objectKey(), "大屏", List.of(), List.of()), Map.of(), null, null, Map.of());
+    });
+    when(model.plan(any())).thenReturn(finished());
+    when(model.compose(any(), any())).thenReturn(new ComposedAnswer("已读取运营大屏a；本批未找到可读取的普通区域，缺少改造依据。",
+        List.of(new Citation("q1", 0, "pageTitle")), List.of(), List.of(), List.of()));
+    var result = run(followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot())), ALL);
+    var captured = ArgumentCaptor.forClass(EasyVObjectReadService.Request.class); verify(objects, org.mockito.Mockito.atLeastOnce()).readDuringExecution(any(), eq(ALL), captured.capture());
+    assertEquals(List.of("a", "b", "c"), captured.getAllValues().stream().filter(request -> request.objectKey().equals("easyv-prototype-layout")).map(EasyVObjectReadService.Request::objectId).toList());
+    assertEquals(List.of("a", "b", "c"), captured.getAllValues().getLast().filters().getFirst().values());
+    var planning = ArgumentCaptor.forClass(PlanRequest.class); verify(model).plan(planning.capture());
+    assertEquals(4, planning.getValue().remainingCalls()); assertEquals(4, planning.getValue().observations().size());
+    assertEquals(selection.snapshot(), result.plan().get("_objectSelection"));
+    assertEquals("3 张大屏的检查与改进", result.plan().get("_objectSelectionLabel"));
+  }
+
+  @Test
+  void batchReviewAutomaticallyInspectsAllRegionsAndRecordsOneFrozenBulkCallBeforeTheModelPlans() throws Exception {
+    var fixture = new com.fasterxml.jackson.databind.ObjectMapper().readValue(java.nio.file.Files.readString(
+        java.nio.file.Path.of("..", "contracts", "backend", "fixtures", "scheme-assessment.json")), EasyVSchemeAssessmentService.Result.class);
+    var versions = new java.util.HashMap<>(datasets.requireFrozen("easyv-set-1", EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS).productVersionIds());
+    versions.put("easyv-scheme-library", "v-easyv-scheme-library");
+    when(datasets.requireFrozen("easyv-set-1", EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS)).thenReturn(
+        new DatasetVersionSet("easyv-set-1", versions, CAPTURED, DatasetVersionSet.Status.FROZEN, CAPTURED, CAPTURED, "test"));
+    var objects = mock(EasyVObjectReadService.class); var scopes = mock(EasyVScopeResolver.class);
+    var assessments = mock(EasyVSchemeAssessmentService.class); var semantic = SemanticModel.discover();
+    when(scopes.executionPrincipal(any())).thenReturn(principal()); when(scopes.resolveScope(any())).thenReturn(ALL);
+    var realTools = new EasyVAgentTools(objects, assessments, new EasyVObjectSelectionService(null, null, null, semantic), scopes, semantic, new com.dip3.ontologyagent.support.JsonCodec());
+    agent = new EasyVSemanticAgent(model, semantic, new SemanticQueryCompiler(semantic), queries, datasets, recorder, selections, realTools);
+    var screens = List.of("a", "b", "c").stream().map(id -> new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(
+        new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", id, "v-easyv-prototype-layout"), Map.<String,Object>of("appId", id, "pageTitle", "运营大屏" + id))).toList();
+    var blocks = List.of("a", "b", "c").stream().map(id -> new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(
+        new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-block", id + ":b", "v-easyv-prototype-block"), Map.<String,Object>of("appId", id, "blockKey", id + ":b"))).toList();
+    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-0", "easyv-set-1", screens.getFirst().reference(), screens.subList(1, 3).stream().map(row -> row.reference()).toList());
+    when(selections.requireDuringExecution(any(), eq(ALL), eq(selection))).thenReturn(new EasyVObjectSelectionService.Selected(ALL, screens.getFirst(), screens));
+    when(objects.readDuringExecution(any(), eq(ALL), any())).thenAnswer(call -> {
+      EasyVObjectReadService.Request request = call.getArgument(2);
+      var rows = (request.objectKey().equals("easyv-prototype-layout") ? screens : blocks).stream()
+          .filter(row -> request.objectId() == null || row.reference().objectId().equals(request.objectId())).toList();
+      return new EasyVObjectReadService.Result("execution-1", "easyv-set-1", "easyv-v2",
+          new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Page(request.objectKey(), rows, request.limit(), request.offset(), false), null,
+          new EasyVObjectReadService.ObjectTypeView(request.objectKey(), "区域", List.of(), List.of()), Map.of(), null, null, Map.of());
+    });
+    when(assessments.inspectImprovementDuringExecution(any(), eq(ALL), any())).thenAnswer(call -> {
+      var metric = new com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement.Metric("c", "m", "门诊量", "每日接诊人次", null, "人次", "按日求和", "bar");
+      var block = new com.dip3.ontologyagent.easyv.internal.domain.BlockImprovement.Context("业务量", "观察业务量", List.of(metric), fixture.comparison().input(), List.of());
+      var selected = call.<com.dip3.ontologyagent.semantic.api.ObjectSelection>getArgument(2);
+      return new EasyVSchemeAssessmentService.ImprovementContext(selected, "easyv-v2", datasets.requireFrozen("easyv-set-1", EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS).productVersionIds(), "assessment", block, Map.of("bar", "柱状图"), List.of(selected.reference()));
+    });
+    when(model.plan(any())).thenReturn(finished());
+    when(model.compose(any(), any())).thenReturn(new ComposedAnswer("三张大屏的业务量均已有指标依据，暂不修改。", List.of(new Citation("q5", 0, "title")), List.of(), List.of(), List.of()));
+    var result = run(followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot())), ALL);
+    var planned = ArgumentCaptor.forClass(PlanRequest.class); verify(model).plan(planned.capture());
+    assertEquals(3, planned.getValue().remainingCalls());
+    assertEquals(3, ((List<?>) planned.getValue().observations().getLast().get("rows")).size());
+    verify(assessments, times(3)).inspectImprovementDuringExecution(any(), eq(ALL), any());
+    verify(recorder).succeedWhileLeased(eq("child-inspect_block_improvement-q5"), anyMap(), eq("execution-1"), eq("worker-1"));
+    assertEquals(5, ((List<?>) ((Map<?,?>) result.plan().get("_resolvedContext")).get("toolCalls")).size());
+    verify(model, never()).compose(any(), any());
+    assertTrue(result.conclusion().contains("3 个普通区域、3 个图表指标"));
+    assertTrue(result.conclusion().contains("没有提案不代表所有区域无需修改"));
+    when(model.plan(any())).thenReturn(new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "preview_block_improvement", "input",
+        Map.of("handle", "o2", "title", "门诊量趋势", "purpose", "观察每日门诊量", "choices", List.of(),
+            "diagnosis", Map.of("themeFit", "模块名称应对应每日门诊量", "metricChartFit", "保持图形", "composition", "保持位置"), "limitations", List.of()))), null, List.of()), finished());
+    var proposed = run(followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot())), ALL);
+    assertTrue(proposed.conclusion().contains("运营大屏b · 业务量"));
+    assertFalse(proposed.conclusion().contains("运营大屏a · 业务量"));
+    assertTrue(proposed.conclusion().contains("业务量 → 门诊量趋势"));
+    assertTrue(proposed.conclusion().contains("观察业务量 → 观察每日门诊量"));
+    verify(model, never()).compose(any(), any());
   }
 
   @Test
