@@ -111,3 +111,51 @@ test('真实聊天 view model 保留对象入口，历史恢复与 SSE 都绑定
     assert.equal(entries[0].source.executionId, 'execution-old'); assert.equal(entries[0].payload.datasetVersionSetId, 'set-old');
   }
 });
+
+test('主视觉设计按页面与 Content 引用关联，同名、跨页、重复和坏数据不能误绑', () => {
+  const content = { id: 'content-main', title: '全国水利风险态势总览', metrics: [{ id: 'main-content__map-region', name: '区域风险分布' }] };
+  const pages = [{ pageId: 'page-1', contents: [content] }, { pageId: 'page-2', contents: [{ ...content, title: '另一页' }] }];
+  const tree = node('Pages', {}, [node('Page', { id: 'page-1', width: '600', height: '300' }, [node('Layout', {}, [
+    node('Content', { id: 'main-content', ref: 'content-main' }),
+  ])])]);
+  const canvas = projectPrototypeLayout(tree, [])[0];
+  const projected = projection.readPrototypeMainContent(JSON.stringify(pages), canvas.pageId, canvas.items[0].contentIds);
+  assert.deepEqual(projected.content, content);
+  assert.equal(projection.mainContentHasMap(projected.content), true);
+  assert.equal(projection.mainContentHasMap({ title: '地图', metrics: [{ id: 'unknown', name: '地图' }] }), false);
+  for (const value of [null, '{', '[]', JSON.stringify([{ pageId: 'page-1', contents: 'invalid' }]),
+    JSON.stringify([{ pageId: 'page-1', contents: [content, content] }]), JSON.stringify([pages[0], pages[0]])]) {
+    const result = projection.readPrototypeMainContent(value, 'page-1', ['content-main']);
+    assert.equal(result.content, null); assert.ok(result.diagnostic);
+  }
+  assert.equal(projection.readPrototypeMainContent(JSON.stringify(pages), 'page-3', ['content-main']).content, null);
+  assert.equal(projection.readPrototypeMainContent(JSON.stringify(pages), 'page-1', ['同名但未关联']).content, null);
+});
+
+test('核心指标 | 五项小数跨度按源等分，fillLayout 主视觉覆盖核心槽位且保留角色', () => {
+  const coreBlocks = Array.from({ length: 5 }, (_,i) => ({ reference: { objectId: `core:${i}` }, properties: { blockId: `core_metric_${i}` } }));
+  const core = node('Header', { type: 'core-metrics', span: '2/12' }, coreBlocks.map((row) => node('Block', {
+    id: row.properties.blockId, span: '2.4/12', metric_role: 'core',
+  })));
+  const tree = page(node('Layout', { 'grid-direction': 'vertical' }, [core, node('Content', { id: 'main', span: '10/12', fillLayout: '1' })]));
+  const result = projectPrototypeLayout(tree, coreBlocks)[0];
+  assert.deepEqual(result.diagnostics, []);
+  const items = result.items.filter(item => item.kind === 'block');
+  assert.equal(items.length, 5); assert.ok(items.every(item => item.metricRole === 'core'));
+  assert.equal(items[0].width, 240); assert.equal(items[4].x + items[4].width, 1200);
+  const visual = result.items.find(item => item.kind === 'content');
+  assert.equal(visual.y, 0); assert.equal(visual.height, 600);
+  assert.deepEqual(visual.contentBox, { x: 0, y: 100, width: 1200, height: 500 });
+  const noFill = projectPrototypeLayout(page(node('Layout', {}, [core, node('Content', { id: 'main', span: '10/12' })])), coreBlocks)[0];
+  assert.equal(noFill.items.at(-1).y, 100); assert.equal(noFill.items.at(-1).height, 500);
+});
+
+ test('动态面板保留宿主外框和标签顺序，不把状态排列成并列区域', () => {
+  const panel = node('Block', {id:'host', render:'dynamic-panel', options:'["s1","s2"]'}, [node('Block',{id:'s1'}), node('Block',{id:'s2'})]);
+  const rows = ['host','s1','s2'].map(id=>({reference:{objectId:`app:${id}`},properties:{blockId:id,blockTitle:id}}));
+  const result = projectPrototypeLayout(page(node('Layout',{},[panel])), rows)[0];
+  assert.equal(result.items.length,1);
+  assert.deepEqual(result.items[0].panelStates.map(s=>s.objectId),['app:s1','app:s2']);
+  assert.equal(result.items[0].width,1200);
+  assert.match(projectPrototypeLayout(page(node('Layout',{},[panel])), rows.slice(0,2))[0].diagnostics[0],/面板状态/);
+});

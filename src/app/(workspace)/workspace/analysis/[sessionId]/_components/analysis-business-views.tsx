@@ -4,6 +4,7 @@ import type {
   MetricCard,
   Visualization,
 } from '@/application/analysis-message-projection/conversation-view-model';
+import type { AnalysisInteractionUiRenderInput } from './analysis-interaction-ui-renderer-registry';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
 import { MarkdownContent } from '@/app/_components/markdown-content';
@@ -54,8 +55,10 @@ export function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
 export function VisualizationBlock({
   visualization,
   registry,
+  onOpenSidePanel,
 }: {
   visualization: Visualization;
+  onOpenSidePanel?: AnalysisInteractionUiRenderInput['onOpenSidePanel'];
   registry: ReturnType<typeof getDefaultAnalysisInteractionUiRendererRegistry>;
 }) {
   const block: AnalysisRenderedBlock = {
@@ -81,7 +84,7 @@ export function VisualizationBlock({
 
   return (
     <div className="analysis-block-enter mt-4">
-      {registry.render({ renderedBlock: block, embedded: true })}
+      {registry.render({ renderedBlock: block, embedded: true, onOpenSidePanel })}
       {visualization.summary ? (
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
           {visualization.summary}

@@ -7,6 +7,8 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import contracts from '../src/infrastructure/java-backend/object-read-contract.ts';
 import objectClient from '../src/infrastructure/java-backend/object-read-client.ts';
+import catalog from '../src/infrastructure/java-backend/workspace-catalog.ts';
+import catalogRoute from '../src/app/api/easyv/workspace/prototypes/query/route.ts';
 import queryRoute from '../src/app/api/analysis/sessions/[sessionId]/objects/query/route.ts';
 
 const { javaObjectReadRequestSchema, javaObjectReadResultSchema } = contracts;
@@ -14,7 +16,7 @@ const root = new URL('../contracts/backend/', import.meta.url);
 const detail = JSON.parse(await readFile(new URL('fixtures/object-read-detail.json', root), 'utf8'));
 const ajv = new Ajv2020({ allErrors: true, strict: true, allowUnionTypes: true });
 addFormats(ajv);
-for (const name of ['object-read-request', 'object-read-result']) {
+for (const name of ['object-read-request', 'object-read-result', 'workspace-catalog-request', 'workspace-catalog-result']) {
   const schema = JSON.parse(await readFile(new URL(`schemas/${name}.schema.json`, root), 'utf8'));
   assert.equal(ajv.validateSchema(schema), true);
   ajv.addSchema(schema);
@@ -289,4 +291,45 @@ test('对象读取 | 关联数量保留正式口径，非对象详情请求和�
     assert.equal(ajv.getSchema('object-read-request.schema.json')(invalid), false);
     assert.equal(javaObjectReadRequestSchema.safeParse(invalid).success, false);
   }
+});
+
+
+test('大屏目录 | 独立只读契约不伪造执行，仍校验结构与对象引用', () => {
+  const data = {...detail, executionId:null};
+  assert.equal(ajv.getSchema('workspace-catalog-result.schema.json')(data),true,ajv.errorsText());
+  assert.equal(ajv.getSchema('workspace-catalog-request.schema.json')({search:'银行',limit:12}),true,ajv.errorsText());
+  assert.equal(catalog.workspaceCatalogResultSchema.safeParse(data).success,true);
+  assert.equal(javaObjectReadResultSchema.safeParse(data).success,false,'分析读取仍必须有真实执行');
+  assert.equal(catalog.workspaceCatalogRequestSchema.safeParse({search:'银行',limit:12,offset:0}).success,true);
+  assert.equal(catalog.workspaceCatalogRequestSchema.safeParse({executionId:'forged'}).success,false);
+  const wrong = structuredClone(data); wrong.page.rows[0].reference.objectKey = 'easyv-prototype-component';
+  assert.equal(catalog.workspaceCatalogResultSchema.safeParse(wrong).success,false,'共享校验不能因目录入口被放宽');
+});
+
+test('大屏目录 | BFF 透传只读查询和认证，不创建分析执行', async context => {
+  const originalUrl=process.env.JAVA_BACKEND_URL;
+  let captured;
+  const server=createServer(async(incoming,response)=>{
+    let raw='';for await(const chunk of incoming)raw+=chunk;
+    captured={path:incoming.url,cookie:incoming.headers.cookie,body:JSON.parse(raw)};
+    response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify({...detail,executionId:null}));
+  });
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  process.env.JAVA_BACKEND_URL=`http://127.0.0.1:${server.address().port}`;
+  context.after(()=>{if(originalUrl===undefined)delete process.env.JAVA_BACKEND_URL;else process.env.JAVA_BACKEND_URL=originalUrl;server.close();});
+  const response=await catalogRoute.POST(new Request('http://web.local/api/easyv/workspace/prototypes/query',{
+    method:'POST',headers:{cookie:'dip3_session=test-only','content-type':'application/json'},body:JSON.stringify({search:'银行',limit:12,offset:0}),
+  }));
+  assert.equal(response.status,200);assert.equal((await response.json()).executionId,null);
+  assert.deepEqual(captured,{path:'/api/easyv/workspace/prototypes/query',cookie:'dip3_session=test-only',body:{search:'银行',limit:12,offset:0}});
+});
+
+
+test('大屏目录 | 对象或冻结版本不匹配时拒绝展示，未知请求字段不发出', async context => {
+  context.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify({...detail,executionId:null}),{status:200,headers:{'content-type':'application/json'}}));
+  const signal=new AbortController().signal;
+  await assert.rejects(()=>catalog.readWorkspaceCatalog({objectId:'another-app'},signal),/所选对象不一致/);
+  await assert.rejects(()=>catalog.readWorkspaceCatalog({datasetVersionSetId:'another-set'},signal),/数据版本已变化/);
+  await assert.rejects(()=>catalog.readWorkspaceCatalog({executionId:'forged'},signal));
+  assert.equal(globalThis.fetch.mock.calls.length,2,'未知字段必须在发出请求前拒绝');
 });

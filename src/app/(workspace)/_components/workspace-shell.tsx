@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   ChevronsUpDown,
+  Database,
+  Layers3,
   LogOut,
+  History,
   MessageSquare,
   MessageSquarePlus,
   PanelLeft,
@@ -33,6 +36,7 @@ import { WorkspaceSettingsDialog } from './workspace-settings-dialog';
 export type WorkspaceSidebarSession = {
   id: string;
   title: string;
+  updatedAtLabel?: string;
   href: string;
   derivedStatus: 'pending' | 'running' | 'completed' | 'failed' | 'unavailable';
 };
@@ -53,6 +57,15 @@ export type WorkspaceShellProps = {
   userId: string;
   children: ReactNode;
 };
+
+const compactSidebarQuery = '(max-width: 1199px)';
+function subscribeCompactSidebar(onChange: () => void) {
+  const media = window.matchMedia(compactSidebarQuery);
+  media.addEventListener('change', onChange);
+  return () => media.removeEventListener('change', onChange);
+}
+const getCompactSidebar = () => window.matchMedia(compactSidebarQuery).matches;
+const getServerCompactSidebar = () => false;
 
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 420;
@@ -124,7 +137,7 @@ function SessionList({
               'sb-marquee-parent flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors',
               'hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               active
-                ? 'bg-secondary font-medium text-foreground'
+                ? 'bg-accent font-medium text-accent-foreground'
                 : 'text-foreground/85',
             )}
             href={session.href}
@@ -135,7 +148,7 @@ function SessionList({
               aria-hidden
               className={cn('size-1.5 shrink-0 rounded-full', statusDotClass(session.derivedStatus))}
             />
-            <MarqueeText>{session.title}</MarqueeText>
+<span className="min-w-0"><MarqueeText>{session.title}</MarqueeText>{session.updatedAtLabel ? <span className="mt-1 block text-xs font-normal text-muted-foreground">{session.updatedAtLabel}</span> : null}</span>
           </Link>
         );
       })}
@@ -188,23 +201,26 @@ function CollapsedRail({
       >
         <MessageSquarePlus aria-hidden className="size-4" />
       </Link>
+      <Link aria-label="大屏目录" title="大屏目录" href="/workspace/screens" className={iconBtn}><Layers3 aria-hidden className="size-4" /></Link>
+      <Link aria-label="分析数据" title="分析数据" href="/workspace/data" className={iconBtn}><Database aria-hidden className="size-4" /></Link>
+      <Link aria-label="全部分析记录" title="全部分析记录" href="/workspace/history" className={iconBtn}><History aria-hidden className="size-4" /></Link>
       <div aria-hidden className="my-2 h-px w-6 bg-border" />
       <ScrollArea className="min-h-0 w-full flex-1">
         <nav aria-label="分析会话历史" className="flex flex-col items-center gap-0.5">
-          {sessions.map((session) => {
+          {sessions.filter((session, index) => index < 4 || pathname === session.href).map((session) => {
             const active = pathname === session.href;
             return (
               <Link
                 aria-current={active ? 'page' : undefined}
-                aria-label={session.title}
+                aria-label={`${session.title} · ${session.updatedAtLabel ?? ''}`}
                 className={cn(
                   iconBtn,
                   'relative',
-                  active && 'bg-secondary text-foreground',
+                  active && 'bg-accent text-accent-foreground',
                 )}
                 href={session.href}
                 key={session.id}
-                title={session.title}
+                title={`${session.title} · ${session.updatedAtLabel ?? ''}`}
               >
                 <MessageSquare aria-hidden className="size-4" />
                 <span
@@ -294,6 +310,10 @@ function UserMenu({
           设置
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link href="/workspace/history"><History aria-hidden className="size-4" />分析记录</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild><Link href="/workspace/screens"><Layers3 aria-hidden className="size-4" />大屏目录</Link></DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href="/workspace/data">分析数据</Link>
         </DropdownMenuItem>
         {adminItems.length ? (
@@ -346,15 +366,20 @@ export function WorkspaceShell({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [width, setWidth] = useState(initialWidth ?? 256);
+  const compact = useSyncExternalStore(subscribeCompactSidebar, getCompactSidebar, getServerCompactSidebar);
+  const [compactExpanded, setCompactExpanded] = useState(false);
+  const rail = collapsed || (compact && !compactExpanded);
   const [resizing, setResizing] = useState(false);
   const asideRef = useRef<HTMLElement | null>(null);
 
   const collapse = useCallback(() => {
     setCollapsed(true);
+    setCompactExpanded(false);
     persistSidebar('c');
   }, []);
   const expand = useCallback(() => {
     setCollapsed(false);
+    setCompactExpanded(true);
     persistSidebar(`e.${width}`);
   }, [width]);
 
@@ -394,13 +419,14 @@ export function WorkspaceShell({
       {/* 左侧栏：品牌 / 新分析 / 会话历史 / 用户入口。可收起为图标栏、可拖拽调宽 */}
       <aside
         className={cn(
-          'relative hidden shrink-0 flex-col bg-secondary/40 md:flex',
-          !resizing && 'transition-[width] duration-200 ease-out',
+          'relative z-30 hidden shrink-0 flex-col border-r border-border bg-sky-100 md:flex',
+          compact && !rail && 'absolute inset-y-0 left-0 shadow-lg',
+          !resizing && 'transition-[width] duration-200 ease-out motion-reduce:transition-none',
         )}
         ref={asideRef}
-        style={{ width: collapsed ? SIDEBAR_COLLAPSED_W : width }}
+        style={{ width: rail ? SIDEBAR_COLLAPSED_W : width }}
       >
-        {collapsed ? (
+        {rail ? (
           <CollapsedRail
             adminItems={adminItems}
             onExpand={expand}
@@ -412,9 +438,9 @@ export function WorkspaceShell({
           />
         ) : (
           <>
-            <div className="flex items-center justify-between px-4 pb-1 pt-4">
+            <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-5">
               <span className="flex min-w-0 items-center gap-2">
-                <span className="shrink-0 text-sm font-semibold tracking-[0.1em] text-primary">
+                <span className="shrink-0 text-sm font-semibold text-foreground">
                   DIP3 · 智慧数据
                 </span>
                 <EnvironmentBadge environment={environment} />
@@ -433,8 +459,8 @@ export function WorkspaceShell({
             <div className="px-3 pb-1 pt-2">
               <Link
                 className={cn(
-                  'flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2',
-                  'text-sm font-medium text-foreground shadow-sm transition-colors',
+                  'flex items-center gap-2 rounded-md bg-accent px-3 py-2.5',
+                  'text-sm font-medium text-accent-foreground transition-colors',
                   'hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 )}
                 href="/workspace"
@@ -444,11 +470,12 @@ export function WorkspaceShell({
               </Link>
             </div>
 
-            <div className="min-h-0 flex-1 py-2">
-              <p className="px-5 pb-1.5 pt-1 text-xs text-muted-foreground">
-                最近分析
-              </p>
-              <ScrollArea className="h-full px-3">
+            <div className="flex min-h-0 flex-1 flex-col py-2">
+              <div className="flex items-center justify-between px-5 pb-1.5 pt-1 text-xs text-muted-foreground">
+                <p>最近分析</p>
+                <Link href="/workspace/history" className="rounded-sm px-1 py-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">全部记录</Link>
+              </div>
+              <ScrollArea className="min-h-0 flex-1 px-3">
                 <SessionList
                   loadFailed={sessionsLoadFailed}
                   pathname={pathname}
@@ -459,6 +486,8 @@ export function WorkspaceShell({
             </div>
 
             <div className="border-t border-border p-3">
+              <Link href="/workspace/screens" className="mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Layers3 aria-hidden className="size-4" />大屏目录</Link>
+              <Link href="/workspace/data" className="mb-2 flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Database aria-hidden className="size-4" />分析数据</Link>
               <UserMenu
                 adminItems={adminItems}
                 onOpenSettings={() => setSettingsOpen(true)}
@@ -470,7 +499,7 @@ export function WorkspaceShell({
         )}
 
         {/* 右缘拖拽把手：展开态可手动调宽 */}
-        {!collapsed ? (
+        {!rail ? (
           <div
             aria-hidden
             className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize transition-colors hover:bg-primary/20 active:bg-primary/30"
@@ -486,7 +515,7 @@ export function WorkspaceShell({
         <header className="flex items-center justify-between px-4 py-3 md:hidden">
           <span className="flex min-w-0 items-center gap-2">
             <Link
-              className="shrink-0 text-sm font-semibold tracking-[0.1em] text-primary"
+              className="shrink-0 text-sm font-semibold text-foreground"
               href="/workspace"
             >
               DIP3 · 智慧数据

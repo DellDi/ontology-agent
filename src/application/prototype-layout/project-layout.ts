@@ -1,8 +1,9 @@
+import { z } from 'zod';
 import type { PrototypeLayoutNode, PrototypeComponentGeometry } from '@/domain/prototype-layout/models';
 
 type Rect = { x: number; y: number; width: number; height: number };
-export type PrototypeCanvasItem = Rect & { key: string; label: string; objectId: string | null; kind: 'block' | 'content' };
-export type PrototypeCanvasPage = { key: string; width: number | null; height: number | null; items: PrototypeCanvasItem[]; diagnostics: string[] };
+export type PrototypeCanvasItem = Rect & { key: string; label: string; objectId: string | null; kind: 'block' | 'content'; contentIds?: string[]; metricRole?: 'core'; chartFamily?: string; contentBox?: Rect; panelStates?: { id: string; objectId: string; label: string }[] };
+export type PrototypeCanvasPage = { key: string; pageId?: string; width: number | null; height: number | null; items: PrototypeCanvasItem[]; diagnostics: string[] };
 type Block = { reference: { objectId: string }; properties: Record<string, unknown> };
 
 function number(value: string | undefined, fallback?: number): number {
@@ -23,13 +24,13 @@ function orientation(node: PrototypeLayoutNode): boolean {
   return direction === 'horizontal' || (direction === undefined && ['header', 'footer'].includes(node.tag.toLowerCase()));
 }
 
-function units(value: string | undefined): number {
+function units(value: string | undefined, core = false): number {
   if (value === undefined) return 1; // 源端单个 Block 的缺省 span。
   const match = /^\s*(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?\s*$/.exec(value);
   if (!match) throw new Error(`无效的跨度：${value}`);
   const n = Number(match[1]); const denominator = match[2] === undefined ? null : Number(match[2]);
   const resolved = denominator === null ? n : n / denominator * 12;
-  if (!Number.isInteger(resolved) || resolved < 1 || resolved > 12) throw new Error(`跨度无法映射到 12 栅格：${value}`);
+  if ((!core && !Number.isInteger(resolved)) || resolved <= 0 || resolved > 12) throw new Error(`跨度无法映射到 12 栅格：${value}`);
   return resolved;
 }
 
@@ -37,9 +38,9 @@ function split(node: PrototypeLayoutNode, children: PrototypeLayoutNode[], rect:
   if (children.length === 0) return [];
   const horizontal = orientation(node);
   const hasSpan = children.some((child) => child.attributes.span !== undefined);
-  const spans = children.map((child, index) => hasSpan || blocks ? units(child.attributes.span)
+  const spans = children.map((child, index) => hasSpan || blocks ? units(child.attributes.span, node.attributes.type === 'core-metrics')
     : Math.floor(12 / children.length) + (index < 12 % children.length ? 1 : 0));
-  if (spans.some((span) => span < 1) || spans.reduce((sum, span) => sum + span, 0) > 12) throw new Error('子节点跨度超过父容器的 12 栅格，无法可靠还原。');
+  if (spans.some((span) => span <= 0) || spans.reduce((sum, span) => sum + span, 0) > 12 + 1e-9) throw new Error('子节点跨度超过父容器的 12 栅格，无法可靠还原。');
   const length = horizontal ? rect.width : rect.height;
   if (gap * 11 >= length) throw new Error('容器尺寸不足以容纳声明的网格间距。');
   // 与源端 layout-math 相同：扣除 11 段 gap 后计算单格，不能按 flex 比例均分。
@@ -62,7 +63,7 @@ export function projectPrototypeLayout(tree: PrototypeLayoutNode, blocks: readon
   find(tree);
   if (!pages.length) return [{ key: 'missing-page', width: null, height: null, items: [], diagnostics: ['结构中没有 Page 节点。'] }];
   return pages.map((page, pageIndex) => {
-    const output: PrototypeCanvasPage = { key: `${pageIndex}:${page.attributes.id ?? 'page'}`, width: null, height: null, items: [], diagnostics: [] };
+    const output: PrototypeCanvasPage = { key: `${pageIndex}:${page.attributes.id ?? 'page'}`, pageId: page.attributes.id, width: null, height: null, items: [], diagnostics: [] };
     try {
       const width = number(page.attributes.width); const height = number(page.attributes.height);
       if (width <= 0 || height <= 0) throw new Error('页面尺寸必须大于零。');
@@ -78,14 +79,15 @@ export function projectPrototypeLayout(tree: PrototypeLayoutNode, blocks: readon
         height: number(layout.attributes.height, height) - top - bottom };
       if (rect.width <= 0 || rect.height <= 0 || rect.x + rect.width > width || rect.y + rect.height > height) throw new Error('Layout 尺寸或边距超出页面范围。');
       const seen = new Set<string>();
-      function walk(node: PrototypeLayoutNode, bounds: Rect, inheritedGap: number, path: string) {
+      function walk(node: PrototypeLayoutNode, bounds: Rect, inheritedGap: number, path: string, contentBox?: Rect) {
         if (node.tag.toLowerCase() === 'content') {
-          output.items.push({ ...bounds, key: path, label: node.attributes.id ?? '主视觉', objectId: null, kind: 'content' }); return;
+          output.items.push({ ...bounds, key: path, label: node.attributes.id ?? '主视觉', objectId: null, kind: 'content', contentIds: [...new Set([node.attributes.id, node.attributes.ref].filter((id): id is string => Boolean(id)))], chartFamily: node.attributes.chartFamily ?? node.attributes.type, ...(contentBox ? { contentBox } : {}) }); return;
         }
         const gap = number(node.attributes.gap, inheritedGap);
         const directBlocks = node.children.filter((child) => child.tag.toLowerCase() === 'block');
         const children = directBlocks.length ? directBlocks : node.children;
         const rects = split(node, children, bounds, gap, directBlocks.length > 0);
+        const coreIndex = children.findIndex(child => child.attributes.type === 'core-metrics');
         children.forEach((child, index) => {
           const childPath = `${path}.${index}`;
           if (directBlocks.length) {
@@ -95,8 +97,24 @@ export function projectPrototypeLayout(tree: PrototypeLayoutNode, blocks: readon
             const matches = blocks.filter((block) => block.properties.blockId === id);
             if (matches.length > 1) throw new Error(`区域 ${id} 关联了多个对象。`);
             if (!matches.length) output.diagnostics.push(`区域 ${id} 没有对应的区域对象。`);
-            output.items.push({ ...rects[index], key: childPath, label: id, objectId: matches[0]?.reference.objectId ?? null, kind: 'block' });
-          } else walk(child, rects[index], gap, childPath);
+            output.items.push({ ...rects[index], key: childPath, label: id, objectId: matches[0]?.reference.objectId ?? null, kind: 'block',
+              ...(child.attributes.render === 'dynamic-panel' ? { panelStates: child.children.filter(node => node.tag.toLowerCase() === 'block').map(state => {
+                const row = blocks.find(block => block.properties.blockId === state.attributes.id);
+                if (!row) throw new Error(`面板状态 ${state.attributes.id} 没有对应的区域对象。`);
+                return { id: state.attributes.id, objectId: row.reference.objectId, label: String(row.properties.blockTitle || row.properties.businessModule || state.attributes.id) };
+              }) } : {}),
+              ...((matches[0]?.properties.metricRole === 'core' || node.attributes.type === 'core-metrics' || child.attributes.metric_role === 'core' || child.attributes.metricRole === 'core') ? { metricRole: 'core' as const } : {}) });
+          } else {
+            let childBounds = rects[index];
+            const fill = child.attributes.fillLayout ?? child.attributes['fill-layout'];
+            if (child.tag.toLowerCase() === 'content' && fill && fill !== '0' && coreIndex >= 0) {
+              const core = rects[coreIndex];
+              const x = Math.min(childBounds.x, core.x); const y = Math.min(childBounds.y, core.y);
+              childBounds = { x, y, width: Math.max(childBounds.x + childBounds.width, core.x + core.width) - x,
+                height: Math.max(childBounds.y + childBounds.height, core.y + core.height) - y };
+            }
+            walk(child, childBounds, gap, childPath, childBounds !== rects[index] ? rects[index] : undefined);
+          }
         });
       }
       const gap = number(layout.attributes.gap, 0);
@@ -138,4 +156,33 @@ export function projectPrototypeComponents(components: readonly { reference: { o
       width: Number(gridColSpan) / 12 * 100, height: Number(gridRowSpan) / 12 * 100 });
   }
   return { items, diagnostics };
+}
+
+
+const mainContentSchema = z.object({
+  id: z.string().nullish(), title: z.string().nullish(), description: z.string().nullish(),
+  metrics: z.array(z.object({ id: z.string().nullish(), name: z.string().nullish(),
+    description: z.string().nullish(), sceneType: z.string().nullish(), sourceType: z.string().nullish() })).nullish(),
+});
+const pageSemanticsSchema = z.array(z.object({ pageId: z.string(), contents: z.array(mainContentSchema).nullish() }));
+export type PrototypeMainContent = z.infer<typeof mainContentSchema>;
+
+/** 按源页面与 Content id/ref 绑定设计文案，不能因同名或页面顺序猜关联。 */
+export function readPrototypeMainContent(value: unknown, pageId: string | undefined, contentIds: string[]) {
+  if (value == null || value === '') return { content: null, diagnostic: '此版本未保留主视觉设计文案。' };
+  let raw: unknown;
+  try { raw = typeof value === 'string' ? JSON.parse(value) : value; }
+  catch { return { content: null, diagnostic: '主视觉设计文案不是有效 JSON，请在版式属性中核对源记录。' }; }
+  const parsed = pageSemanticsSchema.safeParse(raw);
+  if (!parsed.success) return { content: null, diagnostic: '主视觉设计文案格式无效，请在版式属性中核对源记录。' };
+  const pages = parsed.data.filter(page => page.pageId === pageId);
+  if (pages.length !== 1) return { content: null, diagnostic: '主视觉页面引用缺失或不唯一，无法关联设计文案。' };
+  const contents = pages[0].contents?.filter(content => content.id && contentIds.includes(content.id)) ?? [];
+  if (contents.length !== 1) return { content: null, diagnostic: '主视觉内容引用缺失或不唯一，无法关联设计文案。' };
+  return { content: contents[0], diagnostic: null };
+}
+
+/** 源主视觉指标 ID 保留图形规格；只识别实际已有的地图规格，不按标题猜图形。 */
+export function mainContentHasMap(content: PrototypeMainContent) {
+  return content.metrics?.some(metric => /__(map-region|map-adcode|map-point)$/.test(metric.id ?? '')) ?? false;
 }

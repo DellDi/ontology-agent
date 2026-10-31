@@ -22,38 +22,40 @@ export function InspectionView({ report }: { report: FailureInspection }) {
         <Link href="/workspace/inspection" className="text-sm text-primary underline-offset-4 hover:underline">检查最新发布数据</Link>
       </div>
       <p className="text-sm text-muted-foreground">{report.scopeLabel} · 当前数据采集时点 {date(report.current.capturedAt)}</p>
-      <p className="text-sm leading-6 text-muted-foreground">仅统计能关联到未删除且在权限范围内的应用生成任务。流程节点、操作反馈各自统计，不计入这里的失败总数。巡检读取已发布快照，不访问实时业务源。</p>
     </header>
     <section aria-label="巡检概览" className="space-y-5">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
         <span className="text-4xl font-semibold tabular-nums">{summary.totalFailures}</span><span className="text-sm text-muted-foreground">个失败任务</span>
       </div>
       {report.baseline ? <>
-        <p className="text-xs text-muted-foreground">对比采集时点 {date(report.baseline.capturedAt)}，按同一任务 ID 和各版本中的当前授权范围核对。</p>
+        <p className="text-xs text-muted-foreground">对比采集时间 {date(report.baseline.capturedAt)}</p>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div><dt className="text-xs text-muted-foreground">由其他状态转为失败</dt><dd className="mt-2 text-2xl tabular-nums">{summary.changedToFailed}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">首次在可见范围出现</dt><dd className="mt-2 text-2xl tabular-nums">{summary.firstVisibleFailures}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">前后版本均失败</dt><dd className="mt-2 text-2xl tabular-nums">{summary.failedInBoth}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">转为失败</dt><dd className="mt-2 text-2xl tabular-nums">{summary.changedToFailed}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">本版首次可见</dt><dd className="mt-2 text-2xl tabular-nums">{summary.firstVisibleFailures}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">两版均失败</dt><dd className="mt-2 text-2xl tabular-nums">{summary.failedInBoth}</dd></div>
         </dl>
-        <p className="text-xs leading-5 text-muted-foreground">首次可见不等于刚刚发生；两个版本均失败不证明期间一直失败，也不证明根因相同。</p>
       </> : <p className="text-sm text-muted-foreground">尚无更早的完整冻结版本，{summary.withoutBaseline} 个失败任务暂不能判断变化。</p>}
     </section>
+    <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">统计口径</summary><div className="mt-3 space-y-2 leading-6">
+      <p>仅统计能关联到未删除且在权限范围内的应用生成任务。流程节点、操作反馈各自统计，不计入这里的失败总数。巡检读取已发布快照，不访问实时业务源。</p>
+      <p>按同一任务 ID 和各版本中的当前授权范围核对。首次可见不等于刚刚发生；两个版本均失败不证明期间一直失败，也不证明根因相同。</p>
+      <p>重复失败按不同任务计数，最多列出失败数最高的 10 个应用。</p>
+    </div></details>
     {summary.repeatedApplications > 0 ? <section aria-label="重复失败应用" className="space-y-3">
       <h2 className="text-base font-semibold">{summary.repeatedApplications} 个应用有多次失败</h2>
-      <p className="text-xs text-muted-foreground">按当前快照中的不同失败任务计数；最多列出失败数最高的 10 个应用。</p>
       <ul className="space-y-3">{report.repeatedApplications.map((app) => <li key={app.reference.objectId} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <span className="break-all">应用 {app.reference.objectId} · {app.failureCount} 个失败任务</span>
-        <Link href={analysisLink(app.reference.objectId)} className="text-primary hover:underline">带入分析 →</Link>
+        <span className="break-all"><span className="font-mono text-xs">{app.reference.objectId}</span> · {app.failureCount} 个失败任务</span>
+        <Link href={analysisLink(app.reference.objectId)} className="text-primary hover:underline">填写排查问题 →</Link>
       </li>)}</ul>
     </section> : null}
     <section aria-label="失败任务" className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3"><h2 className="text-base font-semibold">失败任务</h2><span className="text-xs text-muted-foreground">{report.failures.length ? `${report.offset + 1}–${report.offset + report.failures.length} / ${summary.totalFailures}` : '当前页 0 条'}</span></div>
-      {!summary.totalFailures ? <p className="text-sm text-muted-foreground">当前可见范围内没有符合上述口径的失败生成任务。这不代表流程节点或操作记录也没有失败。</p> : null}
+      {!summary.totalFailures ? <p className="text-sm text-muted-foreground">当前范围内没有失败生成任务。</p> : <p className="text-xs text-muted-foreground">以下为源任务的错误记录，尚未验证根因。</p>}
       {summary.totalFailures > 0 && !report.failures.length ? <p className="text-sm text-muted-foreground">当前页没有任务，请返回上一页查看。</p> : null}
-      {report.failures.map((task) => <article key={task.reference.objectId} className="space-y-3 py-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="break-all text-sm font-medium">任务 {task.reference.objectId}</h3><span className="text-xs text-muted-foreground">{changeLabels[task.change]}</span></div>
+      {report.failures.map((task) => <article key={task.reference.objectId} className="space-y-3 border-t border-border py-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="break-all text-sm font-medium">生成任务 <span className="font-mono text-xs">{task.reference.objectId}</span></h3><span className="text-xs text-muted-foreground">{changeLabels[task.change]}</span></div>
         <p className="line-clamp-2 break-words text-sm leading-6">{task.reason?.trim() || '未留存失败自述'}</p>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground"><span>结束时间 {date(task.finishedAt)}</span><Link className="text-primary hover:underline" href={analysisLink(task.application.objectId, task.reference.objectId)}>带入分析 →</Link></div>
+        <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground"><span>结束时间 {date(task.finishedAt)}</span><Link className="text-primary hover:underline" href={analysisLink(task.application.objectId, task.reference.objectId)}>填写排查问题 →</Link></div>
         <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">查看任务与版本依据</summary><dl className="mt-3 space-y-2 break-all">
           <div><dt>失败自述（完整）</dt><dd className="mt-1 whitespace-pre-wrap leading-6">{task.reason || '未留存失败自述'}</dd></div>
           <div><dt>应用 ID</dt><dd>{task.application.objectId}</dd></div><div><dt>创建时间</dt><dd>{date(task.createdAt)}</dd></div>
@@ -67,7 +69,7 @@ export function InspectionView({ report }: { report: FailureInspection }) {
       </nav>
     </section>
     <footer className="space-y-3 text-xs leading-5 text-muted-foreground">
-      <p>失败原因是源任务的自述，不等于已验证的根因。“带入分析”会预填问题，后续分析按当时最新发布数据读取，不改变这份巡检的版本依据。</p>
+      <p>填写排查问题后，由你决定是否提交分析；分析使用当时最新发布数据。</p>
       <details><summary className="cursor-pointer">数据版本</summary><dl className="mt-2 space-y-2 break-all"><div><dt>当前冻结集合</dt><dd>{report.current.id}</dd></div><div><dt>对比冻结集合</dt><dd>{report.baseline?.id ?? '暂无'}</dd></div></dl></details>
     </footer>
   </section>;

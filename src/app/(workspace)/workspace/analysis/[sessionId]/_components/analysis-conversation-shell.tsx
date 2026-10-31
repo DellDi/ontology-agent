@@ -1,10 +1,12 @@
 'use client';
 
+import { readAnalysisObjects } from '@/infrastructure/java-backend/object-read-client';
+import { javaObjectReadRequestSchema } from '@/infrastructure/java-backend/object-read-contract';
 import { sameObjectSelectionScope } from '@/domain/analysis-execution/object-selection';
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Database, X } from 'lucide-react';
+import { Database, MessageSquare, PanelRightOpen, X } from 'lucide-react';
 import { EmptyState } from '@/app/_components/empty-state';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,6 +53,13 @@ import {
   createStructuredFollowUpAndExecute,
   executePendingFollowUp,
 } from './analysis-send-message';
+import { useQueries } from '@tanstack/react-query';
+import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
+import { collectVisualWorkspace, canvasForSelection, workspaceCanvasKey, type BlockProposalReference } from '@/application/workspace/visual-workspace';
+import { blockImprovementStatusLabels, blockImprovementQuery } from '@/infrastructure/java-backend/block-improvement-client';
+import { AnalysisWorkspaceContext } from './analysis-workspace-context';
+import { AnalysisResultBlockRenderer } from './analysis-result-block-renderer';
+import { BlockImprovementPanel } from './renderer/block-improvement-panel';
 import { AnalysisUnderstandingEditor } from './analysis-understanding-editor';
 
 export type ChatTurnStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -115,6 +124,11 @@ export function AnalysisConversationShell({
     turnKey: string;
     type: Exclude<DetailDrawerType, null>;
   } | null>(null);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const editorDirty = useRef(false);
+  const panelContainer = useRef<HTMLDivElement>(null);
+  const restorePanelButton = useRef<HTMLButtonElement>(null);
+  const panelTrigger = useRef<HTMLElement | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [editingTurnKey, setEditingTurnKey] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<{
@@ -128,6 +142,57 @@ export function AnalysisConversationShell({
   const [selectedObject, setSelectedObject] = useState<{ selection: AnalysisObjectSelection; label: string; completedKey: string | null } | null>(() =>
     lastTurn?.objectSelection ? { selection: lastTurn.objectSelection,
       label: objectSelectionDisplayLabel(lastTurn.objectSelectionLabel, lastTurn.objectSelection.reference.objectId), completedKey: latestCompletedKey } : null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [canvasOverride, setCanvasOverride] = useState<{ block: AnalysisRenderedBlock; selection?: AnalysisObjectSelection } | null>(() =>
+    lastTurn?.objectSelection?.reference.objectKey.startsWith('easyv-prototype-')
+      ? { block: canvasForSelection(sessionId, lastTurn.objectSelection, lastTurn.objectSelectionLabel ?? '当前大屏'), selection: lastTurn.objectSelection } : null);
+  const turnViews = turns.map(turn => turn.live && viewModel ? viewModel.assistantMessage : buildStaticAssistantProps(turn, sessionId));
+  const screenScope = turns.findLast(turn => turn.objectSelection?.reference.objectKey === 'easyv-prototype-layout')?.objectSelection;
+  const workspace = collectVisualWorkspace(turnViews.flatMap(view => view.result?.blocks ?? []),screenScope);
+  // 不同查询（名称搜索、精确 ID）只有读回同一正式对象与版本后才合并。
+  const canvasQueries = workspace.canvases.map(block => javaObjectReadRequestSchema.safeParse({
+    executionId: block.source.executionId, datasetVersionSetId: block.payload.datasetVersionSetId,
+    objectKey: block.payload.objectKey, filters: block.payload.filters, drilldownId: block.payload.drilldownId,
+    limit: 20, offset: 0,
+  }));
+  const canvasReads = useQueries({ queries: canvasQueries.map(parsed => ({
+    queryKey: ['analysis-object', sessionId, parsed.success ? parsed.data : null],
+    queryFn: ({ signal }: { signal: AbortSignal }) => {
+      if (!parsed.success) throw new Error('大屏查询缺少有效引用。');
+      return readAnalysisObjects(sessionId, parsed.data, signal);
+    }, enabled: parsed.success, retry: false, staleTime: 0, gcTime: 0,
+  })) });
+  const resolvedCanvases = new Map<string, typeof workspace.canvases[number]>();
+  workspace.canvases.forEach((block,index) => {
+    const result = canvasReads[index].data;
+    const row = result?.page.rows.length === 1 && !result.page.hasMore ? result.page.rows[0] : null;
+    const key = row ? JSON.stringify([row.reference.objectKey, row.reference.objectId, row.reference.productVersionId, result?.datasetVersionSetId]) : workspaceCanvasKey(block);
+    resolvedCanvases.set(key, block);
+  });
+  const canvases = [...resolvedCanvases.values()];
+  const proposalReads = useQueries({ queries: workspace.proposals.map(ref => blockImprovementQuery(sessionId, ref.executionId, ref.invocationId)) });
+  const proposalItems = workspace.proposals.map((reference, index) => ({ reference,
+    view: proposalReads[index].data, error: proposalReads[index].error?.message }));
+  const currentProposalTargets = new Map<string, typeof proposalItems[number]>();
+  proposalItems.forEach(item => {
+    if (item.view) currentProposalTargets.set(JSON.stringify([item.view.selection.reference.objectKey, item.view.selection.reference.objectId, item.view.selection.reference.productVersionId, item.view.selection.datasetVersionSetId]), item);
+  });
+  const currentProposals = [...currentProposalTargets.values()];
+  const earlierProposals = proposalItems.filter(item => item.view && !currentProposals.includes(item));
+  const unresolvedProposals = proposalItems.filter(item => !item.view);
+  const latestProposal = proposalItems.findLast(item => item.view)?.view;
+  const proposalList = (items: typeof proposalItems) => <div className="divide-y divide-border">{items.map(item => <div key={`${item.reference.executionId}:${item.reference.invocationId}`}>
+    {item.view ? <button type="button" className="w-full space-y-1 rounded-sm py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:text-primary" onClick={() => openWorkspaceProposal(item.reference)}>
+      <span className="flex items-start justify-between gap-3 text-sm font-medium"><span>{item.view.title}</span><span className="shrink-0 text-xs text-muted-foreground">{blockImprovementStatusLabels[item.view.status]}</span></span>
+      <span className="block text-xs text-muted-foreground">{item.view.applicationName}{turns.some(turn => turn.executionId === item.reference.executionId) ? ` · 第 ${turns.findIndex(turn => turn.executionId === item.reference.executionId) + 1} 轮` : ''}</span>
+      <span className="line-clamp-2 text-sm leading-6 text-muted-foreground">{item.view.proposal.textChange ? `${item.view.proposal.textChange.beforeTitle} → ${item.view.proposal.textChange.afterTitle}` : item.view.proposal.changes.map(change => change.reason).join('；') || item.view.proposal.diagnosis.themeFit}</span>
+    </button> : <p className={item.error ? 'py-3 text-sm text-destructive' : 'py-3 text-sm text-muted-foreground'} role={item.error ? 'alert' : 'status'}>{item.error ?? '正在读取建议…'}</p>}
+  </div>)}</div>;
+  const hasStructuredStatistics = Boolean(lastTurn?.understanding?.some(query => query.measures.length));
+  const currentCanvas = canvasOverride ?? (!hasStructuredStatistics && canvases.length ? { block: canvases[0] }
+    : latestProposal ? { block: canvasForSelection(sessionId, latestProposal.selection, latestProposal.title), selection: latestProposal.selection } : null);
+  const hasVisualWorkspace = currentCanvas !== null;
   // 已完成对象轮次沿同一引用更新来源执行；浏览对象不会自动改变追问范围。
   const latestSelection = latestCompleted?.objectSelection;
   const selection = selectedObject && latestSelection
@@ -158,6 +223,7 @@ export function AnalysisConversationShell({
       if (!text || sendingRef.current || isSending) return;
       sendingRef.current = true;
       setSendError(null);
+      setHistoryOpen(true);
       lastTurnRef.current?.scrollIntoView({
         behavior: 'smooth',
         block: 'end',
@@ -192,9 +258,13 @@ export function AnalysisConversationShell({
   );
 
   const selectObject = useCallback((selection: AnalysisObjectSelection, label: string, question?: string) => {
+    if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并切换对象？')) return false;
+    editorDirty.current = false;
+    setEditingTurnKey(null);
     setSelectedObject({ selection, label, completedKey: latestCompletedKey });
     setSidePanel(null);
     if (question) sendMessage(question, selection);
+    return true;
   }, [latestCompletedKey, sendMessage]);
 
   const answerClarification = useCallback(
@@ -263,21 +333,58 @@ export function AnalysisConversationShell({
   const openDetail = useCallback(
     (turnKey: string) => (drawer: DetailDrawerType) => {
       if (!drawer) return;
+      if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并查看其他内容？')) return;
+      editorDirty.current = false;
       setSidePanel(null);
       setEditingTurnKey(null);
+      panelTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setPanelCollapsed(false);
       setActiveDrawer({ turnKey, type: drawer });
     },
     [],
   );
 
   const openSidePanel = useCallback(
-    (panel: { title: string; content: ReactNode; testId?: string }) => {
+    (panel: { title: string; content: ReactNode; testId?: string } | null) => {
+      if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并查看其他内容？')) return;
+      editorDirty.current = false;
       setActiveDrawer(null);
       setEditingTurnKey(null);
+      panelTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setPanelCollapsed(false);
       setSidePanel(panel);
     },
     [],
   );
+
+  const showWorkspaceObject = (block: AnalysisRenderedBlock) => {
+    if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并切换大屏？')) return;
+    editorDirty.current = false;
+    setEditingTurnKey(null);
+    setCanvasOverride({ block });
+    setSelectedObject(null);
+    setSidePanel(null);
+    setActiveDrawer(null);
+    setWorkspaceError(null);
+  };
+  const openWorkspaceProposal = (reference: BlockProposalReference) => {
+    const item = proposalItems.find(item => item.reference.executionId === reference.executionId && item.reference.invocationId === reference.invocationId);
+    if (!item?.view) { setWorkspaceError(item?.error ?? '提案正在读取，请稍后再打开。'); return; }
+    if (!selectObject(item.view.selection, item.view.title)) return;
+    setCanvasOverride({ block: canvasForSelection(sessionId, item.view.selection, item.view.title), selection: item.view.selection });
+    openSidePanel({ title: `${item.view.title} · 修改建议`, testId: 'analysis-improvement-context',
+      content: <BlockImprovementPanel key={`${reference.executionId}:${reference.invocationId}`} {...reference} expanded /> });
+    setWorkspaceError(null);
+  };
+
+  const collapsePanel = useCallback(() => {
+    setPanelCollapsed(true);
+    requestAnimationFrame(() => {
+      const trigger = panelTrigger.current;
+      if (trigger && trigger !== document.body && trigger.isConnected && trigger.getClientRects().length) trigger.focus({ preventScroll: true });
+      else restorePanelButton.current?.focus({ preventScroll: true });
+    });
+  }, []);
 
   const sending = isSending || optimisticQuestion !== null;
   const liveBusy =
@@ -302,12 +409,57 @@ export function AnalysisConversationShell({
     // fill-viewport 标记：通知 WorkspaceShell 本页使用视口固定布局，
     // 侧栏不滚动、内容区锁高，只有消息流在内部滚动。
     // 右侧面板（详情/支撑材料/理解编辑器）为内联挤压式，非弹窗。
+    <AnalysisWorkspaceContext.Provider value={{ active: hasVisualWorkspace, selection: selection, showObject: showWorkspaceObject, openProposal: openWorkspaceProposal, proposals: [...currentProposals, ...unresolvedProposals] }}>
     <div className="fill-viewport relative flex min-h-0 flex-1">
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <AnalysisChatLocator marks={locatorMarks} />
 
-        <div className="mx-auto flex min-h-0 w-full max-w-[860px] flex-1 flex-col px-4">
+        {(sidePanel || activeDrawer || editingTurnKey) && panelCollapsed ? (
+          <div className="flex justify-end px-4 pt-3">
+            <Button ref={restorePanelButton} type="button" variant="ghost" size="sm" onClick={() => {
+              setPanelCollapsed(false);
+              if (window.matchMedia('(max-width: 1279px)').matches) requestAnimationFrame(() => {
+                panelContainer.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+              });
+            }} aria-label="展开上下文面板">
+              <PanelRightOpen aria-hidden className="size-4" />
+              {sidePanel?.title ?? '继续查看上下文'}
+            </Button>
+          </div>
+        ) : null}
+
+        {currentCanvas ? <section className="flex min-h-0 flex-1 flex-col px-4 pt-5 sm:px-6" aria-label="大屏改进工作区" data-testid="analysis-visual-workspace">
+          <header className="shrink-0 space-y-3 pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="text-lg font-semibold tracking-tight">大屏工作区</h1>
+              {proposalItems.length ? <Button type="button" variant="ghost" size="sm" disabled={proposalReads.some(read => read.isPending)} onClick={() => openSidePanel({ title: '修改建议', content: <div>
+                {proposalList([...currentProposals, ...unresolvedProposals])}
+                {earlierProposals.length ? <details className="mt-4 text-sm"><summary className="cursor-pointer text-muted-foreground">历史建议 · {earlierProposals.length}</summary>{proposalList(earlierProposals)}</details> : null}
+              </div> })}>修改建议 {currentProposals.length || '…'}</Button> : null}
+            </div>
+            <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">分析任务</summary><p className="mt-2 max-w-3xl leading-6">{lastTurn?.questionText}</p></details>
+            {canvases.length ? <nav aria-label="切换工作大屏" className="flex gap-1 overflow-x-auto whitespace-nowrap">
+              {canvases.map((block, index) => <Button type="button" key={index} variant={workspaceCanvasKey(currentCanvas.block) === workspaceCanvasKey(block) ? 'secondary' : 'ghost'} size="sm"
+                aria-pressed={workspaceCanvasKey(currentCanvas.block) === workspaceCanvasKey(block)} onClick={() => showWorkspaceObject(block)}>{block.title?.replace(/ · 原型版式$/, '') ?? '选择大屏'}</Button>)}
+            </nav> : null}
+            {['running','queued','disconnected'].includes(turnViews.at(-1)?.status ?? '') ? <p role="status" className="text-sm text-muted-foreground">{viewModel?.assistantMessage.progressLabel ?? viewModel?.assistantMessage.headline ?? '正在分析当前对象…'}</p> : null}
+            {turnViews.at(-1)?.status === 'failed' ? <div role="alert" className="text-sm text-destructive">最新一轮分析未完成：{turnViews.at(-1)?.errorSummary ?? '请展开对话记录查看原因。'} <button type="button" className="underline underline-offset-4" onClick={() => setHistoryOpen(true)}>查看本轮详情</button></div> : null}
+            {workspaceError ? <p role="alert" className="text-sm text-destructive">{workspaceError}</p> : null}
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto pb-4 [container-type:size]" data-testid="analysis-canvas-scroll">
+            <AnalysisResultBlockRenderer key={JSON.stringify([currentCanvas.block.source.executionId,currentCanvas.block.payload,currentCanvas.selection?.reference])}
+              block={currentCanvas.block} embedded focusedObject={currentCanvas.selection} onObjectSelect={selectObject} onOpenSidePanel={openSidePanel} />
+          </div>
+          <div className="flex shrink-0 items-center justify-between border-t border-border py-2">
+            <p className="text-xs text-muted-foreground">结构预览 · 非业务实况</p>
+            <Button type="button" size="sm" variant="ghost" aria-expanded={historyOpen} onClick={() => setHistoryOpen(!historyOpen)}>
+              <MessageSquare aria-hidden className="size-4" />{historyOpen ? '收起对话记录' : `对话记录 ${turns.length}`}
+            </Button>
+          </div>
+        </section> : null}
+        <div className={`mx-auto flex min-h-0 w-full max-w-[1200px] flex-col px-4 ${hasVisualWorkspace ? 'shrink-0' : 'flex-1'}`}>
         {/* 消息流：全部轮次，Conversation 内嵌滚动 + 自动跟随 */}
+        <div className={hasVisualWorkspace ? historyOpen ? 'relative flex h-[30dvh] min-h-0 flex-col border-t border-border' : 'hidden' : 'relative flex min-h-0 flex-1 flex-col'}>
+        <AnalysisChatLocator marks={locatorMarks} />
         <Conversation className="min-h-0 flex-1">
           <ConversationContent className="gap-6 px-0 pb-6 pt-2">
             {turns.map((turn, index) => {
@@ -372,6 +524,8 @@ export function AnalysisConversationShell({
                     </div>
                   ) : turn.live && viewModel ? (
                     <AnalysisAssistantMessage
+                      canvasInWorkspace={hasVisualWorkspace || hasStructuredStatistics}
+                      workspaceMode={hasVisualWorkspace}
                       availableDetails={availableDetails}
                       clarification={turn.clarification}
                       diagnostics={viewModel.assistantMessage.diagnostics}
@@ -383,9 +537,13 @@ export function AnalysisConversationShell({
                       onEditUnderstanding={
                         canEditUnderstanding
                           ? () => {
+                              if (editorDirty.current && editingTurnKey !== turn.key && !window.confirm('查询调整尚未提交，放弃调整并切换轮次？')) return;
+                              if (editingTurnKey !== turn.key) editorDirty.current = false;
+                              panelTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
                               setStructuredError(null);
                               setActiveDrawer(null);
                               setSidePanel(null);
+                              setPanelCollapsed(false);
                               setEditingTurnKey(turn.key);
                             }
                           : undefined
@@ -413,15 +571,21 @@ export function AnalysisConversationShell({
                        live→static 仅 props 变化，React reconcile 不重挂载，
                        避免图表闪烁重绘 */
                     <AnalysisAssistantMessage
+                      canvasInWorkspace={hasVisualWorkspace || hasStructuredStatistics}
+                      workspaceMode={hasVisualWorkspace}
                       availableDetails={availableDetails}
                       clarification={turn.clarification}
                       onClarificationOption={answerClarification(turn)}
                       onEditUnderstanding={
                         canEditUnderstanding
                           ? () => {
+                              if (editorDirty.current && editingTurnKey !== turn.key && !window.confirm('查询调整尚未提交，放弃调整并切换轮次？')) return;
+                              if (editingTurnKey !== turn.key) editorDirty.current = false;
+                              panelTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
                               setStructuredError(null);
                               setActiveDrawer(null);
                               setSidePanel(null);
+                              setPanelCollapsed(false);
                               setEditingTurnKey(turn.key);
                             }
                           : undefined
@@ -456,6 +620,7 @@ export function AnalysisConversationShell({
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
+        </div>
 
         {/* 发送失败提示 */}
         {sendError ? (
@@ -465,10 +630,16 @@ export function AnalysisConversationShell({
         ) : null}
 
         {/* 输入框：对话窗口底部，下方无任何内容 */}
-        <div className="mb-4 mt-3 rounded-2xl bg-card px-2 pb-1 pt-2 focus-within:ring-2 focus-within:ring-ring/30">
+        <div className="mb-4 mt-3 rounded-lg border border-input bg-card px-2 pb-1 pt-2 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
           {selectedObject ? <div className="mb-1 flex min-w-0 items-center gap-2 px-3 py-1 text-xs text-muted-foreground" data-testid="analysis-object-selection">
             <span className="min-w-0 flex-1 break-all">针对：{selectedObject.label}</span>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="取消对象选择" onClick={() => setSelectedObject(null)}><X className="size-3.5" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="取消对象选择" onClick={() => {
+              if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并取消对象选择？')) return;
+              editorDirty.current = false;
+              setEditingTurnKey(null);
+              setSelectedObject(null);
+              if (hasVisualWorkspace) { setSidePanel(null); setActiveDrawer(null); }
+            }}><X className="size-3.5" /></Button>
           </div> : null}
           {!hasCompletedRoot && !submissionError ? (
             <p className="pb-2 text-xs text-muted-foreground">
@@ -476,6 +647,7 @@ export function AnalysisConversationShell({
             </p>
           ) : null}
           <AnalysisChatComposer
+            compact={hasVisualWorkspace}
             disabled={composerDisabled}
             onSend={(question) => void sendMessage(question)}
             sending={sending}
@@ -486,16 +658,17 @@ export function AnalysisConversationShell({
       </div>
 
       {/* 右侧内联面板：详情 / 支撑材料 / 结构化理解编辑（挤压内容区，非弹窗） */}
+      <div ref={panelContainer} className={panelCollapsed ? 'hidden' : 'contents'}>
       {activeDrawer ? (
         <AnalysisDetailDrawer
           content={drawerContent}
           drawerType={activeDrawer.type}
-          onClose={() => setActiveDrawer(null)}
+          onClose={collapsePanel}
         />
       ) : null}
       {sidePanel ? (
         <AnalysisSidePanel
-          onClose={() => setSidePanel(null)}
+          onClose={collapsePanel}
           testId={sidePanel.testId}
           title={sidePanel.title}
         >
@@ -509,9 +682,9 @@ export function AnalysisConversationShell({
           catalog={editingTurn.editorCatalog}
           key={editingTurn.key}
           onClose={() => {
-            setStructuredError(null);
-            setEditingTurnKey(null);
+            collapsePanel();
           }}
+          onDirtyChange={() => { editorDirty.current = true; }}
           onSubmit={submitStructuredAdjustment(editingTurn)}
           resolvedQueries={editingTurn.resolvedQueries ?? []}
           serverError={structuredError}
@@ -519,7 +692,9 @@ export function AnalysisConversationShell({
           understanding={editingTurn.understanding}
         />
       ) : null}
+      </div>
     </div>
+    </AnalysisWorkspaceContext.Provider>
   );
 }
 

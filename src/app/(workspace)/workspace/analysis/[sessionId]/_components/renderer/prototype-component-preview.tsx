@@ -32,13 +32,13 @@ const flipPlaceholder = <>
   {[1, 2, 3].map((digit, index) => <g key={digit} transform={`translate(${8 + index * 29}, 5)`}>
     <rect width="26" height="40" rx="4" fill="currentColor" fillOpacity=".08" stroke="currentColor" strokeOpacity=".3" />
     <path d="M0 20h26" stroke="currentColor" strokeOpacity=".2" />
-    <text x="13" y="29" textAnchor="middle" fill="currentColor" fontFamily="ui-monospace, monospace" fontSize="27" fontWeight="600">{digit}</text>
+    <text x="13" y="29" textAnchor="middle" fill="currentColor" fontFamily="ui-monospace, monospace" fontSize="27" fontWeight="600">—</text>
   </g>)}
 </>;
 const numberPlaceholder = <>
   <rect x="10" y="6" width="80" height="38" rx="5" fill="currentColor" fillOpacity=".05" />
   <path d="M20 14h20" stroke="currentColor" strokeWidth="2" strokeOpacity=".35" />
-  <text x="20" y="36" fill="currentColor" fontFamily="ui-monospace, monospace" fontSize="24" fontWeight="600">123</text>
+  <text x="20" y="36" fill="currentColor" fontFamily="ui-monospace, monospace" fontSize="24" fontWeight="600">—</text>
 </>;
 const axes = <path d="M12 6v36h78" fill="none" stroke="currentColor" strokeOpacity=".3" />;
 // 固定图形仅说明图表类型，不展示或暗示真实业务数值。
@@ -48,7 +48,7 @@ const shapes: Record<string, ReactNode> = {
   bar: <>{axes}{[18,30,24,35,15].map((height,index) => <rect key={index} x={20+index*14} y={42-height} width="9" height={height} rx="1" fill="currentColor" fillOpacity={.4+index*.12} />)}</>,
   'horizontal-bar': <>{axes}{[60,43,70,30].map((width,index) => <rect key={index} x="12" y={8+index*9} width={width} height="6" rx="1" fill="currentColor" fillOpacity={.4+index*.15} />)}</>,
   pie: <><circle cx="50" cy="25" r="20" fill="currentColor" fillOpacity=".18" /><path d="M50 25V5a20 20 0 0 1 17.32 30Z" fill="currentColor" fillOpacity=".75" /><path d="m50 25 17.32 10a20 20 0 0 1-34.64 0Z" fill="currentColor" fillOpacity=".4" /><path d="M50 5v20l17.32 10M50 25 32.68 35" stroke="var(--background)" strokeWidth="1.5" fill="none" /></>,
-  donut: <><circle cx="50" cy="25" r="18" fill="none" stroke="currentColor" strokeOpacity=".15" strokeWidth="7" /><circle cx="50" cy="25" r="18" fill="none" stroke="currentColor" strokeWidth="7" strokeDasharray="73.5 113.1" transform="rotate(-90 50 25)" /><text x="50" y="29" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="600">65%</text></>,
+  donut: <><circle cx="50" cy="25" r="18" fill="none" stroke="currentColor" strokeOpacity=".15" strokeWidth="7" /><circle cx="50" cy="25" r="18" fill="none" stroke="currentColor" strokeWidth="7" strokeDasharray="73.5 113.1" transform="rotate(-90 50 25)" /></>,
   radar: <><path d="m50 4 22 16-8 25H36l-8-25ZM50 14l12 9-4 13H42l-4-13Z" fill="none" stroke="currentColor" strokeOpacity=".25" /><path d="m50 4v21m22-5-22 5 14 20m-14-20-14 20m14-20-22-5" fill="none" stroke="currentColor" strokeOpacity=".2" /><path d="m50 10 17 11-11 17-17 4-7-22Z" fill="currentColor" fillOpacity=".2" stroke="currentColor" strokeWidth="1.5" /></>,
   bubble: <>{axes}{[[25,31,5],[41,15,7],[60,29,9],[79,12,4]].map(([x,y,r]) => <circle key={x} cx={x} cy={y} r={r} fill="currentColor" fillOpacity=".2" stroke="currentColor" strokeWidth="1" />)}</>,
   table: <><rect x="10" y="5" width="80" height="40" rx="2" fill="none" stroke="currentColor" strokeOpacity=".5" /><path d="M10 6h80v9H10Z" fill="currentColor" fillOpacity=".2" /><path d="M10 15h80M10 25h80M10 35h80M37 5v40M66 5v40" stroke="currentColor" strokeOpacity=".3" />{[19,29,39].flatMap((y) => [17,44,73].map((x) => <path key={`${x}:${y}`} d={`M${x} ${y}h10`} stroke="currentColor" strokeOpacity=".5" strokeWidth="2" />))}</>,
@@ -74,7 +74,10 @@ export function PrototypeComponentPreview({ rows, geometry, metricStyle = 'numbe
     <div className={cn('relative overflow-hidden rounded-md', fill ? 'h-full' : thumbnail ? 'h-12' : 'aspect-square')}
       role={thumbnail ? undefined : 'group'} aria-label={thumbnail ? undefined : '区域组件布局'} aria-hidden={thumbnail || undefined}>
       {items.map((item) => {
-        const content = <span className={cn('flex h-full w-full items-center justify-center rounded-sm bg-primary/10 text-primary', selected === item.objectId && 'bg-primary/20 ring-2 ring-inset ring-primary')}>
+        const color = ['line', 'area', 'bar', 'horizontal-bar'].includes(item.chartFamily) ? 'var(--chart-blue)'
+          : ['pie', 'donut', 'radar'].includes(item.chartFamily) ? 'var(--chart-gold)'
+          : item.chartFamily === 'single-value-metric' ? 'var(--foreground)' : 'var(--chart-teal)';
+        const content = <span style={{ color }} className={cn('flex h-full w-full items-center justify-center rounded-sm', selected === item.objectId && 'bg-primary/20 ring-2 ring-inset ring-primary')}>
           <ComponentGlyph family={item.chartFamily} metricStyle={metricStyle} />
         </span>;
         const style = { left: `${item.x}%`, top: `${item.y}%`, width: `${item.width}%`, height: `${item.height}%` };

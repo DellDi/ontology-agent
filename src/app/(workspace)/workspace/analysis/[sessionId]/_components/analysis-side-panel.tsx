@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 import { cn } from '@/app/_lib/cn';
@@ -19,7 +19,7 @@ export type AnalysisSidePanelProps = {
 
 /**
  * 会话页内联右侧栏（非模态）：与消息流同排挤压收缩，
- * 滚动条落在视口最右侧。桌面 md+ 占位内联，移动端退化为覆盖式面板。
+ * 滚动条落在视口最右侧。桌面 xl+ 占位内联，移动端退化为覆盖式面板。
  */
 export function AnalysisSidePanel({
   title,
@@ -29,9 +29,24 @@ export function AnalysisSidePanel({
   testId,
   children,
 }: AnalysisSidePanelProps) {
+  const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
+    const panel = panelRef.current;
+    if (window.matchMedia('(max-width: 1279px)').matches && panel?.getClientRects().length) {
+      panel.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    }
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !panel?.getClientRects().length) return;
       if (event.key === 'Escape') onClose();
+      if (event.key !== 'Tab' || !window.matchMedia('(max-width: 1279px)').matches) return;
+      const controls = Array.from(panel.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, summary, [tabindex="0"]'))
+        .filter((element) => !element.hasAttribute('disabled') && element.getClientRects().length);
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (first && last && (!panel.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last))) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -39,18 +54,19 @@ export function AnalysisSidePanel({
 
   return (
     <aside
+      ref={panelRef}
       aria-label={typeof title === 'string' ? title : undefined}
       className={cn(
-        'absolute inset-y-0 right-0 z-20 flex w-full flex-col bg-card',
-        'md:static md:shrink-0',
-        wide ? 'md:w-[460px] lg:w-[520px]' : 'md:w-[360px] lg:w-[400px]',
+        'absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-border bg-sky-50',
+        'xl:static xl:shrink-0',
+        wide ? 'xl:w-[460px]' : 'xl:w-[360px]',
       )}
       data-testid={testId}
       role="complementary"
     >
-      <header className="flex items-start justify-between gap-3 px-5 py-4">
+      <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 space-y-0.5">
-          <h2 className="truncate text-xs font-medium tracking-[0.12em] text-[color:var(--brand-700)]">
+          <h2 className="truncate text-sm font-semibold text-foreground">
             {title}
           </h2>
           {description ? (
@@ -58,7 +74,7 @@ export function AnalysisSidePanel({
           ) : null}
         </div>
         <Button
-          aria-label={`关闭${title}`}
+          aria-label={`收起${title}`}
           className="shrink-0"
           onClick={onClose}
           size="icon-sm"

@@ -1062,3 +1062,15 @@ test('workspace capability availability is required and rejects contradictory sc
     assert.equal(javaWorkspaceHomeSchema.safeParse(input).success, false);
   }
 });
+test('分析记录保留完整问题，尾部关键词可区分和搜索', async () => {
+  const { sessionToHistoryItem, filterWorkspaceHistory } = await import('../src/application/workspace/home.ts');
+  const prefix = '请检查银行财务经营驾驶舱中所有区域的指标口径，重点查看';
+  const items = ['资产规模', '资本充足率'].map((suffix, index) => sessionToHistoryItem({
+    id: `session-${index}`, questionText: `${prefix}${suffix}`, savedContext: { _executionContract: 'java-initial-v1' },
+    updatedAt: '2026-10-29T02:30:45Z',
+  }, null));
+  assert.notEqual(items[0].title, items[1].title);
+  assert.equal(items[1].title, `${prefix}资本充足率`);
+  assert.equal(filterWorkspaceHistory(items, 'all', '资本充足率')[0]?.id, 'session-1');
+  assert.match(items[0].updatedAtLabel, /10:30:45/);
+});

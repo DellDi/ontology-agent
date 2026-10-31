@@ -236,3 +236,65 @@ test('对象详情 | 关联统计入口由集合关系声明产生，不为单�
   assert.doesNotMatch(rendered.application, /关联统计/);
   assert.doesNotMatch(rendered.linked, /关联统计/);
 });
+
+test('工作区 | 建议定位后的共享选择覆盖此前局部焦点，不依赖重新挂载画布',()=>{
+  const html=JSON.parse(execFileSync('node',['--import','tsx','--input-type=module','-e',`
+    import React from 'react';
+    import {renderToStaticMarkup} from 'react-dom/server';
+    import {createRequire} from 'node:module';
+    const {QueryClient,QueryClientProvider}=createRequire(import.meta.url)('@tanstack/react-query');
+    import browser from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/render-object-browser.tsx';
+    import workspace from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-workspace-context.tsx';
+    const context={sessionId:'session',executionId:'execution',datasetVersionSetId:'set'};
+    const base={executionId:'execution',datasetVersionSetId:'set'};
+    const ref=(objectKey,objectId)=>({objectKey,objectId,productVersionId:'version'});
+    const layout={reference:ref('easyv-prototype-layout','app'),properties:{appId:'app',parseStatus:'ok'}};
+    const blocks=['a','b'].map(id=>({reference:ref('easyv-prototype-block','app:'+id),properties:{appId:'app',blockId:id,businessModule:'区域 '+id.toUpperCase()}}));
+    const type=(key)=>({key,label:'原型',links:[],properties:[{key:'businessModule',label:'模块',type:'STRING',title:true}]});
+    const result=(key,rows)=>({...base,objectType:type(key),page:{objectKey:key,rows,limit:200,offset:0,hasMore:false},structure:null});
+    const client=new QueryClient({defaultOptions:{queries:{gcTime:Infinity,retry:false}}});
+    const seed=(query,data)=>client.setQueryData(['analysis-object','session',{...base,...query}],data);
+    seed({objectKey:'easyv-prototype-layout',filters:[],limit:20,offset:0},result('easyv-prototype-layout',[layout]));
+    const node=(tag,attributes={},children=[])=>({tag,attributes,children});
+    seed({objectKey:'easyv-prototype-layout',objectId:'app'},{...result('easyv-prototype-layout',[layout]),structure:{status:'available',layout:node('Pages',{},[
+      node('Page',{width:'1200',height:'600'},[node('Layout',{'grid-direction':'horizontal'},['a','b'].map(id=>node('Block',{id,span:'6/12'})))])])}});
+    for(const relation of ['blocks','components']) client.setQueryData(['analysis-object-relation',context,'easyv-prototype-layout','app',relation],{
+      pages:[result(relation==='blocks'?'easyv-prototype-block':'easyv-prototype-component',relation==='blocks'?blocks:[])],pageParams:[0]});
+    const selection={...base,reference:blocks[1].reference};
+    const value={active:true,selection,showObject:()=>{},openProposal:()=>{},proposals:[]};
+    const renderedBlock={kind:'object-browser',source:{sessionId:'session',executionId:'execution'},payload:{objectKey:'easyv-prototype-layout',datasetVersionSetId:'set',filters:[],scopeDescription:'当前大屏'}};
+    console.log(JSON.stringify(renderToStaticMarkup(React.createElement(QueryClientProvider,{client},React.createElement(workspace.AnalysisWorkspaceContext.Provider,{value},browser.renderObjectBrowserBlock({renderedBlock}))))));
+  `],{encoding:'utf8',env:{...process.env,NODE_OPTIONS:''}}));
+  assert.match(html,/aria-label="选择区域 区域 B" aria-pressed="true"/);
+  assert.match(html,/aria-label="选择区域 区域 A" aria-pressed="false"/);
+});
+
+
+test('主视觉预览 | 地图规格呈现源标题与指标，图形明确为样式示意', () => {
+  const html=execFileSync('node',['--import','tsx','--input-type=module','-e',`
+    import React from 'react';
+    import {renderToStaticMarkup} from 'react-dom/server';
+    import preview from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/prototype-main-content-preview.tsx';
+    const {PrototypeMainContentPreview}=preview;
+    console.log(renderToStaticMarkup(React.createElement(PrototypeMainContentPreview,{content:{title:'全国水利风险态势总览',
+      description:'源设计说明',metrics:[{id:'main-content__map-region',name:'区域风险分布'}]},diagnostic:null})));
+  `],{encoding:'utf8',env:{...process.env,NODE_OPTIONS:''}});
+  assert.match(html,/全国水利风险态势总览/); assert.match(html,/区域风险分布/);
+  assert.match(html,/地图构图示意/); assert.match(html,/非真实地理与业务数据/);
+  assert.doesNotMatch(html.replace(/<svg[\s\S]*?<\/svg>/g,''),/123|65%|高风险/);
+});
+
+test('动态面板画布 | 页签对应独立状态，默认只呈现首状态组件', () => {
+  const html=execFileSync('node',['--import','tsx','--input-type=module','-e',`
+    import React from 'react'; import {renderToStaticMarkup} from 'react-dom/server';
+    import canvas from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/prototype-layout-canvas.tsx';
+    const rows=['host','income','cost'].map(id=>({reference:{objectKey:'easyv-prototype-block',objectId:id},properties:{blockId:id}}));
+    console.log(renderToStaticMarkup(React.createElement(canvas.PrototypeLayoutCanvas,{
+      pages:[{key:'page',width:1200,height:600,diagnostics:[],items:[{key:'p',kind:'block',objectId:'host',label:'经营面板',x:0,y:0,width:1200,height:600,panelStates:[{id:'income',objectId:'income',label:'收入'},{id:'cost',objectId:'cost',label:'成本'}]}]}],
+      blocks:rows,components:[],pageSemantics:[],onSelect:()=>{},getLabel:()=> '经营面板'
+    })));
+  `],{encoding:'utf8',env:{...process.env,NODE_OPTIONS:''}});
+  assert.match(html,/role="tablist"/); assert.match(html,/role="tab"[^>]*aria-selected="true"[^>]*>收入/);
+  assert.match(html,/>成本<\/button>/); assert.match(html,/aria-label="选择区域 收入"/);
+  assert.doesNotMatch(html,/aria-label="选择区域 成本"/);
+});

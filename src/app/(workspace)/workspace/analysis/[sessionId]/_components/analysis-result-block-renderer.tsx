@@ -73,12 +73,14 @@ export function AnalysisResultBlockRenderer({
   block,
   embedded = false,
   onObjectSelect,
+  focusedObject,
   onOpenSidePanel,
 }: {
   block: AnalysisRenderedBlock;
   /** 嵌套在对话气泡内：子块去卡片边框与阴影，避免大框套小框。 */
   embedded?: boolean;
-  onObjectSelect?: (selection: AnalysisObjectSelection, label: string, question?: string) => void;
+  focusedObject?: AnalysisObjectSelection;
+  onObjectSelect?: (selection: AnalysisObjectSelection, label: string, question?: string) => boolean | void;
   onOpenSidePanel?: AnalysisInteractionUiRenderInput['onOpenSidePanel'];
 }) {
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
@@ -89,7 +91,7 @@ export function AnalysisResultBlockRenderer({
 
   return (
     <div className="mt-4">
-      {registry.render({ renderedBlock: block, embedded, onObjectSelect, onOpenSidePanel })}
+      {registry.render({ renderedBlock: block, embedded, focusedObject, onObjectSelect, onOpenSidePanel })}
     </div>
   );
 }

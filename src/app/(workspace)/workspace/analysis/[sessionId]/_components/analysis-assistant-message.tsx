@@ -26,6 +26,7 @@ import { getStatusIcon } from './analysis-status-icon';
 import { MetricCardsGrid, VisualizationBlock, PrimaryAnswerBlock } from './analysis-business-views';
 import { Loader } from '@/components/ai-elements/loader';
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
+import { useAnalysisWorkspace } from './analysis-workspace-context';
 import type { DetailDrawerType } from './analysis-detail-drawer';
 
 const ASSISTANT_DRAWER_LABELS: Record<string, string> = {
@@ -100,6 +101,8 @@ const COVERAGE_TONE_STYLES = {
 } as const;
 
 export function AnalysisAssistantMessage({
+  workspaceMode = false,
+  canvasInWorkspace = false,
   status,
   headline,
   errorSummary,
@@ -147,7 +150,9 @@ export function AnalysisAssistantMessage({
     title: string;
     content: ReactNode;
     testId?: string;
-  }) => void;
+  } | null) => void;
+  workspaceMode?: boolean;
+  canvasInWorkspace?: boolean;
   onObjectSelect?: (selection: AnalysisObjectSelection, label: string, question?: string) => void;
   availableDetails?: Exclude<DetailDrawerType, null>[];
   suggestions?: string[];
@@ -167,12 +172,17 @@ export function AnalysisAssistantMessage({
     diagnostics.otherBlocks.length > 0;
   const unsupported = errorCode === 'EASYV_QUESTION_UNSUPPORTED';
 
+  const workspace = useAnalysisWorkspace();
+  const externalCanvas = workspaceMode || canvasInWorkspace;
+  const [activeCanvasIndex, setActiveCanvasIndex] = useState(0);
   const registry = getDefaultAnalysisInteractionUiRendererRegistry();
 
   const visibleBlocks = (result?.blocks ?? []).filter(
     (block) => !isBlockAlreadyVisualized(block, metricCards, visualizations),
   );
   const objectBlocks = visibleBlocks.filter((block) => block.kind === 'object-browser');
+  const canvasBlocks = objectBlocks.filter((block) => typeof block.payload.objectKey === 'string' && block.payload.objectKey.startsWith('easyv-prototype-'));
+  const detailObjectBlocks = objectBlocks.filter((block) => !canvasBlocks.includes(block));
   const primaryBlocks = visibleBlocks.filter(
     (block) => block.kind !== 'object-browser' && block.payload?.role !== 'supporting',
   );
@@ -240,7 +250,7 @@ export function AnalysisAssistantMessage({
   return (
     <div className="flex justify-start gap-2.5">
       <AssistantAvatar />
-      <div className="min-w-0 w-full max-w-[86%]">
+      <div className="min-w-0 w-full">
         <div className="flex items-center gap-2.5">
           <p className="text-xs font-semibold text-foreground">智能员工</p>
           {!waitingForProgress && !unsupported ? getStatusIcon(status) : null}
@@ -280,13 +290,31 @@ export function AnalysisAssistantMessage({
             <p className="text-sm leading-6 text-muted-foreground" role="status">正在整理回答并核对来源，核对完成后显示结论…</p>
           ) : null}
 
+          {workspaceMode && status === 'completed' ? <p className="mb-3 text-xs text-muted-foreground">历史分析 · 以下保留当时判断，当前应用状态见右侧修改建议。</p> : null}
+          {externalCanvas && canvasBlocks.length ? <nav aria-label="查看本轮大屏" className="mb-3 flex flex-wrap gap-2">
+            {canvasBlocks.map((block,index) => <button type="button" key={index} onClick={() => workspace?.showObject(block)} className="rounded-md px-2 py-1 text-sm text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{block.title ?? '在工作区查看'}</button>)}
+          </nav> : null}
+          {!externalCanvas && canvasBlocks.length ? <section aria-label="大屏结构工作区" className="mb-6 space-y-3">
+            {canvasBlocks.length > 1 ? <nav aria-label="选择当前画布" className="flex flex-wrap gap-1">
+              {canvasBlocks.map((block, index) => <button key={index} type="button" aria-pressed={activeCanvasIndex === index}
+                className={activeCanvasIndex === index
+                  ? 'rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground'
+                  : 'rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'}
+                onClick={() => { setActiveCanvasIndex(index); onOpenSidePanel?.(null); }}>
+                {block.title ?? '大屏结构'}
+              </button>)}
+            </nav> : null}
+            {canvasBlocks[activeCanvasIndex] ? <AnalysisResultBlockRenderer key={activeCanvasIndex}
+              block={canvasBlocks[activeCanvasIndex]} embedded onOpenSidePanel={onOpenSidePanel} onObjectSelect={onObjectSelect} /> : null}
+          </section> : null}
+
           {/* 一句话业务答案 */}
           {status === 'completed' || primaryAnswer ? (
             <PrimaryAnswerBlock answer={primaryAnswer} />
           ) : null}
 
-          {objectBlocks.length > 0 ? <nav aria-label="查看相关内容" className="mt-3 flex flex-wrap gap-2">
-              {objectBlocks.map((block, index) => (
+          {detailObjectBlocks.length > 0 ? <nav aria-label="查看相关内容" className="mt-3 flex flex-wrap gap-2">
+              {detailObjectBlocks.map((block, index) => (
                 <button key={`objects-${index}`} type="button"
                   className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => onOpenSidePanel?.({ title: block.title ?? '记录详情', testId: 'analysis-object-drawer',
@@ -303,6 +331,7 @@ export function AnalysisAssistantMessage({
           {visualizations.map((viz, index) => (
             <VisualizationBlock
               key={`${viz.type}-${viz.title}-${index}`}
+              onOpenSidePanel={onOpenSidePanel}
               visualization={viz}
               registry={registry}
             />

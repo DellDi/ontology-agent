@@ -127,7 +127,7 @@ export function WorkspaceSessionList({ items, sessionPage, canCreateAnalysis }: 
   return (
     <section id="history" aria-labelledby="history-title" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 id="history-title" className="text-base font-semibold text-foreground">分析记录</h2>
+        <h2 id="history-title" className="sr-only">分析记录</h2>
         <div className="relative w-full sm:w-60">
           <Search aria-hidden="true" className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
           <Input aria-label="搜索分析记录" placeholder="搜索问题或领域" value={query} onChange={event => setQuery(event.target.value)} className="pl-9" />
@@ -152,14 +152,14 @@ export function WorkspaceSessionList({ items, sessionPage, canCreateAnalysis }: 
                   <div className="min-w-0 flex-1">
                     <h3 className="break-words text-sm font-medium leading-6 text-foreground group-hover:text-primary">{item.title}</h3>
                     {item.failureMessage ? <p className={`mt-1 text-sm leading-6 ${item.derivedStatus === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>{item.failureMessage}</p> : null}
-                    <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>{item.domainLabel}</span><span>{item.updatedAtLabel}</span></p>
+                    <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span className="sr-only">{item.domainLabel}</span><span>{item.updatedAtLabel}</span>{allItems.some(other => other.id !== item.id && other.title === item.title) ? <span>记录 {item.id.slice(-6)}</span> : null}</p>
                   </div>
                   <span className={`mt-1 shrink-0 text-xs ${item.derivedStatus === 'failed' ? 'text-destructive' : item.derivedStatus === 'running' ? 'text-primary' : 'text-muted-foreground'}`}>{item.statusLabel}</span>
                   <ArrowUpRight aria-hidden="true" className="mt-1 hidden size-4 shrink-0 text-muted-foreground sm:block" />
                 </Link>
                 <button
                   aria-label={`删除会话：${item.title}`}
-                  className="mt-5 shrink-0 rounded-md p-1.5 text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mt-4 flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => { setConfirmingId(item.id); setDeleteError(null); }}
                   type="button"
                 >
@@ -200,7 +200,8 @@ export function WorkspaceSessionList({ items, sessionPage, canCreateAnalysis }: 
       ) : (
         <div className="py-12 text-center">
           <p className="text-sm font-medium text-foreground">{allItems.length ? '没有匹配的分析' : '还没有分析记录'}</p>
-          <p className="mt-2 text-sm text-muted-foreground">{allItems.length ? '调整状态或搜索词后再试。' : canCreateAnalysis ? '在上方输入问题，开始第一轮分析。' : '获得分析权限后即可发起分析。'}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{allItems.length ? '调整状态或搜索词后再试。' : canCreateAnalysis ? '回到新分析，输入问题开始第一轮分析。' : '获得分析权限后即可发起分析。'}</p>
+          {!allItems.length && canCreateAnalysis ? <Link href="/workspace" className="mt-4 inline-block rounded-sm text-sm text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring">开始新分析</Link> : null}
           {allItems.length ? <button type="button" onClick={() => { setQuery(''); setStatus('all'); }} className="mt-4 rounded-sm text-sm text-primary underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring">清除筛选</button> : null}
         </div>
       )}

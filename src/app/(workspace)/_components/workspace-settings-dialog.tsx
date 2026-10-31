@@ -47,10 +47,10 @@ export function WorkspaceSettingsDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="gap-0 overflow-hidden border-0 p-0 sm:max-w-2xl"
+        className="gap-0 overflow-hidden border-0 p-0 sm:max-w-xl"
       >
         <DialogTitle className="sr-only">设置</DialogTitle>
-        <div className="grid min-h-[380px] sm:grid-cols-[180px_minmax(0,1fr)]">
+        <div className="grid min-h-[240px] sm:grid-cols-[140px_minmax(0,1fr)]">
           {/* 左侧分组导航 */}
           <nav
             aria-label="设置分组"
@@ -94,9 +94,7 @@ export function WorkspaceSettingsDialog({
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-foreground">外观</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      日间 / 夜间 / 跟随系统
-                    </p>
+
                   </div>
                   <ThemeToggle triState />
                 </div>

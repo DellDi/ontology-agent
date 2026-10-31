@@ -6,6 +6,7 @@ import turnsModule from '../src/app/(workspace)/workspace/analysis/[sessionId]/_
 import contract from '../src/infrastructure/java-backend/object-read-contract.ts';
 import staticModule from '../src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-static-assistant-props.ts';
 import readClient from '../src/infrastructure/java-backend/read-client.ts';
+import visualWorkspace from '../src/application/workspace/visual-workspace.ts';
 import selectionScope from '../src/domain/analysis-execution/object-selection.ts';
 
 const selection = { executionId: 'execution-source', datasetVersionSetId: 'set-old', reference: {
@@ -146,4 +147,36 @@ test('对象追问 | 待执行和失败历史保留请求引用，取消后的�
   const ordinary=turnsModule.buildChatTurns({history:[initial,failed,{...failed,id:'ordinary',followUpId:'f-ordinary'}],followUps:[selected,
     {id:'f-ordinary',questionText:'全部',resultExecutionId:'ordinary',mergedContext:{}}]},null).at(-1);
   assert.equal(ordinary.objectSelection,undefined);
+});
+
+
+test('工作区 | 按真实查询去重，保留同名不同对象与最新引用，提案按执行引用汇集', () => {
+  const block = (id, executionId, title = '同名大屏') => ({ kind:'object-browser',title,
+    source:{executionId},payload:{objectKey:'easyv-prototype-layout',filters:[{member:'appId',operator:'EQUALS',values:[id]}]} });
+  const old=block('a','old'), latest=block('a','new'), other=block('b','new');
+  const proposal={kind:'table',payload:{blockImprovement:{executionId:'new',invocationId:'proposal'}}};
+  const result=visualWorkspace.collectVisualWorkspace([old,other,latest,proposal,proposal,
+    {kind:'table',payload:{blockImprovement:{executionId:'new'}}}]);
+  assert.equal(result.canvases.length,2);
+  assert.equal(result.canvases[0].source.executionId,'new');
+  assert.equal(result.canvases[1],other,'相同标题不能合并不同大屏');
+  assert.deepEqual(result.proposals,[{executionId:'new',invocationId:'proposal'}]);
+  const target=visualWorkspace.canvasForSelection('session',selection,'可变名称');
+  assert.equal(target.source.executionId,selection.executionId);
+  assert.equal(target.payload.datasetVersionSetId,selection.datasetVersionSetId);
+  assert.equal(target.payload.objectKey,selection.reference.objectKey);
+  const scope={...selection,reference:{...selection.reference,objectKey:'easyv-prototype-layout',objectId:'b'}};
+  assert.deepEqual(visualWorkspace.collectVisualWorkspace([old,other,latest],scope).canvases,[other], '工作大屏只包含本次明确选中的范围');
+});
+
+
+test('工作区 | 查询字段顺序不重复大屏，冻结版本和不同范围不能被合并', () => {
+  const block = (set, filters) => ({kind:'object-browser',source:{executionId:'execution'},payload:{objectKey:'easyv-prototype-layout',datasetVersionSetId:set,filters}});
+  const a=block('v1',[{member:'appId',operator:'EQUALS',values:['a']}]);
+  const same=block('v1',[{operator:'EQUALS',values:['a'],member:'appId'}]);
+  const otherVersion=block('v2',a.payload.filters);
+  const search=block('v1',[{member:'pageTitle',operator:'CONTAINS',values:['同名']}]);
+  assert.equal(visualWorkspace.workspaceCanvasKey(a),visualWorkspace.workspaceCanvasKey(same));
+  assert.notEqual(visualWorkspace.workspaceCanvasKey(a),visualWorkspace.workspaceCanvasKey(otherVersion));
+  assert.equal(visualWorkspace.collectVisualWorkspace([a,same,otherVersion,search]).canvases.length,3);
 });

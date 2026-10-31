@@ -1,10 +1,10 @@
 import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
 
 import type { WorkspaceHomeModel } from '@/application/workspace/home';
 import { Button } from '@/components/ui/button';
 import { StatusBanner } from '@/app/_components/status-banner';
 import { WorkspaceAnalysisComposer } from './workspace-analysis-composer';
-import { WorkspaceSessionList } from './workspace-session-list';
 
 type WorkspaceHomeShellProps = {
   model: WorkspaceHomeModel;
@@ -12,19 +12,7 @@ type WorkspaceHomeShellProps = {
   draftQuestion?: string;
 };
 
-/** 时段问候语（服务端渲染一次，无 hydration 差异） */
-function heroGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 6) return '夜深了';
-  if (hour < 12) return '早上好';
-  if (hour < 14) return '中午好';
-  if (hour < 18) return '下午好';
-  return '晚上好';
-}
-
 export function WorkspaceHomeShell({ model, creationError, draftQuestion }: WorkspaceHomeShellProps) {
-  const isEmpty = model.sessionPage.total === 0 && model.historyItems.length === 0;
-
   return (
     <section className="mx-auto w-full max-w-4xl" data-testid="workspace-home-shell">
       {model.degradedState ? (
@@ -34,33 +22,21 @@ export function WorkspaceHomeShell({ model, creationError, draftQuestion }: Work
         </StatusBanner>
       ) : null}
       {creationError ? <StatusBanner tone="error" className="mb-4">{creationError}</StatusBanner> : null}
-      <div className="mb-7 flex flex-wrap justify-end gap-x-6 gap-y-2 text-sm text-muted-foreground">
-        <Link href="/workspace/data" className="py-2 hover:text-foreground">分析数据 →</Link>
-        {model.capabilities.some((capability) => capability.domainKey === 'easyv' && capability.available) ? <Link href="/workspace?draft=先列出我最近的大屏原型，我想选择几张一起检查和改进。" className="py-2 hover:text-foreground">检查与改进大屏 →</Link> : null}
-      </div>
-
       {model.canCreateAnalysis ? (
-        isEmpty ? (
-          /* 空会话首页：居中 hero——问候语 + 输入卡片 + 推荐问题 */
-          <div className="flex min-h-[68vh] flex-col items-center justify-center" id="new-analysis">
-            <h1 className="text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
-              {heroGreeting()}，{model.viewerName}
-            </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
-              从你有权限的范围开始今天的分析
-            </p>
-            <div className="mt-8 w-full max-w-2xl">
-              <WorkspaceAnalysisComposer capabilities={model.capabilities} draftQuestion={draftQuestion} hero key={draftQuestion ?? ''} />
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-10">
-            <section id="new-analysis" aria-label="新建分析">
-              <WorkspaceAnalysisComposer key={draftQuestion ?? ''} capabilities={model.capabilities} draftQuestion={draftQuestion} />
-            </section>
-            <WorkspaceSessionList items={model.historyItems} sessionPage={model.sessionPage} canCreateAnalysis={model.canCreateAnalysis} />
-          </div>
-        )
+        <div className="mx-auto flex min-h-[calc(100dvh-8rem)] w-full max-w-[720px] flex-col justify-center py-10 sm:pb-20" id="new-analysis">
+          <header className="mb-7 flex items-center justify-between gap-4">
+            <h1 className="text-2xl font-medium tracking-tight text-foreground">大屏工作台</h1>
+            <Link href="/workspace/data" className="inline-flex items-center gap-1 rounded-sm py-2 text-sm text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              数据范围<ArrowUpRight aria-hidden="true" className="size-3.5" />
+            </Link>
+          </header>
+          {model.capabilities.some(capability => capability.domainKey === 'easyv' && capability.available) ? <div className="mb-6 border-l-2 border-primary pl-5">
+            <Link href="/workspace/screens" className="inline-flex items-center gap-3 py-2 text-lg font-medium hover:text-primary">浏览大屏<ArrowUpRight aria-hidden className="size-4" /></Link>
+            <p className="text-sm text-muted-foreground">查看原型结构、模块用途与指标口径</p>
+          </div> : null}
+          <WorkspaceAnalysisComposer capabilities={model.capabilities} draftQuestion={draftQuestion} hero key={draftQuestion ?? ''} />
+
+        </div>
       ) : (
         <StatusBanner tone="info" title="暂时无法发起分析">{model.emptyState?.description ?? '请联系管理员分配分析范围。'}</StatusBanner>
       )}

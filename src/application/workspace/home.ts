@@ -1,5 +1,5 @@
 import {
-  createAnalysisSessionTitle,
+  normalizeQuestionText,
   type AnalysisSession,
 } from '@/domain/analysis-session/models';
 import type { JobStatus } from '@/domain/job-contract/models';
@@ -262,7 +262,7 @@ export function sessionToHistoryItem(
   );
   return {
     id: analysisSession.id,
-    title: createAnalysisSessionTitle(analysisSession.questionText),
+    title: normalizeQuestionText(analysisSession.questionText),
     domainLabel: snapshot?.capabilityBinding && 'domainKey' in snapshot.capabilityBinding
       ? ({ property: '物业分析', easyv: 'EasyV 生成质量' }[snapshot.capabilityBinding.domainKey]
         ?? snapshot.capabilityBinding.domainKey)
@@ -403,7 +403,8 @@ export function createWorkspaceHomeModel(
 function formatHistoryTimestamp(timestamp: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     dateStyle: 'medium',
-    timeStyle: 'short',
+    timeStyle: 'medium',
+    timeZone: 'Asia/Shanghai',
   }).format(new Date(timestamp));
 }
 

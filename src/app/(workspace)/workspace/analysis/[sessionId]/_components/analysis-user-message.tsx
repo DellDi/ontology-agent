@@ -11,7 +11,7 @@ export function AnalysisUserMessage({
 }) {
   return (
     <Message className={pending ? 'opacity-70' : undefined} from="user">
-      <MessageContent className="group-[.is-user]:rounded-2xl group-[.is-user]:rounded-br-md group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground group-[.is-user]:shadow-sm">
+      <MessageContent className="group-[.is-user]:rounded-lg group-[.is-user]:bg-sky-100 group-[.is-user]:text-foreground">
         <p className="whitespace-pre-wrap break-words text-sm leading-6">
           {questionText}
         </p>

@@ -72,8 +72,7 @@ export const javaComponentGeometrySchema: z.ZodType<PrototypeComponentGeometry> 
   z.object({ status: z.enum(['missing', 'invalid']), errorCode: z.string().min(1), box: z.null() }).strict(),
 ]);
 
-export const javaObjectReadResultSchema = z.object({
-  executionId: z.string().min(1),
+const objectReadResultSchema = z.object({
   datasetVersionSetId: z.string().min(1),
   ontologyVersionId: z.string().min(1),
   propertyPresentations: z.record(z.string().min(1), z.object({
@@ -161,6 +160,9 @@ export const javaObjectReadResultSchema = z.object({
     context.addIssue({ code: 'custom', message: '结构只能附在单个版式详情中。' });
   }
 });
+
+export const javaObjectReadResultSchema = objectReadResultSchema.safeExtend({ executionId: z.string().min(1) });
+export const javaWorkspaceCatalogResultSchema = objectReadResultSchema.safeExtend({ executionId: z.null() });
 
 export type JavaObjectReadRequest = z.infer<typeof javaObjectReadRequestSchema>;
 export type JavaObjectReadResult = z.infer<typeof javaObjectReadResultSchema>;

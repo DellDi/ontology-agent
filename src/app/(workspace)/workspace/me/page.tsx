@@ -24,7 +24,7 @@ export default async function WorkspaceMePage() {
     <section className="mx-auto max-w-2xl space-y-8" data-testid="workspace-me-page">
       <h1 className="text-xl font-semibold tracking-tight text-foreground">个人中心</h1>
 
-      <section aria-label="账号信息" className="rounded-md border border-border bg-card p-6">
+      <section aria-label="账号信息" className="border-t border-border pt-5">
         <h2 className="text-sm font-semibold text-foreground">账号信息</h2>
         <dl className="mt-4 space-y-3 text-sm">
           <div className="flex gap-4">
@@ -56,11 +56,8 @@ export default async function WorkspaceMePage() {
         </dl>
       </section>
 
-      <section aria-label="能力与范围" className="rounded-md border border-border bg-card p-6">
+      <section aria-label="能力与范围" className="border-t border-border pt-5">
         <h2 className="text-sm font-semibold text-foreground">能力与范围</h2>
-        <p className="mt-2 text-xs text-muted-foreground">
-          仅列出当前环境已启用的能力。可发起表示已获授权；实际分析还需要可用的数据。
-        </p>
         {home.capabilities.length ? (
           <ul className="mt-4 divide-y divide-border">
             {home.capabilities.map((capability) => (

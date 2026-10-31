@@ -111,6 +111,7 @@ export default async function WorkspaceLayout({
       return {
         id: item.id,
         title: item.title,
+        updatedAtLabel: item.updatedAtLabel,
         href: item.href,
         derivedStatus: item.derivedStatus,
       };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Layers3, Loader2 } from 'lucide-react';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import {
 import { projectPrototypeLayout } from '@/application/prototype-layout/project-layout';
 import { readAnalysisObjects } from '@/infrastructure/java-backend/object-read-client';
 import { javaObjectReadRequestSchema, type JavaObjectReadRequest, type JavaObjectReadResult } from '@/infrastructure/java-backend/object-read-contract';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatShanghaiDateTime } from '@/lib/format-datetime';
@@ -19,9 +20,15 @@ import { objectRecordTitle, objectPropertyText, objectRecordSelectionLabel } fro
 import { ObjectCollectionControls } from './object-collection-controls';
 import { SchemeAssessmentPanel } from './scheme-assessment-panel';
 import { ScreenReviewPicker } from './screen-review-picker';
+import { useActiveAnalysisWorkspace } from '../analysis-workspace-context';
+import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
+import { BlockImprovementPanel } from './block-improvement-panel';
+import { MetricDefinition } from './metric-definition';
+import { PrototypeLayoutCanvas } from './prototype-layout-canvas';
 import { chartPlaceholder, ComponentGlyph, PrototypeComponentPreview, type MetricPreviewStyle } from './prototype-component-preview';
 import type { AnalysisInteractionUiRenderInput } from '../analysis-interaction-ui-renderer-registry';
 
+type OpenSidePanel = AnalysisInteractionUiRenderInput['onOpenSidePanel'];
 type SelectObject = AnalysisInteractionUiRenderInput['onObjectSelect'];
 type Row = JavaObjectReadResult['page']['rows'][number];
 type Type = JavaObjectReadResult['objectType'];
@@ -95,7 +102,7 @@ function ObjectList({ title, rows, type, selected, onSelect, hasMore, loading, o
       {!rows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">当前数据中没有关联对象。</p> : rows.map((row) => <button
         key={row.reference.objectId} type="button" aria-pressed={selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey}
         onClick={() => onSelect(row)} className={cn('flex w-full flex-col items-start gap-1 rounded-md px-3 py-3 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-          selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey && 'bg-primary/10 text-primary')}>
+          selected?.reference.objectId === row.reference.objectId && selected.reference.objectKey === row.reference.objectKey && 'bg-accent text-accent-foreground')}>
         <span className="min-w-0 break-all font-medium">{viewOf(row.reference.objectKey).rows.title(row, type)}</span><span className="break-all text-muted-foreground">{viewOf(row.reference.objectKey).rows.summary(row, type)}</span>
       </button>)}
     </div>
@@ -119,7 +126,7 @@ function ComponentComposition({ context, object, summary, onSelect }: {
       key={item.chartFamily ?? 'missing-family'} type="button" aria-pressed={index === groupIndex}
       aria-label={`查看${chartPlaceholder(item.chartFamily).label} ${item.count} 个组件`}
       onClick={() => { setGroupIndex(index); setOffset(0); }}
-      className={cn('flex min-w-0 items-center gap-2 rounded-md px-3 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', index === groupIndex && 'bg-primary/10 text-primary')}>
+      className={cn('flex min-w-0 items-center gap-2 rounded-md px-3 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', index === groupIndex && 'bg-accent text-accent-foreground')}>
       <ComponentGlyph family={item.chartFamily ?? ''} metricStyle="number" className="h-5 w-7 shrink-0 text-primary" />
       <span className="min-w-0 flex-1 break-words text-xs">{chartPlaceholder(item.chartFamily).label}</span>
       <span className="shrink-0 text-lg font-semibold tabular-nums">{item.count}</span>
@@ -140,7 +147,7 @@ function ComponentComposition({ context, object, summary, onSelect }: {
 }
 
 type DetailQuery = ReturnType<typeof useObjectRead>;
-type ViewProps = { context: Context; root: Row; onObjectSelect?: SelectObject };
+type ViewProps = { context: Context; root: Row; onObjectSelect?: SelectObject; onOpenSidePanel?: OpenSidePanel; rootType?: Type };
 
 function PropertyContent({ property, value, presentation }: {
   property: Type['properties'][number]; value: Row['properties'][string];
@@ -169,10 +176,13 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
   const selected = detail.data?.page.rows[0] ?? focus;
   const type: Type | undefined = detail.data?.objectType;
   const title = viewOf(selected.reference.objectKey).rows.title(selected, type);
-  const businessProperties = type?.properties.filter((property) => !property.identifier);
-  const primaryProperties = businessProperties?.filter((property) => property.prominent || property.title || property.type === 'TIME');
+  const workspace = useActiveAnalysisWorkspace();
+  const businessProperties = type?.properties.filter((property) => !property.identifier
+    && selected.properties[property.key] != null && selected.properties[property.key] !== ''
+    && !(workspace && (property.title || selected.properties[property.key] === title)));
+  const primaryProperties = businessProperties?.filter((property) => property.prominent || !workspace && (property.title || property.type === 'TIME'));
   const otherProperties = businessProperties?.filter((property) => !primaryProperties?.includes(property));
-  const propertyList = (properties: Type['properties'] | undefined) => <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
+  const propertyList = (properties: Type['properties'] | undefined) => <dl className="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
     {properties?.map((property) => {
       const presentation = detail.data?.propertyPresentations?.[property.key];
       return <div key={property.key} className={presentation ? 'col-span-2 space-y-3 py-3' : 'contents'}>
@@ -183,9 +193,9 @@ function ObjectDetailPanel({ context, focus, detail, onFocus, onObjectSelect, hi
     })}
   </dl>;
   const traceProperties = type?.properties.filter((property) => property.identifier || Object.keys(property.valueLabels ?? {}).length);
-  return <section className="space-y-4 pt-6" aria-label="所选对象属性">
-    <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {title}</h4>
-    {onObjectSelect ? <Button type="button" size="sm" variant="ghost" disabled={!detail.data?.page.rows[0] || !type}
+  return <section className="space-y-4" aria-label="所选对象属性">
+    {!workspace ? <h4 className="text-sm font-semibold">{type?.label ?? '对象属性'} · {title}</h4> : null}
+    {onObjectSelect && !workspace ? <Button type="button" size="sm" variant="ghost" disabled={!detail.data?.page.rows[0] || !type}
       onClick={() => { if (detail.data?.page.rows[0] && type) onObjectSelect({ executionId: detail.data.executionId,
         datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }, objectRecordSelectionLabel(selected.properties, type)); }}>
       针对这个对象追问
@@ -304,22 +314,22 @@ function LinkedObjectPreview({ context, source, link }: { context: Context; sour
   </section>;
 }
 
-function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
+function PrototypeDetail({ context, root, rootType, onObjectSelect, onOpenSidePanel }: ViewProps) {
+  const workspace = useActiveAnalysisWorkspace();
+  const initialized = useRef(false);
   const layoutId = typeof root.properties.appId === 'string' ? root.properties.appId : '';
   const layout = useObjectRead(context, { objectKey: 'easyv-prototype-layout', objectId: layoutId }, !!layoutId);
   const blocks = useRelated(context, layoutId, 'blocks');
   const components = useRelated(context, layoutId, 'components');
   const [focus, setFocus] = useState<Row>(root);
   const [metricStyle, setMetricStyle] = useState<MetricPreviewStyle>('number');
-  // 滚动发布时，旧 API 没有 dataContext；确认服务具备新契约后再请求构成统计。
-  const detail = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
-    includeComponentSummary: layout.data?.dataContext && (focus.reference.objectKey === 'easyv-prototype-block'
-      || focus.reference.objectKey === 'easyv-prototype-layout' && focus.properties.parseStatus === 'ok') ? true : undefined });
   const blockRows = blocks.data?.pages.flatMap((page) => page.page.rows) ?? [];
   const componentRows = components.data?.pages.flatMap((page) => page.page.rows) ?? [];
   const componentGeometry = components.data?.pages.some((page) => page.componentGeometry !== undefined)
     ? Object.assign({}, ...components.data.pages.map((page) => page.componentGeometry)) : undefined;
-  const selected = detail.data?.page.rows[0] ?? focus;
+  const selected = workspace?.selection
+    ? [root,...blockRows,...componentRows].find(row => row.reference.objectKey === workspace.selection!.reference.objectKey
+      && row.reference.objectId === workspace.selection!.reference.objectId) ?? focus : workspace ? layout.data?.page.rows[0] ?? root : focus;
   const focusedBlock = selected.reference.objectKey === 'easyv-prototype-block' ? selected.reference.objectId
     : selected.reference.objectKey === 'easyv-prototype-component' ? selected.properties.blockKey : null;
   const selectedBlock = typeof focusedBlock === 'string' ? focusedBlock : undefined;
@@ -331,51 +341,52 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
   const structure = layout.data?.structure;
   const pages = structure?.status === 'available' ? projectPrototypeLayout(structure.layout, blockRows) : [];
 
+  function openFocus(row: Row, showPanel = true): void {
+    const type = row.reference.objectKey === 'easyv-prototype-block' ? blocks.data?.pages[0]?.objectType
+      : row.reference.objectKey === 'easyv-prototype-layout' ? layout.data?.objectType : regionComponents.data?.pages[0]?.objectType ?? components.data?.pages[0]?.objectType;
+    const title = label(row,type ?? (rootType?.key === row.reference.objectKey ? rootType : undefined));
+    if (workspace && onObjectSelect?.({executionId:context.executionId,datasetVersionSetId:layout.data?.datasetVersionSetId ?? context.datasetVersionSetId,reference:row.reference},title) === false) return;
+    setFocus(row);
+    if (showPanel) onOpenSidePanel?.({ title, testId: 'analysis-prototype-context',
+      content: <PrototypeObjectContext context={context} focus={row} onFocus={openFocus} onObjectSelect={onObjectSelect} /> });
+  }
+  const initializeFocus = useEffectEvent(() => openFocus(root, window.matchMedia('(min-width: 1280px)').matches));
+  useEffect(() => {
+    if (!workspace || !layout.data || initialized.current) return;
+    initialized.current = true;
+    initializeFocus();
+  },[workspace,root,layout.data]);
+
   if (!layoutId) return <p role="alert" className="text-sm text-destructive">对象缺少所属应用 ID，无法定位原型。</p>;
-  return <div className="space-y-4">
-    <div className="space-y-2 py-1 text-sm">
+  return <div className="space-y-3">
+    {!workspace ? <div className="space-y-2 py-1 text-sm">
       {layout.data?.sourceUrl ? <a href={layout.data.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-4">在 EasyV 查看当前原型</a>
         : <p className="text-muted-foreground">尚未配置 EasyV 原型查看入口。</p>}
       <p className="text-xs leading-5 text-muted-foreground">下方用于观察结构。实际图形、配色及数据请在 EasyV 核对；原型中的示例数据不代表已接通业务数据。</p>
-    </div>
+    </div> : null}
     <div className="flex flex-wrap items-center justify-between gap-2 py-2">
-      <span className="text-sm font-medium">原型结构</span>
-      <Button type="button" variant="ghost" size="sm" onClick={() => { const row = layout.data?.page.rows[0]; if (row) setFocus(row); }} disabled={!layout.data}>版式属性</Button>
+      {workspace && layout.data?.page.rows[0] ? <h2 className="text-[22px] font-semibold tracking-tight">{label(layout.data.page.rows[0],layout.data.objectType)}</h2> : <span className="text-sm font-medium">原型结构</span>}
+      <Button type="button" variant="ghost" size="sm" onClick={() => { const row = layout.data?.page.rows[0]; if (row) openFocus(row); }} disabled={!layout.data}>版式属性</Button>
     </div>
     {layout.isPending || blocks.isPending ? <Pending>正在读取版式结构…</Pending> : null}
     {layout.error ? <Notice error={layout.error} /> : null}
     {blocks.error ? <Notice error={blocks.error} /> : null}
     {structure?.status === 'not_retained' ? <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">本轮使用的历史版本未保留布局树。可以查看对象属性；重新采集并发布后，新分析才能展示结构图。</p> : null}
     {structure?.status === 'parse_failed' ? <p className="rounded-lg border border-destructive/25 p-4 text-sm text-destructive">源原型结构解析失败。请在版式属性中查看解析错误代码。</p> : null}
-    {!blocks.isPending && !blocks.error ? pages.map((page, index) => <section className="space-y-2" key={page.key}>
-      <h4 className="text-xs font-medium text-muted-foreground">页面 {index + 1}{page.width && page.height ? ` · ${page.width} × ${page.height}` : ''} · 结构示意</h4>
-      {page.items.length && page.width && page.height ? <div className="relative min-w-0 overflow-hidden rounded-lg bg-muted/40" style={{ aspectRatio: `${page.width} / ${page.height}` }}>
-        {page.items.map((item) => {
-          const style = { left: `${item.x / page.width! * 100}%`, top: `${item.y / page.height! * 100}%`, width: `${item.width / page.width! * 100}%`, height: `${item.height / page.height! * 100}%` };
-          const row = blockRows.find((candidate) => candidate.reference.objectId === item.objectId);
-          const displayLabel = row ? label(row, blocks.data?.pages[0]?.objectType) : item.label;
-          return item.objectId ? <button key={item.key} type="button" title={displayLabel} aria-label={`选择区域 ${displayLabel}`} aria-pressed={item.objectId === selectedBlock}
-            onClick={() => { const row = blockRows.find((candidate) => candidate.reference.objectId === item.objectId); if (row) setFocus(row); }}
-            className={cn('absolute flex flex-col overflow-hidden rounded-sm bg-primary/5 p-1 text-[10px] text-primary hover:bg-primary/15 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', item.objectId === selectedBlock && 'bg-primary/20 ring-2 ring-inset ring-primary')} style={style}>
-            <span className="w-full shrink-0 truncate text-center">{displayLabel}</span>
-            <span className="pointer-events-none min-h-0 w-full flex-1" aria-hidden>
-              <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === item.objectId)} geometry={componentGeometry} metricStyle={metricStyle} thumbnail fill />
-            </span>
-          </button> : <div key={item.key} style={style} title={item.label} className="absolute flex items-center justify-center overflow-hidden bg-muted/50 p-1 text-[10px] text-muted-foreground"><span className="truncate">{item.kind === 'content' ? '主视觉' : item.label}</span></div>;
-        })}
-      </div> : null}
-      {page.diagnostics.map((message) => <p key={message} className="text-xs text-muted-foreground" role="status">{message}</p>)}
-    </section>) : null}
+    {!blocks.isPending && !blocks.error ? <PrototypeLayoutCanvas pages={pages} blocks={blockRows} components={componentRows}
+      componentGeometry={componentGeometry} pageSemantics={layout.data?.page.rows[0]?.properties.pageSemantics}
+      selectedBlockId={selectedBlock} metricStyle={metricStyle} fitViewport={!!workspace} onSelect={openFocus}
+      getLabel={row => label(row, blocks.data?.pages[0]?.objectType)} /> : null}
     {blocks.data?.pages.at(-1)?.page.hasMore ? <p className="text-xs text-muted-foreground">区域尚未读取完整，加载更多后补齐对象关联。</p> : null}
-    <p className="text-xs leading-5 text-muted-foreground">选择区域，查看它的组件结构。图形和数字均为示意，不代表实际业务数据。</p>
-    {blocks.data ? <div className="@container">
+    {!workspace ? <p className="text-xs leading-5 text-muted-foreground">选择区域，查看它的组件结构。图形和数字均为示意，不代表实际业务数据。</p> : null}
+    {blocks.data && !workspace ? <div className="@container">
     <div className="grid items-start gap-3 @min-[320px]:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
       <section className="min-w-0 space-y-2" aria-label="原型区域列表">
         <h4 className="text-xs font-semibold text-muted-foreground">区域 · {blockRows.length}{blocks.hasNextPage ? '+' : ''}</h4>
         <div className="max-h-96 space-y-2 overflow-y-auto">
           {!blockRows.length ? <p className="px-3 py-3 text-xs text-muted-foreground">当前数据中没有关联区域。</p> : null}
           {blockRows.map((row) => <button key={row.reference.objectId} type="button" aria-label={`选择区域 ${label(row, blocks.data?.pages[0]?.objectType)}`} aria-pressed={row.reference.objectId === selectedBlock}
-            title={label(row, blocks.data?.pages[0]?.objectType)} onClick={() => setFocus(row)} className={cn('flex w-full flex-col items-start gap-2 rounded-md px-2 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-primary/10 text-primary')}>
+            title={label(row, blocks.data?.pages[0]?.objectType)} onClick={() => openFocus(row)} className={cn('flex w-full flex-col items-start gap-2 rounded-md px-2 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', row.reference.objectId === selectedBlock && 'bg-accent text-accent-foreground')}>
             <PrototypeComponentPreview rows={componentRows.filter((component) => component.properties.blockKey === row.reference.objectId)} geometry={componentGeometry} metricStyle={metricStyle} thumbnail />
             <span className="min-w-0 space-y-1"><span className="block break-all text-xs font-medium">{label(row, blocks.data?.pages[0]?.objectType)}</span><span className="block whitespace-nowrap text-[10px] text-muted-foreground">{String(row.properties.componentCount ?? '—')} 个组件</span></span>
           </button>)}
@@ -397,12 +408,12 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
             </div>
             <p className="text-[10px] leading-4 text-muted-foreground">源数据未区分这两种样式，可切换查看示意。</p>
           </div> : null}
-          {regionComponentRows.length ? <PrototypeComponentPreview rows={regionComponentRows} geometry={regionGeometry} metricStyle={metricStyle} selected={selected.reference.objectId} onSelect={setFocus} getLabel={(row) => label(row, regionComponents.data?.pages[0]?.objectType)} />
+          {regionComponentRows.length ? <PrototypeComponentPreview rows={regionComponentRows} geometry={regionGeometry} metricStyle={metricStyle} selected={selected.reference.objectId} onSelect={openFocus} getLabel={(row) => label(row, regionComponents.data?.pages[0]?.objectType)} />
             : <p className="py-4 text-xs text-muted-foreground">该区域没有关联组件。</p>}
           <div className="space-y-1.5">{regionComponentRows.map((row, index) => {
             const chartLabel = label(row, regionComponents.data?.pages[0]?.objectType);
             return <button key={row.reference.objectId} type="button" aria-label={`查看组件 ${chartLabel}`} aria-pressed={selected.reference.objectId === row.reference.objectId}
-              onClick={() => setFocus(row)} className={cn('flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', selected.reference.objectId === row.reference.objectId && 'bg-primary/10 text-primary')}>
+              onClick={() => openFocus(row)} className={cn('flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', selected.reference.objectId === row.reference.objectId && 'bg-accent text-accent-foreground')}>
               <ComponentGlyph family={String(row.properties.chartFamily ?? '')} metricStyle={metricStyle} className="h-5 w-8 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all">{chartLabel}</span><span className="text-[10px] text-muted-foreground">{index + 1}</span>
             </button>;
           })}</div>
@@ -411,19 +422,78 @@ function PrototypeDetail({ context, root, onObjectSelect }: ViewProps) {
       </section>
     </div>
     </div> : null}
-    <ObjectDetailPanel key={`${focus.reference.objectKey}:${focus.reference.objectId}`} context={context} focus={focus} detail={detail}
-      onFocus={setFocus} onObjectSelect={onObjectSelect}
+    {!onOpenSidePanel ? <PrototypeObjectContext context={context} focus={focus} onFocus={setFocus} onObjectSelect={onObjectSelect} /> : null}
+  </div>;
+}
+
+
+function CoreMetricEvidence({ context, blockId }: { context: Context; blockId: string }) {
+  const components = useRelated(context, blockId, 'components', 'easyv-prototype-block');
+  return <div className="space-y-4">
+    <p className="text-xs font-medium text-primary">核心指标</p>
+    {components.isPending ? <Pending>正在读取指标…</Pending> : null}
+    {components.error ? <Notice error={components.error} /> : null}
+    {components.data?.pages.flatMap(page => page.page.rows).map(row => <CoreMetricFields key={row.reference.objectId} context={context} row={row} />)}
+    {components.data && !components.data.pages[0]?.page.rows.length ? <p className="text-sm text-muted-foreground">该核心区尚未配置指标。</p> : null}
+    {components.hasNextPage ? <Button variant="ghost" size="sm" disabled={components.isFetchingNextPage} onClick={() => { void components.fetchNextPage(); }}>加载更多指标</Button> : null}
+  </div>;
+}
+
+function CoreMetricFields({ context, row }: { context: Context; row: Row }) {
+  const detail = useObjectRead(context, { objectKey: 'easyv-prototype-component', objectId: row.reference.objectId });
+  const properties = detail.data?.page.rows[0]?.properties;
+  return <div className="space-y-3 text-sm">
+    {detail.isPending ? <Pending>正在读取指标口径…</Pending> : null}
+    {detail.error ? <Notice error={detail.error} /> : null}
+    {properties ? <MetricDefinition properties={properties} /> : null}
+  </div>;
+}
+
+function PrototypeObjectContext({ context, focus, onFocus, onObjectSelect }: {
+  context: Context; focus: Row; onFocus: (row: Row) => void; onObjectSelect?: SelectObject;
+}) {
+  const detail = useObjectRead(context, { objectKey: focus.reference.objectKey, objectId: focus.reference.objectId,
+    includeComponentSummary: focus.reference.objectKey === 'easyv-prototype-block'
+      || focus.reference.objectKey === 'easyv-prototype-layout' && focus.properties.parseStatus === 'ok' ? true : undefined });
+  const selected = detail.data?.page.rows[0] ?? focus;
+  const workspace = useActiveAnalysisWorkspace();
+  const targetId = focus.reference.objectKey === 'easyv-prototype-component' ? focus.properties.blockKey : focus.reference.objectId;
+  const related = workspace?.proposals.filter(item => item.view?.selection.reference.objectKey === 'easyv-prototype-block'
+    && item.view.selection.reference.objectId === targetId) ?? [];
+  const evidence = <ObjectDetailPanel key={`${focus.reference.objectKey}:${focus.reference.objectId}`} context={context} focus={focus} detail={detail}
+      onFocus={onFocus} onObjectSelect={onObjectSelect}
       hints={{ relation: '显示前 20 个关联对象。完整区域和组件可在上方列表中继续加载。',
         provenance: '组件构成只统计所选原型或区域。集合捕获时间表示本轮数据版本的捕获时间；原型创建时间是源属性，均不代表组件最后编辑时间。' }}
-      beforeProperties={<>
+      beforeProperties={selected.reference.objectKey === 'easyv-prototype-block' && selected.properties.metricRole === 'core'
+        ? <CoreMetricEvidence context={context} blockId={selected.reference.objectId} /> : null}
+      afterProperties={<>
         {selected.reference.objectKey === 'easyv-prototype-layout' && selected.properties.parseStatus !== 'ok'
-          ? <p className="text-xs text-muted-foreground">原型结构未成功解析，暂无组件构成统计。解析状态与错误码见下方属性。</p> : null}
-        {detail.data?.componentSummary ? <ComponentComposition key={`${context.executionId}:${context.datasetVersionSetId}:${selected.reference.objectKey}:${selected.reference.objectId}`}
-          context={context} object={selected} summary={detail.data.componentSummary} onSelect={setFocus} /> : null}
-      </>}
-      afterProperties={selected.reference.objectKey === 'easyv-prototype-block' && detail.data?.page.rows[0] ? <SchemeAssessmentPanel key={`${selected.reference.objectId}:${selected.reference.productVersionId}`} sessionId={context.sessionId}
-        selection={{ executionId: context.executionId, datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }} /> : null} />
-  </div>;
+          ? <p className="text-xs text-muted-foreground">结构解析未完成，错误详情见记录信息。</p> : null}
+        {detail.data?.componentSummary ? <details className="text-sm"><summary className="cursor-pointer text-muted-foreground">组件构成</summary>
+          <div className="mt-3"><ComponentComposition key={`${context.executionId}:${context.datasetVersionSetId}:${selected.reference.objectKey}:${selected.reference.objectId}`}
+            context={context} object={selected} summary={detail.data.componentSummary} onSelect={onFocus} /></div>
+        </details> : null}
+        {selected.reference.objectKey === 'easyv-prototype-block' && selected.properties.metricRole !== 'core' && detail.data?.page.rows[0] ? <SchemeAssessmentPanel key={`${selected.reference.objectId}:${selected.reference.productVersionId}`} sessionId={context.sessionId}
+          selection={{ executionId: context.executionId, datasetVersionSetId: detail.data.datasetVersionSetId, reference: selected.reference }} /> : null}
+      </>} />;
+  if (!workspace) return evidence;
+  return <Tabs key={`${focus.reference.objectId}:${related.length > 0}`} defaultValue={related.length ? "suggestions" : "evidence"} className="space-y-4">
+    <TabsList className="w-full justify-start bg-transparent">
+      <TabsTrigger value="suggestions">修改建议{related.length ? ` · ${related.length}` : ''}</TabsTrigger>
+      <TabsTrigger value="evidence">指标详情</TabsTrigger>
+    </TabsList>
+    <TabsContent value="suggestions" className="space-y-5">
+      {related.map(item => <BlockImprovementPanel key={`${item.reference.executionId}:${item.reference.invocationId}`} {...item.reference} expanded />)}
+      {!related.length ? <div className="space-y-4 py-3">
+        <p className="text-sm leading-6 text-muted-foreground">{workspace.proposals.some(item=>!item.view&&!item.error)
+          ? '正在读取建议…' : '暂无修改建议。'}</p>
+        {workspace.proposals.some(item=>item.error) ? <p role="alert" className="text-sm text-destructive">部分提案读取失败，可在顶部“改进建议”中查看原因。</p> : null}
+        {onObjectSelect && detail.data?.page.rows[0] ? <Button type="button" onClick={()=>onObjectSelect({executionId:detail.data!.executionId,datasetVersionSetId:detail.data!.datasetVersionSetId,reference:selected.reference},label(selected,detail.data?.objectType),'请检查当前选中对象，说明有依据的问题与改进建议；保留业务目标与指标，证据不足请明确说明。')}>分析当前对象</Button> : null}
+      </div> : null}
+    </TabsContent>
+    <TabsContent value="evidence">{evidence}</TabsContent>
+  </Tabs>;
+
 }
 
 type ObjectView = { rows: RowView; Detail: ComponentType<ViewProps> };
@@ -434,9 +504,10 @@ const objectViews: Partial<Record<Row['reference']['objectKey'], ObjectView>> = 
 };
 function viewOf(objectKey: Row['reference']['objectKey']) { return objectViews[objectKey] ?? metadataView; }
 
-function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescription, onObjectSelect }: {
-  context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; drilldownId?: string | null; scopeDescription: string; onObjectSelect?: SelectObject;
+function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescription, onObjectSelect, onOpenSidePanel, focusedObject }: {
+  context: Context; objectKey: JavaObjectReadRequest['objectKey']; filters: JavaObjectReadRequest['filters']; drilldownId?: string | null; scopeDescription: string; focusedObject?: AnalysisObjectSelection; onObjectSelect?: SelectObject; onOpenSidePanel?: OpenSidePanel;
 }) {
+  const workspace = useActiveAnalysisWorkspace();
   const [offset, setOffset] = useState(0);
   const [reviewing, setReviewing] = useState(false);
   const [selected, setSelected] = useState<Row | null>(null);
@@ -447,22 +518,24 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
   const change = (action: ControlsAction) => {
     const next = reduceControls(controls, action, maxFilters);
     if (next === controls) return;
-    setControls(next); setOffset(0); setSelected(null);
+    setControls(next); setOffset(0); setSelected(null); onOpenSidePanel?.(null);
   };
-  const list = useObjectRead(context, { objectKey, drilldownId, limit: 20, offset, ...requestScope({ filters, drilldownId }, controls) });
+  const list = useObjectRead(context, focusedObject
+    ? {objectKey:focusedObject.reference.objectKey,objectId:focusedObject.reference.objectId,limit:1}
+    : { objectKey, drilldownId, limit: 20, offset, ...requestScope({ filters, drilldownId }, controls) });
   // 读取失败时仍保留上次的字段声明，用户才能移除导致失败的条件。
   if (list.data && list.data.objectType !== knownType) setKnownType(list.data.objectType);
   const root = selected ?? (list.data?.page.rows.length === 1 && !list.data.page.hasMore ? list.data.page.rows[0] : undefined);
   const Detail = root ? viewOf(root.reference.objectKey).Detail : null;
-  const singleTarget = !offset && list.data?.page.rows.length === 1 && !list.data.page.hasMore
-    && !controls.order && !controls.filters.length && filters?.some((filter) => filter.operator === 'EQUALS'
-      && filter.values.length === 1 && knownType?.properties.some((property) => property.key === filter.member && property.identifier));
+  const singleTarget = !!focusedObject || !offset && list.data?.page.rows.length === 1 && !list.data.page.hasMore
+    && !controls.order && !controls.filters.length && (workspace || filters?.some(filter => filter.operator === 'EQUALS'
+      && filter.values.length === 1 && knownType?.properties.some(property => property.key === filter.member && property.identifier)));
   return <div className="space-y-5" data-testid="analysis-object-browser">
-    {!singleTarget && objectKey === 'easyv-prototype-layout' && onObjectSelect ? <Button type="button" variant="ghost" onClick={() => { setReviewing(value => !value); setSelected(null); }}>{reviewing ? '返回浏览大屏' : '选择大屏一起检查与改进'}</Button> : null}
+    {!singleTarget && objectKey === 'easyv-prototype-layout' && onObjectSelect ? <Button type="button" variant="ghost" onClick={() => { setReviewing(value => !value); setSelected(null); onOpenSidePanel?.(null); }}>{reviewing ? '返回浏览大屏' : '选择大屏一起检查与改进'}</Button> : null}
     {drilldownId ? <p className="text-xs leading-5 text-muted-foreground">{scopeDescription}</p> : null}
-    <p className="text-xs leading-5 text-muted-foreground">当前对象按最新已发布数据读取；历史回答保留当时结论，数量与属性可能已变化。</p>
+    {!workspace ? <p className="text-xs leading-5 text-muted-foreground">当前对象按最新已发布数据读取；历史回答保留当时结论，数量与属性可能已变化。</p> : null}
     {!singleTarget && list.data?.page.hasMore ? <p className="text-xs leading-5 text-muted-foreground">这里只显示当前页，可翻页继续查看。</p> : null}
-    {!singleTarget ? <details open={!selected || !!list.error} className="py-2">
+    {!singleTarget ? <details open={!root || !!list.error} className="py-2">
       <summary className="cursor-pointer text-sm font-medium">{selected ? `切换${list.data?.objectType.label ?? '查看对象'}` : '选择要查看的内容'}</summary>
       <div className="mt-3 space-y-4">
     {knownType && !singleTarget ? <ObjectCollectionControls key={`${context.executionId}:${objectKey}:${drilldownId ?? 'scope'}`} properties={knownType.properties.filter((property) => !property.identifier)}
@@ -470,23 +543,23 @@ function ObjectBrowser({ context, objectKey, filters, drilldownId, scopeDescript
     {list.isPending ? <Pending>正在读取当前对象…</Pending> : null}
     {list.error ? <Notice error={list.error} /> : null}
     {list.data && !singleTarget ? <>
-      {!list.data.page.rows.length ? <div className="py-8 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : !reviewing ? <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={setSelected} /> : null}
-      <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span><div className="flex gap-1">
-        <Button type="button" size="sm" variant="ghost" aria-label="上一页对象" disabled={!offset || list.isFetching} onClick={() => { setOffset(offset - 20); setSelected(null); }}><ChevronLeft className="size-4" /></Button>
-        <Button type="button" size="sm" variant="ghost" aria-label="下一页对象" disabled={!list.data.page.hasMore || offset >= 10000 || list.isFetching} onClick={() => { setOffset(offset + 20); setSelected(null); }}><ChevronRight className="size-4" /></Button>
-      </div></div>
+      {!list.data.page.rows.length ? <div className="py-8 text-center"><Layers3 className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden /><p className="text-sm font-medium">{controls.order || controls.filters.length ? '没有符合当前筛选的对象' : '当前范围没有可查看的对象'}</p><p className="mt-1 text-xs text-muted-foreground">{controls.filters.length ? '可以调整或清除上方筛选条件。' : '可以调整分析条件后重新发起分析。'}</p></div> : !reviewing ? <ObjectList title={list.data.objectType.label} rows={list.data.page.rows} type={list.data.objectType} selected={root ?? null} onSelect={(row) => { setSelected(row); onOpenSidePanel?.(null); }} /> : null}
+      {offset > 0 || list.data.page.hasMore ? <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">第 {Math.floor(offset / 20) + 1} 页</span><div className="flex gap-1">
+        <Button type="button" size="sm" variant="ghost" aria-label="上一页对象" disabled={!offset || list.isFetching} onClick={() => { setOffset(offset - 20); setSelected(null); onOpenSidePanel?.(null); }}><ChevronLeft className="size-4" /></Button>
+        <Button type="button" size="sm" variant="ghost" aria-label="下一页对象" disabled={!list.data.page.hasMore || offset >= 10000 || list.isFetching} onClick={() => { setOffset(offset + 20); setSelected(null); onOpenSidePanel?.(null); }}><ChevronRight className="size-4" /></Button>
+      </div></div> : null}
     </> : null}
       </div>
     </details> : null}
     {reviewing && onObjectSelect ? <ScreenReviewPicker executionId={context.executionId} data={list.data} onStart={onObjectSelect} /> : null}
-    {!reviewing && root && Detail ? <Detail key={`${root.reference.objectKey}:${root.reference.objectId}`} context={context} root={root} onObjectSelect={onObjectSelect} /> : null}
+    {!reviewing && root && Detail ? <Detail key={`${root.reference.objectKey}:${root.reference.objectId}`} context={context} root={root} rootType={list.data?.objectType} onObjectSelect={onObjectSelect} onOpenSidePanel={onOpenSidePanel} /> : null}
   </div>;
 }
 
-export function renderObjectBrowserBlock({ renderedBlock, onObjectSelect }: AnalysisInteractionUiRenderInput) {
+export function renderObjectBrowserBlock({ renderedBlock, onObjectSelect, onOpenSidePanel, focusedObject }: AnalysisInteractionUiRenderInput) {
   const payload = browserPayload.safeParse(renderedBlock.payload);
   const { sessionId, executionId } = renderedBlock.source;
   if (!payload.success || !sessionId || !executionId) return <p role="alert" className="text-sm text-destructive">原型查看入口缺少有效的执行上下文，无法读取对象。</p>;
   return <ObjectBrowser key={`${executionId}:${payload.data.drilldownId ?? 'query-scope'}`} context={{ sessionId, executionId, datasetVersionSetId: payload.data.datasetVersionSetId }}
-    objectKey={payload.data.objectKey} filters={payload.data.filters} drilldownId={payload.data.drilldownId} scopeDescription={payload.data.scopeDescription} onObjectSelect={onObjectSelect} />;
+    objectKey={payload.data.objectKey} filters={payload.data.filters} drilldownId={payload.data.drilldownId} scopeDescription={payload.data.scopeDescription} onObjectSelect={onObjectSelect} onOpenSidePanel={onOpenSidePanel} focusedObject={focusedObject} />;
 }

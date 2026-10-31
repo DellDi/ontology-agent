@@ -34,7 +34,7 @@ export function renderTableBlock(input: AnalysisInteractionUiRenderInput) {
       {renderedBlock.payload.blockImprovement && typeof renderedBlock.payload.blockImprovement === 'object'
         && 'executionId' in renderedBlock.payload.blockImprovement && 'invocationId' in renderedBlock.payload.blockImprovement
         && typeof renderedBlock.payload.blockImprovement.executionId === 'string' && typeof renderedBlock.payload.blockImprovement.invocationId === 'string'
-        ? <BlockImprovementPanel executionId={renderedBlock.payload.blockImprovement.executionId} invocationId={renderedBlock.payload.blockImprovement.invocationId} /> : null}
+        ? <BlockImprovementPanel onOpenSidePanel={input.onOpenSidePanel} executionId={renderedBlock.payload.blockImprovement.executionId} invocationId={renderedBlock.payload.blockImprovement.invocationId} /> : null}
     </div>
   );
 }

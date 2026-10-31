@@ -17,7 +17,9 @@ export function AnalysisChatComposer({
   sending = false,
   status,
   onSend,
+  compact = false,
 }: {
+  compact?: boolean;
   disabled?: boolean;
   sending?: boolean;
   /** 当前执行态：映射到提交按钮的状态图标 */
@@ -29,7 +31,7 @@ export function AnalysisChatComposer({
   return (
     <div data-testid="analysis-chat-composer">
       <PromptInput
-        className="[&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:ring-0"
+        className={`${compact ? '[&_[data-slot=input-group]]:flex-row [&_[data-slot=input-group]]:items-end ' : ''}[&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:ring-0`}
         onSubmit={(message) => {
           const text = message.text.trim();
           if (!text || busy) return;
@@ -39,12 +41,12 @@ export function AnalysisChatComposer({
         <PromptInputBody>
           <PromptInputTextarea
             aria-label="输入消息"
-            className="max-h-40 min-h-[52px] text-sm leading-6"
+            className={compact ? 'max-h-32 min-h-10 py-2 text-sm leading-6' : 'max-h-40 min-h-[52px] text-sm leading-6'}
             disabled={busy}
             placeholder="输入消息，继续对话…"
           />
         </PromptInputBody>
-        <PromptInputFooter className="justify-end">
+        <PromptInputFooter className={compact ? 'w-auto shrink-0 justify-end p-1' : 'justify-end'}>
           <PromptInputSubmit
             aria-label="发送消息"
             disabled={busy}

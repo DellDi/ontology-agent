@@ -373,6 +373,7 @@ function QueryEditor({
 export function AnalysisUnderstandingEditor({
   catalog,
   onClose,
+  onDirtyChange,
   onSubmit,
   resolvedQueries,
   serverError,
@@ -389,6 +390,7 @@ export function AnalysisUnderstandingEditor({
     queries: { id: string; intent: Record<string, unknown> }[];
   }) => void;
   onClose: () => void;
+  onDirtyChange?: () => void;
 }) {
   // 草稿按 turn 初始化；编辑过程仅本地状态，提交时才生成 intent 与摘要
   const [drafts, setDrafts] = useState<StructuredQueryDraft[]>(() =>
@@ -453,9 +455,10 @@ export function AnalysisUnderstandingEditor({
                 catalogObject={catalogObject}
                 draft={draft}
                 filterMetadata={understanding.find((entry) => entry.id === draft.id)?.filters ?? []}
-                onChange={(patch) =>
-                  setDrafts((current) => updateDraft(current, draft.id, patch))
-                }
+                onChange={(patch) => {
+                  onDirtyChange?.();
+                  setDrafts((current) => updateDraft(current, draft.id, patch));
+                }}
               />
             </section>
           );
