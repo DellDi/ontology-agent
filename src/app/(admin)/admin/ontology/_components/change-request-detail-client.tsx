@@ -162,7 +162,7 @@ export function ChangeRequestDetailClient({
       <AdminPageHeader
         eyebrow="变更申请"
         title={cr.title}
-        description={cr.description ?? '本变更申请没有提供描述说明。'}
+        description={cr.description ?? undefined}
         trailing={
           <div className="flex flex-col items-end gap-2">
             <StatusBadge tone={statusLabel.tone}>{statusLabel.label}</StatusBadge>

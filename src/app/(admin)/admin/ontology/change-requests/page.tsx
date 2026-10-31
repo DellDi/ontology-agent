@@ -52,7 +52,6 @@ export default async function OntologyAdminChangeRequestsPage({
       <AdminPageHeader
         eyebrow="变更申请"
         title="变更申请管理"
-        description="管理本体变更的完整生命周期：创建、审批、发布。"
         trailing={
           state.capabilities.canAuthor ? (
             <Button asChild>

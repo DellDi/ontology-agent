@@ -1,6 +1,6 @@
 export default function AdminLoading() {
   return (
-    <main className="min-h-screen bg-background px-6 py-8 lg:px-10">
+    <div role="status" aria-label="正在加载管理页面" className="py-2">
       <section className="mx-auto max-w-7xl space-y-6">
         <div className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)] md:p-7">
           <p className="text-xs font-semibold tracking-[0.12em] text-primary">
@@ -15,6 +15,6 @@ export default function AdminLoading() {
         </div>
         <div className="h-72 animate-pulse rounded-md border border-border bg-card" />
       </section>
-    </main>
+    </div>
   );
 }

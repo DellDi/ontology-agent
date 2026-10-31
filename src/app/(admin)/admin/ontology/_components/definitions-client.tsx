@@ -96,15 +96,15 @@ export function DefinitionsClient({
     <>
       <AdminCard title="版本信息">
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg bg-muted p-4">
+          <div className="py-1">
             <p className="text-xs tracking-[0.12em] text-primary">版本名称</p>
             <p className="mt-1 text-base font-semibold text-foreground">{version.displayName}</p>
           </div>
-          <div className="rounded-lg bg-muted p-4">
+          <div className="py-1">
             <p className="text-xs tracking-[0.12em] text-primary">发布时间</p>
             <p className="mt-1 text-base text-foreground">{formatTimestamp(version.publishedAt)}</p>
           </div>
-          <div className="rounded-lg bg-muted p-4">
+          <div className="py-1">
             <p className="text-xs tracking-[0.12em] text-primary">创建时间</p>
             <p className="mt-1 text-base text-foreground">{formatTimestamp(version.createdAt)}</p>
           </div>
@@ -117,11 +117,12 @@ export function DefinitionsClient({
       <AdminCard title="">
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <form method="get" className="flex items-center gap-2">
+            <form method="get" className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
               <select
+                aria-label="本体版本"
                 name="versionId"
                 defaultValue={version.id}
-                className="h-11 w-full min-w-[200px] rounded-md border border-input bg-card px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+                className="h-11 w-full min-w-0 rounded-md border border-input bg-card px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40 sm:w-64"
               >
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -134,10 +135,11 @@ export function DefinitionsClient({
               </Button>
             </form>
             <input
+              aria-label="搜索本体定义"
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
               placeholder="搜索名称、业务键或状态"
-              className="h-11 min-w-[240px] rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
+              className="h-11 w-full min-w-0 rounded-md border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40 sm:w-60"
             />
           </div>
           <div className="flex flex-wrap border-b border-border">
@@ -147,6 +149,7 @@ export function DefinitionsClient({
                 <button
                   key={tab.key}
                   type="button"
+                  aria-pressed={isActive}
                   onClick={() => setActiveTab(tab.key)}
                   className={cn(
                     '-mb-px inline-flex items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-medium transition-colors',

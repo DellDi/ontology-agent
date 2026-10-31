@@ -5,7 +5,15 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布：D2 按需生成失败巡检（2026-10-23）
+## 当前发布：saas-test 全量刷新与核心指标适配（2026-10-27）
+
+已按用户确认对全部已接入 saas-test 数据重新执行正式 RECONCILE：七类源、九个产品，集合 `ingest-4733cf60-513a-4415-aab1-da61b0c34128` 于 08:47:59（Asia/Shanghai）冻结。双方平台已备份并迁移至 V33，源库只读、源写回关闭，旧版本与账号／会话／动作内容保护校验通过。
+
+API 与发布 Worker 镜像／目录为 `full-refresh-20261027-d1527bb0a2`，Cube 配套模型来自该目录；Web 最终版本见 [详细回执](./acceptance/easyv-core-metrics-refresh.md)。本批来自已验证工作树而非新 Git 提交；源归档摘要、镜像 revision 与部署 JAR SHA-256 均在私有 `deployment-report.json` 中可核对。CubeStore、Valkey 保留现有容器与版本，没有顺带升级无关依赖。
+
+完整采集结果、唯一源空核心块、公司及本地备份、快照范围核验和实际页面证据见 [全量刷新回执](./acceptance/easyv-core-metrics-refresh.md)。公司只做部署健康与认证检查，真实业务页面在同步后的本地快照验证。
+
+## 上批发布：D2 按需生成失败巡检（2026-10-23）
 
 Web、API/分析 Worker 与发布 Worker 已更新为 `d-inspection-d5f6ff9`，代码提交 `d5f6ff9abca9caedabcbf3963a4e3995008c8712`。工作台首页增加生成失败巡检入口，沿用正式对象查询的成员资格和账号范围，区分转为失败、首次可见、前后均失败；完整统计后分页展示，并支持把任务/应用问题预填到后续分析。具体口径、权限、完整查询边界和未闭环项见 [D 推进记录](./acceptance/d-operations-plan.md)。
 

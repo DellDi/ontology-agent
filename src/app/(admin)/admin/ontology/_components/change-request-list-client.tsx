@@ -127,11 +127,6 @@ export function ChangeRequestListClient({
             description={
               activeStatus !== 'all'
                 ? `当前"${getCRStatusLabel(activeStatus).label}"状态下没有变更记录。`
-                : '还没有任何变更申请记录。点击"新建变更申请"开始第一个变更流程。'
-            }
-            action={
-              data.capabilities.canAuthor
-                ? { label: '新建变更申请', href: '/admin/ontology/change-requests/new' }
                 : undefined
             }
           />

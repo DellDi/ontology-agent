@@ -84,13 +84,7 @@ export function IngestionWorkbench({
     <section className="mx-auto w-full max-w-6xl space-y-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mb-2 text-xs text-muted-foreground">
-            平台管理
-          </p>
           <h1 className="text-2xl font-semibold tracking-tight">数据管理</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            更新分析数据，处理接入异常。
-          </p>
         </div>
         <a
           href="/admin/ingestion"

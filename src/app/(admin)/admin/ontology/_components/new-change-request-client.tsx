@@ -86,7 +86,6 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
       <AdminPageHeader
         eyebrow="变更申请"
         title="新建变更申请"
-        description="填写变更信息后可保存为草稿，也可以一次性保存并提交审批。"
         trailing={
           <Button variant="outline" asChild>
             <Link href="/admin/ontology/change-requests">
@@ -98,19 +97,16 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
 
       <AdminCard
         title="基本信息"
-        description="变更申请的核心标识与说明"
       >
         <form ref={formRef} className="space-y-6" onSubmit={(event) => event.preventDefault()}>
           <label className="block">
             <span className="block text-sm font-semibold text-foreground">标题 <span className="text-destructive">*</span></span>
             <Input name="title" required maxLength={200} placeholder="简要描述本次变更的内容" />
-            <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更申请的标题，用于在列表中快速识别</span>
           </label>
 
           <label className="block">
             <span className="block text-sm font-semibold text-foreground">描述</span>
             <Textarea name="description" placeholder="详细说明变更的背景、目的和预期效果" className="min-h-[100px]" />
-            <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">可选。提供更详细的变更说明，帮助审批人理解变更意图</span>
           </label>
 
           <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">变更目标</div>
@@ -125,7 +121,6 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
                   </option>
                 ))}
               </select>
-              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">变更将应用到的目标版本</span>
             </label>
 
             <label className="block">
@@ -137,7 +132,6 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
                   </option>
                 ))}
               </select>
-              <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">本次变更涉及的治理对象类型</span>
             </label>
 
             <label className="block">
@@ -192,7 +186,6 @@ export function NewChangeRequestClient({ versions }: { versions: OntologyVersion
           <label className="block">
             <span className="block text-sm font-semibold text-foreground">兼容说明</span>
             <Textarea name="compatibilityNote" placeholder="说明兼容性评估的依据和注意事项" className="min-h-[80px]" />
-            <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">可选。对兼容性选择的补充说明</span>
           </label>
 
           <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">变更内容</div>

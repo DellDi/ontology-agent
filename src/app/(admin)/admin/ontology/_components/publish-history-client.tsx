@@ -43,7 +43,7 @@ export function PublishHistoryClient({ initialData }: { initialData: PublishHist
       {data.records.length === 0 ? (
         <EmptyState
           title="暂无发布记录"
-          description="还没有任何版本被发布。请在变更申请审批通过后执行发布操作。"
+          description="审批通过的变更发布后，将显示在这里。"
           action={{
             label: '查看变更申请',
             href: '/admin/ontology/change-requests',

@@ -29,7 +29,7 @@ export function IngestionHealthPanel({ health, onInspectRuns }: {
 
   return <section className="space-y-8" aria-label="平台数据概况">
     {onInspectRuns ? <div className="space-y-3">
-      <h2 className="text-base font-semibold">{needsAttention ? '需要关注' : products.length ? '最近接入任务没有失败，已启用的数据均已发布' : '尚未接入分析数据'}</h2>
+      <h2 className="text-base font-semibold">{needsAttention ? '需要关注' : products.length ? '已启用数据均已发布' : '尚未接入分析数据'}</h2>
       {[...updates.values()].map(({ run, products: affected }) => {
         const updating = run.status === 'pending' || run.status === 'running';
         const retained = affected.filter(product => product.published);
@@ -68,7 +68,7 @@ export function IngestionHealthPanel({ health, onInspectRuns }: {
         </div>;
       })}
       {!products.length ? <p className="text-sm text-muted-foreground">尚未接入分析数据。</p> : null}
-      <p className="text-xs leading-5 text-muted-foreground">以上为平台数据的采集时间。具体分析采用的数据和时间以结果中的数据出处为准。</p>
+      <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">采集时间说明</summary><p className="mt-2 leading-5">以上为平台数据的采集时间。具体分析采用的数据和时间以结果中的数据出处为准。</p></details>
     </div>
   </section>;
 }

@@ -17,17 +17,18 @@ function isActive(item: ShellMenuItem, current: string): boolean {
 
 export function ShellMenu({ items, horizontal = false }: { items: ShellMenuItem[]; horizontal?: boolean }) {
   const pathname = usePathname();
+  const activeItem = items.filter(item => isActive(item, pathname)).sort((a, b) => b.href.length - a.href.length)[0];
 
   return (
-    <nav aria-label="主导航" className={horizontal ? "flex flex-wrap gap-1" : "flex flex-col gap-1"}>
+    <nav aria-label="主导航" className={horizontal ? "flex flex-wrap gap-1" : "flex flex-wrap gap-1 lg:flex-col"}>
       {items.map((item) => {
-        const active = isActive(item, pathname);
+        const active = item === activeItem;
         return (
           <Link
             key={item.href + item.label}
             href={item.href}
             aria-current={active ? 'page' : undefined}
-            className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+            className={`rounded-lg px-4 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               active
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'

@@ -33,15 +33,15 @@ export function AdminPageHeader({
   trailing,
 }: AdminPageHeaderProps) {
   return (
-    <article className="rounded-md border border-border bg-card p-6 shadow-[var(--shadow-panel)] md:p-7">
+    <header className="py-2">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl space-y-3">
-          <p className="text-xs font-semibold tracking-[0.12em] text-primary">
+          <p className="sr-only">
             {eyebrow}
           </p>
-          <h2 className="font-display text-2xl leading-tight font-semibold text-foreground md:text-3xl">
+          <h1 className="text-2xl leading-tight font-semibold tracking-tight text-foreground">
             {title}
-          </h2>
+          </h1>
           {description ? (
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
               {description}
@@ -50,7 +50,7 @@ export function AdminPageHeader({
         </div>
         {trailing}
       </div>
-    </article>
+    </header>
   );
 }
 

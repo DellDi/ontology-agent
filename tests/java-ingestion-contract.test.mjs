@@ -245,10 +245,10 @@ test('失败巡检页面 | 解释空范围、无对比版本、首次可见与�
     console.log(renderToStaticMarkup(React.createElement(view.InspectionView,{report})));
   `], { encoding:'utf8',env:{...process.env,NODE_OPTIONS:''} });
   assert.match(html,/首次可见不等于刚刚发生/);
-  assert.match(html,/当前可见范围内没有符合上述口径/);
+  assert.match(html,/当前范围内没有失败生成任务/);
   assert.match(html,/尚无更早的完整冻结版本/);
-  assert.match(html,/不等于已验证的根因/);
-  assert.match(html,/后续分析按当时最新发布数据读取/);
+  assert.match(html,/源任务的错误记录，尚未验证根因/);
+  assert.match(html,/分析使用当时最新发布数据/);
   assert.match(html,/\/workspace\?draft=/);
   assert.match(html,/task-a/);
 });

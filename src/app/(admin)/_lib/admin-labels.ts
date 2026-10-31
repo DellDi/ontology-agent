@@ -1,4 +1,5 @@
 import type { changeRequestStatusTone } from '../_components/admin-shell';
+import type { ChangeType, TargetObjectType } from '@/domain/ontology/governance';
 
 type StatusTone = ReturnType<typeof changeRequestStatusTone>;
 
@@ -49,10 +50,12 @@ export function getCRStatusLabel(status: string): StatusLabel {
   };
 }
 
-export const CHANGE_TYPE_LABELS: Record<string, string> = {
+export const CHANGE_TYPE_LABELS: Record<string, string> & Record<ChangeType, string> = {
   create: '新建',
   update: '修改',
   delete: '删除',
+  deprecate: '弃用',
+  retire: '停用',
 };
 
 export function getChangeTypeLabel(type: string): string {
@@ -82,15 +85,19 @@ export function getCompatibilityLabel(type: string): CompatibilityLabel {
   };
 }
 
-export const TARGET_OBJECT_TYPE_LABELS: Record<string, string> = {
+export const TARGET_OBJECT_TYPE_LABELS: Record<string, string> & Record<TargetObjectType, string> = {
   entity_definition: '实体定义',
   metric: '指标',
+  metric_definition: '指标定义',
   metric_variant: '指标变体',
   factor: '因素',
+  factor_definition: '因素定义',
   plan_step_template: '计划步骤模板',
   time_semantic: '时间语义',
   causality_edge: '因果边',
   evidence_type: '证据类型',
+  evidence_type_definition: '证据类型',
+  tool_capability_binding: '工具能力绑定',
 };
 
 export function getTargetObjectTypeLabel(type: string): string {

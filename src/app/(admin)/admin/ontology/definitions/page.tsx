@@ -70,15 +70,14 @@ export default async function OntologyAdminDefinitionsPage({
       <section className="space-y-6">
         <AdminPageHeader
           eyebrow="定义管理"
-          title="本体定义查阅"
-          description="查询当前生效版本下的实体、指标、因素、计划模板等正式定义。"
-        />
+          title="本体定义"
+          />
         <article
           className="rounded-md border border-[color:var(--brand-300)]/40 bg-[color:color-mix(in_srgb,var(--brand-500)_10%,transparent)] px-4 py-3 text-sm leading-6 text-foreground"
           role="status"
           aria-live="polite"
         >
-          当前还没有任何 ontology version 可供查阅。请先通过 bootstrap 流程或正式的变更申请创建首个版本。
+          暂无可查阅版本。
         </article>
       </section>
     );
@@ -98,8 +97,7 @@ export default async function OntologyAdminDefinitionsPage({
     <section className="space-y-6">
       <AdminPageHeader
         eyebrow="定义管理"
-        title="本体定义查阅"
-        description="按版本查阅当前 ontology 治理对象。首期只读，变更请走变更申请流程。"
+        title="本体定义"
         trailing={
           <StatusBadge tone="success">
             {version.semver} · {getVersionStatusLabel(version.status)}

@@ -23,7 +23,6 @@ export default async function OntologyAdminPublishHistoryPage() {
       <AdminPageHeader
         eyebrow="发布记录"
         title="发布记录"
-        description="查看所有 ontology 版本的发布历史与对应的变更申请批次。"
       />
 
       <PublishHistoryClient
