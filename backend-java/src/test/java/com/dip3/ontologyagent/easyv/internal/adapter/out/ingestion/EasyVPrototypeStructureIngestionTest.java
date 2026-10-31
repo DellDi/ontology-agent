@@ -110,6 +110,38 @@ class EasyVPrototypeStructureIngestionTest {
   }
 
   @Test
+  void publishesPanelStatesAndTheirComponentsWithSourceControlSemantics() {
+    String xml = "<Pages><Page id='page-1' width='1200' height='600'><Layout><Block id='p' render='dynamic-panel' options='[&quot;s1&quot;,&quot;s2&quot;]' /></Layout></Page></Pages>";
+    var source = Map.of("page-1", Map.of("title", "协议测试", "blocks", Map.of(
+      "p", Map.of("title", "经营", "components", List.of()),
+      "s1", Map.of("title", "收入", "components", List.of(Map.of("id", "c1", "chartFamily", "line"))),
+      "s2", Map.of("title", "成本", "components", List.of(Map.of("id", "c2", "chartFamily", "bar")))),
+      "controls", List.of(Map.of("id", "ct", "moduleName", "tabV2", "effect", "panelSwitch", "ref", List.of("p")))));
+    var time = LocalDateTime.parse("2026-10-31T10:00:00");
+    var versions = materializeAll(publish("panel-source", List.of(row(1L, "panel-test", xml, source, time, time))), "panel");
+    assertEquals(3L, count("facts.easyv_prototype_block", versions.get(PRODUCTS.get(1))));
+    assertEquals(2L, count("facts.easyv_prototype_component", versions.get(PRODUCTS.get(2))));
+    assertEquals("p", jdbc.queryForObject("select container_id from facts.easyv_prototype_block where app_id='panel-test' and block_id='s1'", String.class));
+    assertEquals("tabV2", jdbc.queryForObject("select page_semantics #>> '{0,panels,0,moduleName}' from facts.easyv_prototype_layout where app_id='panel-test'", String.class));
+    assertEquals("s2", jdbc.queryForObject("select page_semantics #>> '{0,panels,0,stateIds,1}' from facts.easyv_prototype_layout where app_id='panel-test'", String.class));
+  }
+
+  @Test
+  void materializesCoreRolesFromXmlAndPreservesExistingModuleCountSemantics() {
+    Map<String, Object> sourceJson = validJson("4");
+    String coreXml = XML.replace("<Sider gap=", "<Sider type=\"core-metrics\" gap=")
+        .replace("<Block blockSize=", "<Block metric_role=\"core\" blockSize=");
+    LocalDateTime time = LocalDateTime.parse("2026-09-04T09:05:00");
+    var versions = materializeAll(publish("core-roles", List.of(row(1L, "app-core", coreXml, sourceJson, time, time))), "core");
+    assertEquals(2, jdbc.queryForObject("select count(*) from facts.easyv_prototype_block where product_version_id=? and metric_role='core'",
+        Integer.class, versions.get(PRODUCTS.get(1))));
+    assertEquals(1, jdbc.queryForObject("select count(*) from facts.easyv_prototype_block where product_version_id=? and metric_role='module'",
+        Integer.class, versions.get(PRODUCTS.get(1))));
+    assertEquals(3, jdbc.queryForObject("select block_count from facts.easyv_prototype_layout where product_version_id=?",
+        Integer.class, versions.get(PRODUCTS.get(0))));
+  }
+
+  @Test
   void materializesStructureAndKeepsParseFailuresVisible() {
     String source = publish("run-1", rows(validJson("4")));
     Map<String, String> versions = materializeAll(source, "a");
@@ -130,7 +162,7 @@ class EasyVPrototypeStructureIngestionTest {
         select layout_structure #>> '{children,0,children,0,children,0,children,1,attributes,id}'
         from facts.easyv_prototype_layout where app_id='app-1'
         """, String.class));
-    assertEquals(3, jdbc.queryForObject(
+    assertEquals(5, jdbc.queryForObject(
         "select schema_version from ingestion.data_product_versions where id=?", Integer.class,
         versions.get("easyv-prototype-layout")));
     assertEquals(0L, jdbc.queryForObject("""
@@ -245,7 +277,7 @@ class EasyVPrototypeStructureIngestionTest {
     var bindings = new JsonCodec().list(jdbc.queryForObject(bindingsSql, String.class, first.get(PRODUCTS.get(1))));
     assertEquals(List.of(Map.of("slotIndex", 0, "componentId", "c1", "metricId", "metric-a",
         "chartFamily", "line", "sceneType", "总览指标", "sourceType", "AI")), bindings);
-    assertEquals(4, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",
+    assertEquals(6, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",
         Integer.class, first.get(PRODUCTS.get(1))));
     left.put("boundMetricIds", List.of("metric-b"));
     var changed = materializeAll(publish("binding-changed", rows(bound)), "binding-changed");
@@ -292,7 +324,7 @@ class EasyVPrototypeStructureIngestionTest {
     assertEquals(originalGeometry, structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of(objectId)));
     assertTrue(structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of("not-authorized")).isEmpty());
     assertTrue(structures.componentGeometry(first.get(PRODUCTS.get(2)), List.of()).isEmpty());
-    assertEquals(3,jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",Integer.class,changed.get(PRODUCTS.get(2))));
+    assertEquals(4,jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id=?",Integer.class,changed.get(PRODUCTS.get(2))));
     var viewer=new com.dip3.ontologyagent.auth.AuthSession("test","1","用户",new com.dip3.ontologyagent.auth.AccessScope("org",List.of(),List.of(),List.of("PLATFORM_ADMIN")),java.time.Instant.MAX);
     reader.audit("assessment-evidence","session-test",viewer,Map.of("input",original,"ruleVersion","easyv-adaptation-v1"));
     assertEquals("easyv-adaptation-v1",jdbc.queryForObject("select payload->>'ruleVersion' from platform.audit_events where id='assessment-evidence'",String.class));

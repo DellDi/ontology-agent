@@ -190,7 +190,7 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                             block.blockSize(), block.span(), block.weight(), block.schemeId(),
                             block.components().size(), createdAt, block.metricBindingStatus(),
                             block.metricBindings() == null ? null : json.write(block.metricBindings()), block.titlePresent(), block.pageId(), block.pageTitle(),
-                            block.title(), block.businessModule(), block.moduleDescription(), block.interactionDescription()));
+                            block.title(), block.businessModule(), block.moduleDescription(), block.interactionDescription(), block.metricRole()));
                 }
             }
             case PROTOTYPE_COMPONENT -> {
@@ -328,7 +328,7 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                 values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """),
         PROTOTYPE_LAYOUT("easyv-prototype-layout", "easyv-prototype-task", "easyv_prototype_layout",
-                "easyv-prototype-layout-v3", """
+                "easyv-prototype-layout-v5", """
                 insert into facts.easyv_prototype_layout
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    app_id,parse_status,parse_error_code,parse_error_detail,layout_type,block_count,
@@ -336,15 +336,15 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
                    created_at,updated_at,layout_structure,page_semantics) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?::jsonb)
                 """),
         PROTOTYPE_BLOCK("easyv-prototype-block", "easyv-prototype-task", "easyv_prototype_block",
-                "easyv-prototype-block-v4", """
+                "easyv-prototype-block-v6", """
                 insert into facts.easyv_prototype_block
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    app_id,block_id,container_tag,container_id,grid_direction,block_type_id,block_size,
-                   span,weight,scheme_id,component_count,created_at,metric_binding_status,metric_bindings,title_present,page_id,page_title,block_title,business_module,module_description,interaction_description)
-                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?)
+                   span,weight,scheme_id,component_count,created_at,metric_binding_status,metric_bindings,title_present,page_id,page_title,block_title,business_module,module_description,interaction_description,metric_role)
+                values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?,?)
                 """),
         PROTOTYPE_COMPONENT("easyv-prototype-component", "easyv-prototype-task",
-                "easyv_prototype_component", "easyv-prototype-component-v3", """
+                "easyv_prototype_component", "easyv-prototype-component-v4", """
                 insert into facts.easyv_prototype_component
                   (product_version_id,source_dataset_key,source_dataset_version_id,source_id,
                    app_id,block_id,component_id,chart_family,library_component_id,scene_type,

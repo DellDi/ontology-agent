@@ -44,5 +44,15 @@
       }
     ]
   },
-  "error": null
+  "error": null,
+  "selection": {
+    "executionId": "execution",
+    "datasetVersionSetId": "set",
+    "reference": {
+      "objectKey": "easyv-prototype-block",
+      "objectId": "app:block",
+      "productVersionId": "blocks"
+    }
+  },
+  "executionAvailable": true
 }

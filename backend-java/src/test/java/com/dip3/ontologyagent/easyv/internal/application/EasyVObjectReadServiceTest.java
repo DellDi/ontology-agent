@@ -567,6 +567,65 @@ class EasyVObjectReadServiceTest {
     return new EasyVObjectReadService.Request("execution", "set-old", key, id, null, null, null, 1, 0, null, true);
   }
 
+  @Test
+  void catalogUsesCurrentPublicationAndNeverRequiresAnAnalysisExecution() {
+    var catalog = ontologies.published("ontology-old");
+    when(ontologies.currentPublished()).thenReturn(catalog);
+    var result = service.browseCatalog(admin, new EasyVObjectReadService.CatalogRequest(null, null, null, null, " 银行 ", 12, 0));
+    assertNull(result.executionId());
+    assertEquals("set-old", result.datasetVersionSetId());
+    assertEquals("ontology-old", result.ontologyVersionId());
+    verify(objects).query(argThat(query -> query.objectKey().equals(LAYOUT) && query.limit() == 12
+        && query.filters().equals(List.of(new QueryIntent.Filter("pageTitle", QueryIntent.Operator.CONTAINS, List.of("银行"))))),
+        argThat(access -> access.scope().all() && access.productVersions().get(LAYOUT).equals("layouts-old")));
+    verifyNoInteractions(sessions);
+    verify(executions, never()).findJavaSnapshot(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void catalogAlwaysUsesTheCurrentUserBindingAndRejectsUnboundOrUnauthorizedUsers() {
+    var catalog = ontologies.published("ontology-old");
+    when(ontologies.currentPublished()).thenReturn(catalog);
+    when(accounts.subjectValue(1L, "easyv", "userId")).thenReturn(Optional.of("3"));
+    service.browseCatalog(analyst, new EasyVObjectReadService.CatalogRequest(null, null, null, null, null, 12, 0));
+    verify(objects).query(any(), argThat(access -> !access.scope().all()
+        && access.scope().values().equals(Map.of("userId", List.of("3")))));
+    when(accounts.subjectValue(1L, "easyv", "userId")).thenReturn(Optional.empty());
+    assertEquals("EASYV_USER_BINDING_REQUIRED", assertThrows(BackendException.class, () -> service.browseCatalog(analyst,
+        new EasyVObjectReadService.CatalogRequest(null, null, null, null, null, 12, 0))).code());
+    assertEquals("EASYV_SCOPE_FORBIDDEN", assertThrows(BackendException.class, () -> service.browseCatalog(viewer("2", "VIEWER"),
+        new EasyVObjectReadService.CatalogRequest(null, null, null, null, null, 12, 0))).code());
+  }
+
+  @Test
+  void catalogRejectsInvalidPaginationUnrelatedDomainsAndFreeformRelationships() {
+    var catalog = ontologies.published("ontology-old");
+    when(ontologies.currentPublished()).thenReturn(catalog);
+    for (var request : List.of(
+        new EasyVObjectReadService.CatalogRequest(null, "easyv-quality-node", null, null, null, 12, 0),
+        new EasyVObjectReadService.CatalogRequest(null, null, null, "blocks", null, 12, 0),
+        new EasyVObjectReadService.CatalogRequest(null, null, "app", "operations", null, 12, 0),
+        new EasyVObjectReadService.CatalogRequest(null, null, "app", null, "银行", 12, 0),
+        new EasyVObjectReadService.CatalogRequest(null, null, null, null, null, 201, 0),
+        new EasyVObjectReadService.CatalogRequest(null, null, null, null, null, 12, -1))) {
+      assertEquals("OBJECT_QUERY_INVALID", assertThrows(BackendException.class, () -> service.browseCatalog(admin, request)).code());
+    }
+    verifyNoInteractions(objects);
+  }
+
+  @Test
+  void catalogDetailsUseTheRequestedFrozenVersionAndTheAuthorizedObjectPort() {
+    var catalog = ontologies.published("ontology-old");
+    when(ontologies.currentPublished()).thenReturn(catalog);
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(LAYOUT, "app", "layouts-old"), Map.of("appId", "app", "parseStatus", "ok"));
+    when(objects.require(eq(LAYOUT), eq("app"), any())).thenReturn(row);
+    when(structures.structure("layouts-old", "app")).thenReturn(Map.of("tag", "Pages", "attributes", Map.of(), "children", List.of()));
+    var result = service.browseCatalog(admin, new EasyVObjectReadService.CatalogRequest("set-old", null, "app", null, null, null, null));
+    assertEquals(row, result.page().rows().getFirst());
+    assertEquals("available", result.structure().status());
+    verify(objects).require(eq(LAYOUT), eq("app"), argThat(access -> access.productVersions().get(LAYOUT).equals("layouts-old")));
+  }
+
   private void snapshot(CapabilityBinding binding, String set) {
     when(executions.findJavaSnapshot("session", "execution", "1")).thenReturn(Optional.of(new ExecutionSnapshot(
         "execution", "session", "1", null, "ontology-old", Map.of("source", "grounded-context"), binding.snapshot(),

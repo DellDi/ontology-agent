@@ -157,7 +157,7 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
       "createdAt", List.of("application"), Map.of(SCOPE_USER, "application.userId"));
 
   public static final OntologyObjectType PROTOTYPE_BLOCK = new OntologyObjectType(
-      "easyv-prototype-block", "原型区域", "原型版式中的区域（Block），含所用图表方案与尺寸类别",
+      "easyv-prototype-block", "原型区域", "原型版式中的区域（Block），包括普通模块与独立核心指标块，含源指标角色、图表方案与尺寸类别",
       "EasyvPrototypeBlock", "easyv-prototype-block", "facts.easyv_prototype_block", null,
       List.of(
           new OntologyProperty("blockKey", "区域记录 ID", null, Type.STRING,
@@ -170,6 +170,8 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
           OntologyProperty.detailText("interactionDescription", "交互说明", "源原型中的交互说明，不证明交互已生效", "{CUBE}.interaction_description").display(false, true, Map.of()),
           OntologyProperty.identifier("appId", "应用 ID", "区域所属应用", "app_id"),
           OntologyProperty.identifier("blockId", "区域 ID", "布局树中的区域标识", "block_id"),
+          OntologyProperty.column("metricRole", "指标角色", "核心指标区或显式 core 标记为核心指标，其他为普通模块；历史版本未保留时为空", Type.STRING, "metric_role")
+              .display(true, true, Map.of("core", "核心指标", "module", "普通模块")),
           new OntologyProperty("position", "区域位置", "区域在版式中的位置标识（如 left_1）", Type.STRING,
               "regexp_replace({CUBE}.block_id, '^.*?__', '')", false),
           OntologyProperty.column("containerTag", "所在容器", "区域所在的页面容器", Type.STRING, "container_tag")

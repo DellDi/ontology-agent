@@ -28,7 +28,7 @@ public class EasyVBlockActionService {
     this.sessions=sessions;this.invocations=invocations;this.objects=objects;this.identities=identities;
     this.scopes=scopes;this.store=store;this.source=source;
   }
-  public record View(String invocationId,String title,String applicationName,BlockImprovement.Preview proposal,Map<String,String> chartLabels,
+  public record View(String invocationId,ObjectSelection selection,boolean executionAvailable,String title,String applicationName,BlockImprovement.Preview proposal,Map<String,String> chartLabels,
                      String actionId,String status,Map<String,Object> preparedBlock,String error) {}
   public View get(String session,String execution,String invocation,AuthSession viewer){
     var evidence=evidence(session,execution,invocation,viewer);
@@ -127,7 +127,7 @@ public class EasyVBlockActionService {
   private View view(String applicationName,String invocation,Map<String,Object> evidence,EasyVBlockActionStore.Action action){
     var context=json.convertValue(evidence.get("input"),EasyVSchemeAssessmentService.ImprovementContext.class);
     if(action!=null && map(action.prepared().get("source")).get("applicationName") instanceof String liveName && !liveName.isBlank()) applicationName=liveName;
-    return new View(invocation,context.block().title(),applicationName,json.convertValue(evidence.get("preview"),BlockImprovement.Preview.class),context.chartTypes(),
+    return new View(invocation,context.selection(),source.isConfigured(),context.block().title(),applicationName,json.convertValue(evidence.get("preview"),BlockImprovement.Preview.class),context.chartTypes(),
       action==null?null:action.id(),action==null?"proposal":action.status(),action==null?null:map(map(action.prepared().get("source")).get("block")),action==null?null:action.error());
   }
   @SuppressWarnings("unchecked") private static Map<String,Object> map(Object value){return (Map<String,Object>)value;}

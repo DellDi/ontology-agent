@@ -155,6 +155,45 @@ public class EasyVObjectReadService {
         EasyVScopeResolver.narrowScope(binding.resolvedScope(), current), viewer, resolved.contributionMetric());
   }
 
+  /** 当前工作台目录独立于分析执行；只使用当前账号权限和正式已发布数据。 */
+  public record CatalogRequest(String datasetVersionSetId, String objectKey, String objectId, String relation,
+                               String search, Integer limit, Integer offset) {
+    @JsonAnySetter
+    public void rejectUnknown(String key, Object value) {
+      throw new BackendException("OBJECT_QUERY_INVALID", "大屏目录不接受字段：" + key);
+    }
+  }
+
+  @Transactional(readOnly = true)
+  public Result browseCatalog(AuthSession viewer, CatalogRequest request) {
+    var scope = scopes.resolveScope(viewer);
+    if (request == null || (request.objectKey() != null && !Set.of("easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component").contains(request.objectKey()))
+        || (request.objectKey() != null && !request.objectKey().equals("easyv-prototype-layout") && (request.objectId() == null || request.relation() != null))
+        || (request.objectId() != null && (request.objectId().isBlank() || request.objectId().length() > 500))
+        || (request.search() != null && request.search().length() > 200)
+        || (request.datasetVersionSetId() != null && request.datasetVersionSetId().isBlank())
+        || (request.relation() != null && (!Set.of("blocks", "components").contains(request.relation()) || request.objectId() == null))
+        || (request.objectId() != null && request.search() != null && !request.search().isBlank())) {
+      throw new BackendException("OBJECT_QUERY_INVALID", "大屏目录查询条件无效。");
+    }
+    var ontology = ontologies.currentPublished();
+    EasyVGenerationOntology.validate(EasyVGenerationOntology.ENTITY_KEY, EasyVGenerationOntology.METRIC_KEY,
+        EasyVGenerationOntology.TIME_KEY, ontology);
+    String version = request.datasetVersionSetId() != null ? request.datasetVersionSetId()
+        : datasets.latestFrozen(EasyVGenerationOntology.REQUIRED_DATA_PRODUCT_KEYS)
+            .orElseThrow(() -> new BackendException("DATASET_VERSION_SET_NOT_PUBLISHED", "当前尚无完整发布的 EasyV 数据。"))
+            .publicationId();
+    List<QueryIntent.Filter> filters = request.search() == null || request.search().isBlank() ? null
+        : List.of(new QueryIntent.Filter("pageTitle", QueryIntent.Operator.CONTAINS, List.of(request.search().trim())));
+    List<QueryIntent.Order> order = request.objectId() == null
+        ? List.of(new QueryIntent.Order("createdAt", QueryIntent.Direction.DESC)) : null;
+    var query = new Request(null, version, request.objectKey() == null ? EasyVOntologyModel.PROTOTYPE_LAYOUT.key() : request.objectKey(), request.objectId(), request.relation(),
+        filters, order, request.limit() == null ? 20 : request.limit(), request.offset());
+    validateQuery(query);
+    // 目录不制造分析会话或执行 ID；readAuthorized 仍核验对象、关系和版本，并应用数据行权限。
+    return readAuthorized(query, ontology.versionId(), scope, viewer);
+  }
+
   private static Request inVersion(Request request, String version) {
     return new Request(request.executionId(), version, request.objectKey(), request.objectId(), request.relation(),
         request.filters(), request.order(), request.limit(), request.offset(), request.drilldownId(), request.includeComponentSummary(), request.includeRelatedMetrics());
@@ -212,6 +251,10 @@ public class EasyVObjectReadService {
         || request.datasetVersionSetId() == null || request.datasetVersionSetId().isBlank()) {
       throw new BackendException("OBJECT_CONTEXT_REQUIRED", "对象读取必须指定分析执行与冻结集合。");
     }
+    validateQuery(request);
+  }
+
+  private static void validateQuery(Request request) {
     requireObject(request.objectKey());
     if (Boolean.TRUE.equals(request.includeComponentSummary()) && (request.objectId() == null
         || request.relation() != null || request.drilldownId() != null

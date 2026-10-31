@@ -1,0 +1,621 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "executionId": {
+      "type": "null"
+    },
+    "datasetVersionSetId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ontologyVersionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectKey": {
+          "enum": [
+            "easyv-ai-application",
+            "easyv-prototype-layout",
+            "easyv-prototype-block",
+            "easyv-prototype-component",
+            "easyv-generation-feedback",
+            "easyv-quality-node",
+            "easyv-forge-task"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reference": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "objectKey": {
+                    "enum": [
+                      "easyv-ai-application",
+                      "easyv-prototype-layout",
+                      "easyv-prototype-block",
+                      "easyv-prototype-component",
+                      "easyv-generation-feedback",
+                      "easyv-quality-node",
+                      "easyv-forge-task"
+                    ]
+                  },
+                  "objectId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "productVersionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "objectKey",
+                  "objectId",
+                  "productVersionId"
+                ]
+              },
+              "properties": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "reference",
+              "properties"
+            ]
+          },
+          "maxItems": 200
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "objectKey",
+        "rows",
+        "limit",
+        "offset",
+        "hasMore"
+      ]
+    },
+    "structure": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "available"
+            },
+            "layout": {
+              "$ref": "#/$defs/layoutNode"
+            }
+          },
+          "required": [
+            "status",
+            "layout"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "not_retained",
+                "parse_failed"
+              ]
+            },
+            "layout": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "layout"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "objectType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "label",
+        "properties",
+        "links"
+      ],
+      "properties": {
+        "key": {
+          "enum": [
+            "easyv-ai-application",
+            "easyv-prototype-layout",
+            "easyv-prototype-block",
+            "easyv-prototype-component",
+            "easyv-generation-feedback",
+            "easyv-quality-node",
+            "easyv-forge-task"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "label",
+              "type"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "enum": [
+                  "STRING",
+                  "NUMBER",
+                  "BOOLEAN",
+                  "TIME"
+                ]
+              },
+              "identifier": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "boolean"
+              },
+              "prominent": {
+                "type": "boolean"
+              },
+              "valueLabels": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "targetObjectKey",
+              "targetLabel"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "targetObjectKey": {
+                "enum": [
+                  "easyv-ai-application",
+                  "easyv-prototype-layout",
+                  "easyv-prototype-block",
+                  "easyv-prototype-component",
+                  "easyv-generation-feedback",
+                  "easyv-quality-node",
+                  "easyv-forge-task"
+                ]
+              },
+              "targetLabel": {
+                "type": "string",
+                "minLength": 1
+              },
+              "prominent": {
+                "type": "boolean"
+              },
+              "timeline": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "required": [
+                  "title",
+                  "timeProperty",
+                  "notice"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "timeProperty": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "notice": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "cardinality": {
+                "type": "string",
+                "enum": [
+                  "MANY_TO_ONE",
+                  "ONE_TO_MANY",
+                  "ONE_TO_ONE"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "componentGeometry": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "const": "available"
+              },
+              "errorCode": {
+                "type": "null"
+              },
+              "box": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "errorCode",
+              "box"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "enum": [
+                  "missing",
+                  "invalid"
+                ]
+              },
+              "errorCode": {
+                "type": "string",
+                "minLength": 1
+              },
+              "box": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "status",
+              "errorCode",
+              "box"
+            ]
+          }
+        ]
+      }
+    },
+    "componentSummary": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "groups": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "chartFamily": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "filter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "member": {
+                    "const": "chartFamily"
+                  },
+                  "operator": {
+                    "enum": [
+                      "EQUALS",
+                      "NOT_SET"
+                    ]
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 1
+                  }
+                },
+                "required": [
+                  "member",
+                  "operator",
+                  "values"
+                ],
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "operator": {
+                          "const": "EQUALS"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "values": {
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "values": {
+                          "maxItems": 0,
+                          "type": "array"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "chartFamily",
+              "count",
+              "filter"
+            ]
+          }
+        }
+      },
+      "required": [
+        "total",
+        "groups"
+      ]
+    },
+    "dataContext": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "scopeDescription": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "capturedAt",
+        "scopeDescription"
+      ]
+    },
+    "propertyPresentations": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "notice"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "value"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "notice": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "relatedMetrics": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "relation",
+          "label",
+          "description",
+          "count"
+        ],
+        "properties": {
+          "relation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "sourceUrl": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uri",
+      "pattern": "^https?://"
+    }
+  },
+  "required": [
+    "executionId",
+    "datasetVersionSetId",
+    "ontologyVersionId",
+    "page",
+    "structure",
+    "objectType"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workspace-catalog-result.schema.json",
+  "$defs": {
+    "layoutNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layoutNode"
+          }
+        }
+      },
+      "required": [
+        "tag",
+        "attributes",
+        "children"
+      ]
+    }
+  }
+}

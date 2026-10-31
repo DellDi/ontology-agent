@@ -1,0 +1,104 @@
+{
+  "executionId": null,
+  "datasetVersionSetId": "set-old",
+  "ontologyVersionId": "ontology-old",
+  "page": {
+    "objectKey": "easyv-prototype-layout",
+    "rows": [
+      {
+        "reference": {
+          "objectKey": "easyv-prototype-layout",
+          "objectId": "app-1",
+          "productVersionId": "layout-old"
+        },
+        "properties": {
+          "appId": "app-1",
+          "parseStatus": "ok",
+          "parseErrorCode": null,
+          "blockCount": 1
+        }
+      }
+    ],
+    "limit": 1,
+    "offset": 0,
+    "hasMore": false
+  },
+  "structure": {
+    "status": "available",
+    "layout": {
+      "tag": "Pages",
+      "attributes": {},
+      "children": [
+        {
+          "tag": "Page",
+          "attributes": {
+            "width": "1920",
+            "height": "1080"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  "objectType": {
+    "key": "easyv-prototype-layout",
+    "label": "原型版式",
+    "properties": [
+      {
+        "key": "appId",
+        "label": "应用 ID",
+        "type": "STRING",
+        "identifier": true,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
+      },
+      {
+        "key": "parseStatus",
+        "label": "解析状态",
+        "type": "STRING",
+        "identifier": false,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
+      },
+      {
+        "key": "parseErrorCode",
+        "label": "解析错误代码",
+        "type": "STRING",
+        "identifier": false,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
+      },
+      {
+        "key": "blockCount",
+        "label": "区域数",
+        "type": "NUMBER",
+        "identifier": false,
+        "title": false,
+        "prominent": false,
+        "valueLabels": {}
+      }
+    ],
+    "links": [
+      {
+        "key": "blocks",
+        "targetObjectKey": "easyv-prototype-block",
+        "targetLabel": "原型区域",
+        "prominent": false,
+        "timeline": null,
+        "cardinality": "ONE_TO_MANY"
+      }
+    ]
+  },
+  "componentGeometry": {},
+  "componentSummary": null,
+  "dataContext": {
+    "capturedAt": "2026-10-03T12:00:00Z",
+    "scopeDescription": "全部数据"
+  },
+  "propertyPresentations": {},
+  "relatedMetrics": null,
+  "sourceUrl": null
+}

@@ -2,7 +2,7 @@
 cubes:
   - name: "EasyvPrototypeBlock"
     title: "原型区域"
-    description: "原型版式中的区域（Block），含所用图表方案与尺寸类别"
+    description: "原型版式中的区域（Block），包括普通模块与独立核心指标块，含源指标角色、图表方案与尺寸类别"
     sql_table: "facts.easyv_prototype_block"
     meta:
       ontologyObject: "easyv-prototype-block"
@@ -57,6 +57,11 @@ cubes:
         title: "区域 ID"
         description: "布局树中的区域标识"
         sql: "{CUBE}.block_id"
+        type: "string"
+      - name: "metricRole"
+        title: "指标角色"
+        description: "核心指标区或显式 core 标记为核心指标，其他为普通模块；历史版本未保留时为空"
+        sql: "{CUBE}.metric_role"
         type: "string"
       - name: "position"
         title: "区域位置"

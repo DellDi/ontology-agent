@@ -27,6 +27,13 @@ public final class EasyVObjectReadController {
     return objects.read(sessionId, viewer, body);
   }
 
+  @PostMapping(path = "/api/easyv/workspace/prototypes/query", consumes = "application/json")
+  public EasyVObjectReadService.Result catalog(@RequestBody EasyVObjectReadService.CatalogRequest body,
+      HttpServletRequest request) {
+    var viewer = auth.authenticate(request).orElseThrow(() -> new BackendException("AUTH_REQUIRED", "未登录。"));
+    return objects.browseCatalog(viewer, body);
+  }
+
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<Map<String, String>> invalidBody(HttpServletRequest request) {
     return ResponseEntity.badRequest().body(Map.of("code", "OBJECT_QUERY_INVALID",

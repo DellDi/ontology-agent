@@ -46,6 +46,21 @@ class EasyVObjectReadControllerTest {
   }
 
   @Test
+  void catalogRequiresLoginRejectsExecutionInjectionAndPreservesScopeErrors() throws Exception {
+    String path = "/api/easyv/workspace/prototypes/query";
+    when(auth.authenticate(any())).thenReturn(Optional.empty());
+    mvc.perform(post(path).contentType("application/json").content("{}"))
+        .andExpect(status().isUnauthorized());
+    verifyNoInteractions(objects);
+    when(auth.authenticate(any())).thenReturn(Optional.of(viewer));
+    mvc.perform(post(path).contentType("application/json").content("{\"executionId\":\"forged\"}"))
+        .andExpect(status().isBadRequest());
+    doThrow(new BackendException("OBJECT_NOT_FOUND", "不存在或无权访问")).when(objects).browseCatalog(eq(viewer), any());
+    mvc.perform(post(path).contentType("application/json").content("{\"objectId\":\"other-user-app\"}"))
+        .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("OBJECT_NOT_FOUND"));
+  }
+
+  @Test
   void javaSerializationMatchesTheSharedDetailFixture() throws Exception {
     when(auth.authenticate(any())).thenReturn(Optional.of(viewer));
     Map<String, Object> properties = new LinkedHashMap<>();

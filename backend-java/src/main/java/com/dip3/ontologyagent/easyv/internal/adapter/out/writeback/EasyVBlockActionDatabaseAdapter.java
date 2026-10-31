@@ -142,7 +142,8 @@ public final class EasyVBlockActionDatabaseAdapter implements EasyVBlockActionPo
     tx.setReadOnly(readOnly); tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
     return tx.execute(status -> { jdbc.execute("SET LOCAL statement_timeout='15s'"); jdbc.execute("SET LOCAL lock_timeout='3s'"); return operation.get(); });
   }
-  private void configured() { if (jdbc==null || redis==null) throw new BackendException("EASYV_ACTION_NOT_CONFIGURED","尚未配置业务源写回连接，已有提案已保留。"); }
+  public boolean isConfigured() { return jdbc!=null && redis!=null; }
+  private void configured() { if (!isConfigured()) throw new BackendException("EASYV_ACTION_NOT_CONFIGURED","尚未配置业务源写回连接，已有提案已保留。"); }
   private BackendException unavailable(boolean applying, RuntimeException error) {
     log.warn("easyv_database_action_unavailable operation={}",applying?"apply":"prepare",error);
     return new BackendException(applying?"EASYV_ACTION_RESULT_UNKNOWN":"EASYV_ACTION_PREPARE_UNAVAILABLE",

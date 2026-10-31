@@ -39,5 +39,9 @@
   session。Java 不可达或返回错误时显式失败，严禁回退到 TypeScript 后端、缓存结果或伪成功数据。
 - 本体治理 overview、definitions、versions、change request、审批和发布由 Java 持有；管理页面以
   Draft 2020-12 JSON Schema 与严格 Zod 双重校验读模型，Next routes 只透明转发，不再运行治理状态机。
+- `POST /api/easyv/workspace/prototypes/query` 是独立只读大屏目录：使用当前账号绑定及正式已发布冻结集，
+  只允许原型布局、区域、组件和固定子关系，不接受执行 ID、SQL 或客户端 scope。省略版本读取最新完整发布，
+  分页和后续详情可固定其返回版本。结果复用对象读取结构，但 `executionId` 必须为 `null`；原分析对象 API
+  的执行 ID 仍为必填。浏览不创建分析会话、执行或模型调用。
 
 `openapi.yaml` 描述 HTTP 边界，`schemas/` 描述 JSON，`fixtures/` 是跨实现测试的固定样本。

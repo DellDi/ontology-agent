@@ -35,8 +35,9 @@ public final class PrototypeStructureParser {
   private static final int MAX_DETAIL = 500;
   private static final int MAX_LISTED_IDS = 10;
   private static final Set<String> LAYOUT_ATTRIBUTES = Set.of(
-      "id", "type", "width", "height", "x", "y", "grid-direction", "gridDirection",
-      "span", "gap", "padding", "ref", "block_type_id", "blockSize", "weight");
+      "render", "options", "id", "type", "width", "height", "x", "y", "grid-direction", "gridDirection",
+      "span", "gap", "padding", "ref", "block_type_id", "blockSize", "weight",
+      "metric_role", "metricRole", "chartFamily", "fillLayout", "fill-layout", "fillScreen", "fill-screen");
 
   private PrototypeStructureParser() {}
 
@@ -70,13 +71,14 @@ public final class PrototypeStructureParser {
 
   public record MainMetric(String id, String name, String description, String sceneType, String sourceType) {}
   public record MainContent(String id, String title, String description, List<MainMetric> metrics) {}
-  public record PageSemantics(String pageId, String title, List<MainContent> contents) {}
+  public record Panel(String hostId, String controlId, String moduleName, String effect, List<String> ref, List<String> stateIds) {}
+  public record PageSemantics(String pageId, String title, List<MainContent> contents, List<Panel> panels) {}
 
   public record Block(
       String blockId, String containerTag, String containerId, String gridDirection,
       String blockTypeId, String blockSize, String span, Integer weight, String schemeId,
       List<Component> components, String metricBindingStatus, List<MetricBinding> metricBindings, Boolean titlePresent, String pageId, String pageTitle,
-      String title, String businessModule, String moduleDescription, String interactionDescription) {}
+      String title, String businessModule, String moduleDescription, String interactionDescription, String metricRole) {}
 
   /** 画布所需的源结构；子节点顺序决定布局，不保留名称、描述或其他自由文本。 */
   public record LayoutNode(String tag, Map<String, String> attributes, List<LayoutNode> children) {}
@@ -111,7 +113,7 @@ public final class PrototypeStructureParser {
     }
 
     List<PageSemantics> pages;
-    try { pages = pageSemantics((Map<?, ?>) prototypeJson); }
+    try { pages = new ArrayList<>(pageSemantics((Map<?, ?>) prototypeJson)); expandPanels(xmlBlocks, pages, jsonBlocks, (Map<?, ?>) prototypeJson); xmlBlocks = elements(root.getElementsByTagName("Block")); }
     catch (ParseFailure failure) { return failed(Status.INVALID_JSON, failure.code, failure.getMessage(), layoutType); }
 
     List<Block> blocks = new ArrayList<>();
@@ -149,7 +151,62 @@ public final class PrototypeStructureParser {
     String chartCanon = countCanon + "#" + lines(blocks, block -> position(block.blockId()) + "="
         + block.components().stream().map(Component::chartFamily).sorted().collect(Collectors.joining(",")));
     return new Parsed(Status.OK, null, null, layoutType, List.copyOf(blocks),
-        sha256(layoutCanon), sha256(schemeCanon), sha256(countCanon), sha256(chartCanon), layoutNode(root), pages);
+        sha256(layoutCanon), sha256(schemeCanon), sha256(countCanon), sha256(chartCanon), layoutNode(root), List.copyOf(pages));
+  }
+
+  private static List<Panel> panelControls(Map<?, ?> page, String pageId) {
+    if (page.get("controls") == null) return List.of();
+    if (!(page.get("controls") instanceof List<?> controls)) throw new ParseFailure("PANEL_CONTROL_INVALID", "controls 不是数组: " + pageId);
+    List<Panel> panels = new ArrayList<>();
+    for (Object value : controls) {
+      if (!(value instanceof Map<?, ?> c)) throw new ParseFailure("PANEL_CONTROL_INVALID", "控件不是对象: " + pageId);
+      if (!"panelSwitch".equals(c.get("effect"))) continue;
+      if (!"tabV2".equals(c.get("moduleName")) || !(c.get("id") instanceof String controlId) || controlId.isBlank()
+          || !(c.get("ref") instanceof List<?> refs) || refs.size() != 1 || !(refs.getFirst() instanceof String hostId) || hostId.isBlank())
+        throw new ParseFailure("PANEL_CONTROL_INVALID", "面板控件需要 tabV2 和唯一宿主 ref: " + pageId);
+      if (panels.stream().anyMatch(p -> p.hostId().equals(hostId) || p.controlId().equals(controlId)))
+        throw new ParseFailure("PANEL_CONTROL_INVALID", "面板控件或宿主重复: " + hostId);
+      panels.add(new Panel(hostId, controlId, "tabV2", "panelSwitch", List.of(hostId), List.of()));
+    }
+    return List.copyOf(panels);
+  }
+
+  private static void expandPanels(List<Element> hosts, List<PageSemantics> pages, Map<String, Object> blocks, Map<?, ?> prototype) {
+    Set<String> stateIds = new HashSet<>();
+    Set<String> panelHosts = new HashSet<>();
+    for (Element host : hosts) {
+      if (!"dynamic-panel".equals(host.getAttribute("render"))) continue;
+      String hostId = host.getAttribute("id");
+      List<?> options;
+      try { options = new com.fasterxml.jackson.databind.ObjectMapper().readValue(host.getAttribute("options"), List.class); }
+      catch (Exception e) { throw new ParseFailure("PANEL_OPTIONS_INVALID", "面板 options 必须是状态 ID 数组: " + hostId); }
+      if (options == null || options.isEmpty()) throw new ParseFailure("PANEL_OPTIONS_INVALID", "面板没有状态: " + hostId);
+      PageSemantics page = pages.stream().filter(p -> p.panels().stream().anyMatch(c -> c.hostId().equals(hostId))).findFirst()
+          .orElseThrow(() -> new ParseFailure("PANEL_CONTROL_MISSING", "面板缺少页级切换控件: " + hostId));
+      Map<?, ?> pageBlocks = (Map<?, ?>) ((Map<?, ?>) prototype.get(page.pageId())).get("blocks");
+      org.w3c.dom.Node ancestor = host;
+      while (ancestor instanceof Element e && !"Page".equals(e.getTagName())) ancestor = ancestor.getParentNode();
+      if (!(ancestor instanceof Element sourcePage) || !page.pageId().equals(sourcePage.getAttribute("id")) || !pageBlocks.containsKey(hostId))
+        throw new ParseFailure("PANEL_PAGE_MISMATCH", "面板控件与宿主不在同一页面: " + hostId);
+      if (blocks.get(hostId) instanceof Map<?, ?> hostContent && hostContent.get("components") instanceof List<?> components && !components.isEmpty())
+        throw new ParseFailure("PANEL_HOST_INVALID", "面板宿主不能直接持有组件: " + hostId);
+      panelHosts.add(hostId);
+      for (Object option : options) {
+        if (!(option instanceof String id) || id.isBlank() || !stateIds.add(id) || hosts.stream().anyMatch(b -> id.equals(b.getAttribute("id")))
+            || !pageBlocks.containsKey(id) || !(blocks.get(id) instanceof Map<?, ?> state) || state.get("render") != null)
+          throw new ParseFailure("PANEL_STATE_INVALID", "面板状态缺失、重复或嵌套: " + hostId + "/" + option);
+        // 状态复用宿主的布局规格，其正式 ID 和内容仍来自源 JSON；保持宿主与状态的父子关系。
+        Element child = (Element) host.cloneNode(false);
+        child.setAttribute("id", id); child.removeAttribute("render"); child.removeAttribute("options");
+        host.appendChild(child);
+      }
+      int index = pages.indexOf(page);
+      List<Panel> updated = page.panels().stream().map(c -> c.hostId().equals(hostId)
+          ? new Panel(c.hostId(), c.controlId(), c.moduleName(), c.effect(), c.ref(), options.stream().map(String.class::cast).toList()) : c).toList();
+      pages.set(index, new PageSemantics(page.pageId(), page.title(), page.contents(), updated));
+    }
+    if (pages.stream().flatMap(p -> p.panels().stream()).anyMatch(p -> !panelHosts.contains(p.hostId())))
+      throw new ParseFailure("PANEL_HOST_MISSING", "切换控件引用的动态面板不存在");
   }
 
   private static LayoutNode layoutNode(Element element) {
@@ -199,7 +256,11 @@ public final class PrototypeStructureParser {
     for (Map.Entry<?, ?> page : root.entrySet()) {
       if (!(page.getKey() instanceof String key) || !key.startsWith("page-")) continue;
       if (page.getValue() instanceof Map<?, ?> content && content.get("blocks") instanceof Map<?, ?> blocks) {
-        for (Map.Entry<?, ?> entry : blocks.entrySet()) merged.put(String.valueOf(entry.getKey()), entry.getValue());
+        for (Map.Entry<?, ?> entry : blocks.entrySet()) {
+          String id = String.valueOf(entry.getKey());
+          if (merged.containsKey(id)) throw new ParseFailure("BLOCK_ID_DUPLICATE", "跨页面区域 ID 重复: " + id);
+          merged.put(id, entry.getValue());
+        }
       }
     }
     if (merged.isEmpty()) throw new ParseFailure("JSON_NO_BLOCKS", "原型 JSON 没有任何页面区域");
@@ -247,7 +308,19 @@ public final class PrototypeStructureParser {
         List.copyOf(components), bindingStatus, bindings, content.get("title") == null ? false
             : content.get("title") instanceof String title ? !title.isBlank() : null,
         page.pageId(), page.title(), businessText(content, "title", id), businessText(content, "businessModule", id),
-        sourceText(content, "moduleDescription"), sourceText(content, "interactionDescription"));
+        sourceText(content, "moduleDescription"), sourceText(content, "interactionDescription"), metricRole(element, content));
+  }
+
+  private static String metricRole(Element element, Map<?, ?> content) {
+    String xmlRole = blankToNull(element.getAttribute("metric_role"));
+    if (xmlRole == null) xmlRole = blankToNull(element.getAttribute("metricRole"));
+    String jsonRole = sourceText(content, "metricRole");
+    if ((xmlRole != null && !"core".equals(xmlRole)) || (jsonRole != null && !"core".equals(jsonRole))) {
+      throw new ParseFailure("BLOCK_ROLE_INVALID", "不支持的指标角色: " + element.getAttribute("id"));
+    }
+    Element parent = element.getParentNode() instanceof Element p ? p : null;
+    return "core".equals(xmlRole) || "core".equals(jsonRole)
+        || parent != null && "core-metrics".equals(parent.getAttribute("type")) ? "core" : "module";
   }
 
   private static Component component(String blockId, Object raw, Set<String> seen, Map<?, ?> metric) {
@@ -293,7 +366,7 @@ public final class PrototypeStructureParser {
         }
         contents = List.copyOf(contents);
       }
-      pages.add(new PageSemantics(id, sourceText(page, "title"), contents));
+      pages.add(new PageSemantics(id, sourceText(page, "title"), contents, panelControls(page, id)));
     }
     return List.copyOf(pages);
   }
@@ -329,6 +402,12 @@ public final class PrototypeStructureParser {
     List<GenerationQualityEvidenceParser.DisplayItem> items = new ArrayList<>();
     for (Map<String, Object> page : pages) {
       items.add(new GenerationQualityEvidenceParser.DisplayItem("页面", Objects.requireNonNullElse(sourceText(page, "title"), "未记录页面标题")));
+      if (page.get("panels") instanceof List<?> panels) for (Object raw : panels) {
+        if (!(raw instanceof Map<?, ?> panel)) throw new IllegalArgumentException("面板语义不是对象");
+        items.add(new GenerationQualityEvidenceParser.DisplayItem("标签面板", String.valueOf(panel.get("hostId"))));
+        items.add(new GenerationQualityEvidenceParser.DisplayItem("切换控件", String.valueOf(panel.get("moduleName")) + " / " + String.valueOf(panel.get("controlId"))));
+        items.add(new GenerationQualityEvidenceParser.DisplayItem("状态区域 ID（按标签顺序）", String.valueOf(panel.get("stateIds"))));
+      }
       if (page.get("contents") == null) {
         items.add(new GenerationQualityEvidenceParser.DisplayItem("主视觉", "此版本未记录主视觉内容"));
       } else if (page.get("contents") instanceof List<?> contents) {

@@ -18,6 +18,27 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class PrototypeStructureParserTest {
+  @Test
+  void dynamicPanelsRetainOrderedStatesAndRejectBrokenReferences() {
+    String xml = "<Pages><Page id='page-1' width='1200' height='600'><Layout><Block id='panel' render='dynamic-panel' options='[&quot;a&quot;,&quot;b&quot;]' /></Layout></Page></Pages>";
+    var entries = new LinkedHashMap<String, Object>();
+    entries.put("panel", Map.of("title", "经营面板", "components", List.of()));
+    entries.put("a", Map.of("title", "收入", "components", List.of(component("ca", "line", 1, 1))));
+    entries.put("b", Map.of("title", "成本", "components", List.of(component("cb", "bar", 1, 1))));
+    var control = Map.of("id", "tabs", "moduleName", "tabV2", "effect", "panelSwitch", "ref", List.of("panel"));
+    var json = Map.of("page-1", Map.of("blocks", entries, "controls", List.of(control)));
+    var parsed = PrototypeStructureParser.parse(xml, json);
+    assertEquals(Status.OK, parsed.status());
+    assertEquals(List.of("panel", "a", "b"), parsed.blocks().stream().map(Block::blockId).toList());
+    assertEquals("panel", parsed.blocks().get(1).containerId());
+    assertEquals(List.of("a", "b"), parsed.pages().getFirst().panels().getFirst().stateIds());
+    assertEquals(2, parsed.componentCount());
+    assertEquals("PANEL_STATE_INVALID", PrototypeStructureParser.parse(xml.replace("&quot;b&quot;", "&quot;a&quot;"), json).errorCode());
+    assertEquals("PANEL_CONTROL_MISSING", PrototypeStructureParser.parse(xml, Map.of("page-1", Map.of("blocks", entries))).errorCode());
+    entries.remove("b");
+    assertEquals("PANEL_STATE_INVALID", PrototypeStructureParser.parse(xml, json).errorCode());
+  }
+
   private static final String XML = """
       <Pages><Page height="1080" id="page-1" width="1920">
         <Theme><Header/></Theme>
@@ -78,6 +99,32 @@ class PrototypeStructureParserTest {
         Map.entry("page-1__left_2", block("2", component("c3", "donut", 1, 1))),
         Map.entry("page-1__foot_1", block("42", component("c4", "horizontal-bar", 1, 1))),
         Map.entry("page-1__right_1", block("4", component("c5", "line", 1, 1))));
+  }
+
+  @Test
+  void retainsCoreMetricRoleAndFillLayoutWithoutRequiringOrdinarySchemes() {
+    String coreXml = "<Pages><Page id=\"page-1\" width=\"1200\" height=\"600\"><Layout>"
+        + "<Header type=\"core-metrics\" span=\"2/12\">"
+        + "<Block id=\"core_metric_1\" metric_role=\"core\" span=\"2.4/12\"/>"
+        + "</Header><Content id=\"main-content\" span=\"10/12\" fillLayout=\"1\"/></Layout></Page></Pages>";
+    var core = new LinkedHashMap<String, Object>();
+    core.put("metricRole", "core"); core.put("title", "总资产规模");
+    core.put("businessModule", "总资产规模"); core.put("boundMetricIds", List.of("metric-assets"));
+    core.put("boundMetrics", List.of(Map.of("metricId", "metric-assets", "unit", "万元")));
+    core.put("components", List.of(Map.of("id", "core_metric_1_chart_1", "chartFamily", "single-value-metric",
+        "metricName", "总资产规模", "config", Map.of("gridPosition", Map.of("col", 1, "row", 1, "colSpan", 12, "rowSpan", 12)))));
+    var source = Map.of("page-1", Map.of("blocks", Map.of("core_metric_1", core)));
+    var parsed = PrototypeStructureParser.parse(coreXml, source);
+    assertEquals(Status.OK, parsed.status());
+    var block = parsed.blocks().getFirst();
+    assertEquals("core", block.metricRole()); assertNull(block.schemeId()); assertNull(block.blockTypeId());
+    assertEquals("2.4/12", block.span()); assertEquals("万元", block.components().getFirst().semantics().unit());
+    var layout = parsed.layoutStructure().children().getFirst().children().getFirst();
+    assertEquals("core", layout.children().getFirst().children().getFirst().attributes().get("metric_role"));
+    assertEquals("1", layout.children().get(1).attributes().get("fillLayout"));
+    core.put("metricRole", "unknown");
+    assertEquals("BLOCK_ROLE_INVALID", PrototypeStructureParser.parse(coreXml, source).errorCode());
+    assertEquals("module", PrototypeStructureParser.parse(XML, validJson()).blocks().getFirst().metricRole());
   }
 
   @Test

@@ -379,10 +379,30 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /api/easyv/workspace/prototypes/query:
+    post:
+      summary: Browse authorized prototype layouts without creating an analysis execution
+      description: Uses current EasyV role and subject binding. Omitted datasetVersionSetId selects the latest complete publication; subsequent pages and details can pin that frozen set. Lists/searches layouts, reads layout/block/component details, and traverses only layout blocks/components. All objects remain row-authorized. executionId is null because this read creates no session, model invocation or action.
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: './schemas/workspace-catalog-request.schema.json' } }
+      responses:
+        '200':
+          description: Authorized catalog page or prototype detail with retained structure
+          content:
+            application/json: { schema: { $ref: './schemas/workspace-catalog-result.schema.json' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /api/analysis/sessions/{sessionId}/objects/query:
     post:
-      summary: Read EasyV application and prototype objects and declared relationships from this execution's frozen data
-      description: objectId omitted lists objects; objectId reads one detail; relation traverses a declared link. Filters and order reference root properties of the resulting object type; missing values always sort last and the object id is the final tiebreaker. With drilldownId, the saved statistic filters are always applied first and cannot be replaced; request filters are only appended (saved plus appended at most 10) and order never changes the set, while objectId and relation are rejected. Reads intersect current EasyV scope with the execution scope; never select a newer manifest. Missing retained geometry is explicit, not reconstructed from staging. includeComponentSummary=true on a layout or block detail returns full component counts grouped by chartFamily, independent of preview pagination; each group supplies its filter for the declared components relationship. dataContext identifies the manifest capture time and effective scope, never a source editing event.
+      summary: Read authorized EasyV objects and declared relationships using an existing execution
+      description: objectId omitted lists objects; objectId reads one detail; relation traverses a declared link. Filters and order reference root properties of the resulting object type; missing values always sort last and the object id is the final tiebreaker. With drilldownId, the saved statistic filters are always applied first and cannot be replaced; request filters are only appended (saved plus appended at most 10) and order never changes the set, while objectId and relation are rejected. Reads intersect current EasyV scope with the execution scope and use the latest complete published manifest. Requests must name either the source execution set or that latest set; historical answers and saved statistic filters remain bound to their original execution. Missing retained geometry is explicit, not reconstructed from staging. includeComponentSummary=true on a layout or block detail returns full component counts grouped by chartFamily, independent of preview pagination; each group supplies its filter for the declared components relationship. dataContext identifies the manifest capture time and effective scope, never a source editing event.
       security: [{ cookieAuth: [] }]
       parameters:
         - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }

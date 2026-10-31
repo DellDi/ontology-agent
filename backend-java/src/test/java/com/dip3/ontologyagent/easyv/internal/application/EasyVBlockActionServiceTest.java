@@ -57,8 +57,20 @@ class EasyVBlockActionServiceTest {
   @Test void preparationRequiresOwnedAuditAndSourceIdentityAndDoesNotApply() {
     var result=service.prepare("session","execution","invocation",viewer);
     assertEquals("prepared",result.status());assertEquals("action",result.actionId());
+    assertEquals(selection,result.selection());
     assertEquals("渠道贡献",result.title());verify(source,never()).apply(anyMap(),anyString(),anyString(),anyString());
     verify(store).create(eq("session"),eq("invocation"),eq("7"),argThat(data->data.get("source").equals(prepared)));
+  }
+  @Test void readReturnsAuthorizedTargetWithoutPreparingOrApplying() {
+    var result=service.get("session","execution","invocation",viewer);
+    assertEquals(selection,result.selection());
+    assertEquals("proposal",result.status());
+    assertFalse(result.executionAvailable());
+    verify(source,never()).prepare(anyMap(),anyString(),anyString(),anyString());
+    verify(source,never()).apply(anyMap(),anyString(),anyString(),anyString());
+    verify(store,never()).create(anyString(),anyString(),anyString(),anyMap());
+    assertEquals("BLOCK_PROPOSAL_NOT_FOUND",assertThrows(BackendException.class,
+      ()->service.get("session","execution","other",viewer)).code());
   }
   @Test void textOnlyProposalCarriesExactNewTextAndNeverInventsComponentChanges() {
     var context=json.convertValue(evidence.output.get("input"),EasyVSchemeAssessmentService.ImprovementContext.class);

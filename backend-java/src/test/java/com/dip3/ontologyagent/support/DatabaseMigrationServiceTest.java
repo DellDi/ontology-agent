@@ -59,20 +59,20 @@ class DatabaseMigrationServiceTest {
                 where table_schema='facts' and table_name='easyv_prototype_layout'
                   and column_name='layout_structure' and is_nullable='YES'
                 """, String.class));
-        assertEquals("easyv-prototype-layout-v3", jdbc.queryForObject(
+        assertEquals("easyv-prototype-layout-v5", jdbc.queryForObject(
                 "select transform_ref from ingestion.data_product_definitions where product_key='easyv-prototype-layout'",
                 String.class));
-        assertEquals(3, jdbc.queryForObject(
+        assertEquals(5, jdbc.queryForObject(
                 "select schema_version from ingestion.data_product_definitions where product_key='easyv-prototype-layout'",
                 Integer.class));
         assertEquals(1, jdbc.queryForObject("""
                 select count(*) from ingestion.data_product_definitions
-                where product_key in ('easyv-prototype-block', 'easyv-prototype-component') and schema_version=3
+                where product_key='easyv-prototype-component' and schema_version=4
                 """, Integer.class));
-        assertEquals("easyv-prototype-block-v4", jdbc.queryForObject(
+        assertEquals("easyv-prototype-block-v6", jdbc.queryForObject(
                 "select transform_ref from ingestion.data_product_definitions where product_key='easyv-prototype-block'",
                 String.class));
-        assertEquals(4, jdbc.queryForObject(
+        assertEquals(6, jdbc.queryForObject(
                 "select schema_version from ingestion.data_product_definitions where product_key='easyv-prototype-block'",
                 Integer.class));
         assertEquals("reviewed structure, geometry and source business descriptions; no arbitrary configs, files or source columns",
@@ -125,11 +125,11 @@ class DatabaseMigrationServiceTest {
                 where product_version_id='old-block' and scheme_id='4' and component_count=2
                   and metric_binding_status is null and metric_bindings is null and title_present is null
                   and page_id is null and page_title is null and block_title is null
-                  and business_module is null and module_description is null and interaction_description is null
+                  and business_module is null and module_description is null and interaction_description is null and metric_role is null
                 """, Integer.class));
         assertEquals(1, jdbc.queryForObject("select schema_version from ingestion.data_product_versions where id='old-block'",
                 Integer.class));
-        assertEquals(4, jdbc.queryForObject("select schema_version from ingestion.data_product_definitions where product_key='easyv-prototype-block'",
+        assertEquals(6, jdbc.queryForObject("select schema_version from ingestion.data_product_definitions where product_key='easyv-prototype-block'",
                 Integer.class));
         org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataAccessException.class,
                 () -> jdbc.update("update facts.easyv_prototype_block set metric_binding_status='available' where product_version_id='old-block'"));
@@ -191,7 +191,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(32, applied, "新库应执行到 V32 块内改造动作");
+        assertEquals(34, applied, "新库应执行到 V34 动态面板语义");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -635,7 +635,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(32, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(34, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -667,7 +667,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(32, applied, "旧库补全应记录 V1-V32（baseline 0 标记不计入）");
+        assertEquals(34, applied, "旧库补全应记录 V1-V34（baseline 0 标记不计入）");
     }
 
     @Test
