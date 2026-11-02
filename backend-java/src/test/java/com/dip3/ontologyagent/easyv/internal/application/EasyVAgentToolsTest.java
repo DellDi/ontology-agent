@@ -93,9 +93,18 @@ class EasyVAgentToolsTest {
     assertEquals("门诊量", ((Map<?, ?>) ((List<?>) output.rows().getFirst().get("metrics")).getFirst()).get("name"));
     assertDoesNotThrow(run::requireBatchCoverage);
     assertTrue(run.batchInspection().isEmpty());
-    var proposal = Map.<String,Object>of("handle", "o2", "title", "门诊量趋势", "choices", List.of(),
-        "diagnosis", Map.of("themeFit", "忠实表达指标", "metricChartFit", "保留图形", "composition", "保留位置"), "limitations", List.of());
-    assertNotNull(run.prepare("preview_block_improvement", proposal));
+    var proposal = Map.<String,Object>of("handle", "o2", "textFields", List.of("title", "purpose"));
+    var candidate = run.execute("q3", run.prepare("preview_block_improvement", proposal));
+    var normalized = (Map<?, ?>) candidate.audit().get("proposal");
+    assertEquals("门诊量", normalized.get("title"));
+    assertEquals("每日接诊人次", normalized.get("purpose"));
+    assertTrue(((Map<?, ?>) normalized.get("diagnosis")).get("themeFit").toString().contains("不判定"));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", Map.of("handle", "o2", "textFields", List.of("title"), "title", "自拟内容")));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", Map.of("handle", "o2", "textFields", List.of("title"),
+        "diagnosis", Map.of("themeFit", "缺少预警阈值所以不能预警"))));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", Map.of("handle", "o2", "title", "任意内容", "choices", List.of(),
+        "diagnosis", Map.of("themeFit", "已确认缺少能力", "metricChartFit", "保持图形", "composition", "保持位置"), "limitations", List.of())));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", Map.of("handle", "o2", "textFields", List.of("title", "title"))));
     code("EASYV_PLAN_INVALID", () -> run.prepare("inspect_block_improvement", Map.of("handles", List.of("o1", "o1"))));
     code("EASYV_PLAN_INVALID", () -> run.prepare("inspect_block_improvement", Map.of("handles", List.of("o1"), "handle", "o1")));
     when(objects.readDuringExecution(eq(context), eq(ALL), any())).thenThrow(new BackendException("OBJECT_SCOPE_FORBIDDEN", "授权已撤回"));

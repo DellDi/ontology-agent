@@ -119,6 +119,12 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     AccessContext access = new AccessContext(versionSet.productVersionIds(), EasyVScopeResolver.dataScope(scope));
     String dataScope = EasyVScopeResolver.dataScopeLabel(scope);
 
+    if (!turn.followUp() && turn.effectiveContext().containsKey("initialObjectSelection")) {
+      var initial = com.dip3.ontologyagent.semantic.api.InitialObjectSelection.read(turn.effectiveContext().get("initialObjectSelection"));
+      turn = new AgentTurn(turn.contract(), turn.sessionId(), turn.questionText(), null, null, Map.of(),
+          Map.of("objectSelection", initial.bind(executionId).snapshot()), turn.anchoredAt());
+    }
+
     Map<String, Object> auditInput = new LinkedHashMap<>();
     auditInput.put("ontologyVersionId", ontology.versionId());
     auditInput.put("datasetVersionSetId", datasetVersionSetId);
@@ -174,7 +180,7 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     try {
       if (turn.effectiveContext().get("objectSelection") != null) {
         ObjectSelection selection = ObjectSelection.read(turn.effectiveContext().get("objectSelection"));
-        if (!turn.followUp() || !selection.executionId().equals(turn.referencedExecutionId())
+        if (!selection.executionId().equals(turn.followUp() ? turn.referencedExecutionId() : executionId)
             || !selection.datasetVersionSetId().equals(datasetVersionSetId)) {
           throw new BackendException("OBJECT_VERSION_MISMATCH", "执行中的对象选择与来源轮次或冻结集合不一致。");
         }

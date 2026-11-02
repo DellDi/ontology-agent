@@ -26,6 +26,28 @@ public final class BlockImprovement {
   public record Preview(String status, String title, String purpose, Diagnosis diagnosis, List<Change> changes,
       SchemeAdaptation.Assessment placement, List<String> pendingChecks, TextChange textChange) {}
 
+  /** 批量检查的文案候选只复用正面的源语义，不接受模型补写事实或推断能力缺失。 */
+  public static Proposal sourceTextProposal(Context context, List<String> fields) {
+    if (context == null || context.metrics() == null || context.metrics().size() != 1)
+      throw invalid("按指标原文对齐文案仅支持已完整读取的单指标块；多指标模块须另行确认整体命名");
+    if (fields == null || fields.isEmpty() || fields.size() > 2 || new HashSet<>(fields).size() != fields.size()
+        || !Set.of("title", "purpose").containsAll(fields)) throw invalid("文案对齐字段只能选择 title、purpose，且不能重复");
+    var metric = context.metrics().getFirst();
+    requireText(context.title(), "源模块名称", 500);
+    requireText(metric.name(), "源指标名称", 500);
+    requireText(metric.description(), "源指标含义", 4000);
+    return new Proposal(null, List.of(), new Diagnosis(
+        "源模块标题为「" + context.title() + "」，当前唯一指标名为「" + metric.name()
+            + "」。此候选按指标原文对齐所选文案，不判定原模块用途错误或业务能力缺失。",
+        "本次保留当前指标及图形，真实字段、数值和效果尚未核验。",
+        "仅对齐所选文案，保留全部指标、图形与位置。"),
+        List.of("指标名称、含义和口径来自留存的设计文案，不代表实际数据或最终效果已核验。",
+            "是否应调整模块定位须结合使用目的确认；当前资料不能证明其他业务能力存在或不存在。",
+            "源指标名称与含义中的时间范围、粒度是否一致，仍须结合实际数据核对。"),
+        fields.contains("title") ? metric.name() : null,
+        fields.contains("purpose") ? metric.description() : null);
+  }
+
   public static Preview preview(Context context, Proposal proposal, Set<String> chartFamilies) {
     if (context == null || context.input() == null || context.metrics() == null || context.metrics().isEmpty()
         || context.metrics().size() > SchemeAdaptation.RULES.maxMetrics()) throw invalid("缺少完整的当前块指标与布局");

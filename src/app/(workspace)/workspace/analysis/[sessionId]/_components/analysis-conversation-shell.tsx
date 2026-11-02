@@ -139,9 +139,14 @@ export function AnalysisConversationShell({
   const lastTurn = turns.at(-1);
   const latestCompleted = turns.findLast((turn) => turn.status === 'completed');
   const latestCompletedKey = latestCompleted?.key ?? null;
-  const [selectedObject, setSelectedObject] = useState<{ selection: AnalysisObjectSelection; label: string; completedKey: string | null } | null>(() =>
+  const [objectChoice, setSelectedObject] = useState<{ selection: AnalysisObjectSelection; label: string; completedKey: string | null } | null | undefined>(() =>
     lastTurn?.objectSelection ? { selection: lastTurn.objectSelection,
-      label: objectSelectionDisplayLabel(lastTurn.objectSelectionLabel, lastTurn.objectSelection.reference.objectId), completedKey: latestCompletedKey } : null);
+      label: objectSelectionDisplayLabel(lastTurn.objectSelectionLabel, lastTurn.objectSelection.reference.objectId), completedKey: latestCompletedKey } : undefined);
+  // 尚未显式选择或取消时，首次检查完成后接住整批范围；默认画布只负责展示。
+  const selectedObject = objectChoice === undefined
+    ? latestCompleted?.objectSelection ? { selection: latestCompleted.objectSelection,
+      label: objectSelectionDisplayLabel(latestCompleted.objectSelectionLabel, latestCompleted.objectSelection.reference.objectId), completedKey: latestCompletedKey } : null
+    : objectChoice;
   const [historyOpen, setHistoryOpen] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [canvasOverride, setCanvasOverride] = useState<{ block: AnalysisRenderedBlock; selection?: AnalysisObjectSelection } | null>(() =>

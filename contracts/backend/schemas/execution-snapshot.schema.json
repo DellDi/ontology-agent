@@ -343,9 +343,7 @@
       },
       "dependentRequired": {
         "_objectSelection": [
-          "_objectSelectionLabel",
-          "_referencedExecutionId",
-          "_followUpId"
+          "_objectSelectionLabel"
         ],
         "_objectSelectionLabel": [
           "_objectSelection"
@@ -367,11 +365,56 @@
             "properties": {
               "mode": {
                 "const": "semantic-query-read-only"
-              },
-              "_executionContract": {
-                "const": "java-follow-up-v1"
               }
-            }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "_executionContract": {
+                      "const": "java-follow-up-v1"
+                    }
+                  },
+                  "type": "object"
+                },
+                "then": {
+                  "required": [
+                    "_followUpId",
+                    "_referencedExecutionId"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "_followUpId": {},
+                    "_referencedExecutionId": {}
+                  }
+                },
+                "else": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "_followUpId"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "_followUpId": {}
+                        }
+                      },
+                      {
+                        "required": [
+                          "_referencedExecutionId"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "_referencedExecutionId": {}
+                        }
+                      }
+                    ]
+                  },
+                  "type": "object"
+                }
+              }
+            ]
           }
         }
       ]

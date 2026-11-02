@@ -55,7 +55,7 @@ public final class EasyVAgentTools {
       tools.add(Map.of("name", "traverse_objects", "input", "{handle, relation, filters?, order?, limit?, offset?}"));
       tools.add(Map.of("name", "assess_scheme", "input", "{handle: 区域对象句柄}"));
       tools.add(Map.of("name", "inspect_block_improvement", "input", "{handle: 区域对象句柄} 或 {handles: 1..50 个不重复的区域句柄}；读取块目的、全部指标语义和图形，供改造诊断；单块读取另提供同数量方案"));
-      tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: inspect.chartTypes 的 key（保持图形则复制组件当前 chartFamily，不能填中文显示名）, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[], title?: 新标题, purpose?: 新用途}; 仅改文案时省略 schemeId 并用 choices:[]，保留原图形、指标与位置；必须先 inspect；只生成尚未应用的提案"));
+      tools.add(Map.of("name", "preview_block_improvement", "input", "{handle, schemeId: inspect 返回的方案, choices:[{componentId: inspect 返回的组件, chartFamily: inspect.chartTypes 的 key（保持图形则复制组件当前 chartFamily，不能填中文显示名）, slotIndex: 该方案槽位序号, reason}], diagnosis:{themeFit,metricChartFit,composition}, limitations:[], title?: 新标题, purpose?: 新用途}; 仅改文案时省略 schemeId 并用 choices:[]，保留原图形、指标与位置；必须先 inspect；只生成尚未应用的提案。批量选屏时仅改文案必须改用 {handle,textFields:[\"title\",\"purpose\"]}，只支持已读单指标块，由系统按指标名称/含义原文生成候选与对照依据，不传自拟文案、diagnosis 或 limitations；批量图形提案不能同时改文案"));
     }
     return List.copyOf(tools);
   }
@@ -104,7 +104,7 @@ public final class EasyVAgentTools {
     public String datasetVersionSetId() { return context.datasetVersionSetId(); }
     public String batchCoverageLabel() {
       int metrics = batchRegions().stream().mapToInt(entry -> improvementContexts.get(entry.getValue().reference()).block().metrics().size()).sum();
-      return "已读取 " + selectedObjects.size() + " 张大屏、" + batchRegions().size() + " 个普通区域、" + metrics + " 个图表指标的已留存语义。";
+      return "已读取 " + selectedObjects.size() + " 张大屏、" + batchRegions().size() + " 个区域、" + metrics + " 个指标的已留存语义。";
     }
 
     public QueryIntent constrainBatch(QueryIntent intent) {
@@ -180,7 +180,7 @@ public final class EasyVAgentTools {
       Set<String> keys = switch (tool) {
         case "query_objects" -> Set.of("objectKey", "filters", "order", "limit", "offset");
         case "read_object", "assess_scheme", "inspect_block_improvement" -> Set.of("handle");
-        case "preview_block_improvement" -> Set.of("handle", "schemeId", "choices", "diagnosis", "limitations", "title", "purpose");
+        case "preview_block_improvement" -> Set.of("handle", "schemeId", "choices", "diagnosis", "limitations", "title", "purpose", "textFields");
         case "traverse_objects" -> Set.of("handle", "relation", "filters", "order", "limit", "offset");
         default -> throw invalid("未知工具 " + tool);
       };
@@ -196,8 +196,8 @@ public final class EasyVAgentTools {
         if (tool.equals("preview_block_improvement")) {
           if (!improvementContexts.containsKey(row.reference())) throw invalid("须先 inspect_block_improvement 读取该块的真实输入");
           var inspected = improvementContexts.get(row.reference());
-          var proposal = improvementProposal(input);
           try {
+            var proposal = improvementProposal(input, inspected);
             BlockImprovement.preview(inspected.block(), proposal, inspected.chartTypes().keySet());
           } catch (BackendException error) {
             if (!Set.of("BLOCK_IMPROVEMENT_INVALID", "BLOCK_IMPROVEMENT_INFEASIBLE", "BLOCK_IMPROVEMENT_NO_CHANGE").contains(error.code())) throw error;
@@ -214,6 +214,20 @@ public final class EasyVAgentTools {
         requireObject(link.targetObjectKey());
       }
       return new Prepared(tool, Map.copyOf(input), request(row.reference().objectKey(), row.reference().objectId(), relation, input), null);
+    }
+
+    private BlockImprovement.Proposal improvementProposal(Map<String, Object> input,
+        EasyVSchemeAssessmentService.ImprovementContext inspected) {
+      if (input.containsKey("textFields")) {
+        if (!input.keySet().equals(Set.of("handle", "textFields")) || !(input.get("textFields") instanceof List<?> fields)
+            || fields.stream().anyMatch(field -> !(field instanceof String)))
+          throw invalid("按指标原文对齐只接受 handle 与 textFields，不接受自拟文案、诊断或附加参数");
+        return BlockImprovement.sourceTextProposal(inspected.block(), fields.stream().map(String.class::cast).toList());
+      }
+      if (batchSelected() && (input.containsKey("title") || input.containsKey("purpose")
+          || input.get("choices") instanceof List<?> choices && choices.isEmpty()))
+        throw invalid("批量文案候选必须使用 textFields 选择源指标名称/含义，不接受自由文案和诊断；多指标命名须另行确认");
+      return EasyVAgentTools.improvementProposal(input);
     }
 
     private EasyVObjectReadService.Request request(String key, String id, String relation, Map<String, Object> input) {
@@ -278,7 +292,7 @@ public final class EasyVAgentTools {
         var observation = new LinkedHashMap<String, Object>();
         observation.put("id", id); observation.put("tool", call.tool()); observation.put("label", "读取所选区域的完整指标依据");
         observation.put("rows", List.copyOf(rows)); observation.put("totalRows", rows.size()); observation.put("complete", true);
-        observation.put("notice", "已逐区读取全部指标语义；源文案仅为设计意图，真实数值与最终渲染仍未核验。文案提案可直接预览，图形调整须先读取单块方案。");
+        observation.put("notice", "已逐区读取全部指标语义；源文案仅为设计意图，真实数值与最终渲染仍未核验。单指标块的文案候选用 textFields 选择 title/purpose，系统逐字使用源指标名称/含义；多指标命名不在本批自动对齐范围。图形调整须先读取单块方案。");
         // 整批读取用于判断与证据，不在正文重复展开清单；已有区域浏览入口负责按需查看。
         return new Output("读取所选区域的完整指标依据", List.copyOf(rows), improvementProducts(), observation, Map.of("blocks", inputs), null, List.copyOf(references));
       }
@@ -337,7 +351,7 @@ public final class EasyVAgentTools {
       }
       if (call.tool().equals("preview_block_improvement")) {
         var inspected = improvementContexts.get(call.selection().reference());
-        var proposal = improvementProposal(call.input());
+        var proposal = improvementProposal(call.input(), inspected);
         var preview = BlockImprovement.preview(inspected.block(), proposal, inspected.chartTypes().keySet());
         var rows = preview.changes().stream().map(change -> Map.<String,Object>of("name", change.name(), "beforeChart", chartLabel(inspected, change.beforeChart()),
             "afterChart", chartLabel(inspected, change.afterChart()), "beforeSlot", change.beforeSlot(), "afterSlot", change.afterSlot(), "reason", change.reason())).toList();

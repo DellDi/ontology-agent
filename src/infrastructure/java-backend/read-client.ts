@@ -333,9 +333,10 @@ const javaExecutionPlanEnvelopeSchema = z.strictObject({
     if (plan._objectSelectionLabel) context.addIssue({ code: 'custom', path: ['_objectSelectionLabel'], message: '对象标签必须对应真实选择。' });
     return;
   }
-  if (plan.mode !== 'semantic-query-read-only' || plan._executionContract !== 'java-follow-up-v1'
-    || !plan._followUpId || !plan._objectSelectionLabel
-    || plan._objectSelection.executionId !== plan._referencedExecutionId) {
+  if (plan.mode !== 'semantic-query-read-only' || !plan._objectSelectionLabel
+    || (plan._executionContract === 'java-follow-up-v1'
+      ? !plan._followUpId || plan._objectSelection.executionId !== plan._referencedExecutionId
+      : !!plan._followUpId || !!plan._referencedExecutionId)) {
     context.addIssue({ code: 'custom', path: ['_objectSelection'], message: '对象选择必须绑定语义追问的真实来源执行。' });
   }
 });
@@ -925,6 +926,10 @@ export const javaExecutionSnapshotSchema = z.strictObject({
       path: ['planSnapshot'],
       message: '完成态必须保存完整的 canonical plan 与受控 _resolvedContext。',
     });
+  }
+  if (value.followUpId === null && value.planSnapshot._objectSelection
+    && value.planSnapshot._objectSelection.executionId !== value.executionId) {
+    context.addIssue({ code: 'custom', path: ['planSnapshot', '_objectSelection'], message: '目录检查范围必须绑定当前真实执行。' });
   }
   const executionContract = value.planSnapshot._executionContract;
   if (value.followUpId === null && executionContract !== 'java-initial-v1') {

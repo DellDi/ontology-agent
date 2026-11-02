@@ -9,6 +9,7 @@ import contracts from '../src/infrastructure/java-backend/object-read-contract.t
 import objectClient from '../src/infrastructure/java-backend/object-read-client.ts';
 import catalog from '../src/infrastructure/java-backend/workspace-catalog.ts';
 import catalogRoute from '../src/app/api/easyv/workspace/prototypes/query/route.ts';
+import reviewRoute from '../src/app/api/easyv/workspace/prototypes/review/route.ts';
 import queryRoute from '../src/app/api/analysis/sessions/[sessionId]/objects/query/route.ts';
 
 const { javaObjectReadRequestSchema, javaObjectReadResultSchema } = contracts;
@@ -332,4 +333,47 @@ test('大屏目录 | 对象或冻结版本不匹配时拒绝展示，未知请�
   await assert.rejects(()=>catalog.readWorkspaceCatalog({datasetVersionSetId:'another-set'},signal),/数据版本已变化/);
   await assert.rejects(()=>catalog.readWorkspaceCatalog({executionId:'forged'},signal));
   assert.equal(globalThis.fetch.mock.calls.length,2,'未知字段必须在发出请求前拒绝');
+});
+
+
+test('目录检查 | 正式冻结引用发起会话，拒绝伪执行、重复及混合版本，失败保留原因', async context => {
+  const selection = { datasetVersionSetId: 'set-old', references: ['a','b','c'].map(objectId => ({ objectKey:'easyv-prototype-layout', objectId, productVersionId:'layouts-old' })) };
+  const requestSchema = JSON.parse(await readFile(new URL('schemas/workspace-review-request.schema.json', root), 'utf8'));
+  const validate = ajv.compile(requestSchema);
+  assert.equal(validate({ purpose:'运营复盘', selection }), true, ajv.errorsText());
+  const sessionId = '12345678-1234-4234-9234-123456789abc';
+  context.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({sessionId}), {status:200}));
+  assert.equal(await catalog.startCatalogReview(selection, '运营复盘'), sessionId);
+  const [url, init] = globalThis.fetch.mock.calls[0].arguments;
+  assert.equal(url, '/api/easyv/workspace/prototypes/review');
+  assert.deepEqual(JSON.parse(init.body), { purpose:'运营复盘', selection });
+  for (const invalid of [
+    {...selection, executionId:'fake'}, {...selection, references:[]},
+    {...selection, references:[selection.references[0],selection.references[0]]},
+    {...selection, references:[...selection.references, {...selection.references[0],objectId:'d'}]},
+    {...selection, references:[selection.references[0], {...selection.references[1],productVersionId:'other'}]},
+    {...selection, references:[{...selection.references[0],properties:{owner:'forged'}}]},
+  ]) await assert.rejects(() => catalog.startCatalogReview(invalid, '运营复盘'));
+  assert.equal(globalThis.fetch.mock.calls.length, 1, '非法范围不得发出请求');
+  globalThis.fetch.mock.mockImplementation(async () => new Response(JSON.stringify({error:'权限已收回',traceId:'trace-review'}),{status:403}));
+  await assert.rejects(() => catalog.startCatalogReview(selection, '运营复盘'), /权限已收回.*trace-review/);
+});
+
+test('目录检查 | BFF 原样传递已选范围和登录身份', async context => {
+  const originalUrl=process.env.JAVA_BACKEND_URL;
+  let captured;
+  const server=createServer(async(incoming,response)=>{
+    let raw='';for await(const chunk of incoming)raw+=chunk;
+    captured={path:incoming.url,cookie:incoming.headers.cookie,body:JSON.parse(raw)};
+    response.writeHead(403,{'content-type':'application/json'});response.end(JSON.stringify({error:'权限已收回',code:'OBJECT_SCOPE_FORBIDDEN',traceId:'trace-review'}));
+  });
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  process.env.JAVA_BACKEND_URL=`http://127.0.0.1:${server.address().port}`;
+  context.after(()=>{if(originalUrl===undefined)delete process.env.JAVA_BACKEND_URL;else process.env.JAVA_BACKEND_URL=originalUrl;server.close();});
+  const body={purpose:'运营复盘',selection:{datasetVersionSetId:'set-old',references:[{objectKey:'easyv-prototype-layout',objectId:'a',productVersionId:'layouts-old'}]}};
+  const response=await reviewRoute.POST(new Request('http://web.local/api/easyv/workspace/prototypes/review',{
+    method:'POST',headers:{cookie:'dip3_session=test-only','content-type':'application/json'},body:JSON.stringify(body),
+  }));
+  assert.equal(response.status,403);assert.equal((await response.json()).traceId,'trace-review');
+  assert.deepEqual(captured,{path:'/api/easyv/workspace/prototypes/review',cookie:'dip3_session=test-only',body});
 });

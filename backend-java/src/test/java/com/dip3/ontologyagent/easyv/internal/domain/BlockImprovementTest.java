@@ -87,6 +87,36 @@ class BlockImprovementTest {
     code("BLOCK_IMPROVEMENT_INVALID", () -> BlockImprovement.preview(missingMeaning,
         new Proposal(null, List.of(), diagnosis, List.of(), "门诊量趋势", null), types));
   }
+  @Test void sourceTextCandidatesPreserveExactNameMeaningAndRequestedFieldsWithoutInventingGrain() {
+    var original = context();
+    var metric = new Metric("component-0", "same-metric", "季度销售额同比变化", "变化过程线展示近三月各周销售额同比上年同期的增幅波动。",
+        null, "%", "(本期销售额-上年同期销售额)/上年同期销售额×100%", "bar");
+    var source = new Context("关键指标预警", "核心指标监控与异常识别", List.of(metric), original.input(), original.schemes());
+    for (var fields : List.of(List.of("title"), List.of("purpose"), List.of("title", "purpose"))) {
+      var proposal = BlockImprovement.sourceTextProposal(source, fields);
+      var result = BlockImprovement.preview(source, proposal, types);
+      assertEquals(fields.contains("title") ? metric.name() : source.title(), result.textChange().afterTitle());
+      assertEquals(fields.contains("purpose") ? metric.description() : source.purpose(), result.textChange().afterPurpose());
+      assertTrue(result.changes().isEmpty());
+      assertNull(result.placement());
+      assertTrue(result.diagnosis().themeFit().contains("不判定原模块用途错误或业务能力缺失"));
+      assertTrue(result.pendingChecks().stream().anyMatch(check -> check.contains("时间范围、粒度")));
+      assertFalse(result.diagnosis().themeFit().contains("缺少预警阈值"));
+    }
+    assertEquals("季度销售额同比变化", source.metrics().getFirst().name());
+  }
+
+  @Test void sourceTextCandidatesRejectUnretainedOrMultipleMetricsAndCannotForceANoOp() {
+    var source = context();
+    for (var fields : List.of(List.<String>of(), List.of("title", "title"), List.of("other")))
+      code("BLOCK_IMPROVEMENT_INVALID", () -> BlockImprovement.sourceTextProposal(source, fields));
+    code("BLOCK_IMPROVEMENT_INVALID", () -> BlockImprovement.sourceTextProposal(
+        new Context(source.title(), source.purpose(), List.of(metric("component-0"), metric("component-1")), source.input(), source.schemes()), List.of("title")));
+    var unchanged = new Context("门诊量", "每日接诊人次", source.metrics(), source.input(), source.schemes());
+    code("BLOCK_IMPROVEMENT_NO_CHANGE", () -> BlockImprovement.preview(unchanged,
+        BlockImprovement.sourceTextProposal(unchanged, List.of("title", "purpose")), types));
+  }
+
   private Metric metric(String component) { return new Metric(component,"same-metric","门诊量","每日接诊人次",null,"人次","按日求和","bar"); }
   private Proposal proposal(String scheme, List<Choice> choices) { return new Proposal(scheme, choices, diagnosis, List.of()); }
   private static void code(String code, Runnable action) { assertEquals(code, assertThrows(BackendException.class, action::run).code()); }

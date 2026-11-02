@@ -49,6 +49,38 @@ class AnalysisServiceTest {
     private AnalysisService service;
     private CapabilityBinding binding;
 
+    @Test
+    void objectSessionSubmissionKeepsTheChosenFrozenSetInsteadOfSelectingTheLatest() {
+        var initial = new com.dip3.ontologyagent.semantic.api.InitialObjectSelection("chosen-set", List.of(
+            new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", "screen-a", "layouts-old")));
+        var context = new java.util.LinkedHashMap<>(contextWithCapability(PROPERTY_ID));
+        context.put("initialObjectSelection", initial.snapshot());
+        var selectedSession = new AnalysisSession(session.id(), session.ownerUserId(), session.scope(), "检查大屏", context,
+            "pending", session.createdAt(), session.updatedAt());
+        when(sessions.requireOwned(session.id(), owner)).thenReturn(selectedSession);
+        when(executions.submit(eq(selectedSession), any(), any(), eq(binding), eq("chosen-set")))
+            .thenReturn(new ExecutionSubmission("execution-selected", true));
+        assertEquals("execution-selected", service.submit(session.id(), owner, "chosen-key", "trace"));
+        verify(datasetVersionSets).requireFrozen(eq("chosen-set"), any());
+        verify(datasetVersionSets, never()).latestFrozen(any());
+    }
+
+    @Test
+    void objectSessionPersistsOnlyTheConfirmedScopeAndExplicitCapability() {
+        var selection = new com.dip3.ontologyagent.semantic.api.InitialObjectSelection("chosen-set", List.of(
+            new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", "a", "layouts-old")));
+        var ontology = ontologies.currentPublished();
+        var easyv = easyvBinding(owner, "ontology-1");
+        when(capabilities.bind(EASYV_ID, ontology, owner)).thenReturn(easyv);
+        when(capabilities.require(easyv, ontology, owner)).thenReturn(com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvDescriptor());
+        when(sessions.create(eq(owner), eq("检查所选大屏"), any())).thenAnswer(call -> new AnalysisSession("new", owner.userId(), owner.scope(), call.getArgument(1), call.getArgument(2), "pending", Instant.now(), Instant.now()));
+        var created = service.createObjectSession(owner, "检查所选大屏", EASYV_ID, selection);
+        assertEquals(selection.snapshot(), created.savedContext().get("initialObjectSelection"));
+        assertEquals(Map.of("domainKey", EASYV_ID.domainKey(), "capabilityKey", EASYV_ID.capabilityKey()), created.savedContext().get("_capabilityId"));
+        verify(datasetVersionSets).requireFrozen(eq("chosen-set"), any());
+        org.mockito.Mockito.verifyNoInteractions(executions, wakeups);
+    }
+
     @BeforeEach
     void setUp() {
         when(sessions.requireOwned("session-1", owner)).thenReturn(session);

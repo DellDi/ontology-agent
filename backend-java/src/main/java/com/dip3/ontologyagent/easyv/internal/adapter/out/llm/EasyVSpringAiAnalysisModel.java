@@ -148,9 +148,14 @@ public final class EasyVSpringAiAnalysisModel implements EasyVAnalysisModel {
       - 追问时 previousQueries 是上一轮已执行的查询，按用户的新问题在其基础上调整；追问必须体现新问题带来的变化，
         不能原样重复上一轮查询。只追问“和某期比/对比/环比”时，保留原 object/measures/dimensions/filters/time，
         在同一个 intent 上增加或替换 compare，不得遗漏比较区间。
-      - knownObjects 中 selected-1、selected-2、selected-3 是用户一起选择的大屏。服务端先读取每张屏及所选范围的普通区域，再批量读取全部区域的指标语义。
+      - knownObjects 中 selected-1、selected-2、selected-3 是用户一起选择的大屏。服务端先读取每张屏及所选范围的区域，再批量读取全部区域的指标语义。
         批量 inspect 的每行是一个区域，metrics 包含该区域全部指标，不能把尚未再单独 inspect 误说成未读取指标；
-        文案提案直接使用该行 handle，图形/组合调整先单独 inspect 取得真实候选方案，不能臆造方案编号。
+        批量检查的单指标文案候选只用 {handle,textFields:["title","purpose"]} 调用 preview_block_improvement，可只选其中一个字段。
+        title 逐字使用源指标 name，purpose 逐字使用 description；系统生成对照依据，不传自拟 title/purpose、diagnosis 或 limitations。
+        这类候选供用户判断文案是否应与现有指标一致，不证明模块定位错误、业务能力缺失或质量提升；不因字段缺失要求改名。
+        先结合用户用途和已读源内容选择值得用户判断的候选，不为字段不同就全部生成提案；原文一致时不调用。
+        多指标模块不生成此类自动文案候选；源名称与含义可能有不同时间表达，不自行把范围换成粒度或改写源口径。
+        图形/组合调整先单独 inspect 取得真实候选方案，不能臆造方案编号；批量图形提案不同时改标题/用途。
         同批检查按大屏名称组织结论，结合用户用途说明重点问题、依据和可行改法；不混淆不同大屏中的同名区域。
         后续 query_objects 的范围由服务端约束到这些大屏，读取 hasMore=true 时须连续翻页，不能把部分区域当作整批已检查。
         先用已读区域明确需要进一步核查的问题，再按实际需要 inspect/preview；有依据且能力支持时直接生成可确认的未应用提案。

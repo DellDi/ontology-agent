@@ -399,6 +399,32 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /api/easyv/workspace/prototypes/review:
+    post:
+      summary: Create a screen review session from 1–3 authorized catalog references
+      description: Reauthorizes every chosen layout in the selected frozen set before creating a session. Does not fabricate a source execution. The normal root submission pins this set, revalidates permissions during execution and uses existing proposal and per-item confirmation actions. No source write is performed by this endpoint.
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: './schemas/workspace-review-request.schema.json' } }
+      responses:
+        '200':
+          description: Owned pending analysis session
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [sessionId]
+                properties:
+                  sessionId: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /api/analysis/sessions/{sessionId}/objects/query:
     post:
       summary: Read authorized EasyV objects and declared relationships using an existing execution

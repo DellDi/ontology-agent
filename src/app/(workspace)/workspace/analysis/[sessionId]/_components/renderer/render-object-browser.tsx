@@ -341,16 +341,16 @@ function PrototypeDetail({ context, root, rootType, onObjectSelect, onOpenSidePa
   const structure = layout.data?.structure;
   const pages = structure?.status === 'available' ? projectPrototypeLayout(structure.layout, blockRows) : [];
 
-  function openFocus(row: Row, showPanel = true): void {
+  function openFocus(row: Row, showPanel = true, updateSelection = true): void {
     const type = row.reference.objectKey === 'easyv-prototype-block' ? blocks.data?.pages[0]?.objectType
       : row.reference.objectKey === 'easyv-prototype-layout' ? layout.data?.objectType : regionComponents.data?.pages[0]?.objectType ?? components.data?.pages[0]?.objectType;
     const title = label(row,type ?? (rootType?.key === row.reference.objectKey ? rootType : undefined));
-    if (workspace && onObjectSelect?.({executionId:context.executionId,datasetVersionSetId:layout.data?.datasetVersionSetId ?? context.datasetVersionSetId,reference:row.reference},title) === false) return;
+    if (workspace && updateSelection && onObjectSelect?.({executionId:context.executionId,datasetVersionSetId:layout.data?.datasetVersionSetId ?? context.datasetVersionSetId,reference:row.reference},title) === false) return;
     setFocus(row);
     if (showPanel) onOpenSidePanel?.({ title, testId: 'analysis-prototype-context',
       content: <PrototypeObjectContext context={context} focus={row} onFocus={openFocus} onObjectSelect={onObjectSelect} /> });
   }
-  const initializeFocus = useEffectEvent(() => openFocus(root, window.matchMedia('(min-width: 1280px)').matches));
+  const initializeFocus = useEffectEvent(() => openFocus(root, window.matchMedia('(min-width: 1280px)').matches, false));
   useEffect(() => {
     if (!workspace || !layout.data || initialized.current) return;
     initialized.current = true;

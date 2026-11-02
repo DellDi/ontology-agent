@@ -44,7 +44,7 @@ class EasyVReadableObjectCatalogContractTest {
       }
     }
     assertEquals(Set.of("object-read-request.schema.json", "object-read-result.schema.json",
-        "conclusion-state.schema.json", "easyv-semantic-plan.schema.json"), readable.keySet());
+        "conclusion-state.schema.json", "easyv-semantic-plan.schema.json", "workspace-catalog-result.schema.json"), readable.keySet());
   }
 
   private static List<Set<String>> enums(JsonNode node) {

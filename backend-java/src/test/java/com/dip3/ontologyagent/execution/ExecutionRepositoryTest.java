@@ -21,6 +21,29 @@ class ExecutionRepositoryTest {
             Map.of(), "pending", Instant.now(), Instant.now());
 
     @Test
+    void rootObjectScopeSurvivesSubmissionAndWorkerClaimWithoutChangingOrdinaryJobs() {
+        var jobs = mock(JobMapper.class);
+        var repository = new ExecutionRepository(jobs, mock(ExecutionEventMapper.class), mock(ExecutionSnapshotMapper.class));
+        var scope = new com.dip3.ontologyagent.semantic.api.InitialObjectSelection("chosen-set", List.of(
+            new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", "a", "layouts-old"))).snapshot();
+        var selected = new AnalysisSession(session.id(), session.ownerUserId(), session.scope(), session.questionText(),
+            Map.of("initialObjectSelection", scope), session.status(), session.createdAt(), session.updatedAt());
+        var owner = new com.dip3.ontologyagent.auth.AuthSession("auth", "user-1", "用户", session.scope(), Instant.MAX);
+        var binding = com.dip3.ontologyagent.support.CapabilityTestFixtures.easyvBinding(owner, "ontology-1");
+        var captured = org.mockito.ArgumentCaptor.forClass(JobEntity.class);
+        org.mockito.Mockito.when(jobs.insertIfAbsent(captured.capture())).thenReturn(1);
+        var submitted = repository.submit(selected, "key", "trace", binding, "chosen-set");
+        var row = captured.getValue(); row.attemptCount = 1;
+        org.mockito.Mockito.when(jobs.claim(org.mockito.ArgumentMatchers.eq("worker"), org.mockito.ArgumentMatchers.any())).thenReturn(row);
+        var claimed = repository.claim("worker", java.time.Duration.ofSeconds(30)).orElseThrow();
+        assertEquals(submitted.executionId(), claimed.executionId());
+        assertEquals("chosen-set", claimed.datasetVersionSetId());
+        assertEquals(Map.of("initialObjectSelection", scope), claimed.effectiveContext());
+        repository.submit(session, "ordinary", "trace", binding, "latest");
+        org.junit.jupiter.api.Assertions.assertFalse(captured.getValue().payload.containsKey("effectiveContext"));
+    }
+
+    @Test
     void initialAndFollowUpSubmissionRejectMissingCapabilityBindingWithTheSameError() {
         BackendException initial = assertThrows(BackendException.class,
                 () -> repository.submit(session, "key-1", "trace-1", null));

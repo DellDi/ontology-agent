@@ -168,6 +168,23 @@ test('对象与评估工具轨迹支持完成态、对象轮次追问和严格�
   assertZod(javaAnalysisFollowUpSchema, followUp, 'object-only follow-up');
 });
 
+test('目录检查根轮次保留正式范围并可恢复；追问来源约束保持', async () => {
+  const ajv = await contractValidator();
+  const snapshot = await jsonFixture('snapshot-semantic-query.json');
+  const selection = {executionId:snapshot.executionId,datasetVersionSetId:'set-root',reference:{objectKey:'easyv-prototype-layout',objectId:'a',productVersionId:'layouts-old'},additionalReferences:[{objectKey:'easyv-prototype-layout',objectId:'b',productVersionId:'layouts-old'}]};
+  Object.assign(snapshot.planSnapshot, {_objectSelection:selection,_objectSelectionLabel:'2 张大屏的检查与改进'});
+  assertJsonSchema(ajv, 'execution-snapshot.schema.json', snapshot, 'catalog-root-selection');
+  const view = {...snapshot,ontologyVersionBindingSource:snapshot.ontologyVersionBinding.source};
+  delete view.ownerUserId; delete view.ontologyVersionBinding; delete view.datasetVersionSetId;
+  assertZod(javaExecutionSnapshotSchema, view, 'catalog-root-selection');
+  snapshot.planSnapshot._objectSelection.executionId='forged-source';
+  assert.equal(javaExecutionSnapshotSchema.safeParse(view).success,false);
+  snapshot.planSnapshot._objectSelection.executionId=snapshot.executionId;
+  snapshot.planSnapshot._executionContract='java-follow-up-v1';
+  assert.equal(ajv.getSchema('execution-snapshot.schema.json')(snapshot),false,'追问仍必须绑定来源和轮次');
+  assert.equal(javaExecutionSnapshotSchema.safeParse(view).success,false);
+});
+
 test('对象追问引用同时符合共享 Schema 与 Web 读取契约', async () => {
   const ajv = await contractValidator();
   const snapshot = await jsonFixture('snapshot-semantic-query.json');

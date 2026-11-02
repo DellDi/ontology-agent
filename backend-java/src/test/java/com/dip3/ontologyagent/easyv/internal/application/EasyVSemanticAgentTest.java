@@ -798,8 +798,9 @@ class EasyVSemanticAgentTest {
     assertEquals("easyv-set-1", workflow.evidence().getFirst().provenance().datasetVersionSetId());
   }
 
-  @Test
-  void batchReviewReadsEverySelectedScreenAndAllRegionsBeforeComposition() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void batchReviewReadsEverySelectedScreenAndAllRegionsBeforeComposition(boolean fromCatalog) {
     var objects = mock(EasyVObjectReadService.class); var scopes = mock(EasyVScopeResolver.class);
     var semantic = SemanticModel.discover();
     when(scopes.executionPrincipal(any())).thenReturn(principal()); when(scopes.resolveScope(any())).thenReturn(ALL);
@@ -808,7 +809,7 @@ class EasyVSemanticAgentTest {
     agent = new EasyVSemanticAgent(model, semantic, new SemanticQueryCompiler(semantic), queries, datasets, recorder, selections, realTools);
     var rows = List.of("a", "b", "c").stream().map(id -> new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Row(
         new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", id, "v-easyv-prototype-layout"), Map.<String, Object>of("appId", id, "pageTitle", "运营大屏" + id))).toList();
-    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection("execution-0", "easyv-set-1", rows.getFirst().reference(), rows.subList(1, 3).stream().map(row -> row.reference()).toList());
+    var selection = new com.dip3.ontologyagent.semantic.api.ObjectSelection(fromCatalog ? "execution-1" : "execution-0", "easyv-set-1", rows.getFirst().reference(), rows.subList(1, 3).stream().map(row -> row.reference()).toList());
     when(selections.requireDuringExecution(any(), eq(ALL), eq(selection))).thenReturn(new EasyVObjectSelectionService.Selected(ALL, rows.getFirst(), rows));
     when(objects.readDuringExecution(any(), eq(ALL), any())).thenAnswer(call -> {
       EasyVObjectReadService.Request request = call.getArgument(2);
@@ -820,7 +821,10 @@ class EasyVSemanticAgentTest {
     when(model.plan(any())).thenReturn(finished());
     when(model.compose(any(), any())).thenReturn(new ComposedAnswer("已读取运营大屏a；本批未找到可读取的普通区域，缺少改造依据。",
         List.of(new Citation("q1", 0, "pageTitle")), List.of(), List.of(), List.of()));
-    var result = run(followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot())), ALL);
+    var turn = fromCatalog ? new AgentTurn(ExecutionRepository.INITIAL_EXECUTION_CONTRACT, "session-1", "检查所选大屏用于运营复盘", null, null, Map.of(),
+        Map.of("initialObjectSelection", new com.dip3.ontologyagent.semantic.api.InitialObjectSelection("easyv-set-1", selection.references()).snapshot()), ANCHOR)
+        : followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot()));
+    var result = run(turn, ALL);
     var captured = ArgumentCaptor.forClass(EasyVObjectReadService.Request.class); verify(objects, org.mockito.Mockito.atLeastOnce()).readDuringExecution(any(), eq(ALL), captured.capture());
     assertEquals(List.of("a", "b", "c"), captured.getAllValues().stream().filter(request -> request.objectKey().equals("easyv-prototype-layout")).map(EasyVObjectReadService.Request::objectId).toList());
     assertEquals(List.of("a", "b", "c"), captured.getAllValues().getLast().filters().getFirst().values());
@@ -873,16 +877,15 @@ class EasyVSemanticAgentTest {
     verify(recorder).succeedWhileLeased(eq("child-inspect_block_improvement-q5"), anyMap(), eq("execution-1"), eq("worker-1"));
     assertEquals(5, ((List<?>) ((Map<?,?>) result.plan().get("_resolvedContext")).get("toolCalls")).size());
     verify(model, never()).compose(any(), any());
-    assertTrue(result.conclusion().contains("3 个普通区域、3 个图表指标"));
+    assertTrue(result.conclusion().contains("3 个区域、3 个指标"));
     assertTrue(result.conclusion().contains("没有提案不代表所有区域无需修改"));
     when(model.plan(any())).thenReturn(new PlanDecision(PlanStatus.READY, List.of(Map.of("tool", "preview_block_improvement", "input",
-        Map.of("handle", "o2", "title", "门诊量趋势", "purpose", "观察每日门诊量", "choices", List.of(),
-            "diagnosis", Map.of("themeFit", "模块名称应对应每日门诊量", "metricChartFit", "保持图形", "composition", "保持位置"), "limitations", List.of()))), null, List.of()), finished());
+        Map.of("handle", "o2", "textFields", List.of("title", "purpose")))), null, List.of()), finished());
     var proposed = run(followUpTurn(Map.of("queries", List.of(COUNT_QUERY), "objectSelection", selection.snapshot())), ALL);
     assertTrue(proposed.conclusion().contains("运营大屏b · 业务量"));
     assertFalse(proposed.conclusion().contains("运营大屏a · 业务量"));
-    assertTrue(proposed.conclusion().contains("业务量 → 门诊量趋势"));
-    assertTrue(proposed.conclusion().contains("观察业务量 → 观察每日门诊量"));
+    assertTrue(proposed.conclusion().contains("业务量 → 门诊量"));
+    assertTrue(proposed.conclusion().contains("观察业务量 → 每日接诊人次"));
     verify(model, never()).compose(any(), any());
   }
 
@@ -924,6 +927,21 @@ class EasyVSemanticAgentTest {
     var compiled = ArgumentCaptor.forClass(CompiledSemanticQuery.class); verify(queries).execute(compiled.capture(), any());
     assertEquals(List.of(new QueryIntent.Filter("blockKey", QueryIntent.Operator.EQUALS, List.of("a:b"))), compiled.getValue().intent().filters());
     assertEquals(selection.snapshot(), result.plan().get("_objectSelection"));
+  }
+
+  @Test
+  void catalogRootMismatchOrRevocationFailsBeforeModelPlanning() {
+    var reference = new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Reference("easyv-prototype-layout", "a", "v-easyv-prototype-layout");
+    var initial = new com.dip3.ontologyagent.semantic.api.InitialObjectSelection("set-new", List.of(reference));
+    var root = initialTurn();
+    var mismatch = new AgentTurn(root.contract(), root.sessionId(), root.questionText(), null, null, Map.of(), Map.of("initialObjectSelection", initial.snapshot()), ANCHOR);
+    assertCode("OBJECT_VERSION_MISMATCH", () -> run(mismatch, ALL));
+    var selected = new com.dip3.ontologyagent.semantic.api.InitialObjectSelection("easyv-set-1", List.of(reference));
+    when(selections.requireDuringExecution(any(), any(), eq(selected.bind("execution-1"))))
+        .thenThrow(new BackendException("OBJECT_SCOPE_FORBIDDEN", "权限已收回"));
+    var revoked = new AgentTurn(root.contract(), root.sessionId(), root.questionText(), null, null, Map.of(), Map.of("initialObjectSelection", selected.snapshot()), ANCHOR);
+    assertCode("OBJECT_SCOPE_FORBIDDEN", () -> run(revoked, ALL));
+    verify(model, never()).plan(any());
   }
 
   @Test

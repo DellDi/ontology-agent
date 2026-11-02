@@ -59,6 +59,9 @@ public class ExecutionRepository {
         payload.put("traceId", traceId);
         payload.put("ontologyVersionId", binding.ontologyVersionId());
         payload.put("capabilityBinding", binding.snapshot());
+        if (session.savedContext().containsKey("initialObjectSelection")) {
+            payload.put("effectiveContext", Map.of("initialObjectSelection", session.savedContext().get("initialObjectSelection")));
+        }
         if (datasetVersionSetId != null) payload.put("datasetVersionSetId", datasetVersionSetId);
         JobEntity row = new JobEntity();
         row.id = executionId;
@@ -152,7 +155,7 @@ public class ExecutionRepository {
                     followUp ? requiredText(row.payload, "referencedExecutionId") : null,
                     followUp ? validatedReferencedConclusion(objectMap(
                             row.payload.get("referencedConclusion"), "referencedConclusion")) : Map.of(),
-                    followUp ? objectMap(row.payload.get("effectiveContext"), "effectiveContext") : Map.of(), workerId,
+                    (followUp || row.payload.containsKey("effectiveContext")) ? objectMap(row.payload.get("effectiveContext"), "effectiveContext") : Map.of(), workerId,
                     row.attemptCount, row.maxAttempts));
         } catch (BackendException error) {
             String traceId = nullableText(row.payload.get("traceId"));
@@ -519,6 +522,7 @@ public class ExecutionRepository {
                 || actual.payload == null
                 || !java.util.Objects.equals(expected.payload.get("executionContract"),
                 actual.payload.get("executionContract"))
+                || !java.util.Objects.equals(expected.payload.get("effectiveContext"), actual.payload.get("effectiveContext"))
                 || FOLLOW_UP_EXECUTION_CONTRACT.equals(expected.payload.get("executionContract"))
                 && !sameFollowUpIdentity(expected.payload, actual.payload)) {
             throw new BackendException("IDEMPOTENCY_CONFLICT", "幂等执行标识已绑定到不同的请求身份或载荷。");

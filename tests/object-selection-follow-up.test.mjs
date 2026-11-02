@@ -27,6 +27,15 @@ test('批量检查 | 续接核对整批引用，不能只比较第一张；刷�
   assert.equal(turn.objectSelectionLabel, '2 张大屏的检查与改进');
 });
 
+test('目录检查 | 根轮次刷新保留整批对象和当前执行供后续追问', () => {
+  const scope = { executionId:'root-execution',datasetVersionSetId:'set-root',reference:{objectKey:'easyv-prototype-layout',objectId:'a',productVersionId:'layouts-root'},additionalReferences:[{objectKey:'easyv-prototype-layout',objectId:'b',productVersionId:'layouts-root'}] };
+  const round = {id:'root',kind:'initial',questionText:'运营复盘',executionId:'root-execution',followUpId:null,status:'completed',conclusionState:null,
+    planSnapshot:{_executionContract:'java-initial-v1',_objectSelection:scope,_objectSelectionLabel:'2 张大屏的检查与改进'}};
+  const [turn] = turnsModule.buildChatTurns({history:[round],followUps:[]},'root-execution');
+  assert.deepEqual(turn.objectSelection,scope);
+  assert.equal(turn.objectSelectionLabel,'2 张大屏的检查与改进');
+});
+
 test('对象追问 | 真实引用提交、明确取消、结构化调整与拒绝原因', async (context) => {
   const oldFetch = globalThis.fetch; const oldWindow = globalThis.window; const calls = [];
   globalThis.window = { location: { origin: 'http://localhost:3000' } };

@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ScreenReviewPicker } from '../analysis/[sessionId]/_components/renderer/screen-review-picker';
 import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { ArrowUpRight, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
@@ -9,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { projectPrototypeLayout } from '@/application/prototype-layout/project-layout';
 import { objectRecordTitle, objectPropertyText } from '@/application/object-collection/presentation';
 import { formatShanghaiDateTime } from '@/lib/format-datetime';
-import { readWorkspaceCatalog, type WorkspaceCatalogRequest, type WorkspaceCatalogResult } from '@/infrastructure/java-backend/workspace-catalog';
+import { startCatalogReview, readWorkspaceCatalog, type WorkspaceCatalogRequest, type WorkspaceCatalogResult } from '@/infrastructure/java-backend/workspace-catalog';
 import { PrototypeLayoutCanvas } from '../analysis/[sessionId]/_components/renderer/prototype-layout-canvas';
 import { MetricDefinition } from '../analysis/[sessionId]/_components/renderer/metric-definition';
 import { chartPlaceholder } from '../analysis/[sessionId]/_components/renderer/prototype-component-preview';
@@ -31,6 +33,8 @@ function ReadError({ error, retry }: { error: Error; retry: () => void }) {
 function title(row: Row, type: WorkspaceCatalogResult['objectType']) { return objectRecordTitle(row.properties, type); }
 
 export function PrototypeCatalog({ initialObjectId, initialVersion }: { initialObjectId?: string; initialVersion?: string }) {
+  const router = useRouter();
+  const [reviewing, setReviewing] = useState(false);
   const [draft, setDraft] = useState('');
   const [scope, setScope] = useState({ search: '', offset: 0, datasetVersionSetId: undefined as string | undefined });
   const [selected, setSelected] = useState<{ id: string; version?: string } | null>(initialObjectId ? { id: initialObjectId, version: initialVersion } : null);
@@ -54,12 +58,17 @@ export function PrototypeCatalog({ initialObjectId, initialVersion }: { initialO
       <div className="relative min-w-0 flex-1"><Search aria-hidden className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input aria-label="搜索大屏名称" placeholder="搜索大屏名称" maxLength={200} value={draft} onChange={event => setDraft(event.target.value)} className="pl-9" /></div>
       <Button type="submit" variant="outline">搜索</Button>
     </form>
+    <Button variant="outline" onClick={() => setReviewing(value => !value)}>{reviewing ? '收起检查范围' : '选择大屏一起检查与改进'}</Button>
+    {reviewing ? <ScreenReviewPicker data={data} onStartCatalog={async (selection, purpose) => {
+      const sessionId = await startCatalogReview(selection, purpose);
+      router.push(`/workspace/analysis/${sessionId}`);
+    }} /> : null}
     <div className={selected ? 'grid items-start gap-6 xl:grid-cols-[240px_minmax(0,1fr)]' : ''}>
       <div className="space-y-4">
         {list.isPending ? <p role="status" className="py-6 text-sm text-muted-foreground">正在读取大屏…</p> : null}
         {list.error ? <ReadError error={list.error} retry={() => { void list.refetch(); }} /> : null}
         {data ? <>
-          {!data.page.rows.length ? <p className="py-8 text-sm text-muted-foreground">{scope.search ? '没有匹配的大屏，请换个名称搜索。' : '当前权限范围内没有大屏原型。'}</p> : <ul className="divide-y divide-border">
+          {!data.page.rows.length ? <p className="py-8 text-sm text-muted-foreground">{scope.search ? '没有匹配的大屏，请换个名称搜索。' : '当前权限范围内没有大屏原型。'}</p> : reviewing ? null : <ul className="divide-y divide-border">
             {data.page.rows.map(row => <li key={row.reference.objectId}>
               <button type="button" aria-pressed={selected?.id === row.reference.objectId} onClick={event => { selectedTrigger.current = event.currentTarget; setSelected({ id: row.reference.objectId, version: data.datasetVersionSetId }); }}
                 className={`w-full space-y-2 rounded-sm px-3 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected?.id === row.reference.objectId ? 'bg-accent' : 'hover:bg-secondary/60'}`}>
@@ -121,7 +130,6 @@ function CatalogStructure({ layout, appId, onClose }: { layout: WorkspaceCatalog
       components={componentRows.filter(row => row.properties.blockKey === (selected.properties.blockKey ?? selected.reference.objectId))}
       componentsComplete={!components.isPending && !components.hasNextPage && !components.error} onSelect={setSelected} /> : <p className="text-sm text-muted-foreground">选择区域查看指标与用途。</p>}
     <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-4 text-sm">
-      <Link className="py-2 text-primary hover:underline" href={`/workspace?${new URLSearchParams({draft:`查看应用 ID ${appId} 的原型，结合主题、模块用途和指标检查内容安排，提出有依据的改进建议。`})}`}>填写分析问题<ArrowUpRight aria-hidden className="ml-1 inline size-3.5" /></Link>
       {layout.sourceUrl ? <a href={layout.sourceUrl} target="_blank" rel="noopener noreferrer" className="py-2 text-muted-foreground hover:text-primary">在 EasyV 查看</a> : null}
     </div>
   </div>;

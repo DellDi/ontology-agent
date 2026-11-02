@@ -14,6 +14,7 @@ import com.dip3.ontologyagent.execution.WakeupPublisher;
 import com.dip3.ontologyagent.ingestion.api.DatasetVersionSetRegistry;
 import com.dip3.ontologyagent.ontology.OntologyRepository;
 import com.dip3.ontologyagent.support.BackendException;
+import com.dip3.ontologyagent.semantic.api.InitialObjectSelection;
 import java.text.Normalizer;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,6 +63,20 @@ public final class AnalysisService {
     return sessions.create(owner, question, initialContext(capabilityId));
   }
 
+  /** 领域入口已核对对象权限；这里保留正式能力和冻结范围，提交时再次校验。 */
+  public AnalysisSession createObjectSession(AuthSession owner, String question, CapabilityId capabilityId,
+      InitialObjectSelection selection) {
+    if (question == null || question.isBlank() || question.length() > 300)
+      throw new BackendException("INVALID_ANALYSIS_QUESTION", "检查问题需要 1–300 个字符。");
+    var ontology = ontologies.currentPublished();
+    var binding = capabilities.bind(capabilityId, ontology, owner);
+    var descriptor = capabilities.require(binding, ontology, owner);
+    datasetVersionSets.requireFrozen(selection.datasetVersionSetId(), descriptor.requiredDataProductKeys());
+    var context = new LinkedHashMap<>(initialContext(capabilityId));
+    context.put("initialObjectSelection", selection.snapshot());
+    return sessions.create(owner, question, context);
+  }
+
   public String submit(String sessionId, AuthSession owner, String idempotencyKey, String traceId) {
     AnalysisSession session = ownedSession(sessionId, owner);
     if (!ExecutionRepository.EXECUTION_CONTRACT.equals(
@@ -72,7 +87,12 @@ public final class AnalysisService {
     CapabilityBinding binding =
         capabilities.bind(capabilityId(session.savedContext()), ontology, owner);
     CapabilityDescriptor descriptor = capabilities.require(binding, ontology, owner);
-    String datasetVersionSetId = latestDatasetVersionSet(descriptor);
+    String datasetVersionSetId;
+    if (session.savedContext().containsKey("initialObjectSelection")) {
+      var selection = InitialObjectSelection.read(session.savedContext().get("initialObjectSelection"));
+      datasetVersionSets.requireFrozen(selection.datasetVersionSetId(), descriptor.requiredDataProductKeys());
+      datasetVersionSetId = selection.datasetVersionSetId();
+    } else datasetVersionSetId = latestDatasetVersionSet(descriptor);
     String key = normalizeIdempotencyKey(idempotencyKey);
     ExecutionSubmission submission = datasetVersionSetId == null
         ? executions.submit(session, key, traceId, binding)
