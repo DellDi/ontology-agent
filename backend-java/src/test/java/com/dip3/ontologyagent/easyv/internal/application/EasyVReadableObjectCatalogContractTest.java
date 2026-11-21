@@ -26,7 +26,8 @@ class EasyVReadableObjectCatalogContractTest {
       assertNotNull(model.require(key).productKey(), "读取冻结版本按对象声明的产品解析：" + key);
     }
     assertEquals(Set.of("easyv-ai-application", "easyv-prototype-layout", "easyv-prototype-block", "easyv-prototype-component",
-            "easyv-generation-feedback", "easyv-quality-node", "easyv-forge-task"),
+            "easyv-generation-feedback", "easyv-quality-node", "easyv-forge-task",
+            "easyv-chart-type", "easyv-chart-category", "easyv-chart-priority", "easyv-config-audit"),
         EasyVOntologyModel.READABLE_OBJECT_KEYS);
   }
 

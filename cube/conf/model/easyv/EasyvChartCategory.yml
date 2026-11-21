@@ -1,0 +1,52 @@
+# 由本体声明生成（CubeModelGenerator），请勿手工修改。
+cubes:
+  - name: "EasyvChartCategory"
+    title: "图表分类关系"
+    description: "图表大类与成员；关系数和分类数分别统计"
+    sql_table: "facts.easyv_chart_category"
+    meta:
+      ontologyObject: "easyv-chart-category"
+      productKey: "easyv-chart-category"
+    joins:
+      - name: "EasyvChartType"
+        relationship: "many_to_one"
+        sql: "{CUBE}.chart_type = {EasyvChartType}.chart_type"
+    dimensions:
+      - name: "productVersionId"
+        sql: "{CUBE}.product_version_id"
+        type: "string"
+        public: false
+      - name: "membershipId"
+        title: "分类成员 ID"
+        sql: "{CUBE}.membership_id"
+        type: "string"
+        primary_key: true
+        public: true
+      - name: "categoryId"
+        title: "分类 ID"
+        description: "分类 ID"
+        sql: "{CUBE}.category_id"
+        type: "string"
+      - name: "categoryName"
+        title: "图表大类"
+        description: "图表大类"
+        sql: "{CUBE}.category_name"
+        type: "string"
+      - name: "chartType"
+        title: "成员图表"
+        description: "成员图表"
+        sql: "{CUBE}.chart_type"
+        type: "string"
+    measures:
+      - name: "count"
+        title: "分类成员关系数"
+        description: "不计空分类占位记录"
+        sql: "{CUBE}.membership_id"
+        type: "count_distinct"
+        filters:
+          - sql: "{CUBE}.chart_type IS NOT NULL"
+      - name: "categoryCount"
+        title: "图表分类数"
+        description: "去重分类 ID"
+        sql: "{CUBE}.category_id"
+        type: "count_distinct"

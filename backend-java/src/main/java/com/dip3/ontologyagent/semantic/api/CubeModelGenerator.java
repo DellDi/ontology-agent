@@ -45,6 +45,7 @@ public final class CubeModelGenerator {
         json.append(index == 0 ? "" : ", ").append(quote(required.get(index)));
       }
       json.append("],\n");
+      if (object.referenceData()) json.append("    \"referenceData\": true,\n");
       json.append("    \"scopeMembers\": {");
       Map<String, String> scopes = new TreeMap<>();
       object.scopeBindings().forEach((dimension, path) ->

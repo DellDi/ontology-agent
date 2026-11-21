@@ -227,7 +227,8 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
           OntologyProperty.column("gridRowSpan", "网格行跨度", "组件在区域网格中的行跨度", Type.NUMBER, "grid_row_span"),
           OntologyProperty.column("createdAt", "原型创建时间", "所属原型创建时间", Type.TIME, "created_at")),
       List.of(new OntologyLink("application", APPLICATION.key(), "appId", "appId", Cardinality.MANY_TO_ONE),
-          new OntologyLink("block", "easyv-prototype-block", "blockKey", "blockKey", Cardinality.MANY_TO_ONE)),
+          new OntologyLink("block", "easyv-prototype-block", "blockKey", "blockKey", Cardinality.MANY_TO_ONE),
+          new OntologyLink("chartConfiguration", EasyVChartConfiguration.CHART_KEY, "chartFamily", "chartFamily", Cardinality.ONE_TO_MANY)),
       List.of(
           new OntologyMetric("count", "图表组件数", "图表组件实例数", Aggregation.COUNT, null, null),
           new OntologyMetric("appCount", "涉及原型数", "含这些组件的去重原型数", Aggregation.COUNT_DISTINCT, "{CUBE}.app_id", null),
@@ -397,13 +398,14 @@ public final class EasyVOntologyModel implements OntologyModelContribution {
 
 
   public static final List<OntologyObjectType> OBJECTS =
-      List.of(APPLICATION, PROTOTYPE, PROTOTYPE_LAYOUT, PROTOTYPE_BLOCK, PROTOTYPE_COMPONENT,
-          PIPELINE_NODE, PIPELINE_TASK, FORGE_TASK, FEEDBACK, QUALITY_NODE);
+      java.util.stream.Stream.concat(List.of(APPLICATION, PROTOTYPE, PROTOTYPE_LAYOUT, PROTOTYPE_BLOCK, PROTOTYPE_COMPONENT,
+          PIPELINE_NODE, PIPELINE_TASK, FORGE_TASK, FEEDBACK, QUALITY_NODE).stream(), EasyVChartConfiguration.OBJECTS.stream()).toList();
 
   /** 对象读取、选择与统计下钻开放的对象；新增对象须同步共享契约枚举（契约测试校验）。 */
   public static final Set<String> READABLE_OBJECT_KEYS =
       Set.of(APPLICATION.key(), PROTOTYPE_LAYOUT.key(), PROTOTYPE_BLOCK.key(), PROTOTYPE_COMPONENT.key(),
-          FEEDBACK.key(), QUALITY_NODE.key(), FORGE_TASK.key());
+          FEEDBACK.key(), QUALITY_NODE.key(), FORGE_TASK.key(), EasyVChartConfiguration.CHART_KEY,
+          EasyVChartConfiguration.CATEGORY_KEY, EasyVChartConfiguration.PRIORITY_KEY, EasyVChartConfiguration.AUDIT_KEY);
 
   @Override
   public String domainKey() {

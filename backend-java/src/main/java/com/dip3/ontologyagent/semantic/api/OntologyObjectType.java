@@ -15,7 +15,8 @@ import java.util.Set;
  * @param requiredLinks 成员资格依赖的关系 key：仅当关联对象存在（且满足其 baseFilter）时本行才属于本对象，
  *     查询时由语义引擎强制内联关联
  * @param scopeBindings 授权范围维度 → 成员路径（{@code propertyKey} 或 {@code linkKey.propertyKey}）；
- *     按范围限定查询时未声明对应维度的对象一律拒绝
+ *     按范围限定查询时未声明对应维度的业务对象一律拒绝
+ * @param referenceData 全局参考配置，仍要求调用方授权与冻结版本；禁止关联到受限业务对象
  */
 public record OntologyObjectType(
     String key,
@@ -30,7 +31,7 @@ public record OntologyObjectType(
     List<OntologyMetric> metrics,
     String defaultTimeProperty,
     List<String> requiredLinks,
-    Map<String, String> scopeBindings) {
+    Map<String, String> scopeBindings, boolean referenceData) {
 
   public static final String VERSION_MEMBER = "productVersionId";
 
@@ -86,10 +87,19 @@ public record OntologyObjectType(
         item.key().equals(defaultTimeProperty) && item.type() == OntologyProperty.Type.TIME)) {
       throw SemanticNames.invalid("对象 " + key + " 的默认时间属性必须是已声明的 TIME 属性：" + defaultTimeProperty);
     }
+    if (referenceData && !scopeBindings.isEmpty()) throw SemanticNames.invalid("参考数据不能同时声明业务范围绑定：" + key);
     scopeBindings.forEach((dimension, path) -> {
       SemanticNames.requireMember(dimension, "对象 " + key + " 的授权范围维度");
       SemanticNames.requireText(path, "对象 " + key + " 的授权范围路径");
     });
+  }
+
+  /** 既有业务对象默认按授权范围过滤；参考数据须在领域声明中显式标记。 */
+  public OntologyObjectType(String key, String label, String description, String cubeName, String productKey,
+      String table, String baseFilter, List<OntologyProperty> properties, List<OntologyLink> links,
+      List<OntologyMetric> metrics, String defaultTimeProperty, List<String> requiredLinks, Map<String, String> scopeBindings) {
+    this(key, label, description, cubeName, productKey, table, baseFilter, properties, links, metrics,
+        defaultTimeProperty, requiredLinks, scopeBindings, false);
   }
 
   /** 无默认时间、成员资格关系与授权范围绑定的对象（测试与简单对象）。 */

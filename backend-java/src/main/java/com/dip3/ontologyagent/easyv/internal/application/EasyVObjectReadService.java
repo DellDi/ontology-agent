@@ -303,7 +303,8 @@ public class EasyVObjectReadService {
     });
     if (Boolean.TRUE.equals(request.includeRelatedMetrics())) {
       requestedType.links().stream().filter(link -> OBJECTS.contains(link.targetObjectKey())
-          && link.cardinality() == OntologyLink.Cardinality.ONE_TO_MANY)
+          && link.cardinality() == OntologyLink.Cardinality.ONE_TO_MANY
+          && !model.require(link.targetObjectKey()).referenceData())
           .forEach(link -> products.add(model.require(link.targetObjectKey()).productKey()));
     }
     var manifest = datasets.requireFrozen(request.datasetVersionSetId(), products);
@@ -344,7 +345,7 @@ public class EasyVObjectReadService {
         ? componentSummary(page.rows().getFirst(), access, manifest.capturedAt()) : null;
     return new Result(request.executionId(), request.datasetVersionSetId(), ontologyVersionId, page, structure,
         describe(page.objectKey(), request.objectId() != null && request.relation() == null), geometry, summary,
-        new DataContext(manifest.capturedAt(), EasyVScopeResolver.dataScopeLabel(scope)),
+        new DataContext(manifest.capturedAt(), model.require(page.objectKey()).referenceData() ? "全局参考配置（冻结采集版本）" : EasyVScopeResolver.dataScopeLabel(scope)),
         request.objectId() != null && request.relation() == null ? presentProperties(page.rows().getFirst()) : Map.of(),
         Boolean.TRUE.equals(request.includeRelatedMetrics()) ? relatedMetrics(page.rows().getFirst(), access, manifest.capturedAt()) : null,
         request.objectId() != null && request.relation() == null ? sourceUrl(page, access) : null);
@@ -420,7 +421,8 @@ public class EasyVObjectReadService {
   private List<RelatedMetric> relatedMetrics(ObjectQueryPort.Row selected, SemanticQueryPort.AccessContext access, Instant capturedAt) {
     List<RelatedMetric> result = new ArrayList<>();
     for (var link : model.require(selected.reference().objectKey()).links()) {
-      if (!OBJECTS.contains(link.targetObjectKey()) || link.cardinality() != OntologyLink.Cardinality.ONE_TO_MANY) continue;
+      if (!OBJECTS.contains(link.targetObjectKey()) || link.cardinality() != OntologyLink.Cardinality.ONE_TO_MANY
+          || model.require(link.targetObjectKey()).referenceData()) continue;
       var target = model.require(link.targetObjectKey());
       var metric = target.findMetric("count").orElseThrow(() -> new BackendException("OBJECT_MODEL_INVALID", "关联对象未声明数量指标：" + target.key()));
       Object value = selected.properties().get(link.sourceProperty());

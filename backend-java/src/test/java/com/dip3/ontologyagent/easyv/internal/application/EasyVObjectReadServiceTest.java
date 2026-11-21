@@ -57,6 +57,26 @@ class EasyVObjectReadServiceTest {
   }
 
   @Test
+  void componentBusinessCountsDoNotImplicitlyRequireNewReferenceProducts() {
+    String component = "easyv-prototype-component";
+    var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(component, "1:c", "components-old"),
+        Map.of("componentKey", "1:c", "chartFamily", "line"));
+    when(objects.require(eq(component), eq("1:c"), any())).thenReturn(row);
+    var request = new EasyVObjectReadService.Request("execution", "set-old", component, "1:c", null,
+        null, null, null, null, null, null, true);
+    assertTrue(service.read("session", admin, request).relatedMetrics().isEmpty());
+    verify(datasets).requireFrozen(eq("set-old"), argThat(products -> !products.contains("easyv-chart-type")));
+    verifyNoInteractions(queries);
+  }
+
+  @Test
+  void referenceConfigurationReadExplainsItsGlobalScope() {
+    var request = new EasyVObjectReadService.Request("execution", "set-old", "easyv-chart-type", null, null,
+        null, null, 20, 0);
+    assertEquals("全局参考配置（冻结采集版本）", service.read("session", admin, request).dataContext().scopeDescription());
+  }
+
+  @Test
   void objectDescriptionCarriesDomainDisplayMetadataWithoutReplacingRawIdentity() {
     var row = new ObjectQueryPort.Row(new ObjectQueryPort.Reference(APPLICATION, "app-1", "apps-old"),
         Map.of("appId", "app-1", "scopeType", "USER"));

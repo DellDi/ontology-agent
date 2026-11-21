@@ -441,7 +441,7 @@ public final class EasyVCanonicalTransform implements CanonicalProductTransform 
             return uuid;
         }
 
-        private Timestamp instant(SourceRow row, String column) {
+        Timestamp instant(SourceRow row, String column) {
             Timestamp value = nullableInstant(row, column);
             if (value == null) throw new IllegalArgumentException("EasyV " + column + " is required");
             return value;

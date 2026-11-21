@@ -419,7 +419,8 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
         .findFirst()
         .orElseThrow(() -> new BackendException("EASYV_SEMANTIC_MODEL_MISSING", "语义层未注册 EasyV 本体。"))
         .businessZone();
-    List<Map<String, Object>> catalog = QueryIntentCodec.catalog(semantic, EasyVGenerationOntology.DOMAIN_KEY);
+    List<Map<String, Object>> catalog = QueryIntentCodec.catalog(semantic, EasyVGenerationOntology.DOMAIN_KEY).stream()
+        .filter(item -> objectRun == null || objectRun.canQuery((String) item.get("object"))).toList();
     List<String> violations = List.of();
     for (int attempt = 1; attempt <= 2; attempt += 1) {
       PlanDecision decision;
@@ -762,6 +763,9 @@ public final class EasyVSemanticAgent implements EasyVMainAgent {
     }
     Map<String, Object> scopeRow = new LinkedHashMap<>();
     scopeRow.put("dataScope", dataScope);
+    if (allProducts.stream().anyMatch(com.dip3.ontologyagent.easyv.internal.domain.EasyVChartConfiguration.REFERENCES::contains)) {
+      scopeRow.put("referenceDataScope", "全局参考配置（冻结采集版本），不代表历史生成时采用的规则");
+    }
     scopeRow.put("queryCount", executed.size());
     scopeRow.put("toolCount", executed.size() + objectResults.size());
     scopeRow.put("resultRows", executed.stream().mapToInt(query -> query.result().rows().size()).sum() + objectResults.stream().mapToInt(tool -> tool.output().rows().size()).sum());

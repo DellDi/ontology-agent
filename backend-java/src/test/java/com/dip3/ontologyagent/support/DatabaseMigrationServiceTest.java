@@ -191,7 +191,7 @@ class DatabaseMigrationServiceTest {
 
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertEquals(34, applied, "新库应执行到 V34 动态面板语义");
+        assertEquals(35, applied, "新库应执行到 V35 图表配置与审计");
         assertTrue(Boolean.TRUE.equals(jdbc.queryForObject("select to_regclass('ingestion.release_tasks') is not null", Boolean.class)));
         assertEquals("jsonb", jdbc.queryForObject("""
                 select data_type from information_schema.columns
@@ -635,7 +635,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.MIGRATED_INCREMENTAL, decision);
         Integer executed = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL'", Integer.class);
-        assertEquals(34, executed, "重复执行不得重跑已完成的 migration");
+        assertEquals(35, executed, "重复执行不得重跑已完成的 migration");
     }
 
     @Test
@@ -652,7 +652,7 @@ class DatabaseMigrationServiceTest {
         assertTrue(platformTables >= 20, "重复执行后表结构应保持不变");
         Integer foreignKeys = jdbc.queryForObject(
                 "select count(*) from pg_constraint where contype = 'f'", Integer.class);
-        assertEquals(64, foreignKeys, "重复执行不应产生重复外键约束");
+        assertEquals(72, foreignKeys, "重复执行不应产生重复外键约束");
     }
 
     @Test
@@ -667,7 +667,7 @@ class DatabaseMigrationServiceTest {
         assertEquals(DatabaseMigrationService.Decision.INITIALIZED, decision);
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where type = 'SQL' and success", Integer.class);
-        assertEquals(34, applied, "旧库补全应记录 V1-V34（baseline 0 标记不计入）");
+        assertEquals(35, applied, "旧库补全应记录 V1-V35（baseline 0 标记不计入）");
     }
 
     @Test

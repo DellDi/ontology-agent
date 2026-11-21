@@ -6,6 +6,8 @@ export const dataNames: Record<string, string> = {
   'easyv-pipeline-node': '生成流程节点', 'easyv-forge-task': '页面生成任务',
   'easyv-generation-feedback': '生成反馈', 'property-project': '物业项目',
   'property-charge-item': '收费项目', 'property-receivable': '应收记录', 'property-payment': '缴费记录',
+  'easyv-chart-type': '图表配置', 'easyv-chart-category': '图表分类',
+  'easyv-chart-priority': '场景推荐', 'easyv-config-audit': '后台配置审计',
   'easyv-block-scheme': '区块方案', 'easyv-slot-type': '方案槽位类型',
   'property-organization': '物业组织', 'property-service-order': '服务工单',
 };
@@ -33,5 +35,6 @@ export const dataGroups = [
   { name: '大屏与原型', keys: ['easyv-ai-application', 'easyv-prototype-task', 'easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component'] },
   { name: '生成过程与反馈', keys: ['easyv-forge-task', 'easyv-pipeline-node', 'easyv-generation-feedback'] },
   { name: '可复用方案', keys: ['easyv-scheme-library'] },
+  { name: '图表规则与配置审计', keys: ['easyv-chart-type', 'easyv-chart-category', 'easyv-chart-priority', 'easyv-config-audit'] },
   { name: '物业收费', keys: ['property-project', 'property-charge-item', 'property-receivable', 'property-payment'] },
 ];

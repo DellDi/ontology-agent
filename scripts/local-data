@@ -11,7 +11,7 @@ CONTAINER=${LOCAL_DATA_PSQL_CONTAINER:-ontology-agent-local-postgres}
 COMPANY_ENV=${LOCAL_DATA_COMPANY_ENV:-"$ROOT_DIR/.env.company"}
 LOCAL_ENV=${LOCAL_DATA_LOCAL_ENV:-"$ROOT_DIR/.env"}
 
-FACT_TABLES="easyv_ai_application easyv_prototype_task easyv_pipeline_node easyv_forge_generation_task easyv_generation_feedback easyv_prototype_layout easyv_prototype_block easyv_prototype_component easyv_scheme_library"
+FACT_TABLES="easyv_ai_application easyv_prototype_task easyv_pipeline_node easyv_forge_generation_task easyv_generation_feedback easyv_prototype_layout easyv_prototype_block easyv_prototype_component easyv_scheme_library easyv_chart_type easyv_chart_category easyv_chart_priority easyv_config_audit"
 ONTOLOGY_COUNT_TABLES="entity_definitions metric_definitions time_semantics factor_definitions"
 
 # 表|行谓词|类型（@SETS@ 冻结集、@PV@ 产品版本、@SV@ 采集版本、@SR@ 采集运行、@PR@ 物化运行均为已校验的 SQL 数组）。

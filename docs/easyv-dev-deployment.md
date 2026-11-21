@@ -5,7 +5,15 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布：saas-test 全量刷新与核心指标适配（2026-10-27）
+## 当前发布：图表配置与后台审计接入（2026-11-05）
+
+公司 test 已完成平台 V33→V35、正式 RECONCILE 与 Web/API/Cube/发布 Worker 更新，版本 `chart-config-20261105-e2e15d1c92`，来自已测工作树，未伪称新 Git 提交。十三类产品冻结为 `ingest-650b7225-0f93-4404-bbd6-3edf665dfc84`：新增图表配置 15 条、分类 5 个（13 条关系）、场景 9 个（24 条推荐）、后台审计 0 条（源表为空）。源观察时刻 16:29:17，集合冻结于 16:38:47（Asia/Shanghai）。
+
+Java/Web/Cube 健康、发布 Worker 无重启，部署 JAR 与已测包摘要一致；实际统计、受限账号配置读取、审计拒绝和业务范围隔离通过。维护前完整备份可读，24 张保护表与 134 个旧产品版本指纹保持，CubeStore/Valkey 未重建。源写回与周期采集仍关闭。本地快照未同步。
+
+本次用户明确授权以 EasyV `application-test.yml` 的业务连接一次性只读采集，凭据未持久化到常驻服务；原只读账号仍缺新增四表 SELECT，后续工作台刷新须补权限。回执 `/opt/ontology-agent-releases/chart-config-20261105-e2e15d1c92/deployment-report.json`，完整备份、采集量、权限与临时连接边界见 [接入验收记录](./acceptance/easyv-chart-configuration.md)。
+
+## 上批发布：saas-test 全量刷新与核心指标适配（2026-10-27）
 
 已按用户确认对全部已接入 saas-test 数据重新执行正式 RECONCILE：七类源、九个产品，集合 `ingest-4733cf60-513a-4415-aab1-da61b0c34128` 于 08:47:59（Asia/Shanghai）冻结。双方平台已备份并迁移至 V33，源库只读、源写回关闭，旧版本与账号／会话／动作内容保护校验通过。
 

@@ -38,6 +38,25 @@ class EasyVCubeModelDriftTest {
     assertTrue(model.objects().containsAll(EasyVOntologyModel.OBJECTS));
   }
 
+  @Test
+  void referenceConfigurationCannotExposePrivateBusinessObjectsThroughLinks() {
+    var chart = EasyVChartConfiguration.CHART;
+    var unsafe = new com.dip3.ontologyagent.semantic.api.OntologyObjectType(chart.key(), chart.label(), chart.description(),
+        chart.cubeName(), chart.productKey(), chart.table(), chart.baseFilter(), chart.properties(),
+        java.util.List.of(new com.dip3.ontologyagent.semantic.api.OntologyLink("audit", EasyVChartConfiguration.AUDIT_KEY,
+            "chartType", "rowKey", com.dip3.ontologyagent.semantic.api.OntologyLink.Cardinality.ONE_TO_MANY)),
+        chart.metrics(), chart.defaultTimeProperty(), chart.requiredLinks(), chart.scopeBindings(), true);
+    var contribution = new com.dip3.ontologyagent.semantic.api.OntologyModelContribution() {
+      public String domainKey() { return "easyv"; }
+      public java.time.ZoneId businessZone() { return java.time.ZoneId.of("Asia/Shanghai"); }
+      public java.util.List<com.dip3.ontologyagent.semantic.api.OntologyObjectType> objects() {
+        return java.util.List.of(unsafe, EasyVChartConfiguration.AUDIT);
+      }
+    };
+    org.junit.jupiter.api.Assertions.assertThrows(com.dip3.ontologyagent.support.BackendException.class,
+        () -> SemanticModel.of(java.util.List.of(contribution)));
+  }
+
   private static void write(SemanticModel model, Map<String, String> generated) throws IOException {
     for (var contribution : model.contributions()) {
       Path dir = CUBE_CONF.resolve(CubeModelGenerator.MODEL_DIR).resolve(contribution.domainKey());

@@ -47,6 +47,8 @@ public final class SemanticModel {
           throw SemanticNames.invalid("对象 " + object.key() + " 的关系 " + link.key() + " 指向不存在的对象 "
               + link.targetObjectKey());
         }
+        if (object.referenceData() && !target.referenceData())
+          throw SemanticNames.invalid("参考数据不能关联到受限业务对象：" + object.key() + "." + link.key());
         object.requireProperty(link.sourceProperty());
         target.requireProperty(link.targetProperty());
         if (link.timeline() != null && target.requireProperty(link.timeline().timeProperty()).type() != OntologyProperty.Type.TIME)

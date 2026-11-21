@@ -135,7 +135,7 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
       return "(" + String.join(" AND ", clauses) + ")";
     }
     String scope(OntologyObjectType object, String alias) {
-      if (access.scope().all()) return "TRUE";
+      if (access.scope().all() || object.referenceData()) return "TRUE";
       List<String> clauses = new ArrayList<>();
       access.scope().values().forEach((dimension, values) -> {
         String path = object.scopeBindings().get(dimension);

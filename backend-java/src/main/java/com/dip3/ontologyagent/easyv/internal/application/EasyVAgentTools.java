@@ -161,6 +161,12 @@ public final class EasyVAgentTools {
     public SemanticQueryPort.AccessContext access() {
       return new SemanticQueryPort.AccessContext(versions, EasyVScopeResolver.dataScope(currentScope()));
     }
+    public boolean canQuery(String objectKey) {
+      var object = semantic.require(objectKey);
+      var access = access();
+      return versions.containsKey(object.productKey())
+          && (access.scope().all() || object.referenceData() || !object.scopeBindings().isEmpty());
+    }
     public List<Map<String, Object>> knownObjects() {
       return handles.entrySet().stream().map(entry -> Map.<String, Object>of("handle", entry.getKey(),
           "reference", entry.getValue().reference(), "read", !entry.getValue().properties().isEmpty())).toList();

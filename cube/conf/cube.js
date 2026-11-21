@@ -69,7 +69,7 @@ function queryRewrite(query, { securityContext } = {}) {
     for (const member of policy.requiredMembers) {
       added.push({ member, operator: 'set' });
     }
-    if (scope.mode === 'scoped') {
+    if (scope.mode === 'scoped' && policy.referenceData !== true) {
       for (const [dimension, values] of Object.entries(scope.values).sort(([a], [b]) => a.localeCompare(b))) {
         const member = policy.scopeMembers[dimension];
         if (!member) reject('SEMANTIC_SCOPE_UNSUPPORTED', `${cube} 未声明授权范围维度 ${dimension}`);

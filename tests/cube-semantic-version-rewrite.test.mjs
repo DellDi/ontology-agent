@@ -117,3 +117,23 @@ test('非本体生成的 Cube（物业）保持原样', () => {
   };
   assert.deepEqual(queryRewrite(structuredClone(original), {}), original);
 });
+
+test('全局参考配置允许受限分析账号读取，仍强制冻结版本；后台审计只允许全量管理员', () => {
+  const context = { securityContext: { productVersions: {
+    ...versions, 'easyv-chart-type': 'chart-v1', 'easyv-chart-category': 'category-v1',
+    'easyv-chart-priority': 'priority-v1', 'easyv-config-audit': 'audit-v1',
+  }, scope: { mode: 'scoped', values: { userId: ['16'] } } } };
+  for (const [cube, version] of [['EasyvChartType', 'chart-v1'], ['EasyvChartCategory', 'category-v1'], ['EasyvChartPriority', 'priority-v1']]) {
+    const result = queryRewrite({ measures: [`${cube}.count`] }, context);
+    assert.deepEqual(result.filters, [{ member: `${cube}.productVersionId`, operator: 'equals', values: [version] }]);
+    assert.throws(() => queryRewrite({ measures: [`${cube}.count`] }, scoped({ userId: ['16'] })), /SEMANTIC_VERSION_REQUIRED/);
+  }
+  assert.throws(() => queryRewrite({ measures: ['EasyvConfigAudit.count'] }, context), /SEMANTIC_SCOPE_UNSUPPORTED/);
+  assert.throws(() => queryRewrite({ measures: ['EasyvChartType.count'] }, {}), /SEMANTIC_SCOPE_REQUIRED/);
+  assert.doesNotThrow(() => queryRewrite({ measures: ['EasyvConfigAudit.count'] }, {
+    securityContext: { ...context.securityContext, scope: { mode: 'all' } },
+  }));
+  const mixed = queryRewrite({ measures: ['EasyvPrototypeComponent.count'], dimensions: ['EasyvChartType.chartType'] }, context);
+  assert(mixed.filters.some(filter => filter.member === 'EasyvApplication.userId' && filter.values[0] === '16'));
+  assert(mixed.filters.some(filter => filter.member === 'EasyvChartType.productVersionId'));
+});

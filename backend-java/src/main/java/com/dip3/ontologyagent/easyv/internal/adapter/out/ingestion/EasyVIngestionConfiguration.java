@@ -12,6 +12,26 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @ConditionalOnProperty(prefix = "dip3.easyv", name = "enabled", havingValue = "true")
 public class EasyVIngestionConfiguration {
     @Bean
+    CanonicalProductTransform easyVChartConfigurationTransform(JdbcTemplate jdbc, JsonCodec json) {
+        return new EasyVChartConfigurationTransform(EasyVChartConfigurationTransform.Kind.CHART, jdbc, json);
+    }
+
+    @Bean
+    CanonicalProductTransform easyVCategoryConfigurationTransform(JdbcTemplate jdbc, JsonCodec json) {
+        return new EasyVChartConfigurationTransform(EasyVChartConfigurationTransform.Kind.CATEGORY, jdbc, json);
+    }
+
+    @Bean
+    CanonicalProductTransform easyVPriorityConfigurationTransform(JdbcTemplate jdbc, JsonCodec json) {
+        return new EasyVChartConfigurationTransform(EasyVChartConfigurationTransform.Kind.PRIORITY, jdbc, json);
+    }
+
+    @Bean
+    CanonicalProductTransform easyVAuditConfigurationTransform(JdbcTemplate jdbc, JsonCodec json) {
+        return new EasyVChartConfigurationTransform(EasyVChartConfigurationTransform.Kind.AUDIT, jdbc, json);
+    }
+
+    @Bean
     CanonicalProductTransform easyVSchemeLibraryTransform(JdbcTemplate jdbc, JsonCodec json) {
         return new EasyVSchemeCanonicalTransform(jdbc, json);
     }

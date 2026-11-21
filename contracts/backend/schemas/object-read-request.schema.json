@@ -18,7 +18,11 @@
         "easyv-prototype-component",
         "easyv-generation-feedback",
         "easyv-quality-node",
-        "easyv-forge-task"
+        "easyv-forge-task",
+        "easyv-chart-type",
+        "easyv-chart-category",
+        "easyv-chart-priority",
+        "easyv-config-audit"
       ]
     },
     "objectId": {

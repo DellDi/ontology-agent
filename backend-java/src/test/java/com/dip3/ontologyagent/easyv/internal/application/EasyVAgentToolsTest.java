@@ -36,6 +36,21 @@ class EasyVAgentToolsTest {
     when(scopes.resolveScope(principal)).thenReturn(ALL);
   }
 
+  @Test void queryCatalogHonorsFrozenAvailabilityAndAdministratorOnlyAudit() {
+    var old = tools.open(context, ALL, versions, null, List.of());
+    assertTrue(old.canQuery(LAYOUT));
+    assertFalse(old.canQuery("easyv-chart-type"));
+    var expanded = new HashMap<>(versions);
+    expanded.put("easyv-chart-type", "chart-v1");
+    expanded.put("easyv-config-audit", "audit-v1");
+    assertTrue(tools.open(context, ALL, expanded, null, List.of()).canQuery("easyv-config-audit"));
+    var scoped = new ResolvedScopeSnapshot("easyv", 2, Map.of("userId", "7", "accessMode", "scoped", "easyvUserId", "16"));
+    when(scopes.resolveScope(principal)).thenReturn(scoped);
+    var analyst = tools.open(context, scoped, expanded, null, List.of());
+    assertTrue(analyst.canQuery("easyv-chart-type"));
+    assertFalse(analyst.canQuery("easyv-config-audit"));
+  }
+
   @Test void batchScopeRejectsForeignRowsAndRequiresContinuousCompleteRegionCoverage() {
     var screens = List.of(row(LAYOUT, "1", Map.of("appId", "1")), row(LAYOUT, "2", Map.of("appId", "2")), row(LAYOUT, "3", Map.of("appId", "3")));
     var run = tools.openBatch(context, ALL, versions, screens, List.of());

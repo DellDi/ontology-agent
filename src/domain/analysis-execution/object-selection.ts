@@ -2,6 +2,7 @@
 export const readableObjectKeys = [
   'easyv-ai-application', 'easyv-prototype-layout', 'easyv-prototype-block', 'easyv-prototype-component',
   'easyv-generation-feedback', 'easyv-quality-node', 'easyv-forge-task',
+  'easyv-chart-type', 'easyv-chart-category', 'easyv-chart-priority', 'easyv-config-audit',
 ] as const;
 export type ReadableObjectKey = (typeof readableObjectKeys)[number];
 

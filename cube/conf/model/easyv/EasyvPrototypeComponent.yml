@@ -14,6 +14,9 @@ cubes:
       - name: "EasyvPrototypeBlock"
         relationship: "many_to_one"
         sql: "{CUBE}.source_id::text || ':' || {CUBE}.block_id = {EasyvPrototypeBlock}.source_id::text || ':' || {EasyvPrototypeBlock}.block_id"
+      - name: "EasyvChartType"
+        relationship: "one_to_many"
+        sql: "{CUBE}.chart_family = {EasyvChartType}.chart_family"
     dimensions:
       - name: "productVersionId"
         sql: "{CUBE}.product_version_id"

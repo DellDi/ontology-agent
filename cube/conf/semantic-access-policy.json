@@ -6,6 +6,29 @@
       "userId": "EasyvApplication.userId"
     }
   },
+  "EasyvChartCategory": {
+    "productKey": "easyv-chart-category",
+    "requiredMembers": [],
+    "referenceData": true,
+    "scopeMembers": {}
+  },
+  "EasyvChartPriority": {
+    "productKey": "easyv-chart-priority",
+    "requiredMembers": [],
+    "referenceData": true,
+    "scopeMembers": {}
+  },
+  "EasyvChartType": {
+    "productKey": "easyv-chart-type",
+    "requiredMembers": [],
+    "referenceData": true,
+    "scopeMembers": {}
+  },
+  "EasyvConfigAudit": {
+    "productKey": "easyv-config-audit",
+    "requiredMembers": [],
+    "scopeMembers": {}
+  },
   "EasyvFeedback": {
     "productKey": "easyv-generation-feedback",
     "requiredMembers": ["EasyvApplication.appId"],
