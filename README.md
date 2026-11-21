@@ -21,7 +21,8 @@
   <a href="#-技术架构">技术架构</a> •
   <a href="#-快速开始">快速开始</a> •
   <a href="#-项目结构">项目结构</a> •
-  <a href="#-环境变量">环境变量</a>
+  <a href="#-环境变量">环境变量</a> •
+  <a href="#-文档导航">文档导航</a>
 </p>
 
 ---
@@ -39,7 +40,9 @@
 
 ## 🏗️ 技术架构
 
-架构现状、目标边界与迁移门禁以 [Java Architecture Baseline](./docs/architecture/java-architecture-baseline.md) 和 [Multi-domain Runtime Architecture](./docs/architecture/multi-domain-runtime-architecture.md) 为准；M3-M6 已落地并验收 Property 与 EasyV 两个真实 capability，以及跨领域 binding、读契约和运行态展示。EasyV 运行面默认关闭，启用后通过 `ontology-java-multidomain-v2`、accessMode=all scope 和只读 facts adapter 执行；生产部署与生产数据仍未知。
+架构现状、目标边界与运行真相以 [Ontology Agent Runtime](./docs/architecture/ontology-agent-runtime.md)、[Java Architecture Baseline](./docs/architecture/java-architecture-baseline.md) 与 [Multi-domain Runtime Architecture](./docs/architecture/multi-domain-runtime-architecture.md) 为准（完整导航见 [文档总索引](./docs/README.md)）：
+- **EasyV 域（当前活跃交付主线）**：由 `EasyVSemanticAgent` 承载有限多步语义智能体（限定最多 8 次工具调用 / 4 次指标查询 / 180 秒预算），按 `QueryIntent`（Cube 语义查询 + `queryRewrite` 冻结版本过滤）、PostgreSQL canonical facts 对象读取/穿透、方案评估与改造提案工具执行，并由 Java 校验输入、权限、引用与持久化；C 写回适配器（`EasyVBlockActionDatabaseAdapter`）默认关闭，仅在人工确认后执行。A/B 已完成工程收尾与发布，C 完成本地/测试源验证，D 首批推进中，V35 图表规则与后台审计已发布公司 test。
+- **Property 域（可开关配置，当前封存）**：保留 `SpringAiMainAgent` 单次调用 `analysis_workflow` tool 的确定性工作流；因缺乏真实 ERP 数据与 Neo4j 投影验收，在 `easyv-dev` 与本地开发通过 `PROPERTY_DOMAIN_ENABLED=false` 保持封存。
 
 ```
 Next.js 16 / React 19（仅页面渲染、Java BFF、Web 观测与 UI 映射）
@@ -48,16 +51,17 @@ Next.js 16 / React 19（仅页面渲染、Java BFF、Web 观测与 UI 映射）
           │
           ▼
 Java 21 / Spring Boot 4.1 / Spring AI 2.0
-  ├─ 认证：登录 / 退出 / ERP 目录与权限范围解析 / Session
-  ├─ Main Agent ──唯一一次 tool call──▶ Analysis Workflow
-  ├─ Analysis / Follow-up / Ontology / Graph Sync / Read API
+  ├─ 认证：登录 / 退出 / 平台账号与主体绑定 / 权限范围解析 / Session
+  ├─ EasyV：EasyVSemanticAgent（限定步数：Cube 语义查询 / 对象读取与关系穿透 / 领域评估与确认写回）
+  ├─ Property（可配置开关，当前封存）：Main Agent ──唯一一次 tool call──▶ Analysis Workflow
+  ├─ Analysis / Follow-up / Ingestion / Ontology / Graph Sync / Read API
   └─ Domain → Application Ports → Infrastructure Adapters
           │
-          ├─ PostgreSQL（业务与任务事实源，Flyway 迁移）
-          ├─ Redis（任务唤醒）
-          ├─ Cube（语义指标）
-          ├─ Neo4j（受权限约束的图上下文）
-          ├─ ERP（组织、项目与 ACL）
+          ├─ PostgreSQL 18（业务、平台与任务事实源，Flyway 迁移）
+          ├─ Redis 8（任务唤醒与短时缓存）
+          ├─ Cube（语义指标与版本重写）
+          ├─ Neo4j 5（受权限约束的图上下文，随 Property 域封存）
+          ├─ ERP / EasyV 只读采集源（及默认关闭的 C 写回目标源）
           └─ OpenAI-compatible / Alibaba DashScope Provider
 ```
 
@@ -141,10 +145,10 @@ ontology-agent/
 │   ├── infrastructure/java-backend/     # Java API 客户端与跨端契约
 │   └── infrastructure/observability/    # Web 观测
 ├── backend-java/src/main/java/          # Java features、ports 与 adapters（含认证）
-├── backend-java/src/main/resources/db/migration/  # Flyway V1__init.sql（幂等初始化脚本）
+├── backend-java/src/main/resources/db/migration/  # Flyway 迁移脚本（V1 幂等初始化 + V2–V35）
 ├── contracts/backend/                   # Web / Java 共享契约
 ├── tests/                               # 跨端契约与仍有效的前端行为验证
-├── docs/                                # 架构、运行与部署文档
+├── docs/                                # 架构、运行、验收与部署文档（总索引见 docs/README.md）
 ├── compose.yaml                         # 本地联调拓扑（migrate 走 Java Flyway）
 └── compose.prod.yaml                    # 生产容器拓扑
 ```
@@ -203,7 +207,7 @@ docker compose down -v      # 停止并清理数据卷
 | --- | --- |
 | **Feature + Ports & Adapters** | Java 按业务 feature 组织，业务规则只依赖 application ports |
 | **单一事实源** | PostgreSQL 保存会话、执行与任务事实；Redis 只负责唤醒，不保存 canonical job data |
-| **Main Agent + Workflow Tool** | Main Agent 只调用一次 workflow tool，确定性工作流负责权限、取数和持久化 |
+| **受治理语义智能体** | EasyV 域采用有限多步语义智能体（`EasyVSemanticAgent`，限定步数与预算），由 Java 负责编译校验、权限、取数、引文校验与持久化（C 写回须人工确认）；Property 域（当前封存）保持 Main Agent 单次 `analysis_workflow` 调用契约 |
 | **Fail Loud** | Provider、契约、权限或数据错误明确失败，不切模型、不生成替代答案、不返回伪成功 |
 | **前端边界** | Next.js 只负责展示、Java BFF 透明代理、Web 观测与 UI 映射；认证、数据库与全部业务实现由 Java 承载 |
 | **安全边界** | `sanitizeNextPath()` 防 Open Redirect；服务端强制授权 |
@@ -219,8 +223,8 @@ tests/story-{epic}-{story}-{name}.test.mjs
 
 **已覆盖场景:**
 
-- Java：认证（登录/退出/ERP 目录与权限范围解析/Session）、Main Agent、Workflow、首次分析、追问、持久化、权限、Ontology Governance 与 Graph Sync；Flyway 幂等初始化脚本（合并单文件、可重复执行）。
-- 真实基础设施：PostgreSQL 17、Neo4j 5、Redis job wakeup 与生产 Compose。
+- Java：认证（登录/退出/平台身份与权限范围解析/Session）、EasyV 有限多步语义智能体与对象/评估/写回适配器、Property Main Agent/Workflow（可开关封存）、首次分析、追问、持久化、权限、数据接入与版本保留、Ontology Governance 与 Graph Sync；Flyway 独立迁移（V1 幂等初始化 + V2–V35 增量演进）。
+- 真实基础设施：PostgreSQL 18、Redis 8（job wakeup）、Cube（语义指标与版本重写）、Neo4j 5 与生产 Compose。
 - 跨端契约：Draft 2020-12 JSON Schema、Next Zod、透明 Route Adapter（含认证路由与 Set-Cookie 透传）与移动端 view model。
 - 前端：登录、工作台、SSE、历史轮次、权限展示与管理页面交互。
 
@@ -231,9 +235,18 @@ tests/story-{epic}-{story}-{name}.test.mjs
 并确认该连接串未出现在任何第三方日志、CI 缓存或公开镜像中。仓库未重写 Git 历史；若需要彻底清除，
 需使用 `git filter-repo` 并协调所有协作者强制更新远端。
 
+## 📚 文档导航
+
+完整文档目录与一句话定位请查阅 **[docs/README.md](./docs/README.md)**：
+
+- **当前系统真相（Living Specs）**：[Ontology Agent Runtime](./docs/architecture/ontology-agent-runtime.md)、[Java Architecture Baseline](./docs/architecture/java-architecture-baseline.md)、[Multi-domain Runtime Architecture](./docs/architecture/multi-domain-runtime-architecture.md) 与 [data-contracts](./docs/README.md#当前系统真相living-specs)
+- **运行与环境**：[环境与数据说明](./docs/environments.md)（本地 3000 与公司 `easyv-dev` 3100 隔离护栏）、[本地基础设施基线](./docs/local-infrastructure.md)、[easyv-dev 内部演示部署](./docs/easyv-dev-deployment.md)、[自托管容器部署指南](./docs/deployment.md)
+- **活跃验收与设计**：见 [docs/README.md#活跃验收与设计](./docs/README.md#活跃验收与设计)（B 收尾、C 块内改造/写回适配器、D 专项计划、V33–V35 接入及工作台 UI 设计/审查）
+- **历史归档**：见 [docs/README.md#历史归档](./docs/README.md#历史归档)（含 [2026-09-24 至 2026-10-19 历史实施与验收流水账](./docs/acceptance/archive/ontology-agent-runtime-2026-09-10-log.md)）
+
 ## 📝 更新日志
 
-查看 [AGENTS.md](./AGENTS.md) 获取工程规范；当前演进目标、分阶段清单与验收记录见 [Ontology Agent Runtime](./docs/architecture/ontology-agent-runtime.md)。
+查看 [AGENTS.md](./AGENTS.md) 获取工程规范；当前演进基线与分阶段状态见 [Ontology Agent Runtime](./docs/architecture/ontology-agent-runtime.md)，历史阶段流水账见 [历史实施与验收流水账](./docs/acceptance/archive/ontology-agent-runtime-2026-09-10-log.md)，完整索引见 [文档总索引](./docs/README.md)。
 
 ## 🤝 贡献
 

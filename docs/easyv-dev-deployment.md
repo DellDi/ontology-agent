@@ -77,7 +77,7 @@ Web 与 Java API/分析 Worker 已发布 `b-period-timeline-3ffa9af`，提交 `3
 
 ## 前批发布：原型业务语义（2026-10-11，历史记录）
 
-2026-10-12 的“当前对象读最新数据、增量无变化复用”与周期入队、版本清理见下方版本保留说明。发布需先备份并迁移 V29/V30/V31，再同步升级 Java API/Worker 与 Web；按用户选择继续手动采集，单独启用每日清理。当前本地对象验收见 [运行记录 §14.22](./architecture/ontology-agent-runtime.md#1422-当前对象与增量无变化复用2026-10-12本地实现)。下面公司版本与回执保留原日期，本批发布回执另行追加。
+2026-10-12 的“当前对象读最新数据、增量无变化复用”与周期入队、版本清理见下方版本保留说明。发布需先备份并迁移 V29/V30/V31，再同步升级 Java API/Worker 与 Web；按用户选择继续手动采集，单独启用每日清理。当前本地对象验收见 [运行记录 §14.22](./acceptance/archive/ontology-agent-runtime-2026-09-10-log.md#1422-当前对象与增量无变化复用2026-10-12本地实现)。下面公司版本与回执保留原日期，本批发布回执另行追加。
 
 当前 backend 已追加发布为 `quality-b-explain-ab58198`（提交 `ab58198f3c6a8f6bd3992ca6028220486f02cf1b`），修正候选不足凑数、未读内容作为建议依据、系列/槽位及共同单位比较的解释边界。源归档与已测 JAR 哈希核对、OCI revision、公司 backend/Web/Cube health 均通过；回执 `/opt/ontology-agent-releases/quality-b-explain-ab58198/deployment-report.json` 确认只更换 backend，其他六服务 ID/镜像/启动时间保持。Web 与 release-worker 仍为下述 `quality-b-semantics-d699c66`，Cube 配置也保持下述目录，未重复迁移或采集。业务解释在本地三场景完成复验，101 对象行、326 业务字段与同冻结 SQL 一致；详情默认显示业务名与说明，保留可展开的内部记录信息。该核对不代表完整 B 或实际编辑效果已通过。
 
@@ -294,7 +294,7 @@ unset EASYV_POSTGRES_JDBC_URL EASYV_POSTGRES_USERNAME EASYV_POSTGRES_PASSWORD \
 
 UI 审查范围限于分析对话状态和基础控件：项目已通过 `components.json` 接入 shadcn/ui，但 `src/components/ui` 与 `src/app/_components/workbench` 存在并行 Button/Field 实现。后续优先收敛基础控件与间距，再统一提交、等待、执行、完成、失败和断连的反馈，最后逐页替换；本次未实施整个前端重构。发送后底部输入框附近的可见空间和图表初始化尺寸需在后续对话布局审查中验证。
 
-2026-10-03 状态核对：本地已有 `85b12ce`（shadcn/ui + AI Elements 基座）和 `e9c770c`（三栏工作台与分析会话迁移）。本次 Web 门禁 101 通过、5 个可选容器测试跳过，tsc/生产构建通过，lint 0 错误、9 条 warning。首次拉取遇到 GitHub DNS 故障，后续 `git pull --ff-only` 成功，当前 `main` 为 `e9c770c`。easyv-dev SSH 和内网数据库仍不可达，未核实或发布新版 UI；用户要求先使用本地库，已通过正式迁移初始化独立 `ontology_agent_local` 至 V21，Web 使用本地端口 3000。此库不含内网历史会话和 EasyV 业务 facts；上面的部署镜像与浏览器证据均保留其历史日期。当前验收及下一业务目标见 [Ontology Agent Runtime §12](./architecture/ontology-agent-runtime.md#12-进度核对与下一交付目标2026-10-03)。
+2026-10-03 状态核对：本地已有 `85b12ce`（shadcn/ui + AI Elements 基座）和 `e9c770c`（三栏工作台与分析会话迁移）。本次 Web 门禁 101 通过、5 个可选容器测试跳过，tsc/生产构建通过，lint 0 错误、9 条 warning。首次拉取遇到 GitHub DNS 故障，后续 `git pull --ff-only` 成功，当前 `main` 为 `e9c770c`。easyv-dev SSH 和内网数据库仍不可达，未核实或发布新版 UI；用户要求先使用本地库，已通过正式迁移初始化独立 `ontology_agent_local` 至 V21，Web 使用本地端口 3000。此库不含内网历史会话和 EasyV 业务 facts；上面的部署镜像与浏览器证据均保留其历史日期。当前验收及下一业务目标见 [Ontology Agent Runtime §12](./acceptance/archive/ontology-agent-runtime-2026-09-10-log.md#12-进度核对与交付记录起始于-2026-10-03)。
 
 2026-10-04 本地未就绪状态复验：初次执行缺少已发布本体或数据集时，Java 表单入口以 303 返回分析对话，Web 显示“分析暂未就绪”、保留原问题、停止自动提交；管理员可进入模型管理或数据接入，其他用户收到联系管理员的说明。错误码和 traceId 默认收起，点击“重新检查”仍使用正式执行入口。真实本地会话 `323fdbc5-081b-4ffc-a01d-4b8c959c43f6` 已验证自动提交、重新检查和展开诊断，均留在工作台；复验 traceId 为 `a466f19e-7b60-4070-bd7c-331dd9e69981`。相关 Java 控制器测试 10 通过、Web 对话测试 7 通过。本地仍没有已发布本体与 EasyV 业务 facts，未宣称分析成功或远端发布。
 

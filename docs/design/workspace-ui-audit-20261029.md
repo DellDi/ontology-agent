@@ -28,39 +28,39 @@
 
 ### 1 首页
 
-![首页](../../.codex-runtime/ui-audit-20261029/01-home.png)
+本机忽略目录截图（首页，不纳入 Git）：`.codex-runtime/ui-audit-20261029/01-home.png`
 
 ### 2 首次进入分析
 
-![首次进入分析](../../.codex-runtime/ui-audit-20261029/02-analysis.png)
+本机忽略目录截图（首次进入分析，不纳入 Git）：`.codex-runtime/ui-audit-20261029/02-analysis.png`
 
 ### 3 核心指标依据
 
-![核心指标依据](../../.codex-runtime/ui-audit-20261029/03-core-evidence.png)
+本机忽略目录截图（核心指标依据，不纳入 Git）：`.codex-runtime/ui-audit-20261029/03-core-evidence.png`
 
 ### 4 数据入口
 
-![数据入口](../../.codex-runtime/ui-audit-20261029/04-data.png)
+本机忽略目录截图（数据入口，不纳入 Git）：`.codex-runtime/ui-audit-20261029/04-data.png`
 
 ### 5 记录管理
 
-![记录管理](../../.codex-runtime/ui-audit-20261029/05-history.png)
+本机忽略目录截图（记录管理，不纳入 Git）：`.codex-runtime/ui-audit-20261029/05-history.png`
 
 ### 6 设置
 
-![设置](../../.codex-runtime/ui-audit-20261029/06-settings.png)
+本机忽略目录截图（设置，不纳入 Git）：`.codex-runtime/ui-audit-20261029/06-settings.png`
 
 ### 7 建议列表
 
-![建议列表](../../.codex-runtime/ui-audit-20261029/07-suggestions.png)
+本机忽略目录截图（建议列表，不纳入 Git）：`.codex-runtime/ui-audit-20261029/07-suggestions.png`
 
 ### 8 建议详情
 
-![建议详情](../../.codex-runtime/ui-audit-20261029/08-proposal.png)
+本机忽略目录截图（建议详情，不纳入 Git）：`.codex-runtime/ui-audit-20261029/08-proposal.png`
 
 ### 9 窄屏
 
-![窄屏](../../.codex-runtime/ui-audit-20261029/09-mobile-proposal.png)
+本机忽略目录截图（窄屏，不纳入 Git）：`.codex-runtime/ui-audit-20261029/09-mobile-proposal.png`
 
 ## 文案取舍
 
