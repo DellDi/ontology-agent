@@ -8,6 +8,27 @@ import java.util.*;
 
 /** 将已确认的块内方案应用到实时原型；不生成指标、不调用模型、不修改块外状态。 */
 public final class PrototypeBlockWriteback {
+  public static final String PROTOTYPE_BLOCKS_FIELD = "blocks";
+  public static final String BLOCK_ID_FIELD = "blockId";
+  public static final String BLOCK_THEME_ID_FIELD = "themeId";
+  public static final String BLOCK_COMPONENTS_FIELD = "components";
+  public static final String BLOCK_BOUND_METRIC_IDS_FIELD = "boundMetricIds";
+  public static final String BLOCK_BOUND_METRICS_FIELD = "boundMetrics";
+  public static final String COMPONENT_ID_FIELD = "id";
+  public static final String COMPONENT_CHART_FAMILY_FIELD = "chartFamily";
+  public static final String METRIC_ID_FIELD = "metricId";
+  public static final String SLOT_BINDINGS_FIELD = "slotBindings";
+  public static final String ASSIGNED_THEME_FIELD = "assignedTheme";
+  public static final String REGEN_CONTEXT_SNAPSHOT_PATH = "/output/raw/regenContextSnapshot";
+  public static final String CURRENT_FILLED_BLOCKS_FIELD = "currentFilledBlocks";
+  public static final String CURRENT_FILLED_BLOCKS_PATH = REGEN_CONTEXT_SNAPSHOT_PATH + "/" + CURRENT_FILLED_BLOCKS_FIELD;
+  public static final String CURRENT_BLOCK_THEMES_FIELD = "currentBlockThemes";
+  public static final String CURRENT_BLOCK_THEMES_PATH = REGEN_CONTEXT_SNAPSHOT_PATH + "/" + CURRENT_BLOCK_THEMES_FIELD;
+  public static final String BLOCK_ASSIGNMENTS_REL_PATH = "/step5Candidates/step4Output/blockAssignments";
+  public static final String BLOCK_ASSIGNMENTS_PATH = REGEN_CONTEXT_SNAPSHOT_PATH + BLOCK_ASSIGNMENTS_REL_PATH;
+  public static final String BLOCK_CANDIDATES_REL_PATH = "/step5Candidates/blockCandidates";
+  public static final String BLOCK_CANDIDATES_PATH = REGEN_CONTEXT_SNAPSHOT_PATH + BLOCK_CANDIDATES_REL_PATH;
+
   private static final ObjectMapper JSON = new ObjectMapper();
   private PrototypeBlockWriteback() {}
   public record Choice(String componentId, String metricId, String name, String beforeChart,
@@ -44,13 +65,13 @@ public final class PrototypeBlockWriteback {
       if (candidate == null || !Objects.equals(candidate.schemeId(), plan.schemeId())
           || !Objects.equals(candidate.blockTypeId(), plan.blockTypeId()) || !"available".equals(candidate.parseStatus())
           || candidate.slots().size() != plan.choices().size()) throw rejected("实时方案库与提案不符");
-      var original = block.path("components"); var ids = block.path("boundMetricIds"); var metrics = block.path("boundMetrics");
+      var original = block.path(BLOCK_COMPONENTS_FIELD); var ids = block.path(BLOCK_BOUND_METRIC_IDS_FIELD); var metrics = block.path(BLOCK_BOUND_METRICS_FIELD);
       int count = plan.choices().size();
       if (count == 0 || !original.isArray() || original.size() != count || ids.size() != count || metrics.size() != count)
         throw rejected("实时组件与指标绑定不完整");
       Map<String,Integer> indexes = new HashMap<>();
       for (int i=0; i<count; i++) {
-        String id = original.get(i).path("id").asText();
+        String id = original.get(i).path(COMPONENT_ID_FIELD).asText();
         if (id.isBlank() || indexes.put(id,i) != null) throw rejected("组件标识缺失或重复");
       }
       ArrayNode components = JSON.createArrayNode(), boundIds = JSON.createArrayNode(), boundMetrics = JSON.createArrayNode();
@@ -62,9 +83,9 @@ public final class PrototypeBlockWriteback {
         Choice choice = ordered.get(i); Integer index = indexes.get(choice.componentId());
         if (index == null || !seen.add(choice.componentId()) || choice.slotIndex() != i
             || !Objects.equals(ids.get(index).asText(), choice.metricId())
-            || !Objects.equals(metrics.get(index).path("metricId").asText(), choice.metricId())) throw rejected("必须精确保留当前块的全部指标实例");
+            || !Objects.equals(metrics.get(index).path(METRIC_ID_FIELD).asText(), choice.metricId())) throw rejected("必须精确保留当前块的全部指标实例");
         ObjectNode component = original.get(index).deepCopy();
-        if (!Objects.equals(text(component.get("chartFamily")), choice.beforeChart())
+        if (!Objects.equals(text(component.get(COMPONENT_CHART_FAMILY_FIELD)), choice.beforeChart())
             || !Objects.equals(text(component.get("metricName")), choice.name())
             || !Objects.equals(text(component.get("desc")), choice.description())
             || !Objects.equals(text(component.get("insight")), choice.insight())
@@ -78,7 +99,7 @@ public final class PrototypeBlockWriteback {
         config.put("relativeX", pct(position.col()-1)); config.put("relativeY", pct(position.row()-1));
         config.put("width", pct(position.colSpan())); config.put("height", pct(position.rowSpan()));
         config.set("gridPosition", JSON.valueToTree(position));
-        component.put("chartFamily", chart.family()); component.put("sceneTag", chart.sceneTag()); component.set("config", config);
+        component.put(COMPONENT_CHART_FAMILY_FIELD, chart.family()); component.put("sceneTag", chart.sceneTag()); component.set("config", config);
         components.add(component); boundIds.add(ids.get(index)); boundMetrics.add(metrics.get(index));
         bindings.add(new PrototypeStructureParser.MetricBinding(i, choice.componentId(), choice.metricId(), choice.afterChart(), null, null));
         geometry.add(new SchemeAdaptation.Component(choice.componentId(), PrototypeComponentGeometry.parse(map(config))));
@@ -88,7 +109,7 @@ public final class PrototypeBlockWriteback {
           "available", bindings, geometry);
       var assessment = SchemeAdaptation.compare(input, List.of(candidate)).current();
       if (!"feasible".equals(assessment.status())) throw rejected("实时区域不满足方案约束：" + String.join("；", assessment.findings().stream().map(SchemeAdaptation.Finding::message).distinct().toList()));
-      block.set("components", components); block.set("boundMetricIds", boundIds); block.set("boundMetrics", boundMetrics);
+      block.set(BLOCK_COMPONENTS_FIELD, components); block.set(BLOCK_BOUND_METRIC_IDS_FIELD, boundIds); block.set(BLOCK_BOUND_METRICS_FIELD, boundMetrics);
       block.put("schemeId", plan.schemeId());
     }
     if (after.equals(before)) throw rejected("方案没有产生变化");
@@ -99,41 +120,41 @@ public final class PrototypeBlockWriteback {
   public static JsonNode editingOutput(JsonNode output, String blockId, JsonNode beforeBlock, JsonNode afterBlock,
       Map<String,Chart> charts) {
     ObjectNode result = output.deepCopy();
-    JsonNode filled = result.at("/output/raw/regenContextSnapshot/currentFilledBlocks");
+    JsonNode filled = result.at(CURRENT_FILLED_BLOCKS_PATH);
     if (!filled.isArray()) throw rejected("缺少持久编辑上下文");
     var targets = new ArrayList<ObjectNode>();
-    filled.forEach(b -> { if (b instanceof ObjectNode node && node.path("blockId").asText().equals(blockId)) targets.add(node); });
+    filled.forEach(b -> { if (b instanceof ObjectNode node && node.path(BLOCK_ID_FIELD).asText().equals(blockId)) targets.add(node); });
     if (targets.size() != 1) throw rejected("持久编辑上下文中的目标块不存在或不唯一");
     ObjectNode target = targets.getFirst();
-    JsonNode oldBindings = target.path("slotBindings"), ids = beforeBlock.path("boundMetricIds");
+    JsonNode oldBindings = target.path(SLOT_BINDINGS_FIELD), ids = beforeBlock.path(BLOCK_BOUND_METRIC_IDS_FIELD);
     if (!oldBindings.isArray() || oldBindings.size() != ids.size()) throw rejected("编辑快照的指标绑定不完整");
     ArrayNode slots = JSON.createArrayNode();
     Map<String,Integer> indexes = new HashMap<>();
     for (int i=0;i<ids.size();i++) {
-      if (!oldBindings.get(i).at("/boundMetric/metricId").asText().equals(ids.get(i).asText())) throw rejected("编辑快照与原型指标顺序不一致");
-      indexes.put(beforeBlock.path("components").get(i).path("id").asText(), i);
+      if (!oldBindings.get(i).at("/boundMetric/" + METRIC_ID_FIELD).asText().equals(ids.get(i).asText())) throw rejected("编辑快照与原型指标顺序不一致");
+      indexes.put(beforeBlock.path(BLOCK_COMPONENTS_FIELD).get(i).path(COMPONENT_ID_FIELD).asText(), i);
     }
-    for (JsonNode component : afterBlock.path("components")) {
-      Integer index = indexes.get(component.path("id").asText());
+    for (JsonNode component : afterBlock.path(BLOCK_COMPONENTS_FIELD)) {
+      Integer index = indexes.get(component.path(COMPONENT_ID_FIELD).asText());
       if (index == null) throw rejected("编辑快照中缺少指标实例");
       ObjectNode binding = oldBindings.get(index).deepCopy();
-      Chart chart = charts.get(component.path("chartFamily").asText());
+      Chart chart = charts.get(component.path(COMPONENT_CHART_FAMILY_FIELD).asText());
       if (chart == null) throw rejected("无法翻译编辑快照图形");
       binding.put("slotIndex", slots.size()); binding.put("chartType", chart.type()); slots.add(binding);
     }
-    target.set("slotBindings", slots);
+    target.set(SLOT_BINDINGS_FIELD, slots);
     target.set("selectedScheme", JSON.createObjectNode().put("schemeId", afterBlock.path("schemeId").asText()).put("chartCount", slots.size()));
     target.set("businessModule", afterBlock.get("businessModule")); target.set("moduleDescription", afterBlock.get("moduleDescription"));
     // 源端意图上下文与后续重选还读取主题、分配及候选，不能只同步屏上块。
-    JsonNode snapshot = result.at("/output/raw/regenContextSnapshot");
-    ObjectNode assignment = unique(snapshot.at("/step5Candidates/step4Output/blockAssignments"), "blockId", blockId);
-    String themeId = assignment.path("themeId").asText();
-    if (themeId.isBlank() || !themeId.equals(beforeBlock.path("themeId").asText())
-        || !(assignment.get("assignedTheme") instanceof ObjectNode assignedTheme)
-        || !themeId.equals(assignedTheme.path("themeId").asText()))
+    JsonNode snapshot = result.at(REGEN_CONTEXT_SNAPSHOT_PATH);
+    ObjectNode assignment = unique(snapshot.at(BLOCK_ASSIGNMENTS_REL_PATH), BLOCK_ID_FIELD, blockId);
+    String themeId = assignment.path(BLOCK_THEME_ID_FIELD).asText();
+    if (themeId.isBlank() || !themeId.equals(beforeBlock.path(BLOCK_THEME_ID_FIELD).asText())
+        || !(assignment.get(ASSIGNED_THEME_FIELD) instanceof ObjectNode assignedTheme)
+        || !themeId.equals(assignedTheme.path(BLOCK_THEME_ID_FIELD).asText()))
       throw rejected("编辑快照中的主题分配与原型不一致");
-    ObjectNode theme = unique(snapshot.path("currentBlockThemes"), "themeId", themeId);
-    ObjectNode candidate = unique(snapshot.at("/step5Candidates/blockCandidates"), "blockId", blockId);
+    ObjectNode theme = unique(snapshot.path(CURRENT_BLOCK_THEMES_FIELD), BLOCK_THEME_ID_FIELD, themeId);
+    ObjectNode candidate = unique(snapshot.at(BLOCK_CANDIDATES_REL_PATH), BLOCK_ID_FIELD, blockId);
     for (ObjectNode projection : List.of(theme, assignedTheme, assignment, candidate))
       projection.set("businessModule", afterBlock.get("businessModule"));
     for (ObjectNode projection : List.of(theme, assignedTheme))
@@ -150,7 +171,7 @@ public final class PrototypeBlockWriteback {
   }
   public static ObjectNode block(JsonNode prototype, String id) {
     var matches = new ArrayList<ObjectNode>();
-    prototype.elements().forEachRemaining(page -> { if (page.path("blocks").get(id) instanceof ObjectNode node) matches.add(node); });
+    prototype.elements().forEachRemaining(page -> { if (page.path(PROTOTYPE_BLOCKS_FIELD).get(id) instanceof ObjectNode node) matches.add(node); });
     if (matches.size()!=1) throw rejected("目标块不存在或不唯一");
     return matches.getFirst();
   }
