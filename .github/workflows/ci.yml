@@ -40,6 +40,9 @@ jobs:
       - name: TypeScript
         run: pnpm exec tsc --noEmit
 
+      - name: Next.js build
+        run: pnpm build
+
   # ── Java 后端全量测试（Testcontainers: PostgreSQL/Neo4j） ──
   java-test:
     name: Java Backend Tests
@@ -76,6 +79,9 @@ jobs:
 
       - name: Web contract tests
         run: pnpm test:web
+
+      - name: Auth hardening tests
+        run: pnpm test:auth-hardening
 
       - name: Compose config validation
         run: |

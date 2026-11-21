@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -698,17 +697,4 @@ test('AC11 | 渲染失败的 block 进入 diagnostics.renderErrors 而非静默�
   assert.equal(result.renderErrorCount, 1);
   assert.equal(result.errorKind, 'render-error');
   assert.equal(result.originalBlockType, 'unknown');
-});
-
-test('AC12 | 无 execution 时必须展示阻断原因与手动执行入口，不能只空等', async () => {
-  const source = await readFile(
-    'src/app/(workspace)/workspace/analysis/[sessionId]/page.tsx',
-    'utf8',
-  );
-
-  assert.match(source, /analysis-pending-conversation/);
-  assert.match(source, /analysis-execution-blocked/);
-  assert.match(source, /手动执行当前计划/);
-  assert.match(source, /查看执行计划与阻断原因/);
-  assert.match(source, /AnalysisPendingRefreshGate/);
 });

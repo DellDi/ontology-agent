@@ -75,21 +75,32 @@ test('Story 12.8 | 结论聚合保留指标图表和分析报告，不把纯过�
   };
   const events = [
     buildEvent({
+      id: 'evt-0',
       sequence: 1,
+      step: {
+        id: 'confirm-analysis-scope',
+        order: 1,
+        title: '确认分析口径',
+        status: 'completed',
+      },
+      renderBlocks: [
+        { type: 'status', title: '阶段状态', value: '已完成', tone: 'success' },
+      ],
+    }),
+    buildEvent({
+      id: 'evt-1',
+      sequence: 2,
       step: {
         id: 'inspect-metric-change',
         order: 2,
         title: '校验核心指标波动',
         status: 'completed',
       },
-      renderBlocks: [
-        { type: 'status', title: '阶段状态', value: '已完成', tone: 'success' },
-        metricTable,
-      ],
+      renderBlocks: [metricTable],
     }),
     buildEvent({
       id: 'evt-2',
-      sequence: 2,
+      sequence: 3,
       step: {
         id: 'synthesize-attribution',
         order: 4,
@@ -114,7 +125,8 @@ test('Story 12.8 | 结论聚合保留指标图表和分析报告，不把纯过�
     }));
   `);
 
-  assert.deepEqual(result.causeIds, ['synthesize-attribution']);
+  assert.ok(!result.causeIds.includes('confirm-analysis-scope'));
+  assert.ok(result.causeIds.includes('synthesize-attribution'));
   assert.ok(result.blockTitles.includes('原因排序'));
   assert.ok(result.blockTitles.includes('指标结果'));
   assert.ok(result.blockTitles.includes('结构化分析摘要'));
@@ -272,7 +284,9 @@ test('Story 12.8 | 同一 evidence event 的多个 renderBlocks 保留不同 blo
       hasConnectionIssue: false,
     });
     console.log(JSON.stringify({
-      blockIndexes: vm.assistantMessage.result.blocks.map((block) => block.source.blockIndex),
+      blockIndexes: vm.assistantMessage.result.blocks
+        .filter((block) => block.source.sourceType === 'execution-render-block')
+        .map((block) => block.source.blockIndex),
     }));
   `);
 

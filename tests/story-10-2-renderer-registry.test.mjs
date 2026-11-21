@@ -10,7 +10,14 @@ const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
 
-async function runTsSnippet(code) {
+async function runTsSnippet(code, options = {}) {
+  const baseNodeOptions = (process.env.NODE_OPTIONS ?? '')
+    .split(/\s+/)
+    .filter((token) => token && token !== '--conditions=react-server');
+  if (options.reactServer !== false) {
+    baseNodeOptions.push('--conditions=react-server');
+  }
+
   const { stdout } = await execFileAsync(
     process.execPath,
     ['--import', 'tsx', '--input-type=module', '-e', code],
@@ -19,9 +26,7 @@ async function runTsSnippet(code) {
       maxBuffer: 10 * 1024 * 1024,
       env: {
         ...process.env,
-        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--conditions=react-server']
-          .filter(Boolean)
-          .join(' '),
+        NODE_OPTIONS: baseNodeOptions.join(' '),
       },
     },
   );
@@ -413,7 +418,7 @@ test('app 层 UI renderer registry 支持 resolve/render/fallback 并复用默�
       renderedType: typeof rendered,
       unknownType: typeof unknown,
     }));
-  `);
+  `, { reactServer: false });
 
   assert.equal(result.sameReference, true);
   assert.equal(result.knownKind, 'chart');
@@ -429,7 +434,7 @@ test('tool-list renderer 必须把工具状态映射为中文产品文案', asyn
     console.log(JSON.stringify({
       labels: statuses.map((status) => getToolStatusLabel(status)),
     }));
-  `);
+  `, { reactServer: false });
 
   assert.deepEqual(result.labels, ['已完成', '已失败', '执行中', '已选择']);
 });
