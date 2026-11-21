@@ -15,7 +15,7 @@ spring:
     password: ${JAVA_DATABASE_PASSWORD:${POSTGRES_PASSWORD}}
     driver-class-name: org.postgresql.Driver
     hikari:
-      connection-init-sql: SET TIME ZONE 'Asia/Taipei'
+      connection-init-sql: SET TIME ZONE 'Asia/Shanghai'
   data:
     redis:
       url: ${REDIS_URL}

@@ -117,6 +117,10 @@ class EasyVSpringAiAnalysisModelTest {
     assertEquals(List.of("a", "b", "c"), answer.suggestions());
     assertEquals(1, answer.actions().size());
     assertEquals("成功率 66.67%", partials.getLast());
+    var system = ArgumentCaptor.forClass(String.class);
+    verify(prompt).system(system.capture());
+    assertTrue(system.getValue().contains("普通统计回答的 suggestedActions"));
+    assertFalse(system.getValue().contains("record-review"));
   }
 
   @Test
@@ -346,7 +350,7 @@ class EasyVSpringAiAnalysisModelTest {
     var system = ArgumentCaptor.forClass(String.class);
     verify(prompt).system(system.capture());
     assertTrue(system.getValue().contains("原文对照与记录回看必须使用 citations=[]、highlights=[]、suggestedActions=[]"));
-    assertTrue(system.getValue().contains("普通统计回答的 suggestedActions"));
+    assertFalse(system.getValue().contains("普通统计回答的 suggestedActions"));
   }
 
   @Test
@@ -828,6 +832,30 @@ class EasyVSpringAiAnalysisModelTest {
     assertEquals("AGENT_EXECUTION_TIMEOUT", assertThrows(BackendException.class,
         () -> model.compose(new ComposeRequest("问题", "全部", List.of(), List.of(), 20), ignored -> {})).code());
     assertTrue(cancelled.get());
+  }
+
+  @Test
+  void planningRoutesBatchAndMetricPromptsThroughModularBuilder() {
+    when(stream.content())
+        .thenReturn(Flux.just("{\"status\":\"finished\"}"))
+        .thenReturn(Flux.just("{\"status\":\"finished\"}"));
+    PlanRequest metricOnly = new PlanRequest("生成任务数", List.of(Map.of("object", "easyv-forge-task")),
+        "2026-10-04", "Asia/Shanghai", Map.of(), List.of(), List.of(), Map.of(), List.of(), 4, 1000, 8,
+        List.of(Map.of("name", "query_metrics", "input", "{intent}")), List.of());
+    PlanRequest batchScreens = new PlanRequest("检查大屏", List.of(), "2026-10-04", "Asia/Shanghai",
+        Map.of(), List.of(), List.of(), Map.of(), List.of(), 4, 1000, 4,
+        com.dip3.ontologyagent.easyv.internal.application.EasyVAgentTools.catalog(true),
+        List.of(Map.of("handle", "selected-1", "read", true), Map.of("handle", "selected-2", "read", true)));
+
+    model.plan(metricOnly);
+    model.plan(batchScreens);
+
+    var systems = ArgumentCaptor.forClass(String.class);
+    verify(prompt, org.mockito.Mockito.times(2)).system(systems.capture());
+    assertFalse(systems.getAllValues().get(0).contains("selected-1、selected-2、selected-3"));
+    assertFalse(systems.getAllValues().get(0).contains("inspect_block_improvement"));
+    assertTrue(systems.getAllValues().get(1).contains("selected-1、selected-2、selected-3"));
+    assertTrue(systems.getAllValues().get(1).contains("inspect_block_improvement"));
   }
 
   private static PlanRequest request(List<String> violations) {
