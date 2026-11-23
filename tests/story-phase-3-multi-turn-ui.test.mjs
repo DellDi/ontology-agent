@@ -16,6 +16,26 @@ const pageSource = readFileSync(
   'utf-8',
 );
 
+test('Chat UI | 内网 HTTP 缺少 randomUUID 时仍能启动已创建的追问', () => {
+  const { key, target } = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import { webcrypto } from 'node:crypto';
+    import send from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-send-message.ts';
+    globalThis.window = { location: { origin: 'http://192.0.2.1:3100' } };
+    Object.defineProperty(globalThis, 'crypto', { value: { getRandomValues: webcrypto.getRandomValues.bind(webcrypto) } });
+    let key;
+    globalThis.fetch = async (path, init) => {
+      if (path.endsWith('/follow-ups/follow-up')) return { ok: true, json: async () => ({}) };
+      if (!path.endsWith('/execute') || init.body.get('followUpId') !== 'follow-up') throw Error('unexpected request');
+      key = init.headers['Idempotency-Key'];
+      return { ok: true, url: window.location.origin + '/workspace/analysis/session?executionId=execution' };
+    };
+    const target = await send.executePendingFollowUp('session', 'follow-up');
+    console.log(JSON.stringify({ key, target }));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } }));
+  assert.match(key, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(target, '/workspace/analysis/session?executionId=execution');
+});
+
 test('Chat UI | 等待首个进度显示反馈，真实步骤、回答和错误保持可见', () => {
   // Client components need the regular React runtime, not the parent gate's react-server condition.
   const html = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `

@@ -154,13 +154,15 @@ test('精确下钻 | 点击只传绑定 ID，三个结果形态使用同一坐�
     actions.open(0, 0);
     const html = renderToStaticMarkup(simple.renderKvListBlock(input));
     const tableHtml = renderToStaticMarkup(React.createElement(table.DataTableBlock, { block: { ...input.renderedBlock, payload: { columns: ['组件数'], rows: [['3']] } }, drilldown: actions }));
-    console.log(JSON.stringify({ payload: panels[0].content.props, html, tableHtml }));
+    console.log(JSON.stringify({ payload: panels[0].content.props,
+      canCloseHostPanel: typeof panels[0].content.props.onOpenSidePanel === 'function', html, tableHtml }));
   `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } });
   const parsed = JSON.parse(result);
   assert.equal(parsed.payload.drilldownId, binding.id);
   assert.equal(parsed.payload.objectKey, binding.objectKey);
   assert.equal(parsed.payload.context.datasetVersionSetId, 'set-old');
   assert.equal(parsed.payload.filters, undefined, '客户端不能用展示端过滤替换绑定');
+  assert.equal(parsed.canCloseHostPanel, false, '侧栏里的列表和详情在同一个面板切换');
   assert.match(parsed.html, /查看组件数的当前匹配对象/);
   assert.match(parsed.tableHtml, /查看第 1 行组件数的当前匹配对象/);
 });

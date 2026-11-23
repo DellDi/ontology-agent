@@ -62,6 +62,8 @@ import { AnalysisResultBlockRenderer } from './analysis-result-block-renderer';
 import { BlockImprovementPanel } from './renderer/block-improvement-panel';
 import { AnalysisUnderstandingEditor } from './analysis-understanding-editor';
 
+const conversationColumn = 'mx-auto w-full max-w-[1200px] px-4 xl:px-10';
+
 export type ChatTurnStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export type RoundConclusionState = NonNullable<
@@ -432,8 +434,8 @@ export function AnalysisConversationShell({
           </div>
         ) : null}
 
-        {currentCanvas ? <section className="flex min-h-0 flex-1 flex-col px-4 pt-5 sm:px-6" aria-label="大屏改进工作区" data-testid="analysis-visual-workspace">
-          <header className="shrink-0 space-y-3 pb-4">
+        {currentCanvas ? <section className="flex min-h-0 flex-1 flex-col pt-5" aria-label="大屏改进工作区" data-testid="analysis-visual-workspace">
+          <header className="shrink-0 space-y-3 px-4 pb-4 sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-lg font-semibold tracking-tight">大屏工作区</h1>
               {proposalItems.length ? <Button type="button" variant="ghost" size="sm" disabled={proposalReads.some(read => read.isPending)} onClick={() => openSidePanel({ title: '修改建议', content: <div>
@@ -450,23 +452,23 @@ export function AnalysisConversationShell({
             {turnViews.at(-1)?.status === 'failed' ? <div role="alert" className="text-sm text-destructive">最新一轮分析未完成：{turnViews.at(-1)?.errorSummary ?? '请展开对话记录查看原因。'} <button type="button" className="underline underline-offset-4" onClick={() => setHistoryOpen(true)}>查看本轮详情</button></div> : null}
             {workspaceError ? <p role="alert" className="text-sm text-destructive">{workspaceError}</p> : null}
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-4 [container-type:size]" data-testid="analysis-canvas-scroll">
+          <div className="analysis-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4 [container-type:size] sm:px-6" data-testid="analysis-canvas-scroll">
             <AnalysisResultBlockRenderer key={JSON.stringify([currentCanvas.block.source.executionId,currentCanvas.block.payload,currentCanvas.selection?.reference])}
               block={currentCanvas.block} embedded focusedObject={currentCanvas.selection} onObjectSelect={selectObject} onOpenSidePanel={openSidePanel} />
           </div>
-          <div className="flex shrink-0 items-center justify-between border-t border-border py-2">
+          <div className="mx-4 flex shrink-0 items-center justify-between border-t border-border py-2 sm:mx-6">
             <p className="text-xs text-muted-foreground">结构预览 · 非业务实况</p>
             <Button type="button" size="sm" variant="ghost" aria-expanded={historyOpen} onClick={() => setHistoryOpen(!historyOpen)}>
               <MessageSquare aria-hidden className="size-4" />{historyOpen ? '收起对话记录' : `对话记录 ${turns.length}`}
             </Button>
           </div>
         </section> : null}
-        <div className={`mx-auto flex min-h-0 w-full max-w-[1200px] flex-col px-4 ${hasVisualWorkspace ? 'shrink-0' : 'flex-1'}`}>
-        {/* 消息流：全部轮次，Conversation 内嵌滚动 + 自动跟随 */}
-        <div className={hasVisualWorkspace ? historyOpen ? 'relative flex h-[30dvh] min-h-0 flex-col border-t border-border' : 'hidden' : 'relative flex min-h-0 flex-1 flex-col'}>
-        <AnalysisChatLocator marks={locatorMarks} />
+        <div className={`flex min-h-0 flex-col ${hasVisualWorkspace ? 'shrink-0' : 'flex-1'}`}>
+        {/* 滚动容器占满对话区，仅消息和输入框限宽。 */}
+        <div className={hasVisualWorkspace ? historyOpen ? 'flex h-[30dvh] min-h-0 flex-col border-t border-border' : 'hidden' : 'flex min-h-0 flex-1 flex-col'}>
         <Conversation className="min-h-0 flex-1">
-          <ConversationContent className="gap-6 px-0 pb-6 pt-2">
+          <AnalysisChatLocator marks={locatorMarks} />
+          <ConversationContent className={`${conversationColumn} min-w-0 gap-6 pb-6 pt-2`} scrollClassName="analysis-scrollbar overflow-x-hidden overflow-y-auto">
             {turns.map((turn, index) => {
               const isLast = index === turns.length - 1;
               const details = turnDrawerContents[turn.key] ?? {};
@@ -627,6 +629,7 @@ export function AnalysisConversationShell({
         </Conversation>
         </div>
 
+        <div className={conversationColumn}>
         {/* 发送失败提示 */}
         {sendError ? (
           <p className="pb-2 text-sm text-destructive" role="alert">
@@ -658,6 +661,7 @@ export function AnalysisConversationShell({
             sending={sending}
             status={liveStatus}
           />
+        </div>
         </div>
         </div>
       </div>

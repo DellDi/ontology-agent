@@ -130,25 +130,27 @@ test('package.json 不再暴露 TypeScript Graph Sync 或 Neo4j 运行入口', a
   assert.doesNotMatch(packageJson, /"test:smoke:neo4j"/);
 });
 
-test('easyv-dev 使用共享平台 PostgreSQL，并提供独立 Cube Store 与 Neo4j', async () => {
+test('easyv-dev 使用共享 PostgreSQL、Redis 和单节点 CubeStore', async () => {
   const compose = await readRepoFile('compose.easyv-dev.yaml');
 
-  for (const service of ['cube:', 'cubestore-router:', 'cubestore-worker:', 'neo4j:']) {
+  for (const service of ['cube:', 'cubestore-router:', 'neo4j:']) {
     assert.match(compose, new RegExp(`^  ${service}$`, 'm'));
   }
-  assert.doesNotMatch(compose, /^  postgres:/m, 'easyv-dev 不得启动本地 PostgreSQL');
+  assert.doesNotMatch(compose, /^  (?:postgres|redis|valkey|cubestore-worker):/m);
   // Cube 库地址由脚本从 JAVA_DATABASE_URL 派生注入，账号是独立只读角色
   assert.match(compose, /CUBEJS_DB_HOST: \$\{CUBE_DB_HOST:\?CUBE_DB_HOST is required\}/);
   assert.match(compose, /CUBEJS_DB_USER: \$\{CUBE_DATABASE_USERNAME:\?CUBE_DATABASE_USERNAME is required\}/);
   assert.match(compose, /CUBEJS_DB_PASS: \$\{CUBE_DATABASE_PASSWORD:\?CUBE_DATABASE_PASSWORD is required\}/);
   assert.doesNotMatch(compose, /PLATFORM_POSTGRES_/);
   assert.match(compose, /CUBEJS_CUBESTORE_HOST: cubestore-router/);
-  assert.match(compose, /CUBESTORE_META_ADDR: cubestore-router:9999/);
+  assert.match(compose, /CUBESTORE_REMOTE_DIR: \/cube\/data/);
+  assert.doesNotMatch(compose, /CUBESTORE_(META_ADDR|META_PORT|WORKERS|WORKER_PORT)/);
   assert.match(compose, /NEO4J_URI: bolt:\/\/neo4j:7687/);
   assert.match(compose, /CUBE_API_SECRET: \$\{CUBE_API_SECRET:\?CUBE_API_SECRET is required\}/);
   assert.match(compose, /GRAPH_SYNC_OPS_SECRET: \$\{GRAPH_SYNC_OPS_SECRET:\?GRAPH_SYNC_OPS_SECRET is required\}/);
   const backendBlock = compose.match(/^  backend:\r?\n[\s\S]*?(?=^  web:)/m)?.[0];
   assert.ok(backendBlock, '应能定位 easyv-dev backend service 配置');
+  assert.match(backendBlock, /REDIS_URL: \$\{REDIS_URL:\?REDIS_URL is required\}/);
   assert.doesNotMatch(backendBlock, /EASYV_POSTGRES_(JDBC_URL|USERNAME|PASSWORD)/,
     'backend 不得持有 EasyV source credentials');
   assert.match(compose, /condition: service_healthy/);
@@ -175,7 +177,7 @@ test('easyv-dev 运维入口覆盖 Property ingestion、graph bootstrap 与基�
   assert.match(script, /X-Graph-Sync-Ops-Secret/);
   assert.match(script, /infrastructure-smoke/);
   assert.match(script, /smoke\|cross-domain-smoke/);
-  assert.match(script, /cube cubestore-router cubestore-worker neo4j/);
+  assert.match(script, /cube cubestore-router neo4j/);
   assert.match(script, /actuator\/health\/easyv/);
   assert.match(script, /actuator\/health\/neo4j/);
   assert.match(script, /readyz/);

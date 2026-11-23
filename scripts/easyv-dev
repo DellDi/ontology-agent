@@ -340,7 +340,7 @@ case "$command" in
     ;;
   logs)
     require_env_file
-    compose logs --no-color --tail="${2:-100}" migrate backend web cube cubestore-router cubestore-worker neo4j
+    compose logs --no-color --tail="${2:-100}" migrate backend web cube cubestore-router neo4j
     ;;
   release)
     require_env_file

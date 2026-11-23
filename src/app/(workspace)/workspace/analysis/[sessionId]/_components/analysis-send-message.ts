@@ -1,3 +1,4 @@
+import { clientRequestId } from '@/app/_lib/client-request-id';
 import type { AnalysisObjectSelection } from '@/domain/analysis-execution/object-selection';
 import { javaObjectSelectionSchema } from '@/infrastructure/java-backend/object-read-contract';
 
@@ -106,7 +107,7 @@ export async function executePendingFollowUp(
     {
       method: 'POST',
       body: new URLSearchParams({ followUpId }),
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': clientRequestId() },
     },
   );
   await requireSuccessfulStep(executeResp, '启动分析失败，请稍后重试。');

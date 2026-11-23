@@ -5,7 +5,25 @@
 一次性 `ingest` 或独立 `release-worker` 容器。Property 从平台库中的受控 `erp_staging` 物化 canonical facts，
 Cube 与 Neo4j 作为 Property 投影运行。
 
-## 当前发布：图表配置与后台审计接入（2026-11-05）
+## 当前运行：复用宿主机 PostgreSQL 和 Redis（2026-11-23）
+
+`172.16.125.3` 上的 `easyv-dev` 常驻 Web、Java、Cube、单节点 CubeStore 四个容器。Java 和 Cube 连接宿主机 `dtstack-postgres` 中的独立 `ontology_agent_test` 库，分别使用应用账号和 facts 只读账号。Java 通过项目专用 ACL 账号连接宿主机 Redis，仅使用自己的分析任务唤醒频道。工作台入口仍是 [http://172.16.125.3:3100](http://172.16.125.3:3100)。
+
+切换前暂停工作台写入并备份平台库。恢复到共享 PostgreSQL 后，71 项表内容与序列指纹一致，Flyway 验证通过，Cube 与 SQL 对账均为 230 个未删除的去重应用。部署目录为 `/opt/ontology-agent-releases/shared-infra-20261123`，切换备份位于 `/opt/ontology-agent-release-private/shared-infra-20261123/platform-before-cutover.dump`。旧 PostgreSQL、Valkey 和 CubeStore Worker 停止并保留；切换后若需回退数据库，先保全共享库中的新增写入。
+
+当天 11:16:49（北京时间），正式账号 `ontology_agent_ingest` 的 11 张源表 `SELECT` 全部复验通过，完成一次 test 源 `RECONCILE`，发布 13 类数据产品。新冻结集为 `ingest-9cd75f5f-34b5-4072-b9fd-361819ee44bf`，Cube 和 PostgreSQL 均查到 291 个未删除的去重应用。采集日志和平台备份位于 `/opt/ontology-agent-release-private/test-reconcile-20261123111556/`。常驻发布 Worker 仍暂停。
+
+当天 14:06 单独发布 Web 镜像 `analysis-drilldown-http-20261123-b4df8a5dd6`，修复内网 HTTP 追问提交、统计对象下钻和侧栏宽度。用浏览器测试数据验证追问请求、对象详情、桌面拖拽和窄屏覆盖布局。验收环境登录页返回 200，未登录会话接口返回 401，四个常驻容器健康。发布回执位于 `/opt/ontology-agent-releases/analysis-drilldown-http-20261123-b4df8a5dd6/deploy-verification.txt`。
+
+当天 14:28 单独发布 Web 镜像 `analysis-scroll-layout-20261123-f1f2739fa1`。对话轮次锚点紧贴左侧栏右缘，消息滚动容器占满对话区，右栏展开和调宽时滚动条跟随边界。浏览器测试覆盖锚点定位、左右栏开合、右栏拖拽和 390px 窄屏。验收环境登录页返回 200，四个常驻容器健康。发布回执位于 `/opt/ontology-agent-releases/analysis-scroll-layout-20261123-f1f2739fa1/deploy-verification.txt`。
+
+## 应用发布：批次复核与测试平台恢复（2026-11-22）
+
+公司验收工作台直接入口为 [http://172.16.125.3:3100](http://172.16.125.3:3100)，原回环绑定仍可使用。Java 与 Web 运行 `batch-review-20261122-42d2895-3df6824230`，Java、Web 与 Cube 均通过健康检查。该版本包含批次复核清单、改造建议定位和保存回执。
+
+原共享 PostgreSQL NodePort 不可达。在该服务器独立的 PostgreSQL 容器中恢复 11 月 5 日 16:27 的迁移前备份，应用 V34、V35 并核对 Flyway。当前最新冻结数据为 **10 月 27 日 08:47:59** 捕获的 `ingest-4733cf60-513a-4415-aab1-da61b0c34128`，含 9 类产品。Cube 查询与 SQL 对账均为 230 个未删除、去重应用。原共享库未覆盖。EasyV dev、test 配置中的上游 NodePort 仍不可达，发布 Worker 暂停，新的 RECONCILE 未执行。发布回执位于 `/opt/ontology-agent-releases/batch-review-20261122-42d2895-3df6824230/deployment-report.json`。
+
+## 上批发布：图表配置与后台审计接入（2026-11-05）
 
 公司 test 已完成平台 V33→V35、正式 RECONCILE 与 Web/API/Cube/发布 Worker 更新，版本 `chart-config-20261105-e2e15d1c92`，来自已测工作树，未伪称新 Git 提交。十三类产品冻结为 `ingest-650b7225-0f93-4404-bbd6-3edf665dfc84`：新增图表配置 15 条、分类 5 个（13 条关系）、场景 9 个（24 条推荐）、后台审计 0 条（源表为空）。源观察时刻 16:29:17，集合冻结于 16:38:47（Asia/Shanghai）。
 
@@ -144,9 +162,9 @@ EASYV_DEV_ENV_FILE=/opt/ontology-agent-release-private/chart-preview-57d159e.env
 |---|---:|---:|---|
 | `web` | 是 | 否 | 页面和 Java BFF 透明代理 |
 | `backend` | 是 | 否 | EasyV/Property 问数、LLM、API、Worker、Graph Sync；只读 canonical facts |
-| `valkey` | 是 | 否 | Worker 唤醒和 Chat Memory；任务事实仍在 PostgreSQL |
-| `cube` / Cube Store | 是 | 否 | EasyV/Property 语义指标查询，只读 `facts.*`；backend `depends_on` 等待其 healthy |
-| `neo4j` | 是 | 否 | Property 关系投影，可从冻结 Dataset Version Set 重建 |
+| 共享 Redis | 宿主机提供 | 否 | Java 分析 Worker 的发布订阅唤醒；任务记录仍在 PostgreSQL |
+| `cube` / `cubestore-router` | 是 | 否 | Cube 提供语义指标查询，只读 `facts.*`；CubeStore 以单节点处理缓存与查询 |
+| `neo4j` | `property` profile | 否 | Property 关系投影，可从冻结 Dataset Version Set 重建 |
 | `migrate` | 否 | 否 | Flyway 独立迁移共享平台库，成功后退出 |
 | `ingest` | 否 | 是，只读 | EasyV 全量/增量抽取、物化、冻结 Dataset Version Set，成功后退出 |
 | `property-ingest` | 否 | 否 | 从平台 `erp_staging` 物化 Property canonical products，成功后退出 |
@@ -209,7 +227,7 @@ docker build -f Dockerfile.web.runtime \
 
 ```bash
 cp .env.easyv-dev.example .env.easyv-dev
-# 填写共享平台库、LLM 和 Session 配置；不要把 EasyV 源账号写入该文件。
+# 填写共享平台库、项目专用 Redis ACL 账号、LLM 和 Session 配置。
 
 docker compose -f compose.easyv-dev.yaml --env-file .env.easyv-dev config --quiet
 docker compose -f compose.easyv-dev.yaml --env-file .env.easyv-dev up -d
@@ -222,7 +240,8 @@ curl --fail --silent http://127.0.0.1:3000/
 服务器若只安装了独立 `docker-compose` 二进制，使用 `scripts/easyv-dev deploy` 即可；脚本会自动
 选择 `docker compose` 或 `docker-compose`，避免操作人员记两套命令。
 
-`backend` 必须等待 `migrate` 成功和 Valkey 健康，`web` 必须等待 `backend` 健康。Flyway
+`backend` 等待 `migrate` 成功和 Cube 健康，通过 `REDIS_URL` 连接共享 Redis。Redis ACL 的频道权限
+应匹配 `${REDIS_KEY_PREFIX}:job:wakeup`。`web` 等待 `backend` 健康。Flyway
 应用成功后仍保留 `flyway_schema_history` 版本、checksum 和执行时间；新增字段或表继续新增
 `V<n>__description.sql`，禁止修改已成功的历史脚本。
 

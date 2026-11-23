@@ -9,6 +9,7 @@ import {
   type IngestionReleaseTask,
 } from '@/infrastructure/java-backend/ingestion-schema';
 import { InlineError } from '@/app/_components/inline-error';
+import { clientRequestId } from '@/app/_lib/client-request-id';
 import { StatusBadge, formatTimestamp } from '../../_components/admin-shell';
 import { dataName, updateFailureMessage } from './ingestion-presentation';
 
@@ -107,7 +108,7 @@ export function IngestionReleasePanel({
       : '/api/admin/ingestion/release-tasks';
     const signature = JSON.stringify([path, payload]);
     if (requestRef.current?.signature !== signature)
-      requestRef.current = { signature, id: crypto.randomUUID() };
+      requestRef.current = { signature, id: clientRequestId() };
     try {
       const response = await fetch(path, {
         method: 'POST',

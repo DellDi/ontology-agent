@@ -21,19 +21,6 @@ x-cube-platform-database: &cube-platform-database
   CUBEJS_DB_PASS: ${CUBE_DATABASE_PASSWORD:?CUBE_DATABASE_PASSWORD is required}
 
 services:
-  valkey:
-    image: ${VALKEY_IMAGE:-ghcr.io/valkey-io/valkey:8.1-alpine}
-    command: ["valkey-server", "--save", "60", "1", "--loglevel", "warning"]
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 5s
-    volumes:
-      - valkey-data:/data
-    restart: unless-stopped
-
   migrate:
     <<: *java-image
     environment:
@@ -47,13 +34,11 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      valkey:
-        condition: service_healthy
       cube:
         condition: service_healthy
     environment:
       <<: *platform-database
-      REDIS_URL: redis://valkey:6379
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-easyv-dev}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-dip3_session}
@@ -116,8 +101,6 @@ services:
     depends_on:
       cubestore-router:
         condition: service_healthy
-      cubestore-worker:
-        condition: service_healthy
     environment:
       <<: *cube-platform-database
       CUBEJS_API_SECRET: ${CUBE_API_SECRET:?CUBE_API_SECRET is required}
@@ -139,37 +122,11 @@ services:
   cubestore-router:
     image: ${CUBESTORE_IMAGE:-cubejs/cubestore:v1.6.31}
     environment:
-      CUBESTORE_SERVER_NAME: cubestore-router:9999
-      CUBESTORE_META_PORT: "9999"
-      CUBESTORE_WORKERS: cubestore-worker:9001
       CUBESTORE_REMOTE_DIR: /cube/data
-      CUBESTORE_DATA_DIR: /cube/data/scratch/router
     volumes:
-      - cube-store:/cube/data
+      - cube-store-single:/cube/data
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3030'"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 5s
-    restart: unless-stopped
-
-  cubestore-worker:
-    image: ${CUBESTORE_IMAGE:-cubejs/cubestore:v1.6.31}
-    depends_on:
-      cubestore-router:
-        condition: service_healthy
-    environment:
-      CUBESTORE_SERVER_NAME: cubestore-worker:9001
-      CUBESTORE_WORKER_PORT: "9001"
-      CUBESTORE_META_ADDR: cubestore-router:9999
-      CUBESTORE_WORKERS: cubestore-worker:9001
-      CUBESTORE_REMOTE_DIR: /cube/data
-      CUBESTORE_DATA_DIR: /cube/data/scratch/worker
-    volumes:
-      - cube-store:/cube/data
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9001'"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -281,7 +238,6 @@ services:
     restart: "no"
 
 volumes:
-  cube-store:
+  cube-store-single:
   neo4j-data:
   neo4j-logs:
-  valkey-data:
