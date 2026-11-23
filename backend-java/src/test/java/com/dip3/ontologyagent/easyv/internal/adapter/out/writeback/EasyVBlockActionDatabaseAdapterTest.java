@@ -169,9 +169,15 @@ class EasyVBlockActionDatabaseAdapterTest {
   }
   @Test void textOnlyChangesPreserveAllComponentsAndRefreshThePersistedNames() throws Exception {
     plan.put("schemeId",null); plan.put("choices",List.of()); plan.put("targetTitle","积压与响应"); plan.put("targetPurpose","判断待处置积压和响应效率");
-    adapter.apply(prepare(),"3","4","0");
-    for (String field:List.of("title","moduleName","businessModule")) assertEquals("积压与响应",prototype().at("/page-1/blocks/b/"+field).asText());
+    var prepared=prepare();
+    var result=adapter.apply(prepared,"3","4","0");
+    var savedBlock=prototype().at("/page-1/blocks/b");
+    assertEquals("verified",result.get("status"));
+    assertEquals(JSON.valueToTree(prepared.get("block")),savedBlock);
+    for (String field:List.of("title","moduleName","businessModule")) assertEquals("积压与响应",savedBlock.path(field).asText());
+    assertEquals("判断待处置积压和响应效率",savedBlock.path("moduleDescription").asText());
     assertEquals(JSON.readTree(original).at("/page-1/blocks/b/components"),prototype().at("/page-1/blocks/b/components"));
+    assertEquals(JSON.readTree(original).at("/page-1/blocks/other"),prototype().at("/page-1/blocks/other"));
     assertEquals("积压与响应",context().at("/output/raw/regenContextSnapshot/currentFilledBlocks/0/businessModule").asText());
     String root="/output/raw/regenContextSnapshot/";
     for (String path:List.of("currentBlockThemes/0/", "step5Candidates/step4Output/blockAssignments/0/assignedTheme/")) {

@@ -56,12 +56,14 @@ import {
 import { useQueries } from '@tanstack/react-query';
 import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { collectVisualWorkspace, canvasForSelection, workspaceCanvasKey, type BlockProposalReference } from '@/application/workspace/visual-workspace';
-import { blockImprovementStatusLabels, blockImprovementQuery } from '@/infrastructure/java-backend/block-improvement-client';
+import { blockImprovementQuery } from '@/infrastructure/java-backend/block-improvement-client';
 import { AnalysisWorkspaceContext } from './analysis-workspace-context';
 import { AnalysisResultBlockRenderer } from './analysis-result-block-renderer';
 import { BlockImprovementPanel } from './renderer/block-improvement-panel';
+import { AnalysisProposalReview } from './analysis-proposal-review';
 import { AnalysisUnderstandingEditor } from './analysis-understanding-editor';
 
+type SidePanel = { title: string; content: ReactNode; testId?: string; kind?: 'proposal-review' };
 const conversationColumn = 'mx-auto w-full max-w-[1200px] px-4 xl:px-10';
 
 export type ChatTurnStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -133,11 +135,7 @@ export function AnalysisConversationShell({
   const panelTrigger = useRef<HTMLElement | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [editingTurnKey, setEditingTurnKey] = useState<string | null>(null);
-  const [sidePanel, setSidePanel] = useState<{
-    title: string;
-    content: ReactNode;
-    testId?: string;
-  } | null>(null);
+  const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
   const lastTurn = turns.at(-1);
   const latestCompleted = turns.findLast((turn) => turn.status === 'completed');
   const latestCompletedKey = latestCompleted?.key ?? null;
@@ -189,13 +187,6 @@ export function AnalysisConversationShell({
   const earlierProposals = proposalItems.filter(item => item.view && !currentProposals.includes(item));
   const unresolvedProposals = proposalItems.filter(item => !item.view);
   const latestProposal = proposalItems.findLast(item => item.view)?.view;
-  const proposalList = (items: typeof proposalItems) => <div className="divide-y divide-border">{items.map(item => <div key={`${item.reference.executionId}:${item.reference.invocationId}`}>
-    {item.view ? <button type="button" className="w-full space-y-1 rounded-sm py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:text-primary" onClick={() => openWorkspaceProposal(item.reference)}>
-      <span className="flex items-start justify-between gap-3 text-sm font-medium"><span>{item.view.title}</span><span className="shrink-0 text-xs text-muted-foreground">{blockImprovementStatusLabels[item.view.status]}</span></span>
-      <span className="block text-xs text-muted-foreground">{item.view.applicationName}{turns.some(turn => turn.executionId === item.reference.executionId) ? ` · 第 ${turns.findIndex(turn => turn.executionId === item.reference.executionId) + 1} 轮` : ''}</span>
-      <span className="line-clamp-2 text-sm leading-6 text-muted-foreground">{item.view.proposal.textChange ? `${item.view.proposal.textChange.beforeTitle} → ${item.view.proposal.textChange.afterTitle}` : item.view.proposal.changes.map(change => change.reason).join('；') || item.view.proposal.diagnosis.themeFit}</span>
-    </button> : <p className={item.error ? 'py-3 text-sm text-destructive' : 'py-3 text-sm text-muted-foreground'} role={item.error ? 'alert' : 'status'}>{item.error ?? '正在读取建议…'}</p>}
-  </div>)}</div>;
   const hasStructuredStatistics = Boolean(lastTurn?.understanding?.some(query => query.measures.length));
   const currentCanvas = canvasOverride ?? (!hasStructuredStatistics && canvases.length ? { block: canvases[0] }
     : latestProposal ? { block: canvasForSelection(sessionId, latestProposal.selection, latestProposal.title), selection: latestProposal.selection } : null);
@@ -352,7 +343,7 @@ export function AnalysisConversationShell({
   );
 
   const openSidePanel = useCallback(
-    (panel: { title: string; content: ReactNode; testId?: string } | null) => {
+    (panel: SidePanel | null) => {
       if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并查看其他内容？')) return;
       editorDirty.current = false;
       setActiveDrawer(null);
@@ -363,6 +354,8 @@ export function AnalysisConversationShell({
     },
     [],
   );
+
+  const openProposalReview = () => openSidePanel({ title: '修改建议', content: null, kind: 'proposal-review' });
 
   const showWorkspaceObject = (block: AnalysisRenderedBlock) => {
     if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并切换大屏？')) return;
@@ -380,7 +373,10 @@ export function AnalysisConversationShell({
     if (!selectObject(item.view.selection, item.view.title)) return;
     setCanvasOverride({ block: canvasForSelection(sessionId, item.view.selection, item.view.title), selection: item.view.selection });
     openSidePanel({ title: `${item.view.title} · 修改建议`, testId: 'analysis-improvement-context',
-      content: <BlockImprovementPanel key={`${reference.executionId}:${reference.invocationId}`} {...reference} expanded /> });
+      content: <div>
+        <Button type="button" size="sm" variant="ghost" onClick={openProposalReview}>返回修改建议</Button>
+        <BlockImprovementPanel key={`${reference.executionId}:${reference.invocationId}`} {...reference} expanded />
+      </div> });
     setWorkspaceError(null);
   };
 
@@ -438,10 +434,9 @@ export function AnalysisConversationShell({
           <header className="shrink-0 space-y-3 px-4 pb-4 sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-lg font-semibold tracking-tight">大屏工作区</h1>
-              {proposalItems.length ? <Button type="button" variant="ghost" size="sm" disabled={proposalReads.some(read => read.isPending)} onClick={() => openSidePanel({ title: '修改建议', content: <div>
-                {proposalList([...currentProposals, ...unresolvedProposals])}
-                {earlierProposals.length ? <details className="mt-4 text-sm"><summary className="cursor-pointer text-muted-foreground">历史建议 · {earlierProposals.length}</summary>{proposalList(earlierProposals)}</details> : null}
-              </div> })}>修改建议 {currentProposals.length || '…'}</Button> : null}
+              {proposalItems.length ? <Button type="button" variant="ghost" size="sm" onClick={openProposalReview}>
+                修改建议{currentProposals.length ? ` ${currentProposals.length}` : ''}
+              </Button> : null}
             </div>
             <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">分析任务</summary><p className="mt-2 max-w-3xl leading-6">{lastTurn?.questionText}</p></details>
             {canvases.length ? <nav aria-label="切换工作大屏" className="flex gap-1 overflow-x-auto whitespace-nowrap">
@@ -681,7 +676,11 @@ export function AnalysisConversationShell({
           testId={sidePanel.testId}
           title={sidePanel.title}
         >
-          {sidePanel.content}
+          {sidePanel.kind === 'proposal-review' ? <AnalysisProposalReview
+            current={currentProposals} earlier={earlierProposals} unread={unresolvedProposals}
+            turnNumbers={new Map(turns.flatMap((turn, index) => turn.executionId ? [[turn.executionId, index + 1] as const] : []))}
+            onOpen={openWorkspaceProposal}
+          /> : sidePanel.content}
         </AnalysisSidePanel>
       ) : null}
       {editingTurn

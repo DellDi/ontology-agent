@@ -63,6 +63,7 @@ class EasyVBlockActionServiceTest {
   }
   @Test void readReturnsAuthorizedTargetWithoutPreparingOrApplying() {
     var result=service.get("session","execution","invocation",viewer);
+    assertEquals("app",result.applicationId());
     assertEquals(selection,result.selection());
     assertEquals("proposal",result.status());
     assertFalse(result.executionAvailable());

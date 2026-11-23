@@ -14,3 +14,4 @@ dist
 backend-java/target
 _bmad-output
 .DS_Store
+agent-sharing

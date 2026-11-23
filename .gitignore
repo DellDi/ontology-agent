@@ -61,3 +61,6 @@ docs/original-mysql/*.sql
 
 # scripts/local-data 导出的真实业务数据快照，不得入库
 /snapshots/
+
+# Google Drive 同步的 Ontology-Agent 教学视频/分享项目，本地独立目录，不得入库
+/agent-sharing/

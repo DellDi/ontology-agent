@@ -361,8 +361,10 @@ public final class EasyVAgentTools {
         var preview = BlockImprovement.preview(inspected.block(), proposal, inspected.chartTypes().keySet());
         var rows = preview.changes().stream().map(change -> Map.<String,Object>of("name", change.name(), "beforeChart", chartLabel(inspected, change.beforeChart()),
             "afterChart", chartLabel(inspected, change.afterChart()), "beforeSlot", change.beforeSlot(), "afterSlot", change.afterSlot(), "reason", change.reason())).toList();
+        var proposalTitle = (rows.isEmpty() ? "文案调整提案" : "重组提案") + "（尚未应用）";
+        var label = "块内" + proposalTitle;
         var audit = Map.<String,Object>of("input", json.map(json.write(inspected)), "proposal", json.map(json.write(proposal)), "preview", json.map(json.write(preview)));
-        var observation = Map.<String,Object>of("id", id, "tool", call.tool(), "label", "块内重组提案（尚未应用）", "rows", rows,
+        var observation = Map.<String,Object>of("id", id, "tool", call.tool(), "label", label, "rows", rows,
             "preview", preview, "judgmentSource", "model_recommendation", "applied", false);
         List<List<String>> tableRows = new ArrayList<>(preview.changes().stream().map(change -> List.of(change.name(), chartLabel(inspected, change.beforeChart()),
             chartLabel(inspected, change.afterChart()), placementLabel(inspected, preview, change), change.reason())).toList());
@@ -371,8 +373,8 @@ public final class EasyVAgentTools {
           if (!text.beforeTitle().equals(text.afterTitle())) tableRows.add(List.of("模块标题", text.beforeTitle(), text.afterTitle(), "保持当前图形与位置", proposal.diagnosis().themeFit()));
           if (!text.beforePurpose().equals(text.afterPurpose())) tableRows.add(List.of("模块用途", text.beforePurpose(), text.afterPurpose(), "保持当前图形与位置", proposal.diagnosis().themeFit()));
         }
-        return new Output("块内重组提案（尚未应用）", rows, improvementProducts(), observation, audit,
-            Map.of("type", "table", "title", preview.title() + " · 重组提案（尚未应用）", "role", "primary",
+        return new Output(label, rows, improvementProducts(), observation, audit,
+            Map.of("type", "table", "title", preview.title() + " · " + proposalTitle, "role", "primary",
                 "columns", List.of("内容", "调整前", "调整后", "位置", "依据"), "rows", tableRows), inspected.references());
       }
       return readOutput(id, call, objects.readDuringExecution(context, scope, call.request()));

@@ -58,6 +58,7 @@ test('块内改造 | 确认无需重交提案,BFF 仅透传动作路径和登录
 
 test('块内改造 | 定位必须使用正式区域引用，缺失或非区域目标拒绝展示',()=>{
   assert.deepEqual(blockImprovementViewSchema.parse(fixture).selection,fixture.selection);
+  assert.equal(blockImprovementViewSchema.safeParse({...fixture,applicationId:''}).success,false);
   const missing={...fixture};delete missing.selection;
   assert.equal(blockImprovementViewSchema.safeParse(missing).success,false);
   const invalid={...fixture,selection:{...fixture.selection,reference:{...fixture.selection.reference,objectId:''}}};

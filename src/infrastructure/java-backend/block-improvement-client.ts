@@ -5,7 +5,7 @@ const change = z.object({componentId:z.string(),metricId:z.string(),name:z.strin
 const percent=z.string().regex(/^\d+(\.\d+)?%$/);
 const preparedBlock=z.object({components:z.array(z.object({metricName:z.string().min(1),chartFamily:z.string().min(1),
   config:z.object({relativeX:percent,relativeY:percent,width:percent,height:percent})})).min(1).max(7)}).passthrough();
-export const blockImprovementViewSchema = z.object({invocationId:z.string(),executionAvailable:z.boolean(),selection:javaObjectSelectionSchema.refine(selection=>selection.reference.objectKey==='easyv-prototype-block'&&!selection.additionalReferences?.length,'改进目标必须是单个正式区域引用。'),title:z.string(),applicationName:z.string().min(1),chartLabels:z.record(z.string(),z.string()),
+export const blockImprovementViewSchema = z.object({invocationId:z.string(),executionAvailable:z.boolean(),selection:javaObjectSelectionSchema.refine(selection=>selection.reference.objectKey==='easyv-prototype-block'&&!selection.additionalReferences?.length,'改进目标必须是单个正式区域引用。'),title:z.string(),applicationId:z.string().min(1),applicationName:z.string().min(1),chartLabels:z.record(z.string(),z.string()),
   proposal:z.object({textChange:z.object({beforeTitle:z.string(),afterTitle:z.string(),beforePurpose:z.string(),afterPurpose:z.string()}).nullable().optional(),diagnosis:z.object({themeFit:z.string(),metricChartFit:z.string(),composition:z.string()}),changes:z.array(change),pendingChecks:z.array(z.string())}),
   actionId:z.string().nullable(),status:z.enum(['proposal','prepared','applying','verified','context_pending','unknown','conflict','failed']),
   preparedBlock:preparedBlock.nullable(),error:z.string().nullable()});

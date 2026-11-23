@@ -28,19 +28,19 @@ public class EasyVBlockActionService {
     this.sessions=sessions;this.invocations=invocations;this.objects=objects;this.identities=identities;
     this.scopes=scopes;this.store=store;this.source=source;
   }
-  public record View(String invocationId,ObjectSelection selection,boolean executionAvailable,String title,String applicationName,BlockImprovement.Preview proposal,Map<String,String> chartLabels,
+  public record View(String invocationId,ObjectSelection selection,boolean executionAvailable,String title,String applicationId,String applicationName,BlockImprovement.Preview proposal,Map<String,String> chartLabels,
                      String actionId,String status,Map<String,Object> preparedBlock,String error) {}
   public View get(String session,String execution,String invocation,AuthSession viewer){
     var evidence=evidence(session,execution,invocation,viewer);
     var access=authorize(session,viewer,evidence);
-    return view(access.get("applicationName"),invocation,evidence,store.latest(session,invocation,viewer.userId()).orElse(null));
+    return view(access,invocation,evidence,store.latest(session,invocation,viewer.userId()).orElse(null));
   }
   public View prepare(String session,String execution,String invocation,AuthSession viewer){
     var evidence=evidence(session,execution,invocation,viewer);
     var access=authorize(session,viewer,evidence);
     var existing=store.latest(session,invocation,viewer.userId()).orElse(null);
     if(existing!=null && Set.of("prepared","applying","unknown","context_pending","verified").contains(existing.status()))
-      return view(access.get("applicationName"),invocation,evidence,existing);
+      return view(access,invocation,evidence,existing);
     var context=json.convertValue(evidence.get("input"),EasyVSchemeAssessmentService.ImprovementContext.class);
     var proposal=json.convertValue(evidence.get("proposal"),BlockImprovement.Proposal.class);
     BlockImprovement.preview(context.block(),proposal,context.chartTypes().keySet());
@@ -59,7 +59,7 @@ public class EasyVBlockActionService {
     var prepared=source.prepare(plan,access.get("userId"),access.get("spaceId"),access.get("teamId"));
     validatePrepared(prepared,plan,access);
     var saved=store.create(session,invocation,viewer.userId(),Map.of("executionId",execution,"access",access,"source",prepared));
-    return view(access.get("applicationName"),invocation,evidence,saved);
+    return view(access,invocation,evidence,saved);
   }
   public View confirm(String session,String actionId,AuthSession viewer){
     sessions.requireOwned(session,viewer);
@@ -69,8 +69,8 @@ public class EasyVBlockActionService {
     var access=authorize(session,viewer,evidence);
     if(!json.valueToTree(access).equals(json.valueToTree(action.prepared().get("access"))))
       throw new BackendException("BLOCK_ACTION_FORBIDDEN","当前业务身份或目标范围已改变,请重新准备方案。");
-    if(action.status().equals("verified")) return view(access.get("applicationName"),action.invocationId(),evidence,action);
-    if(!store.claim(actionId)) return view(access.get("applicationName"),action.invocationId(),evidence,store.require(actionId,session,viewer.userId()));
+    if(action.status().equals("verified")) return view(access,action.invocationId(),evidence,action);
+    if(!store.claim(actionId)) return view(access,action.invocationId(),evidence,store.require(actionId,session,viewer.userId()));
     try {
       var result=source.apply(map(action.prepared().get("source")),access.get("userId"),access.get("spaceId"),access.get("teamId"));
       String status=String.valueOf(result.get("status"));
@@ -90,7 +90,7 @@ public class EasyVBlockActionService {
       };
       store.finish(actionId,status,Map.of(),error.getMessage());
     }
-    return view(access.get("applicationName"),action.invocationId(),evidence,store.require(actionId,session,viewer.userId()));
+    return view(access,action.invocationId(),evidence,store.require(actionId,session,viewer.userId()));
   }
   private Map<String,Object> evidence(String session,String execution,String invocation,AuthSession viewer){
     sessions.requireOwned(session,viewer);
@@ -124,10 +124,12 @@ public class EasyVBlockActionService {
         ||!(prepared.get("block") instanceof Map<?,?>))
       throw new BackendException("EASYV_ACTION_PREPARE_INVALID","EasyV 准备结果与目标或身份不一致,未创建可确认动作。");
   }
-  private View view(String applicationName,String invocation,Map<String,Object> evidence,EasyVBlockActionStore.Action action){
+  private View view(Map<String,String> access,String invocation,Map<String,Object> evidence,EasyVBlockActionStore.Action action){
     var context=json.convertValue(evidence.get("input"),EasyVSchemeAssessmentService.ImprovementContext.class);
+    String applicationName=access.get("applicationName");
     if(action!=null && map(action.prepared().get("source")).get("applicationName") instanceof String liveName && !liveName.isBlank()) applicationName=liveName;
-    return new View(invocation,context.selection(),source.isConfigured(),context.block().title(),applicationName,json.convertValue(evidence.get("preview"),BlockImprovement.Preview.class),context.chartTypes(),
+    return new View(invocation,context.selection(),source.isConfigured(),context.block().title(),access.get("appId"),applicationName,
+      json.convertValue(evidence.get("preview"),BlockImprovement.Preview.class),context.chartTypes(),
       action==null?null:action.id(),action==null?"proposal":action.status(),action==null?null:map(map(action.prepared().get("source")).get("block")),action==null?null:action.error());
   }
   @SuppressWarnings("unchecked") private static Map<String,Object> map(Object value){return (Map<String,Object>)value;}

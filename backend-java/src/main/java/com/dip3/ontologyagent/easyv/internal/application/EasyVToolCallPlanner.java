@@ -115,7 +115,7 @@ final class EasyVToolCallPlanner {
       case "traverse_objects" -> "穿透对象关系";
       case "assess_scheme" -> "评估区域方案";
       case "inspect_block_improvement" -> "读取块内改造依据";
-      case "preview_block_improvement" -> "检查块内重组提案";
+      case "preview_block_improvement" -> "检查块内改造提案";
       default -> "执行指标查询";
     };
   }

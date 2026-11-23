@@ -21,6 +21,7 @@ const eslintConfig = defineConfig([
     "design-artifacts/**",
     "docs/**",
     "skills/**",
+    "agent-sharing/**",
   ]),
 ]);
 

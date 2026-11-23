@@ -1,6 +1,7 @@
 {
   "invocationId": "proposal",
   "title": "渠道贡献",
+  "applicationId": "application-1",
   "applicationName": "经营看板",
   "chartLabels": {
     "bar": "柱状图",

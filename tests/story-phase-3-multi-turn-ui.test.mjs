@@ -276,7 +276,37 @@ test('Chat UI | 当前画布独立于历史消息，查看对话不会重复挂�
   assert.match(html,/对话记录/);
 });
 
-test('Chat UI | 未开放源写回时只读，准备态不能展示确认保存入口',()=>{
+test('Chat UI | 批次复核按大屏 ID 归拢，历史和读不到的建议保留各自状态',()=>{
+  const html=execFileSync('node',['--import','tsx','--input-type=module','-e',`
+    import React from 'react';
+    import {renderToStaticMarkup} from 'react-dom/server';
+    import {readFileSync} from 'node:fs';
+    import review from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-proposal-review.tsx';
+    const fixture=JSON.parse(readFileSync('contracts/backend/fixtures/block-improvement-action.json','utf8'));
+    const item=(executionId,invocationId,view)=>({reference:{executionId,invocationId},view:{...fixture,...view}});
+    const props={
+      current:[
+        item('batch','1',{applicationId:'a',title:'营收',status:'verified'}),
+        item('batch','2',{applicationId:'b',title:'回款',status:'prepared'}),
+        item('batch','3',{applicationId:'a',title:'利润',status:'conflict'}),
+      ],
+      earlier:[item('prior','4',{applicationId:'a',title:'旧建议',status:'verified'})],
+      unread:[{reference:{executionId:'batch',invocationId:'5'},error:'当前账号不能读取建议'}],
+      turnNumbers:new Map([['batch',2],['prior',1]]),onOpen:()=>{},
+    };
+    console.log(renderToStaticMarkup(React.createElement(review.AnalysisProposalReview,props)));
+  `],{encoding:'utf8',env:{...process.env,NODE_OPTIONS:''}});
+  assert.match(html,/已核对 1 \/ 3 条/);
+  assert.match(html,/1 条需处理异常/);
+  assert.equal((html.match(/<section /g)??[]).length,2,'同名大屏中的不同应用不合并');
+  assert.ok(html.indexOf('营收')<html.indexOf('利润')&&html.indexOf('利润')<html.indexOf('回款'),'同一大屏的建议相邻');
+  assert.match(html,/待确认/);
+  assert.match(html,/原型已变化/);
+  assert.match(html,/历史建议 · 1[\s\S]*旧建议/);
+  assert.match(html,/role="alert">当前账号不能读取建议/);
+});
+
+test('Chat UI | 写回侧栏按准备、待核查和已核对状态展示文案与操作',()=>{
   const html=JSON.parse(execFileSync('node',['--import','tsx','--input-type=module','-e',`
     import React from 'react';
     import {renderToStaticMarkup} from 'react-dom/server';
@@ -286,15 +316,31 @@ test('Chat UI | 未开放源写回时只读，准备态不能展示确认保存�
     import navigation from 'next/dist/shared/lib/hooks-client-context.shared-runtime.js';
     import panel from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/block-improvement-panel.tsx';
     const fixture=JSON.parse(readFileSync('contracts/backend/fixtures/block-improvement-action.json','utf8'));
-    const render=(executionAvailable)=>{
+    const textChange={beforeTitle:'地市业绩',afterTitle:'建议标题',beforePurpose:'多维业绩对比',afterPurpose:'建议用途'};
+    const render=(status,executionAvailable,savedText={})=>{
       const client=new QueryClient({defaultOptions:{queries:{gcTime:Infinity}}});
-      client.setQueryData(['block-improvement','session','execution','proposal'],{...fixture,status:'prepared',executionAvailable});
+      client.setQueryData(['block-improvement','session','execution','proposal'],{...fixture,status,executionAvailable,
+        proposal:{...fixture.proposal,textChange},preparedBlock:{...fixture.preparedBlock,...savedText}});
       return renderToStaticMarkup(React.createElement(QueryClientProvider,{client},React.createElement(navigation.PathParamsContext.Provider,{value:{sessionId:'session'}},
         React.createElement(panel.BlockImprovementPanel,{executionId:'execution',invocationId:'proposal',expanded:true}))));
     };
-    console.log(JSON.stringify({disabled:render(false),enabled:render(true)}));
+    const savedText={businessModule:'各地市存款余额排行',moduleDescription:'比较浙江各地市存款余额'};
+    console.log(JSON.stringify({disabled:render('prepared',false),enabled:render('prepared',true),
+      pending:render('context_pending',true,savedText),verified:render('verified',true,savedText),
+      archived:render('verified',false,savedText),legacy:render('verified',true)}));
   `],{encoding:'utf8',env:{...process.env,NODE_OPTIONS:''}}));
   assert.match(html.disabled,/当前环境未启用源写回/);
   assert.doesNotMatch(html.disabled,/确认并保存到 EasyV/);
   assert.match(html.enabled,/确认并保存到 EasyV/);
+  assert.match(html.enabled,/建议标题/);
+  assert.match(html.pending,/核查并恢复同一方案/);
+  assert.doesNotMatch(html.pending,/已核对的源端文案|确认后保存/);
+  assert.match(html.verified,/已核对的源端文案/);
+  assert.match(html.verified,/地市业绩 → 各地市存款余额排行/);
+  assert.match(html.verified,/多维业绩对比 → 比较浙江各地市存款余额/);
+  assert.match(html.verified,/保存读回时的结构示意/);
+  assert.doesNotMatch(html.verified,/建议标题|建议用途|确认后保存|确认并保存到 EasyV/);
+  assert.match(html.archived,/已核对的源端文案/);
+  assert.doesNotMatch(html.archived,/建议仅供查看/);
+  assert.doesNotMatch(html.legacy,/已核对的源端文案|建议标题|确认后保存/);
 });

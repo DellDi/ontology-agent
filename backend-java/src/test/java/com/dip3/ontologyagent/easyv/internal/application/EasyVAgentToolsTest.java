@@ -110,6 +110,9 @@ class EasyVAgentToolsTest {
     assertTrue(run.batchInspection().isEmpty());
     var proposal = Map.<String,Object>of("handle", "o2", "textFields", List.of("title", "purpose"));
     var candidate = run.execute("q3", run.prepare("preview_block_improvement", proposal));
+    assertEquals("块内文案调整提案（尚未应用）", candidate.label());
+    assertEquals(candidate.label(), candidate.observation().get("label"));
+    assertEquals("门诊效率 · 文案调整提案（尚未应用）", candidate.renderBlock().get("title"));
     var normalized = (Map<?, ?>) candidate.audit().get("proposal");
     assertEquals("门诊量", normalized.get("title"));
     assertEquals("每日接诊人次", normalized.get("purpose"));
@@ -154,7 +157,7 @@ class EasyVAgentToolsTest {
     code("EASYV_PLAN_INVALID", () -> run.prepare("preview_block_improvement", displayNames));
     var proposed = run.execute("q2", run.prepare("preview_block_improvement", input));
     assertEquals(false, proposed.observation().get("applied"));
-    assertTrue(proposed.renderBlock().get("title").toString().contains("尚未应用"));
+    assertEquals("门诊效率 · 重组提案（尚未应用）", proposed.renderBlock().get("title"));
     assertEquals(List.of("门诊量", "柱状图", "折线图", "中部通栏 · 主图", "观察日期变化"), ((List<?>) proposed.renderBlock().get("rows")).getFirst());
     assertEquals(inspected.references(), proposed.references());
     assertEquals("proposal", ((Map<?,?>) proposed.audit().get("preview")).get("status"));
