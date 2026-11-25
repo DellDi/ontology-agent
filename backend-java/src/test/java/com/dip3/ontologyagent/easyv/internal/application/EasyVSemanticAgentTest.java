@@ -217,6 +217,53 @@ class EasyVSemanticAgentTest {
   }
 
   @Test
+  void bareDateObjectTimeFilterIsCorrectedDuringPlanningBeforeAnyToolExecutes() {
+    var objects = mock(EasyVObjectReadService.class);
+    var scopes = mock(EasyVScopeResolver.class);
+    var semantic = SemanticModel.discover();
+    when(scopes.executionPrincipal(any())).thenReturn(principal());
+    when(scopes.resolveScope(any())).thenReturn(ALL);
+    var realTools = new EasyVAgentTools(objects, mock(EasyVSchemeAssessmentService.class),
+        new EasyVObjectSelectionService(null, null, null, semantic), scopes, semantic,
+        new com.dip3.ontologyagent.support.JsonCodec());
+    agent = new EasyVSemanticAgent(model, semantic, new SemanticQueryCompiler(semantic), queries, datasets, recorder, selections, realTools);
+    Map<String, Object> appCountIntent = Map.of("object", "easyv-ai-application", "measures", List.of("count"),
+        "time", Map.of("expression", Map.of("sourceText", "11 月 20 日之后", "kind", "absolute",
+            "from", "2026-11-21", "to", "2026-11-25")));
+    Map<String, Object> badObjectCall = Map.of("tool", "query_objects", "input", Map.of(
+        "objectKey", "easyv-ai-application",
+        "filters", List.of(Map.of("member", "createdAt", "operator", "GT", "values", List.of("2026-11-20")))));
+    Map<String, Object> fixedObjectCall = Map.of("tool", "query_objects", "input", Map.of(
+        "objectKey", "easyv-ai-application",
+        "filters", List.of(Map.of("member", "createdAt", "operator", "GTE", "values", List.of("2026-11-21T00:00:00+08:00")))));
+    when(model.plan(any())).thenReturn(
+        new PlanDecision(PlanStatus.READY, List.of(metricCall(appCountIntent), badObjectCall), null, List.of()),
+        new PlanDecision(PlanStatus.READY, List.of(metricCall(appCountIntent), fixedObjectCall), null, List.of()),
+        finished());
+    when(queries.execute(any(), any())).thenReturn(result(Map.of("count", 0)));
+    when(objects.readDuringExecution(any(), eq(ALL), any())).thenReturn(new EasyVObjectReadService.Result(
+        "execution-1", "easyv-set-1", "easyv-v2",
+        new com.dip3.ontologyagent.semantic.api.ObjectQueryPort.Page("easyv-ai-application", List.of(), 50, 0, false),
+        null, new EasyVObjectReadService.ObjectTypeView("easyv-ai-application", "AI 应用", List.of(), List.of()),
+        Map.of(), null, null, Map.of()));
+    when(model.compose(any(), any())).thenReturn(new ComposedAnswer("2026-11-21 至 2026-11-25 无新增 AI 应用（0 个）。",
+        List.of(new Citation("q1", 0, "count")), List.of(), List.of(), List.of()));
+
+    WorkflowResult result = run(initialTurn(), ALL);
+
+    var planned = ArgumentCaptor.forClass(PlanRequest.class);
+    verify(model, times(3)).plan(planned.capture());
+    assertTrue(planned.getAllValues().get(1).violations().stream()
+        .anyMatch(v -> v.contains("createdAt") && v.contains("ISO-8601") && v.contains("2026-11-20")));
+    verify(queries, times(1)).execute(any(), any());
+    verify(objects, times(1)).readDuringExecution(any(), eq(ALL), argThat(req ->
+        req.filters().equals(List.of(new QueryIntent.Filter("createdAt", QueryIntent.Operator.GTE,
+            List.of("2026-11-21T00:00:00+08:00"))))));
+    assertTrue(events.stream().noneMatch("tool-failed"::equals));
+    assertEquals("2026-11-21 至 2026-11-25 无新增 AI 应用（0 个）。", result.conclusion());
+  }
+
+  @Test
   void ninthObjectCallExhaustsTotalBudgetBeforeExecutionOrComposition() {
     when(objectRun.prepare(eq("query_objects"), anyMap())).thenAnswer(call -> {
       Map<String, Object> input = call.getArgument(1);

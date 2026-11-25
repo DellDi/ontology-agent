@@ -41,6 +41,7 @@ class EasyVPromptBuildersTest {
     assertTrue(prompt.contains("若输入含 violations"));
 
     assertFalse(prompt.contains("query_objects/read_object/traverse_objects"));
+    assertFalse(prompt.contains("TIME 属性的过滤值必须是带时区偏移的 ISO-8601 时间戳"));
     assertFalse(prompt.contains("hasMore=true"));
     assertFalse(prompt.contains("detailOnly=true"));
     assertFalse(prompt.contains("Step1 和 ChatExecution"));
@@ -157,6 +158,7 @@ class EasyVPromptBuildersTest {
     String prompt = EasyVPlannerPromptBuilder.build(request);
 
     assertTrue(prompt.contains("query_objects/read_object/traverse_objects 的输入结构见 tools"));
+    assertTrue(prompt.contains("TIME 属性的过滤值必须是带时区偏移的 ISO-8601 时间戳"));
     assertTrue(prompt.contains("hasMore=true"));
     assertTrue(prompt.contains("detailOnly=true"));
 

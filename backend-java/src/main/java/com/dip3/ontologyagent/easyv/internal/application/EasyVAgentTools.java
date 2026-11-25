@@ -50,7 +50,7 @@ public final class EasyVAgentTools {
     List<Map<String, Object>> tools = new ArrayList<>();
     tools.add(Map.of("name", "query_metrics", "input", "{intent: 查询意图, handle?: 已知对象句柄}"));
     if (objectTools) {
-      tools.add(Map.of("name", "query_objects", "input", "{objectKey, filters?: [{member,operator,values}], order?: [{member,direction}], limit?: 1..50, offset?: 0..10000}"));
+      tools.add(Map.of("name", "query_objects", "input", "{objectKey, filters?: [{member,operator,values（TIME 须为带时区偏移的 ISO-8601 时间戳，如 2026-11-21T00:00:00+08:00）}], order?: [{member,direction}], limit?: 1..50, offset?: 0..10000}"));
       tools.add(Map.of("name", "read_object", "input", "{handle}"));
       tools.add(Map.of("name", "traverse_objects", "input", "{handle, relation, filters?, order?, limit?, offset?}"));
       tools.add(Map.of("name", "assess_scheme", "input", "{handle: 区域对象句柄}"));
@@ -244,13 +244,9 @@ public final class EasyVAgentTools {
       var type = semantic.require(target);
       for (var filter : filters) {
         if (filter.member() == null || type.findProperty(filter.member()).isEmpty() || filter.operator() == null
-            || filter.values() == null || filter.values().size() > 100 || filter.values().stream().anyMatch(v -> v == null || v.isBlank() || v.length() > 500)) throw invalid("对象过滤必须使用已声明属性和有效值");
-      }
-      for (var filter : filters) {
-        if (type.requireProperty(filter.member()).detailOnly()) throw invalid("原文只允许 read_object，不接受列表筛选");
-        boolean presence = filter.operator() == QueryIntent.Operator.SET || filter.operator() == QueryIntent.Operator.NOT_SET;
-        if (presence ? !filter.values().isEmpty() : filter.values().isEmpty()) throw invalid("SET/NOT_SET 只判断是否存在且 values 必须为空；多值匹配使用 EQUALS");
-        if (!presence && filter.operator() != QueryIntent.Operator.EQUALS && filter.operator() != QueryIntent.Operator.NOT_EQUALS && filter.values().size() != 1) throw invalid("文本包含和大小比较只能有一个过滤值");
+            || filter.values() == null) throw invalid("对象过滤必须使用已声明属性和有效值");
+        ObjectFilterValidator.validateAndConvert(type.requireProperty(filter.member()), filter,
+            message -> new BackendException("EASYV_PLAN_INVALID", message));
       }
       for (var item : order) if (item.member() == null || type.findProperty(item.member()).isEmpty() || type.requireProperty(item.member()).detailOnly() || item.direction() == null) throw invalid("对象排序必须使用已声明属性");
       var query = new ObjectQueryPort.Query(target, filters, order, limit, offset);

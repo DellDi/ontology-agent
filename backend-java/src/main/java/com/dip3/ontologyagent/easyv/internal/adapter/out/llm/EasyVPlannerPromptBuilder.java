@@ -59,7 +59,8 @@ final class EasyVPlannerPromptBuilder {
   private static final String OBJECT_TOOL_FILTER_RULE_SUFFIX =
       """
        的输入结构见 tools。
-        对象过滤 operator 用 EQUALS|NOT_EQUALS|CONTAINS|GT|GTE|LT|LTE|SET|NOT_SET，排序 direction 用 ASC|DESC。SET/NOT_SET 表示存在性，values 必须为空；多值相等用 EQUALS。
+        对象过滤 operator 用 EQUALS|NOT_EQUALS|CONTAINS|GT|GTE|LT|LTE|SET|NOT_SET，排序 direction 用 ASC|DESC。SET/NOT_SET 表示存在性，values 必须为空；多值相等用 EQUALS；CONTAINS 仅用于 STRING；GT/GTE/LT/LTE 仅用于 NUMBER 或 TIME。
+        TIME 属性的过滤值必须是带时区偏移的 ISO-8601 时间戳（如 2026-11-21T00:00:00+08:00 或观测结果中的原时间戳），禁止写无时区的 yyyy-MM-dd；按日期筛选时按业务时区（+08:00）换算精确边界（例如“某日之后”用次日 00:00:00+08:00 的 GTE，“某日当天”用当日 00:00:00+08:00 的 GTE 与次日 00:00:00+08:00 的 LT，不用 EQUALS 匹配日期）。
       """;
 
   private static final String OBJECT_DETAIL_AND_PAGINATION_RULES =

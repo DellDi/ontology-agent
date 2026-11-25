@@ -25,11 +25,11 @@ class PostgresObjectQueryAdapterTest {
   static void setup() {
     jdbc = new JdbcTemplate(new DriverManagerDataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword()));
     jdbc.execute("CREATE SCHEMA facts");
-    jdbc.execute("CREATE TABLE facts.orders (product_version_id text, id text, customer_id text, tenant_id text, status text, amount numeric)");
+    jdbc.execute("CREATE TABLE facts.orders (product_version_id text, id text, customer_id text, tenant_id text, status text, amount numeric, created_at timestamptz)");
     jdbc.execute("CREATE TABLE facts.customers (product_version_id text, id text, tenant_id text, region text)");
     jdbc.execute("INSERT INTO facts.customers VALUES ('customers-current','c1','t1','east'),('customers-current','c2','t2','west'),('customers-current','c3','t1',NULL),('old','c1','t1','west')");
-    jdbc.execute("INSERT INTO facts.orders VALUES ('current','o1','c1','t1','paid',10),('current','o2','c1','t1','failed',NULL),"
-        + "('current','o3','missing','t1','paid',20),('current','o4','c2','t2','paid',30),('old','o5','c1','t1','paid',999)");
+    jdbc.execute("INSERT INTO facts.orders VALUES ('current','o1','c1','t1','paid',10,'2026-11-20T15:00:00+08:00'),('current','o2','c1','t1','failed',NULL,'2026-11-21T08:00:00+08:00'),"
+        + "('current','o3','missing','t1','paid',20,'2026-11-22T09:30:00+08:00'),('current','o4','c2','t2','paid',30,'2026-11-22T10:00:00+08:00'),('old','o5','c1','t1','paid',999,'2026-11-22T11:00:00+08:00')");
     var customer = new OntologyObjectType("customer", "客户", null, "Customer", "customers", "facts.customers", null,
         List.of(OntologyProperty.key("id", "客户", "id"), OntologyProperty.column("tenantId", "租户", null, OntologyProperty.Type.STRING, "tenant_id"),
             OntologyProperty.column("region", "地区", null, OntologyProperty.Type.STRING, "region")), List.of(new OntologyLink("orders", "order", "id", "customerId", OntologyLink.Cardinality.ONE_TO_MANY)), List.of(), null, List.of(), Map.of("tenantId", "tenantId"));
@@ -37,7 +37,8 @@ class PostgresObjectQueryAdapterTest {
         List.of(OntologyProperty.key("id", "订单", "id"), OntologyProperty.column("tenantId", "租户", null, OntologyProperty.Type.STRING, "tenant_id"),
             OntologyProperty.column("customerId", "客户", null, OntologyProperty.Type.STRING, "customer_id"),
             OntologyProperty.column("status", "状态", null, OntologyProperty.Type.STRING, "status"),
-            OntologyProperty.column("amount", "金额", null, OntologyProperty.Type.NUMBER, "amount")),
+            OntologyProperty.column("amount", "金额", null, OntologyProperty.Type.NUMBER, "amount"),
+            OntologyProperty.column("createdAt", "创建时间", null, OntologyProperty.Type.TIME, "created_at")),
         List.of(new OntologyLink("customer", "customer", "customerId", "id", OntologyLink.Cardinality.MANY_TO_ONE)),
         List.of(new OntologyMetric("count", "订单数", null, OntologyMetric.Aggregation.COUNT, null, null),
             new OntologyMetric("paidCount", "已支付订单数", null, OntologyMetric.Aggregation.COUNT, null, "{CUBE}.status='paid'"),
@@ -78,7 +79,7 @@ class PostgresObjectQueryAdapterTest {
 
   @Test
   void collectionFiltersMustMatchOneChildAndNullGroupsIncludeMixedAndMissingChildren() {
-    jdbc.execute("INSERT INTO facts.orders VALUES ('current','o6','c1','t1',NULL,8)");
+    jdbc.execute("INSERT INTO facts.orders VALUES ('current','o6','c1','t1',NULL,8,'2026-11-20T10:00:00+08:00')");
     try {
       var failed = new QueryIntent.Filter("orders.status", QueryIntent.Operator.EQUALS, List.of("failed"));
       var amount = new QueryIntent.Filter("orders.amount", QueryIntent.Operator.GT, List.of("5"));
@@ -88,6 +89,20 @@ class PostgresObjectQueryAdapterTest {
       assertEquals(List.of("c1", "c3"), ids(new ObjectQueryPort.Query("customer", List.of(unset), List.of(), 20, 0)),
           "既有空状态记录的客户和没有关联订单的客户都属于空分组");
     } finally { jdbc.execute("DELETE FROM facts.orders WHERE id='o6'"); }
+  }
+
+  @Test
+  void timeFiltersUseOffsetTimestampsAndFailLoudOnBareDates() {
+    var afterNov20 = new QueryIntent.Filter("createdAt", QueryIntent.Operator.GTE, List.of("2026-11-21T00:00:00+08:00"));
+    assertEquals(List.of("o2", "o3"), ids(new ObjectQueryPort.Query("order", List.of(afterNov20), List.of(), 20, 0)));
+    var utcBound = new QueryIntent.Filter("createdAt", QueryIntent.Operator.GT, List.of("2026-11-21T00:00:00Z"));
+    assertEquals(List.of("o3"), ids(new ObjectQueryPort.Query("order", List.of(utcBound), List.of(), 20, 0)));
+    var bareDate = new QueryIntent.Filter("createdAt", QueryIntent.Operator.GT, List.of("2026-11-20"));
+    BackendException error = assertThrows(BackendException.class,
+        () -> ids(new ObjectQueryPort.Query("order", List.of(bareDate), List.of(), 20, 0)));
+    assertEquals("OBJECT_QUERY_INVALID", error.code());
+    assertTrue(error.getMessage().contains("createdAt"));
+    assertTrue(error.getMessage().contains("ISO-8601"));
   }
 
   private List<String> ids(ObjectQueryPort.Query query) {

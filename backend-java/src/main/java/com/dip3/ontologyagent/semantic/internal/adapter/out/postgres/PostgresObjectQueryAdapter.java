@@ -2,9 +2,7 @@ package com.dip3.ontologyagent.semantic.internal.adapter.out.postgres;
 
 import com.dip3.ontologyagent.semantic.api.*;
 import com.dip3.ontologyagent.support.BackendException;
-import java.math.BigDecimal;
 import java.sql.Timestamp;
-import java.time.OffsetDateTime;
 import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -199,23 +197,16 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     String comparison(OntologyProperty property, String alias, QueryIntent.Filter filter) {
       String sql = expression(property, alias);
       var operator = filter.operator();
-      boolean noValues = operator == QueryIntent.Operator.SET || operator == QueryIntent.Operator.NOT_SET;
-      if (noValues) {
-        if (!filter.values().isEmpty()) throw invalid("set/notSet 不接受 values。");
+      List<Object> converted = ObjectFilterValidator.validateAndConvert(property, filter, PostgresObjectQueryAdapter::invalid);
+      if (operator == QueryIntent.Operator.SET || operator == QueryIntent.Operator.NOT_SET) {
         return sql + (operator == QueryIntent.Operator.SET ? " IS NOT NULL" : " IS NULL");
       }
-      if (filter.values().isEmpty() || filter.values().size() > 100) throw invalid("过滤值需要 1..100 项。");
-      List<String> values = filter.values().stream().map(value -> parameter(convert(property.type(), value))).toList();
+      List<String> values = converted.stream().map(this::parameter).toList();
       if (operator == QueryIntent.Operator.EQUALS || operator == QueryIntent.Operator.NOT_EQUALS) {
         return sql + (operator == QueryIntent.Operator.EQUALS ? " IN (" : " NOT IN (") + String.join(",", values) + ")";
       }
-      if (values.size() != 1) throw invalid("contains/大小比较需要一个值。");
       if (operator == QueryIntent.Operator.CONTAINS) {
-        if (property.type() != OntologyProperty.Type.STRING) throw invalid("contains 只适用于文本属性。");
         return "position(" + values.getFirst() + " in " + sql + ") > 0";
-      }
-      if (property.type() != OntologyProperty.Type.NUMBER && property.type() != OntologyProperty.Type.TIME) {
-        throw invalid("大小比较只适用于数值或时间属性。");
       }
       String comparison = switch (operator) { case GT -> ">"; case GTE -> ">="; case LT -> "<"; case LTE -> "<=";
         default -> throw invalid("不支持的过滤操作。"); };
@@ -229,22 +220,6 @@ public class PostgresObjectQueryAdapter implements ObjectQueryPort {
     return property;
   }
 
-  private static Object convert(OntologyProperty.Type type, String value) {
-    if (value == null || value.isBlank() || value.length() > 500) throw invalid("过滤值为空或过长。");
-    try {
-      return switch (type) {
-        case STRING -> value;
-        case NUMBER -> new BigDecimal(value);
-        case BOOLEAN -> {
-          if (!value.equals("true") && !value.equals("false")) throw invalid("布尔值必须为 true/false。");
-          yield Boolean.valueOf(value);
-        }
-        case TIME -> OffsetDateTime.parse(value);
-      };
-    } catch (NumberFormatException | java.time.format.DateTimeParseException error) {
-      throw invalid("过滤值不符合属性类型 " + type + "。");
-    }
-  }
   private static String expression(OntologyProperty property, String alias) { return property.sql().replace("{CUBE}", alias); }
   private static BackendException invalid(String message) { return new BackendException("OBJECT_QUERY_INVALID", message); }
 }

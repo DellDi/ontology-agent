@@ -302,6 +302,29 @@ class EasyVAgentToolsTest {
     verifyNoInteractions(objects);
   }
 
+  @Test void invalidTimeNumberBooleanAndOperatorTypeFiltersAreRejectedAtPlanTime() {
+    var run = tools.open(context, ALL, versions, null, List.of());
+    BackendException bareDate = assertThrows(BackendException.class, () -> run.prepare("query_objects",
+        Map.of("objectKey", "easyv-ai-application",
+            "filters", List.of(Map.of("member", "createdAt", "operator", "GT", "values", List.of("2026-11-20"))))));
+    assertEquals("EASYV_PLAN_INVALID", bareDate.code());
+    assertTrue(bareDate.getMessage().contains("ISO-8601"));
+    assertTrue(bareDate.getMessage().contains("+08:00"));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", "easyv-ai-application",
+        "filters", List.of(Map.of("member", "createdAt", "operator", "GTE", "values", List.of("2026-11-21T00:00:00"))))));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", LAYOUT,
+        "filters", List.of(Map.of("member", "blockCount", "operator", "GTE", "values", List.of("many"))))));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", LAYOUT,
+        "filters", List.of(Map.of("member", "layoutType", "operator", "GT", "values", List.of("a"))))));
+    code("EASYV_PLAN_INVALID", () -> run.prepare("query_objects", Map.of("objectKey", LAYOUT,
+        "filters", List.of(Map.of("member", "createdAt", "operator", "CONTAINS", "values", List.of("2026-11-20T00:00:00+08:00"))))));
+    assertEquals(List.of("2026-11-21T00:00:00+08:00"), run.prepare("query_objects",
+        Map.of("objectKey", "easyv-ai-application",
+            "filters", List.of(Map.of("member", "createdAt", "operator", "GTE", "values", List.of("2026-11-21T00:00:00+08:00")))))
+        .request().filters().getFirst().values());
+    verifyNoInteractions(objects);
+  }
+
   @Test void selectedApplicationConstrainsItsRelatedObjectsAndRejectsUndeclaredRelations() {
     var application = row("easyv-ai-application", "1", Map.of("appId", "1"));
     var run = tools.open(context, ALL, versions, application, List.of());
