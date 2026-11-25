@@ -57,21 +57,20 @@ export function ChartShell({
   return (
     <div
       className={cn(
-        flat
-          ? 'p-0'
-          : 'py-3',
+        'rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-panel)]',
+        !flat && 'my-2',
         className,
       )}
     >
       {title || description ? (
         <header className="mb-3 space-y-1">
           {title ? (
-            <p className="text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
+            <p className="text-[13.5px] font-semibold text-foreground">
               {title}
             </p>
           ) : null}
           {description ? (
-            <p className="text-sm leading-6 text-foreground/90">{description}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{description}</p>
           ) : null}
         </header>
       ) : null}

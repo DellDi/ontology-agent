@@ -9,40 +9,63 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  --brand-900: #71351F;
-  --brand-800: #91432C;
+  --brand-900: #6B311D;
+  --brand-800: #8D4029;
   --brand-700: #B55235;
-  --brand-500: #B55235;
-  --brand-300: #D97757;
-  --brand-100: #F4E4DA;
-  --sky-100: #F2F0EB;
-  --sky-50: #F6F4EF;
-  --mist-0: #FAF9F6;
-  --surface-0: #ffffff;
-  --surface-50: #F6F4EF;
-  --ink-900: #302D29;
-  --ink-700: #514B44;
-  --ink-600: #756D64;
-  --ink-500: #756D64;
-  --line-300: #CFC6BA;
-  --line-200: #E5E0D8;
-  --line-100: #EDE9E2;
+  --brand-500: #C45C3E;
+  --brand-300: #DF886B;
+  --brand-100: #F6E6DC;
+  --brand-soft: #FBF2EC;
+
+  /* 方向 A（通透编辑风）：纯白阅读画布 + 暖米灰侧栏 + 极浅暖纸内容面 */
+  --sky-100: #F4F1EB;
+  --sky-50: #FAF8F4;
+  --mist-0: #FFFFFF;
+  --surface-0: #FFFFFF;
+  --surface-50: #FAF8F4;
+
+  --ink-900: #1F1D1A;
+  --ink-700: #46413B;
+  --ink-600: #6E665E;
+  --ink-500: #6E665E;
+  --line-300: #CFC7BC;
+  --line-200: #E6E0D6;
+  --line-100: #EFEBE4;
+
   --success-500: #24805B;
+  --success-soft: #ECF7F1;
+  --success-border: #C4E6D5;
+  --success-ink: #1A6244;
+
   --warning-500: #956111;
+  --warning-soft: #FEF6E7;
+  --warning-border: #F1D7A2;
+  --warning-ink: #84520A;
+
   --danger-500: #BC3D39;
+  --danger-soft: #FDF0EF;
+  --danger-border: #F2C3C1;
+  --danger-ink: #9E2C28;
+
+  --info-soft: #EFF5F9;
+  --info-border: #C8DBE8;
+  --info-ink: #325470;
+
   --chart-blue: #476B8A;
   --chart-teal: #3E7A70;
   --chart-gold: #957030;
-  --shadow-soft: 0 10px 24px rgb(48 45 41 / 6%);
-  --shadow-panel: 0 1px 2px rgb(48 45 41 / 6%);
+
+  --shadow-soft: 0 10px 26px rgb(31 29 26 / 6%);
+  --shadow-panel: 0 1px 2px rgb(31 29 26 / 4%), 0 1px 1px rgb(31 29 26 / 2%);
+  --shadow-composer: 0 6px 24px rgb(31 29 26 / 6%), 0 1px 3px rgb(31 29 26 / 4%);
 
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 10px;
-  --radius-3xl: 12px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
 
   --font-display: "Aptos Display", "Segoe UI", var(--font-sans);
   /* system-ui 优先：macOS 用 SF Pro 渲染拉丁/数字、PingFang 渲染中文；
@@ -89,27 +112,49 @@
   --brand-700: #E7A184;
   --brand-500: #DE967A;
   --brand-300: #B97559;
-  --brand-100: #493229;
-  --sky-100: #292622;
-  --sky-50: #302C27;
-  --mist-0: #211F1C;
-  --surface-0: #292622;
-  --surface-50: #302C27;
-  --ink-900: #F1EDE7;
-  --ink-700: #D9D1C6;
-  --ink-600: #BBB0A3;
-  --ink-500: #A79A8B;
-  --line-300: #61564B;
-  --line-200: #494139;
-  --line-100: #37312B;
-  --success-500: #4ad19a;
-  --warning-500: #ffc06a;
-  --danger-500: #ff8585;
+  --brand-100: #473027;
+  --brand-soft: #31241F;
+
+  --sky-100: #23201D;
+  --sky-50: #272420;
+  --mist-0: #1B1917;
+  --surface-0: #22201D;
+  --surface-50: #292622;
+
+  --ink-900: #F3EFE9;
+  --ink-700: #DBD3C8;
+  --ink-600: #B4A89B;
+  --ink-500: #A59889;
+  --line-300: #5B5146;
+  --line-200: #3E3730;
+  --line-100: #302B26;
+
+  --success-500: #4AD19A;
+  --success-soft: #1B2E26;
+  --success-border: #2B5242;
+  --success-ink: #8CE5BE;
+
+  --warning-500: #FFC06A;
+  --warning-soft: #312618;
+  --warning-border: #5C4524;
+  --warning-ink: #FCD59C;
+
+  --danger-500: #FF8585;
+  --danger-soft: #331F1F;
+  --danger-border: #613535;
+  --danger-ink: #FFB3B3;
+
+  --info-soft: #1E2933;
+  --info-border: #334A5E;
+  --info-ink: #A9CCE8;
+
   --chart-blue: #8FB5D6;
   --chart-teal: #87C1B3;
   --chart-gold: #DDBB77;
+
   --shadow-soft: 0 16px 32px rgb(0 0 0 / 40%);
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 35%);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-composer: 0 8px 28px rgb(0 0 0 / 38%), 0 1px 3px rgb(0 0 0 / 28%);
 
   --background: var(--mist-0);
   --foreground: var(--ink-900);
@@ -118,7 +163,7 @@
   --popover: var(--surface-0);
   --popover-foreground: var(--ink-900);
   --primary: var(--brand-700);
-  --primary-foreground: #211F1C;
+  --primary-foreground: #1B1917;
   --secondary: var(--surface-50);
   --secondary-foreground: var(--ink-900);
   --muted: var(--sky-50);
@@ -126,7 +171,7 @@
   --accent: var(--brand-100);
   --accent-foreground: var(--brand-900);
   --destructive: var(--danger-500);
-  --destructive-foreground: #211F1C;
+  --destructive-foreground: #1B1917;
   --border: var(--line-200);
   --input: var(--line-300);
   --ring: var(--brand-500);
@@ -220,11 +265,11 @@ body {
   }
 }
 
-/* 分析结果入场：增量内容到达时的淡入上移动画 */
+/* 分析结果入场：增量内容到达时的克制淡入上移 */
 @keyframes analysis-block-enter {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -233,7 +278,7 @@ body {
 }
 
 .analysis-block-enter {
-  animation: analysis-block-enter 0.45s ease-out both;
+  animation: analysis-block-enter 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .analysis-scrollbar {

@@ -344,3 +344,100 @@ test('Chat UI | 写回侧栏按准备、待核查和已核对状态展示文案�
   assert.doesNotMatch(html.archived,/建议仅供查看/);
   assert.doesNotMatch(html.legacy,/已核对的源端文案|建议标题|确认后保存/);
 });
+
+test('Chat UI | 方向 A 内容呈现：单行指标条、Markdown 提示块/指标高亮与紧凑口径条', () => {
+  const rendered = JSON.parse(execFileSync('node', ['--import', 'tsx', '--input-type=module', '-e', `
+    import React from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import table from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/renderer/charts/data-table-block.tsx';
+    import md from './src/app/_components/markdown-content.tsx';
+    import message from './src/app/(workspace)/workspace/analysis/[sessionId]/_components/analysis-assistant-message.tsx';
+
+    const stripHtml = renderToStaticMarkup(React.createElement(table.DataTableBlock, {
+      flat: true,
+      block: {
+        kind: 'table',
+        title: '操作反馈 · 操作记录数、操作用户数、有效评分数、平均评分、另存编辑数、组合成功率（%）',
+        source: { sourceType: 'execution-render-block' },
+        payload: {
+          columns: ['操作记录数', '操作用户数', '有效评分数', '平均评分', '另存编辑数', '组合成功率（%）'],
+          rows: [['45', '1', '0', '—', '0', '88.89']],
+        },
+      },
+    }));
+
+    const multiRowHtml = renderToStaticMarkup(React.createElement(table.DataTableBlock, {
+      flat: true,
+      block: {
+        kind: 'table',
+        title: '按日明细',
+        source: { sourceType: 'execution-render-block' },
+        payload: {
+          columns: ['日期', '任务数'],
+          rows: [['2026-09-21', '3'], ['2026-09-22', '6']],
+        },
+      },
+    }));
+
+    const markdownHtml = renderToStaticMarkup(React.createElement(md.MarkdownContent, {
+      children: [
+        '## 综合判断',
+        '',
+        '- 综合成功率：**88.89%**，生成任务数：**6 个**',
+        '',
+        '---',
+        '',
+        '数据覆盖提示：操作反馈覆盖 09-09~09-23，应用生成仅覆盖 09-22 单日。',
+      ].join('\\n'),
+    }));
+
+    const assistantHtml = renderToStaticMarkup(React.createElement(message.AnalysisAssistantMessage, {
+      status: 'completed',
+      headline: '分析完成',
+      toolActivities: [],
+      toolTimeline: [],
+      primaryAnswer: '整体稳定，综合成功率 **88.89%**。',
+      metricCards: [],
+      visualizations: [],
+      result: { blocks: [], evidenceBlocks: [], reasoningBlocks: [], assumptionBlocks: [] },
+      diagnostics: { timelineBlocks: [], processBoardBlocks: [], renderErrors: [], otherBlocks: [] },
+      availableDetails: ['attribution', 'actions'],
+      onOpenDetail: () => {},
+      onEditUnderstanding: () => {},
+      understanding: [{
+        id: 'q1',
+        label: '应用生成任务',
+        object: { key: 'easyv-forge-task', label: '应用生成任务' },
+        measures: [{ key: 'count', label: '生成任务数' }],
+        dimensions: [],
+        filters: [],
+        time: { dimension: 'createdAt', label: '创建时间', sourceText: '最近 30 天', kind: 'relative', from: '2026-08-30', to: '2026-09-28', allData: false, granularity: null },
+        compare: null,
+        limit: null,
+        coverage: { status: 'partial', dataFrom: '2026-09-22', dataTo: '2026-09-22', effectiveFrom: '2026-09-22', effectiveTo: '2026-09-22' },
+      }],
+    }));
+
+    console.log(JSON.stringify({ stripHtml, multiRowHtml, markdownHtml, assistantHtml }));
+  `], { encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '' } }));
+
+  assert.match(rendered.stripHtml, />操作反馈</, '单行汇总表标题应提取简洁对象名');
+  assert.match(rendered.stripHtml, /6 项指标/);
+  assert.match(rendered.stripHtml, />表格</, '单行指标条应提供切换表格视图按钮');
+  assert.match(rendered.stripHtml, />复制</);
+  assert.match(rendered.stripHtml, /width:88\.89%/, '百分比指标应呈现细进度条');
+
+  assert.match(rendered.multiRowHtml, /2 行/);
+  assert.match(rendered.multiRowHtml, /<table/);
+
+  assert.match(rendered.markdownHtml, /role="note"/, '数据覆盖提示应升格为 Callout 信息块');
+  assert.match(rendered.markdownHtml, /bg-\[var\(--brand-soft\)\][^>]*>88\.89%</, '关键百分比应有轻高亮');
+  assert.match(rendered.markdownHtml, /<hr[^>]*border-t/, '分隔线应清晰可见而非 border-0 隐身');
+
+  assert.match(rendered.assistantHtml, /复制结论/);
+  assert.match(rendered.assistantHtml, /归因分析/);
+  assert.match(rendered.assistantHtml, /动作建议/);
+  assert.match(rendered.assistantHtml, /data-testid="analysis-understanding"/);
+  assert.match(rendered.assistantHtml, /aria-expanded="false"/, '我的理解默认折叠为紧凑口径条');
+  assert.match(rendered.assistantHtml, /口径覆盖受限/, '部分覆盖告警应在折叠态直接可见');
+});

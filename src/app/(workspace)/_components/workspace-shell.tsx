@@ -36,6 +36,7 @@ import { WorkspaceSettingsDialog } from './workspace-settings-dialog';
 export type WorkspaceSidebarSession = {
   id: string;
   title: string;
+  updatedAt?: string;
   updatedAtLabel?: string;
   href: string;
   derivedStatus: 'pending' | 'running' | 'completed' | 'failed' | 'unavailable';
@@ -75,38 +76,66 @@ function persistSidebar(value: string) {
   document.cookie = `dip3-ws-sidebar=${value};path=/;max-age=31536000;samesite=lax`;
 }
 
-function statusDotClass(status: WorkspaceSidebarSession['derivedStatus']): string {
+function statusDotClass(status: WorkspaceSidebarSession['derivedStatus']): string | null {
   switch (status) {
     case 'running':
     case 'pending':
-      return 'bg-primary';
+      return 'bg-primary animate-pulse motion-reduce:animate-none';
     case 'failed':
       return 'bg-destructive';
     default:
-      return 'bg-muted-foreground/40';
+      return null;
   }
 }
 
-/** 超长文本容器：overflow 隐藏 + hover 时内层横向滚动显全（globals.css sb-marquee） */
-function MarqueeText({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <span className={cn('block min-w-0 overflow-hidden', className)}>
-      <span className="sb-marquee inline-block whitespace-nowrap">{children}</span>
-    </span>
-  );
+/** 按上海时区将历史会话归入「今天 / 昨天 / 近 7 天 / 更早」，降低左侧列表视觉噪音。 */
+function groupSessionsByDate(
+  sessions: WorkspaceSidebarSession[],
+): Array<{ label: string; items: WorkspaceSidebarSession[] }> {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const dayKey = (date: Date) => formatter.format(date);
+  const now = new Date();
+  const todayStr = dayKey(now);
+  const todayMidnight = Date.parse(`${todayStr}T00:00:00+08:00`);
+
+  const buckets = new Map<string, WorkspaceSidebarSession[]>();
+  const push = (label: string, session: WorkspaceSidebarSession) => {
+    const existing = buckets.get(label);
+    if (existing) existing.push(session);
+    else buckets.set(label, [session]);
+  };
+
+  for (const session of sessions) {
+    const rawTime = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
+    if (!Number.isFinite(rawTime)) {
+      push('更早', session);
+      continue;
+    }
+    const itemMidnight = Date.parse(`${dayKey(new Date(rawTime))}T00:00:00+08:00`);
+    const diffDays = Math.round((todayMidnight - itemMidnight) / 86_400_000);
+    if (diffDays <= 0) push('今天', session);
+    else if (diffDays === 1) push('昨天', session);
+    else if (diffDays <= 7) push('近 7 天', session);
+    else if (diffDays <= 30) push('近 30 天', session);
+    else push('更早', session);
+  }
+
+  return Array.from(buckets.entries()).map(([label, items]) => ({ label, items }));
 }
 
 function SessionList({
   sessions,
   loadFailed,
   pathname,
-  textWidth,
 }: {
   sessions: WorkspaceSidebarSession[];
   loadFailed: boolean;
   pathname: string;
-  /** 文本可用宽度（侧栏宽 - 固定装饰），供 marquee 计算滚动距离 */
-  textWidth: number;
 }) {
   if (loadFailed) {
     return (
@@ -122,36 +151,50 @@ function SessionList({
       </p>
     );
   }
+  const groups = groupSessionsByDate(sessions);
+  const showGroupHeaders = groups.length > 1 || (groups[0]?.label && groups[0].label !== '更早');
+
   return (
-    <nav
-      aria-label="分析会话历史"
-      className="flex flex-col gap-0.5"
-      style={{ ['--sb-text-w' as string]: `${textWidth}px` }}
-    >
-      {sessions.map((session) => {
-        const active = pathname === session.href;
-        return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            className={cn(
-              'sb-marquee-parent flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors',
-              'hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              active
-                ? 'bg-accent font-medium text-accent-foreground'
-                : 'text-foreground/85',
-            )}
-            href={session.href}
-            key={session.id}
-            title={session.title}
-          >
-            <span
-              aria-hidden
-              className={cn('size-1.5 shrink-0 rounded-full', statusDotClass(session.derivedStatus))}
-            />
-<span className="min-w-0"><MarqueeText>{session.title}</MarqueeText>{session.updatedAtLabel ? <span className="mt-1 block text-xs font-normal text-muted-foreground">{session.updatedAtLabel}</span> : null}</span>
-          </Link>
-        );
-      })}
+    <nav aria-label="分析会话历史" className="flex flex-col gap-3.5 pb-2">
+      {groups.map((group) => (
+        <div className="flex flex-col gap-0.5" key={group.label}>
+          {showGroupHeaders ? (
+            <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground/80">
+              {group.label}
+            </p>
+          ) : null}
+          {group.items.map((session) => {
+            const active = pathname === session.href;
+            const dotClass = statusDotClass(session.derivedStatus);
+            const tooltip = session.updatedAtLabel
+              ? `${session.title}\n${session.updatedAtLabel}`
+              : session.title;
+            return (
+              <Link
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13.5px] leading-snug transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  active
+                    ? 'border border-border/75 bg-card font-medium text-foreground shadow-[var(--shadow-panel)]'
+                    : 'border border-transparent text-foreground/75 hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.05]',
+                )}
+                href={session.href}
+                key={session.id}
+                title={tooltip}
+              >
+                {dotClass ? (
+                  <span
+                    aria-hidden
+                    className={cn('size-1.5 shrink-0 rounded-full', dotClass)}
+                  />
+                ) : null}
+                <span className="min-w-0 flex-1 truncate">{session.title}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
@@ -223,13 +266,15 @@ function CollapsedRail({
                 title={`${session.title} · ${session.updatedAtLabel ?? ''}`}
               >
                 <MessageSquare aria-hidden className="size-4" />
-                <span
-                  aria-hidden
-                  className={cn(
-                    'absolute bottom-1.5 right-1.5 size-1.5 rounded-full',
-                    statusDotClass(session.derivedStatus),
-                  )}
-                />
+                {statusDotClass(session.derivedStatus) ? (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'absolute bottom-1.5 right-1.5 size-1.5 rounded-full',
+                      statusDotClass(session.derivedStatus),
+                    )}
+                  />
+                ) : null}
               </Link>
             );
           })}
@@ -273,7 +318,7 @@ function UserMenu({
         className={cn(
           collapsed
             ? 'flex size-9 items-center justify-center rounded-lg hover:bg-secondary'
-            : 'sb-marquee-parent flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-secondary',
+            : 'flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.05]',
           'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
@@ -283,12 +328,12 @@ function UserMenu({
           <>
             {avatar}
             <span className="min-w-0 flex-1">
-              <MarqueeText className="text-sm font-medium text-foreground">
+              <span className="block truncate text-sm font-medium text-foreground">
                 {userDisplayName}
-              </MarqueeText>
-              <MarqueeText className="text-xs text-muted-foreground">
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
                 {userId}
-              </MarqueeText>
+              </span>
             </span>
             <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           </>
@@ -459,13 +504,13 @@ export function WorkspaceShell({
             <div className="px-3 pb-1 pt-2">
               <Link
                 className={cn(
-                  'flex items-center gap-2 rounded-md bg-accent px-3 py-2.5',
-                  'text-sm font-medium text-accent-foreground transition-colors',
-                  'hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  'flex items-center gap-2 rounded-xl border border-[var(--brand-300)]/40 bg-[var(--brand-soft)] px-3 py-2.5',
+                  'text-sm font-medium text-[var(--brand-900)] shadow-[var(--shadow-panel)] transition-colors',
+                  'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 )}
                 href="/workspace"
               >
-                <MessageSquarePlus aria-hidden className="size-4 shrink-0" />
+                <MessageSquarePlus aria-hidden className="size-4 shrink-0 text-primary" />
                 新分析
               </Link>
             </div>
@@ -480,7 +525,6 @@ export function WorkspaceShell({
                   loadFailed={sessionsLoadFailed}
                   pathname={pathname}
                   sessions={sessions}
-                  textWidth={width - 64}
                 />
               </ScrollArea>
             </div>

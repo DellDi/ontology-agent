@@ -89,7 +89,7 @@ export function AnalysisStepTimeline({ entries }: { entries: ToolTimelineEntry[]
 
   if (rows.length === 0) return null;
   return (
-    <CollapsibleSection title="查看分析过程">
+    <CollapsibleSection badge={`${rows.length} 步`} title="查看分析过程">
       <ol aria-label="分析过程" className="py-1">{rows}</ol>
     </CollapsibleSection>
   );

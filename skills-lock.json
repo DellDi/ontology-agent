@@ -1,6 +1,13 @@
 {
   "version": 2,
   "skills": {
+    "gemini-frontend-design": {
+      "source": "google-gemini/demolab",
+      "commit": "cd0c1f8540c0186ec9592af972a0700fa20909d4",
+      "sourceType": "github",
+      "skillPath": "skills/gemini-frontend-design/SKILL.md",
+      "computedHash": "9a0cfd9094b4e4c762c4a218b0da34178453004bbf350baef81f3f31800dfd36"
+    },
     "motion-showreel": {
       "source": "ConardLi/garden-skills",
       "commit": "f2d7adeaf53dcce3d0eb19cbffe8c04f4c636c2a",

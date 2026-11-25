@@ -9,15 +9,28 @@ import type { AnalysisRenderedBlock } from '@/application/analysis-interaction';
 import { getDefaultAnalysisInteractionUiRendererRegistry } from './analysis-interaction-ui-renderer-registry';
 import { MarkdownContent } from '@/app/_components/markdown-content';
 
-function MetricTrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
-  switch (trend) {
-    case 'up':
-      return <span aria-hidden className="text-emerald-500">↑</span>;
-    case 'down':
-      return <span aria-hidden className="text-rose-500">↓</span>;
-    case 'stable':
-      return <span aria-hidden className="text-muted-foreground">→</span>;
-  }
+function MetricTrendPill({
+  trend,
+  label,
+}: {
+  trend: 'up' | 'down' | 'stable';
+  label?: string;
+}) {
+  const styles =
+    trend === 'up'
+      ? 'bg-[var(--success-soft)] text-[var(--success-ink)]'
+      : trend === 'down'
+        ? 'bg-[var(--danger-soft)] text-[var(--danger-ink)]'
+        : 'bg-sky-100 text-muted-foreground';
+  const symbol = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
+  return (
+    <span
+      className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums ${styles}`}
+    >
+      <span aria-hidden>{symbol}</span>
+      {label ? <span>{label}</span> : null}
+    </span>
+  );
 }
 
 export function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
@@ -28,11 +41,11 @@ export function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
       {cards.map((card, index) => (
         <div
           key={`${card.label}-${index}`}
-          className="analysis-block-enter rounded-lg bg-muted/50 px-4 py-3"
-          style={{ animationDelay: `${Math.min(index, 5) * 60}ms` }}
+          className="analysis-block-enter rounded-xl border border-border bg-sky-50/75 px-4 py-3.5 shadow-[var(--shadow-panel)] transition-colors hover:border-[var(--line-300)]"
+          style={{ animationDelay: `${Math.min(index, 5) * 45}ms` }}
         >
-          <p className="text-xs text-muted-foreground">{card.label}</p>
-          <p className="mt-1 flex items-baseline gap-1.5 text-2xl font-semibold text-foreground">
+          <p className="text-xs font-medium text-muted-foreground">{card.label}</p>
+          <p className="mt-1.5 flex items-baseline gap-1.5 text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             <span>{card.value}</span>
             {card.unit ? (
               <span className="text-sm font-normal text-muted-foreground">
@@ -41,10 +54,7 @@ export function MetricCardsGrid({ cards }: { cards: MetricCard[] }) {
             ) : null}
           </p>
           {card.trend ? (
-            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-              <MetricTrendIcon trend={card.trend} />
-              {card.trendLabel ? <span>{card.trendLabel}</span> : null}
-            </p>
+            <MetricTrendPill label={card.trendLabel} trend={card.trend} />
           ) : null}
         </div>
       ))}
@@ -99,7 +109,7 @@ export function PrimaryAnswerBlock({ answer }: { answer: string }) {
 
   return (
     <div className="analysis-block-enter mt-1">
-      <MarkdownContent className="text-sm leading-7 text-foreground">
+      <MarkdownContent className="text-[15px] leading-[1.78] text-foreground">
         {answer}
       </MarkdownContent>
     </div>

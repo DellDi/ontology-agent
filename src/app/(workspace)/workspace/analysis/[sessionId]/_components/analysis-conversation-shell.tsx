@@ -64,7 +64,7 @@ import { AnalysisProposalReview } from './analysis-proposal-review';
 import { AnalysisUnderstandingEditor } from './analysis-understanding-editor';
 
 type SidePanel = { title: string; content: ReactNode; testId?: string; kind?: 'proposal-review' };
-const conversationColumn = 'mx-auto w-full max-w-[1200px] px-4 xl:px-10';
+const conversationColumn = 'mx-auto w-full max-w-[820px] px-4 sm:px-8';
 
 export type ChatTurnStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -416,15 +416,50 @@ export function AnalysisConversationShell({
     <div className="fill-viewport relative flex min-h-0 flex-1">
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
 
-        {(sidePanel || activeDrawer || editingTurnKey) && panelCollapsed ? (
+        {!currentCanvas ? (
+          <header className="z-10 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border/60 bg-background/85 px-4 backdrop-blur-md sm:px-6">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <p
+                className="truncate text-sm font-medium text-foreground"
+                title={rootTurn?.questionText ?? lastTurn?.questionText ?? '分析对话'}
+              >
+                {rootTurn?.questionText ?? lastTurn?.questionText ?? '分析对话'}
+              </p>
+              {turns.length > 1 ? (
+                <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                  {turns.length} 轮
+                </span>
+              ) : null}
+            </div>
+            {(sidePanel || activeDrawer || editingTurnKey) && panelCollapsed ? (
+              <Button
+                ref={restorePanelButton}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 gap-1.5 rounded-lg border-border/80 bg-card text-xs font-medium text-foreground shadow-[var(--shadow-panel)] hover:bg-secondary"
+                onClick={() => {
+                  setPanelCollapsed(false);
+                  if (window.matchMedia('(max-width: 1279px)').matches) requestAnimationFrame(() => {
+                    panelContainer.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+                  });
+                }}
+                aria-label="展开上下文面板"
+              >
+                <PanelRightOpen aria-hidden className="size-3.5 text-primary" />
+                {sidePanel?.title ?? '继续查看上下文'}
+              </Button>
+            ) : null}
+          </header>
+        ) : (sidePanel || activeDrawer || editingTurnKey) && panelCollapsed ? (
           <div className="flex justify-end px-4 pt-3">
-            <Button ref={restorePanelButton} type="button" variant="ghost" size="sm" onClick={() => {
+            <Button ref={restorePanelButton} type="button" variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => {
               setPanelCollapsed(false);
               if (window.matchMedia('(max-width: 1279px)').matches) requestAnimationFrame(() => {
                 panelContainer.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
               });
             }} aria-label="展开上下文面板">
-              <PanelRightOpen aria-hidden className="size-4" />
+              <PanelRightOpen aria-hidden className="size-3.5 text-primary" />
               {sidePanel?.title ?? '继续查看上下文'}
             </Button>
           </div>
@@ -463,7 +498,7 @@ export function AnalysisConversationShell({
         <div className={hasVisualWorkspace ? historyOpen ? 'flex h-[30dvh] min-h-0 flex-col border-t border-border' : 'hidden' : 'flex min-h-0 flex-1 flex-col'}>
         <Conversation className="min-h-0 flex-1">
           <AnalysisChatLocator marks={locatorMarks} />
-          <ConversationContent className={`${conversationColumn} min-w-0 gap-6 pb-6 pt-2`} scrollClassName="analysis-scrollbar overflow-x-hidden overflow-y-auto">
+          <ConversationContent className={`${conversationColumn} min-w-0 gap-9 pb-14 pt-6`} scrollClassName="analysis-scrollbar overflow-x-hidden overflow-y-auto">
             {turns.map((turn, index) => {
               const isLast = index === turns.length - 1;
               const details = turnDrawerContents[turn.key] ?? {};
@@ -624,6 +659,11 @@ export function AnalysisConversationShell({
         </Conversation>
         </div>
 
+        <div className="relative shrink-0 bg-background">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-t from-background via-background/80 to-transparent"
+        />
         <div className={conversationColumn}>
         {/* 发送失败提示 */}
         {sendError ? (
@@ -632,10 +672,10 @@ export function AnalysisConversationShell({
           </p>
         ) : null}
 
-        {/* 输入框：对话窗口底部，下方无任何内容 */}
-        <div className="mb-4 mt-3 rounded-lg border border-input bg-card px-2 pb-1 pt-2 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
-          {selectedObject ? <div className="mb-1 flex min-w-0 items-center gap-2 px-3 py-1 text-xs text-muted-foreground" data-testid="analysis-object-selection">
-            <span className="min-w-0 flex-1 break-all">针对：{selectedObject.label}</span>
+        {/* 输入框：悬浮圆角编辑器，顶部渐隐过渡不截断正文 */}
+        <div className="mb-4 mt-1 rounded-2xl border border-border bg-card px-3 pb-2 pt-2.5 shadow-[var(--shadow-composer)] transition-[border-color,box-shadow] duration-200 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
+          {selectedObject ? <div className="mb-1.5 flex min-w-0 items-center gap-2 rounded-lg bg-sky-50 px-3 py-1.5 text-xs text-muted-foreground" data-testid="analysis-object-selection">
+            <span className="min-w-0 flex-1 break-all">针对：<strong className="font-medium text-foreground">{selectedObject.label}</strong></span>
             <Button type="button" variant="ghost" size="icon-sm" aria-label="取消对象选择" onClick={() => {
               if (editorDirty.current && !window.confirm('查询调整尚未提交，放弃调整并取消对象选择？')) return;
               editorDirty.current = false;
@@ -645,7 +685,7 @@ export function AnalysisConversationShell({
             }}><X className="size-3.5" /></Button>
           </div> : null}
           {!hasCompletedRoot && !submissionError ? (
-            <p className="pb-2 text-xs text-muted-foreground">
+            <p className="px-2 pb-1.5 text-xs text-muted-foreground">
               {composerDisabled ? '正在分析，完成后可继续追问' : '首轮分析未完成，发送将以新会话重新分析'}
             </p>
           ) : null}
@@ -656,6 +696,7 @@ export function AnalysisConversationShell({
             sending={sending}
             status={liveStatus}
           />
+        </div>
         </div>
         </div>
         </div>
